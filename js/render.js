@@ -252,9 +252,10 @@ function layoutTerrain(){terrVer++;
   for(const n of nations)if(n.alive)n.cities.forEach((c,ci)=>{const r=cityRadius(n,ci===0);let s=0,k=0;
     for(let a=0;a<12;a++)for(const f of [0,.4,.8]){const hb=sampleH(c.x+Math.cos(a*.5236)*r*f,c.y+Math.sin(a*.5236)*r*f);if(hb>sea){s+=shapeH(hb);k++}}
     if(k)flatSpots.push({x:c.x,y:c.y,r:r*1.35,r0:r*.75,h:Math.max(s/k,waterY+.05)})});
+  const FB=new Map();for(const f of flatSpots){const r=Math.ceil(f.r);for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const k=(Math.floor(f.x)+dx)+','+(Math.floor(f.y)+dy);if(!FB.has(k))FB.set(k,[]);FB.get(k).push(f)}}
   for(let v=0;v<VH;v++)for(let u=0;u<VW;u++){const k=v*VW+u,tx=u/R-.5,ty=v/R-.5,hb=sampleH(tx,ty);
     let y=shapeH(hb);y+=detail[k]*(hb>SEA0?.16*(.12+clamp((hb-SEA0)*3.4,0,1.5)):.06);
-    if(y>waterY)for(const f of flatSpots){const dx=tx-f.x,dy=ty-f.y;if(Math.abs(dx)>f.r||Math.abs(dy)>f.r)continue;const d=Math.hypot(dx,dy);if(d>=f.r)continue;
+    const near=y>waterY&&FB.get(Math.floor(tx+.5)+','+Math.floor(ty+.5));if(near)for(const f of near){const dx=tx-f.x,dy=ty-f.y;if(Math.abs(dx)>f.r||Math.abs(dy)>f.r)continue;const d=Math.hypot(dx,dy);if(d>=f.r)continue;
       const w=d<=f.r0?1:1-smooth(f.r0,f.r,d);y=lerp(y,Math.max(f.h,Math.min(y,f.h+.02)),w*.92)}
     VY[k]=y;pos[k*3]=u/R-W/2;pos[k*3+1]=y;pos[k*3+2]=v/R-H/2}
   tslope=new Float32Array(N);
