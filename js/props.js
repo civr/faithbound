@@ -505,7 +505,7 @@ function cityKey(n,c,ci,e,lvl,gold,cap){const MR=metroRadius(n,c,cap,e),rad=Math
   for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===n.id)oh=(oh+((j*2654435761)>>>0)%1000003)%2147483647}
   const far=MR>.75&&Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
   return [n.id,e,lvl,cap?1:0,gold?1:0,n.festival>0?1:0,c.statue?c.statue.faith:-1,c.siege>.08?1:0,c.riot&&year-c.riot<6?1:0,n.faith,n.wonder,flagKey(n.flag),cultOf(n),settings.arch,terrVer,flatSig.length,oh,far?1:0,Math.round(MR*4),
-    n.techs&&n.techs.includes('aviation')?1:0,n.techs&&n.techs.includes('starships')?1:0,ci].join('|')}
+    n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,n.techs&&n.techs.includes('starships')?1:0,ci].join('|')}
 function replayCity(Rc){for(const name in Rc.k){const K=KITS[name],a=Rc.k[name],cnt=a.length/19,M=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array;
     for(let i=0;i<cnt&&K.k<K.max;i++){M.set(a.subarray(i*19,i*19+16),K.k*16);C.set(a.subarray(i*19+16,i*19+19),K.k*3);K.k++}}
   for(const v of Rc.occ)occupied.add(v);for(const v of Rc.bare)bare.add(v);for(const v of Rc.bg)bgrid.add(v);
@@ -524,7 +524,8 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       if(e>=1)bareMark(cx,cz,(cap?.3:.15)*.95);cityCenter(n,c,cx,cy,cz,e,cap,i0);
       if(cap)landmark(n,cx,cy,cz,e);
       if(cap&&n.wonder){const wx_=cx+.42,wz_=cz-.3;wonder(n,wx_,surfY(wx_,wz_),wz_,n.wonder);occupied.add(Math.floor(wz_+H/2)*W+Math.floor(wx_+W/2))}
-      if(n.faith>=0&&(cap||hash(i0*3)<.35)){const tx=cx-.32,tz=cz+.2;temple(faiths[n.faith],tx,surfY(tx,tz),tz,e,hash(i0)*3)}
+      if(n.faith>=0&&(cap||hash(i0*3)<.35)){const tx=cx-.32,tz=cz+.2;sacredSite(faiths[n.faith],n,tx,surfY(tx,tz),tz,e,hash(i0)*3,cap)}
+      if(c.dike)dikeRing(c,cx,cz);
       MCTX={lvl,cap,tall:[],w:.12};const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map();const count=plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+lvl*(cap?3.6:2.3))*(e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4));
       if(plan.metro)plan.streets.forEach((st,si)=>reach.set(si,1e9));let k=0,placed=0;c._poi={pts:[],plaza:[cx,cz],r:plan.pr};
       const far=plan.metro&&Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.3+2.5;MCTX.far=far;

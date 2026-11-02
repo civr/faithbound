@@ -37,6 +37,7 @@ const POWERS=[
   {id:'bless',tab:'People',label:'Bless',cost:20,icon:'sun',hint:'Tap a nation. It grows and fights harder for 30 years.'},
   {id:'festival',tab:'People',label:'Festival',cost:20,icon:'feast',hint:'Tap a nation. Its towns hold a harvest festival: full fields, a growing people and stronger faith in you.'},
   {id:'inspire',tab:'People',label:'Inspire',cost:25,icon:'bulb',hint:'Tap a nation. Its scholars work twice as fast for 20 years.'},
+  {id:'carry',tab:'People',label:'Lift & place',cost:25,icon:'hand',hint:'Tap a nation to lift its ruler (or its hero), or tap near a prophet. Then tap where to set them down: a ruler takes the throne there.'},
   {id:'golden',tab:'People',label:'Golden age',cost:45,icon:'laurel',hint:'Tap a nation. It flourishes for 50 years: more growth, faster research and grander towns.'},
   {id:'hero',tab:'People',label:'Hero',cost:40,icon:'shield',hint:'Tap a nation. A great hero is born who wins battles and leads the nation to glory.'},
   {id:'faith',tab:'Faith',label:'Spread faith',cost:30,icon:'star',hint:'Tap a nation to convert it to the selected faith.'},
@@ -87,6 +88,7 @@ Object.assign(ICON,{
   sprout:'<path d="M12 21v-9M12 12c0-4-3-6-7-6 0 4 3 6 7 6zM12 14c0-3 3-5 7-5 0 3-3 5-7 5zM5 21h14"/>',
   tree:'<path d="M12 21v-5M12 3l6 9h-3l4 4H5l4-4H6z"/>',
   waves:'<path d="M3 9c3-2 6 2 9 0s6 2 9 0M3 14c3-2 6 2 9 0s6 2 9 0M3 19c3-2 6 2 9 0s6 2 9 0"/>',
+  hand:GLYPHS.hand,
   split:'<path d="M12 21v-7M12 14L6 8M12 14l6-6M6 8V4M18 8V4M4 6h4M16 6h4"/>',
   thermo:'<path d="M10 14V5a2 2 0 014 0v9a4 4 0 11-4 0zM12 9v7"/><path d="M17 6h3M17 10h3"/>'});
 const TABS=['People','Faith','Rule','Strife','Land','Sky'];
@@ -106,7 +108,7 @@ function burst(i,kind,n,spread){const x=wx(i%W),z=wz((i/W)|0);for(let k=0;k<n;k+
 const needNation=n=>{if(!n){say("Tap inside a nation's borders.");return false}return true};
 
 /* ---------- powers ---------- */
-function applyTool(i,start){if(typeof rewind!=='undefined'&&rewind){if(start)say('You are looking at the past. Press Back to now first.');return}
+function applyTool(i,start){if(viewOnly&&tool!=='inspect'){if(start)say('You are watching a shared world. Nothing here can be changed.');return}if(typeof rewind!=='undefined'&&rewind){if(start)say('You are looking at the past. Press Back to now first.');return}
   if(i<0)return;const o=owner[i],n=o>=0?nations[o]:null;
   if(tool==='raise'||tool==='lower'){const s=tool==='raise'?1:-1;brush(i,2.6,(j,d)=>{h[j]=clamp(h[j]+s*.022*(1-d/3),0,1)});terrainDirty=true;if(rng()<.3)burst(i,'dust',2,1.5);return}
   if(tool==='smooth'){const nh=[];brush(i,2.6,(j,d)=>{let s=0,c=0;brush(j,1,(k)=>{s+=h[k];c++});nh.push([j,lerp(h[j],s/c,.35*(1-d/3))])});for(const [j,v] of nh)h[j]=v;terrainDirty=true;return}
@@ -148,6 +150,7 @@ function applyTool(i,start){if(typeof rewind!=='undefined'&&rewind){if(start)say
   case 'migrate':{if(!migrFrom){if(!needNation(n))return;const c=nearestTown(n,i);if(!c){say(`${n.name} has no town.`);return}migrFrom={n,c};fx(c.y*W+c.x,'bless');say(`You hold a band of settlers from ${c.name}. Now tap empty land to set them down.`,true);return}
     const A=migrFrom.n;if(!A.alive||!A.cities.includes(migrFrom.c)){migrFrom=null;say('That town is gone. Pick another.');return}
     if(!unlimited&&belief<20){say('Not enough belief. This needs 20.');return}const err=migrate(A,migrFrom.c,i);if(err){say(err,true);return}spend(20);migrFrom=null;toolHint();break}
+  case 'carry':{if(!carry){carryPick(i);return}if(!unlimited&&belief<25){say('Not enough belief. This needs 25.');return}if(carryDrop(i)){spend(25);toolHint()}break}
   case 'golden':if(!needNation(n))return;if(n.golden>year){say(`${n.name} is already in a golden age.`);return}if(!spend(45))return;goldenAge(n);fx(i,'bless');sfx('chime');break;
   case 'hero':if(!needNation(n))return;if(heroOf(n)){say(`${n.name} already has a hero: ${heroOf(n).name}.`);return}if(!spend(40))return;raiseHero(n);fx(i,'bless');break;
   case 'miracle':if(!needNation(n)||!spend(30))return;miracle(n);fx(i,'bless');sfx('chime');break;
@@ -183,7 +186,7 @@ function powerOnNation(n,id){const c=n.cities[0];if(!c)return;const prev=tool;to
 function buildDock(){$('#ptabs').innerHTML=TABS.map(t=>`<button class="ib" role="tab" data-tab="${t}" aria-pressed="${t===curTab}">${t}</button>`).join('');renderCards()}
 function renderCards(){const list=POWERS.filter(p=>p.tab==='*'||p.tab===curTab);
   $('#cards').innerHTML=list.map(p=>`<button class="pc${!unlimited&&p.cost>belief?' poor':''}" data-tool="${p.id}" aria-pressed="${p.id===tool}">${svg(p.icon)}<b>${p.label}</b><small>${p.cost?p.cost+' belief':'Free'}</small></button>`).join('')}
-function setTool(id){tool=id;if(id!=='war'&&id!=='ally')warFrom=-1;if(id!=='migrate')migrFrom=null;renderCards();toolHint()}
+function setTool(id){tool=id;if(id!=='carry')carry=null;if(id!=='war'&&id!=='ally')warFrom=-1;if(id!=='migrate')migrFrom=null;renderCards();toolHint()}
 $('#ptabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(!b)return;curTab=b.dataset.tab;buildDock()};
 $('#cards').onclick=e=>{const b=e.target.closest('[data-tool]');if(b)setTool(b.dataset.tool)};
 
@@ -302,7 +305,7 @@ function faithMakerClick(b){const a=b.dataset.fm,v=b.dataset.v;const nm=$('#fmNa
 
 /* ---------- court: ruler, family, dynasty, governors ---------- */
 function personCard(p,n,extra){if(!p)return '';const a=ageOf(p);
-  return `<div class="pcard${p.died!=null?' dead':''}">${portrait(p,n,48)}<div><b>${esc(p.name)}</b><small>${p.died!=null?`Died ${p.died} at ${a}${p.cause?' of '+esc(p.cause):''}`:`Age ${a}`}${extra?' · '+extra:''}</small><small>${p.traits.map(t=>TRAITS[t].label).join(', ')}</small></div></div>`}
+  return `<div class="pcard${p.died!=null?' dead':''}">${portrait(p,n,48)}<div><b>${esc(p.name)}</b><small>${p.died!=null?`Died ${p.died} at ${a}${p.cause?' of '+esc(p.cause):''}`:`Age ${a}`}${extra?' · '+extra:''}</small><small>${p.traits.map(t=>TRAITS[t]?TRAITS[t].label:t).join(', ')}</small></div>${p.died==null?`<button class="ib" data-follow="${p.id}">Follow</button>`:''}</div>`}
 function openCourt(n){const r=rulerOf(n);if(!r)return;const rg=n.reigns[n.reigns.length-1],kind=SUCCESSION[n.gov];
   const mods=chipsFor(r.traits.reduce((o,t)=>{for(const k of MODKEYS)if(TRAITS[t][k]!=null)o[k]=(o[k]||1)*TRAITS[t][k];return o},{}));
   const sp=per(r.spouse),par=[per(r.father),per(r.mother)].filter(Boolean),kids=r.children.map(per).filter(Boolean).sort((a,b)=>a.born-b.born);
@@ -352,7 +355,7 @@ function applyLook(k){lookKey=k;LK=LOOKS[k];if(VY)colorTerrain();lastEnv=-1e9;se
 /* ---------- HUD ---------- */
 function updateHUD(){renderGoal();
   const al=nations.filter(n=>n.alive),top=al.reduce((m,n)=>Math.max(m,n.era),0);
-  $('#yr').textContent=`Year ${year}`;$('#eraLbl').textContent=ERAS[top].name;
+  $('#yr').textContent=`Year ${year}${settings.seasons!==false?' · '+seasonName():''}`;if(followId!=null)followTick();$('#eraLbl').textContent=ERAS[top].name;
   $('#bel').textContent=unlimited?'∞':Math.floor(belief);$('#belRate').textContent=unlimited?'':`+${beliefRate.toFixed(1)}`;
   $('#wpop').textContent=fmtPop(al.reduce((s,n)=>s+n.pop,0));$('#wnat').textContent=al.length;
   $$('.speed [data-s]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.s===speedIdx));
@@ -488,7 +491,7 @@ async function loadCloud(slot){const r=await api('/api/saves/'+encodeURIComponen
 function rel(t){const s=(Date.now()-t)/1000;return s<90?'just now':s<5400?Math.round(s/60)+' minutes ago':s<172800?Math.round(s/3600)+' hours ago':Math.round(s/86400)+' days ago'}
 async function openWorlds(){await refreshWorlds();const w=account.worlds;
   openModal(`<h2>Your worlds</h2><p class="note">${w.length} of 30 saved on this server.</p><div class="wlist">${w.map(x=>`<div class="wrow"><div><b>${esc(x.name)}</b><small>Year ${x.year.toLocaleString('en-US')} · ${ERAS[x.era]?ERAS[x.era].name:''} · ${x.nations} nations${x.calendar?' · calendar':''} · saved ${rel(x.saved)}</small></div>
-    <button class="btn" data-w="load" data-slot="${esc(x.slot)}">Load</button><button class="btn danger" data-w="del" data-slot="${esc(x.slot)}">Delete</button></div>`).join('')||'<p class="note">No worlds yet. Start a new one and it is saved here.</p>'}</div>
+    <button class="btn" data-w="load" data-slot="${esc(x.slot)}">Load</button><button class="btn" data-share="${esc(x.slot)}">Share</button><button class="btn danger" data-w="del" data-slot="${esc(x.slot)}">Delete</button></div>`).join('')||'<p class="note">No worlds yet. Start a new one and it is saved here.</p>'}</div>
     <div class="row"><div class="flex"></div><button class="btn" data-p="close">Close</button></div>`)}
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-w]');if(!b)return;const slot=b.dataset.slot;
   if(b.dataset.w==='load'){closeModal();if(await loadCloud(slot)){startPlaying(false);if(worldOpts.calendar)awayFrom=year}return}
@@ -579,7 +582,7 @@ function openSettings(){const t=(k,label,v)=>`<label class="tog">${label}<input 
     <p class="note">Lower quality draws fewer trees and smaller shadows. Use it on older phones.</p></div>
     <div class="sec"><span class="lab">Power</span><div class="seg">${[['saver','Battery saver'],['balanced','Balanced'],['max','Maximum']].map(([k,l])=>`<button data-pow="${k}" aria-pressed="${(settings.power||'balanced')===k}">${l}</button>`).join('')}</div>
     <p class="note">Battery saver runs at 30 frames a second and fewer pixels, so laptops stay cool and quiet. Balanced runs at 60, and at 30 on battery. Maximum has no limit.</p></div>
-    <div class="sec">${t('shadows','Shadows',settings.shadows)}${t('daynight','Day and night cycle',settings.daynight)}${t('borders','Territory borders',settings.borders)}${t('labels','Nation names',settings.labels)}${t('people','People walking around',settings.people)}${t('clouds','Clouds',settings.clouds!==false)}${t('post','Look effects (outlines, focus blur, grading)',settings.post!==false)}${t('unlimited','Sandbox: unlimited belief',unlimited)}</div>
+    <div class="sec">${t('shadows','Shadows',settings.shadows)}${t('daynight','Day and night cycle',settings.daynight)}${t('borders','Territory borders',settings.borders)}${t('labels','Nation names',settings.labels)}${t('people','People walking around',settings.people)}${t('clouds','Clouds',settings.clouds!==false)}${t('seasons','Seasons (snow in winter, golden autumns)',settings.seasons!==false)}${t('post','Look effects (outlines, focus blur, grading)',settings.post!==false)}${t('unlimited','Sandbox: unlimited belief',unlimited)}</div>
     <div class="sec"><span class="lab">Sound</span>${t('mute','Mute all sound',settings.mute)}
       ${[['master','Master'],['music','Music'],['sfx','Effects'],['amb','Ambience']].map(([k,l])=>`<label class="slid">${l}<input type="range" min="0" max="1" step="0.05" data-vol="${k}" value="${vols()[k]}"></label>`).join('')}
       <p class="note">Sound starts after your first click. Ambience follows the camera: waves on the coast, birds in the woods, crowds in town.</p></div>
@@ -647,7 +650,7 @@ function frameBody(now){
   for(let k=rockets.length-1;k>=0;k--){const r=rockets[k];r.t+=dt;r.g.position.y+=dt*(.3+r.t*r.t*1.2);emit('dark',r.g.position.x,r.g.position.y,r.g.position.z);emit('fire',r.g.position.x,r.g.position.y-.02,r.g.position.z);if(r.t>6){scene.remove(r.g);rockets.splice(k,1)}}
   for(let k=eruptions.length-1;k>=0;k--){const e=eruptions[k];e.t+=dt;const y=groundY(e.x,e.z)+.1;for(let q=0;q<3;q++){emit('fire',e.x+(rng()-.5)*.3,y,e.z+(rng()-.5)*.3)}emit('dark',e.x,y+.2,e.z);if(e.t>12)eruptions.splice(k,1)}
   try{updateAudio(dt)}catch(e){}updateWalkers(dt,yrs);updateCaravans(dt,paused?0:1);updateLife(dt,now);if(!paused)updateEmitters(dt);
-  updateDisasters(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateGodWorks(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6,now);updateModern(dt,paused?0:1,now);updatePilgrims(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateParticles(paused?0:dt);
+  updateDisasters(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateGodWorks(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6,now);updateModern(dt,paused?0:1,now);updatePilgrims(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateSeasons(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.3);updateParticles(paused?0:dt);
   if(colorDirty&&now-lastColor>1500){lastColor=now;colorDirty=false;colorTerrain()}
   if(sculptTile>=0&&isSculpt(tool)&&now-lastSculpt>110){lastSculpt=now;applyTool(sculptTile,false)}
   if(terrainDirty){computeTerrain();layoutTerrain();terrainDirty=false;propsDirty=true;bordersDirty=true;treesDirty=true}
@@ -670,6 +673,7 @@ if(settings.lookV!==2){settings.lookV=2;settings.look='manor';saveSettings()}
 if(settings.look&&LOOKS[settings.look]){lookKey=settings.look;LK=LOOKS[lookKey]}
 resize();applyGraphics();genWorld();renderTitle();probeAccount();try{if(sessionStorage.getItem('fb.resume')){sessionStorage.removeItem('fb.resume');if(loadGame())startPlaying(false)}}catch(e){}
 requestAnimationFrame(frame);
+setTimeout(()=>{if(/^#view=/.test(location.hash))openSharedFromHash()},300);
 
 renderer.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();try{if(playing)saveLocal(buildSave())}catch(_){}toast('Graphics were reset','Your browser dropped the 3D view. It will reload in a moment; your world was saved.')});
 renderer.domElement.addEventListener('webglcontextrestored',()=>{if(playing){const d=buildSave();saveLocal(d);(account.user?cloudSave(d):Promise.resolve()).finally(()=>{sessionStorage.setItem('fb.resume','1');location.reload()})}else location.reload()});

@@ -11,9 +11,10 @@ const MAX_SAVE = 25 * 1024 * 1024, MAX_SLOTS = 30, SESSION_DAYS = 30;
 const USER_RE = /^[a-zA-Z0-9_.-]{3,24}$/, SLOT_RE = /^[a-z0-9-]{1,40}$/;
 
 fs.mkdirSync(path.join(DATA, 'saves'), { recursive: true });
-const USERS = path.join(DATA, 'users.json'), SESS = path.join(DATA, 'sessions.json');
+const USERS = path.join(DATA, 'users.json'), SESS = path.join(DATA, 'sessions.json'), SHARES = path.join(DATA, 'shares.json');
 const readJSON = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
-let users = readJSON(USERS, {}), sessions = readJSON(SESS, {});
+let users = readJSON(USERS, {}), sessions = readJSON(SESS, {}), shares = readJSON(SHARES, {});
+const persistShares = () => writeAtomic(SHARES, JSON.stringify(shares)).catch(console.error);
 
 async function writeAtomic(f, data) { const t = `${f}.${crypto.randomBytes(4).toString('hex')}.tmp`; await fsp.writeFile(t, data); await fsp.rename(t, f); }
 let sessTimer = null;
@@ -79,8 +80,26 @@ async function api(req, res, url) {
     return send(res, 200, { ok: true }, { 'Set-Cookie': setCookie(req, '', 0) });
   }
 
+  /* a shared world: anyone with the link may read it, nobody can write through it */
+  const shm = p.match(/^\/api\/shared\/([a-f0-9]{16,64})$/);
+  if (shm && m === 'GET') {
+    const s = shares[shm[1]]; if (!s) return send(res, 404, { error: 'That shared world was not found.' });
+    try { const data = JSON.parse(await fsp.readFile(path.join(userDir(s.user), s.slot + '.json'), 'utf8')); data.owner = users[s.user] ? users[s.user].name : null;
+      return send(res, 200, data); } catch { return send(res, 404, { error: 'That world is gone.' }); }
+  }
   const key = sessionUser(req);
   if (!key) return send(res, 401, { error: 'Not signed in.' });
+  const shs = p.match(/^\/api\/share\/([a-z0-9-]{1,40})$/);
+  if (shs && SLOT_RE.test(shs[1])) {
+    const slot = shs[1];
+    if (m === 'POST') {
+      if (!fs.existsSync(path.join(userDir(key), slot + '.json'))) return send(res, 404, { error: 'Save the world on the server first.' });
+      let tok = Object.keys(shares).find(t => shares[t].user === key && shares[t].slot === slot);
+      if (!tok) { tok = crypto.randomBytes(16).toString('hex'); shares[tok] = { user: key, slot, created: Date.now() }; await persistShares(); }
+      return send(res, 200, { token: tok });
+    }
+    if (m === 'DELETE') { for (const t of Object.keys(shares)) if (shares[t].user === key && shares[t].slot === slot) delete shares[t]; await persistShares(); return send(res, 200, { ok: true }); }
+  }
   if (p === '/api/me' && m === 'GET') return send(res, 200, { username: users[key].name });
 
   if (p === '/api/saves' && m === 'GET') {
@@ -107,7 +126,7 @@ async function api(req, res, url) {
       await writeAtomic(f, buf); await writeAtomic(mf, JSON.stringify(meta));
       return send(res, 200, meta);
     }
-    if (m === 'DELETE') { await fsp.rm(f, { force: true }); await fsp.rm(mf, { force: true }); return send(res, 200, { ok: true }); }
+    if (m === 'DELETE') { await fsp.rm(f, { force: true }); await fsp.rm(mf, { force: true }); for (const t of Object.keys(shares)) if (shares[t].user === key && shares[t].slot === slot) delete shares[t]; persistShares(); return send(res, 200, { ok: true }); }
   }
   return send(res, 404, { error: 'Not found.' });
 }
