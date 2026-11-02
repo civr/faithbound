@@ -461,6 +461,14 @@ addEventListener('resize',resize);
 
 /* ---------- title, setup, modals ---------- */
 function renderTitle(){const si=saveInfo(),cw=account.user&&account.worlds[0];
+  let skip=false;try{skip=sessionStorage.getItem('fb.nologin')==='1'}catch(_){}
+  if(account.online&&!account.user&&!skip){const reg=account.loginMode==='register'&&account.signup;$('#acct').innerHTML='';$('.credit').textContent='Sign in to keep your worlds on this server, on every device.';
+    $('#titleMenu').innerHTML=`<form class="glass login form2" id="authForm" data-mode="${reg?'register':'login'}"><h3>${reg?'Create your account':'Sign in'}</h3>
+      <label>Name<input type="text" name="username" autocomplete="username" required minlength="3" maxlength="24"></label>
+      <label>Password<input type="password" name="password" autocomplete="${reg?'new-password':'current-password'}" required ${reg?'minlength="8"':''}></label>
+      ${reg&&account.code?'<label>Invite code<input type="text" name="code" required></label>':''}<p class="err" id="authErr"></p>
+      <button class="btn primary" type="submit">${reg?'Create account':'Sign in'}</button>
+      <div class="alt">${account.signup?`<button type="button" data-lm="${reg?'login':'register'}">${reg?'I have an account':'Create an account'}</button>`:'<span></span>'}<button type="button" data-lm="skip">Play without an account</button></div></form>`;return}
   $('#acct').innerHTML=!account.online?'':account.user?`<span>Signed in as <b>${esc(account.user)}</b></span><button class="btn" data-m="logout">Sign out</button>`
     :`<span>Sign in to keep your worlds on this server.</span><button class="btn" data-m="login">Sign in</button>${account.signup?'<button class="btn" data-m="register">Create account</button>':''}`;
   const cont=cw?`<button class="btn primary" data-m="continue-cloud" data-slot="${esc(cw.slot)}">Continue <small>${esc(cw.name)} · Year ${cw.year.toLocaleString('en-US')}</small></button>`
@@ -487,7 +495,7 @@ function openAuth(mode){const reg=mode==='register';
   setTimeout(()=>{const i=$('#authForm input');if(i)i.focus()},50)}
 document.addEventListener('submit',async e=>{if(e.target.id!=='authForm')return;e.preventDefault();const f=e.target,fd=Object.fromEntries(new FormData(f));
   const r=await api(f.dataset.mode==='register'?'/api/register':'/api/login',{json:fd}).catch(()=>({ok:false,data:{error:'The server cannot be reached.'}}));
-  if(!r.ok){$('#authErr').textContent=(r.data&&r.data.error)||'Something went wrong.';return}
+  if(!r.ok){const er=f.querySelector('.err')||$('#authErr');er.textContent=(r.data&&r.data.error)||'Something went wrong.';return}
   account.user=r.data.username;closeModal();await refreshWorlds();await uploadLocalIfNewer();renderTitle();toast(`Welcome, ${account.user}`,'Your worlds are saved on this server now.')});
 async function logout(){await api('/api/logout',{json:{}}).catch(()=>{});account.user=null;account.worlds=[];renderTitle();toast('Signed out','Your worlds stay safe on the server.')}
 async function loadCloud(slot){const r=await api('/api/saves/'+encodeURIComponent(slot));if(!r.ok||!r.data){toast('Could not load that world',(r.data&&r.data.error)||'Try again.');return false}
@@ -503,7 +511,8 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-w]')
     await api('/api/saves/'+encodeURIComponent(slot),{method:'DELETE',headers:{'Content-Type':'application/json'}});if(worldOpts.slot===slot&&!playing){try{localStorage.removeItem('faithbound.save')}catch(e){}}await openWorlds();renderTitle()}});
 $('#acct').onclick=e=>{const b=e.target.closest('[data-m]');if(!b)return;const m=b.dataset.m;if(m==='login')openAuth('login');if(m==='register')openAuth('register');if(m==='logout')logout()};
 document.addEventListener('click',e=>{const b=e.target.closest('#modalBox [data-m="register"]');if(b)openAuth('register')});
-$('#titleMenu').onclick=async e=>{const b=e.target.closest('[data-m]');if(!b)return;const m=b.dataset.m;
+$('#titleMenu').onclick=async e=>{const lm=e.target.closest('[data-lm]');if(lm){if(lm.dataset.lm==='skip'){try{sessionStorage.setItem('fb.nologin','1')}catch(_){}}else account.loginMode=lm.dataset.lm;renderTitle();return}
+  const b=e.target.closest('[data-m]');if(!b)return;const m=b.dataset.m;
   if(m==='continue'){if(loadGame()){startPlaying(false);if(worldOpts.calendar)awayFrom=year}else{toast('No save found','Start a new world instead.');renderTitle()}}
   if(m==='continue-cloud'){if(await loadCloud(b.dataset.slot)){startPlaying(false);if(worldOpts.calendar)awayFrom=year}}
   if(m==='worlds')openWorlds();if(m==='login')openAuth('login');if(m==='register')openAuth('register');if(m==='logout')logout();
@@ -633,7 +642,7 @@ let frameErrs=0,lastErrMsg='';
 function reportErr(where,e){frameErrs++;const m=(e&&e.message)||String(e);console.error('Faithbound '+where+':',e);
   if(m!==lastErrMsg){lastErrMsg=m;try{toast('Something went wrong',`${where}: ${m}. The game keeps running.`)}catch(_){}}}
 /* frame cap: keeps laptops cool. Balanced runs at 60 fps, drops to 30 on battery, on menus and when the window is in the background */
-let lastDraw=0,onBattery=false,propCam={x:0,z:0},roadSig='',lastRoads=0,bordersUrgent=false,dynScale=1,frameEMA=16,dynT=0;
+let jobs=[],lastDraw=0,onBattery=false,propCam={x:0,z:0},roadSig='',lastRoads=0,bordersUrgent=false,dynScale=1,frameEMA=16,dynT=0;
 try{if(navigator.getBattery)navigator.getBattery().then(b=>{const u=()=>{onBattery=!b.charging};u();b.addEventListener('chargingchange',u)}).catch(()=>{})}catch(e){}
 function fpsCap(){const p=settings.power||'balanced';if(p==='max')return 0;let f=p==='saver'?30:60;
   const md=$('#modal');if(onBattery||!playing||(md&&!md.hidden)||(document.hasFocus&&!document.hasFocus()))f=Math.min(f,30);return f}
@@ -655,9 +664,9 @@ function frameBody(now){
   for(let k=eruptions.length-1;k>=0;k--){const e=eruptions[k];e.t+=dt;const y=groundY(e.x,e.z)+.1;for(let q=0;q<3;q++){emit('fire',e.x+(rng()-.5)*.3,y,e.z+(rng()-.5)*.3)}emit('dark',e.x,y+.2,e.z);if(e.t>12)eruptions.splice(k,1)}
   try{updateAudio(dt)}catch(e){}updateWalkers(dt,yrs);updateCaravans(dt,paused?0:1);updateLife(dt,now);if(!paused)updateEmitters(dt);
   updateDisasters(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateGodWorks(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6,now);updateModern(dt,paused?0:1,now);updateBlasts(paused?0:dt);updatePilgrims(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateSeasons(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.3);updateParticles(paused?0:dt);
-  if(colorDirty&&now-lastColor>1500){lastColor=now;colorDirty=false;colorTerrain()}
+  if(colorDirty&&now-lastColor>1500&&!jobs.length){lastColor=now;colorDirty=false;jobs.push(colorTerrain)}
   if(sculptTile>=0&&isSculpt(tool)&&now-lastSculpt>110){lastSculpt=now;applyTool(sculptTile,false)}
-  if(terrainDirty){computeTerrain();layoutTerrain();terrainDirty=false;propsDirty=true;bordersDirty=true;treesDirty=true}
+  if(terrainDirty&&(sculptTile>=0||!jobs.some(j=>j.terr))){terrainDirty=false;const tj=()=>{computeTerrain();layoutTerrain();propsDirty=true;bordersDirty=true;treesDirty=true};tj.terr=1;if(sculptTile>=0)tj();else jobs.unshift(tj)}
   waterU.uTime.value=now/1000;
   placeCamera(dt);updateSky(dt,now);
   if(shakeT>0){shakeT-=dt;const a=shakeT*.03*camDist/10;cam.position.x+=(rng()-.5)*a;cam.position.y+=(rng()-.5)*a}
@@ -667,9 +676,10 @@ function frameBody(now){
   if(spaceView){renderSpace(dt);octx.clearRect(0,0,ov.width,ov.height)}else{renderFrame();try{drawOverlay(now)}catch(e){reportErr('overlay',e)}}
   if(now-lastUI>500){lastUI=now;if(playing)updateHUD()}
   const camMoved=Math.hypot(camT.x-propCam.x,camT.z-propCam.z)>camDist*.9+1.5;
-  if((propsDirty&&now-lastProps>(playing?2500:600))||(playing&&now-lastProps>20000)||(camMoved&&now-lastProps>1500)){lastProps=now;propsDirty=false;propCam.x=camT.x;propCam.z=camT.z;const cs=citySig();if(cs!==flatSig){layoutTerrain();bordersDirty=true;treesDirty=true}rebuildCities();rebuildFields();const rs=nations.map(n=>n.alive?n.cities.map(c=>c.x+','+c.y).join(';'):'').join('|');if(rs!==roadSig||now-lastRoads>30000){roadSig=rs;lastRoads=now;rebuildRoads()}
-    if(treesDirty||now-lastTrees>30000){rebuildTrees();lastTrees=now;treesDirty=false}}
-  if(bordersDirty&&now-lastBorders>(playing&&!bordersUrgent?4000:300)){bordersUrgent=false;rebuildBorders();bordersDirty=false;lastBorders=now}
+  let ranJob=false;if(jobs.length){ranJob=true;const j=jobs.shift();try{j()}catch(e){reportErr('job',e)}}
+  else if((propsDirty&&now-lastProps>(playing?2500:600))||(playing&&now-lastProps>20000)||(camMoved&&now-lastProps>1500)){lastProps=now;propsDirty=false;if(camMoved)treesDirty=true;propCam.x=camT.x;propCam.z=camT.z;const cs=citySig();
+    if(cs!==flatSig)jobs.push(()=>{layoutTerrain();bordersDirty=true;treesDirty=true});jobs.push(rebuildCities,rebuildFields,()=>{const rs=nations.map(n=>n.alive?n.cities.map(c=>c.x+','+c.y).join(';'):'').join('|');if(rs!==roadSig||now-lastRoads>30000){roadSig=rs;lastRoads=now;rebuildRoads()}},()=>{if(treesDirty||performance.now()-lastTrees>30000){rebuildTrees();lastTrees=performance.now();treesDirty=false}})}
+  if(!ranJob&&bordersDirty&&now-lastBorders>(playing&&!bordersUrgent?4000:300)){bordersUrgent=false;rebuildBorders();bordersDirty=false;lastBorders=now}
   if(playing&&now-lastMini>900){lastMini=now;drawMini()}
   if(playing&&now-lastSave>60000){lastSave=now;saveGame()}
 }

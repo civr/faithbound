@@ -502,7 +502,7 @@ function metroPlan(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[],sl
 const CITYCACHE=new WeakMap();let setsPatched=false;
 function patchSets(){if(setsPatched)return;setsPatched=true;for(const [S_,key] of [[occupied,'occ'],[bare,'bare'],[bgrid,'bg']]){const o=S_.add.bind(S_);S_.add=v=>{if(REC)REC[key].push(v);return o(v)}}}
 function cityKey(n,c,ci,e,lvl,gold,cap){const MR=metroRadius(n,c,cap,e),rad=Math.ceil(Math.max(MR,.6))+1;let oh=0;
-  for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===n.id)oh=(oh+((j*2654435761)>>>0)%1000003)%2147483647}
+  for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===n.id)oh++}oh=Math.round(oh/4)
   const far=MR>.75&&Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
   return [n.id,e,lvl,cap?1:0,gold?1:0,n.festival>0?1:0,c.statue?c.statue.faith:-1,c.siege>.08?1:0,c.riot&&year-c.riot<6?1:0,n.faith,n.wonder,flagKey(n.flag),cultOf(n),settings.arch,terrVer,flatSig.length,oh,far?1:0,Math.round(MR*4),
     n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,n.techs&&n.techs.includes('starships')?1:0,ci].join('|')}
@@ -511,10 +511,11 @@ function replayCity(Rc){for(const name in Rc.k){const K=KITS[name],a=Rc.k[name],
   for(const v of Rc.occ)occupied.add(v);for(const v of Rc.bare)bare.add(v);for(const v of Rc.bg)bgrid.add(v);
   emitters.push(...Rc.em);herds.push(...Rc.hd);cityStreets.push(...Rc.cs);airports.push(...Rc.ap);spaceports.push(...Rc.sp);
   for(const g of Rc.wm){scene.add(g);windmills.push(g)}for(const m of Rc.tf){scene.add(m);townFlags.push(m)}}
-function rebuildCities(){patchSets();
+let RB0=0;
+function rebuildCities(){patchSets();RB0=performance.now();
   for(const m of townFlags)scene.remove(m);townFlags=[];airports=[];spaceports=[];bgrid.clear();kitReset(BUILD_KITS);occupied.clear();bare.clear();grassAt.x=1e9;emitters=[];herds=[];cityStreets=[];for(const g of windmills)scene.remove(g);windmills=[];
   for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(10,cityLevel(n)+(gold?1.5:0))*2)/2;
-    n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);if(hit&&hit.key===key){replayCity(hit);return}
+    n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);if(hit&&(hit.key===key||performance.now()-RB0>14)){if(hit.key!==key)propsDirty=true;replayCity(hit);return}
       const L0={em:emitters.length,hd:herds.length,cs:cityStreets.length,ap:airports.length,sp:spaceports.length,wm:windmills.length,tf:townFlags.length};
       REC={k:{},occ:[],bare:[],bg:[]};try{buildCity(n,c,ci,e,gold,lvl)}finally{const Rc=REC;REC=null;for(const nm in Rc.k)Rc.k[nm]=new Float32Array(Rc.k[nm]);
         Object.assign(Rc,{key,em:emitters.slice(L0.em),hd:herds.slice(L0.hd),cs:cityStreets.slice(L0.cs),ap:airports.slice(L0.ap),sp:spaceports.slice(L0.sp),wm:windmills.slice(L0.wm),tf:townFlags.slice(L0.tf)});CITYCACHE.set(c,Rc)}})}
@@ -643,13 +644,15 @@ function roadPath(a,b,nid,used){const key=a.x+','+a.y+'>'+b.x+','+b.y+'|'+nid;if
       if(river[k]&&!river[j])c+=2.5;if(used[k])c*=.45;const ng=g[j]+c;if(ng<g[k]){g[k]=ng;from[k]=j;push(k,ng+hx(k))}}}
   let path=null;if(found){path=[];for(let j=T;j>=0;j=from[j])path.push(j);path.reverse();for(const j of path)used[j]=1}
   if(roadCache.size>800)roadCache.clear();roadCache.set(key,path);return path}
+const DISCS=new Map();function discOff(n){if(!DISCS.has(n)){const o=[];for(let a=-n;a<=n;a++)for(let b=-n;b<=n;b++)if(a*a+b*b<=n*n+1)o.push([a,b]);DISCS.set(n,o)}return DISCS.get(n)}
+let riverVer=-1;
 function rebuildRoads(){roadBare.clear();grassAt.x=1e9;
   const P3=[[],[],[]],U3=[[],[],[]];
   kitReset(['bridge']);const bridged=new Set();
   const rib=(ax,az,bx,bz,w,t)=>{const L=Math.hypot(bx-ax,bz-az);if(L<1e-4)return;const S=Math.max(1,Math.ceil(L/.1)),nx=-(bz-az)/L*w/2,nz=(bx-ax)/L*w/2,rep=t===2?3:t===1?w*40:2;
     for(let s=0;s<=S;s++){const x=lerp(ax,bx,s/S),z=lerp(az,bz,s/S),ti=tileAt(x,z);if(ti>=0&&river[ti]&&!bridged.has(ti)&&groundY(x,z)>waterY){bridged.add(ti);const rot=Math.atan2(bx-ax,bz-az),y=groundY(x,z)+.04,len=.24+.05*river[ti],col=t===0?0x6b4a2e:t===1?0xb8b0a2:0x9a9a96;
       add('bridge',x,y,z,w*1.5,.02,len,rot,col);add('bridge',x+Math.cos(rot)*w*.75,y+.015,z-Math.sin(rot)*w*.75,.006,.02,len,rot,col);add('bridge',x-Math.cos(rot)*w*.75,y+.015,z+Math.sin(rot)*w*.75,.006,.02,len,rot,col)}}
-    for(let s=0;s<=S;s++){const n_=Math.ceil((w*.5+.012)/BC),X=Math.floor(lerp(ax,bx,s/S)/BC),Z=Math.floor(lerp(az,bz,s/S)/BC);for(let a=-n_;a<=n_;a++)for(let b=-n_;b<=n_;b++)if((a*a+b*b)<=n_*n_+1)roadBare.add((X+a)*100003+Z+b)}
+    {const D=discOff(Math.ceil((w*.5+.012)/BC)),st=Math.max(1,Math.round(w/BC*.5));for(let s=0;s<=S;s+=st){const X=Math.floor(lerp(ax,bx,s/S)/BC),Z=Math.floor(lerp(az,bz,s/S)/BC);for(const [a,b] of D)roadBare.add((X+a)*100003+Z+b)}}
     for(let s=0;s<S;s++){const t0=s/S,t1=(s+1)/S,x0=lerp(ax,bx,t0),z0=lerp(az,bz,t0),x1=lerp(ax,bx,t1),z1=lerp(az,bz,t1);
       const b0=tileAt(x0,z0),b1=tileAt(x1,z1),y0=groundY(x0,z0)+(b0>=0&&river[b0]?.06:.018),y1=groundY(x1,z1)+(b1>=0&&river[b1]?.06:.018),v0=t0*L*rep/(w*8),v1=t1*L*rep/(w*8);
       P3[t].push(x0+nx,y0,z0+nz,x1-nx,y1,z1-nz,x0-nx,y0,z0-nz, x0+nx,y0,z0+nz,x1+nx,y1,z1+nz,x1-nx,y1,z1-nz);
@@ -665,10 +668,11 @@ function rebuildRoads(){roadBare.clear();grassAt.x=1e9;
     const path=roadPath(n.cities[0],B.cities[0],-1,used);if(path){const e=Math.min(n.era,B.era);lines.push({path,w:e<3?.05:e<5?.065:.09,t:e<4?0:e<6?1:2})}}}
   for(const L of lines){const pts=chaikin2(L.path.map(j=>[wx(j%W)+(hash(j*3.1)-.5)*.25,wz((j/W)|0)+(hash(j*7.3)-.5)*.25]),3);
     for(let k=0;k<pts.length-1;k++)rib(pts[k][0],pts[k][1],pts[k+1][0],pts[k+1][1],L.w,L.t)}
-  for(const st of cityStreets)for(let k=0;k<st.pts.length-1;k++){const a=st.pts[k],b=st.pts[k+1];if(groundY(a[0],a[1])>waterY+.03&&groundY(b[0],b[1])>waterY+.03)rib(a[0],a[1],b[0],b[1],st.w,st.t)}
-  kitCommit(['bridge']);rebuildRivers();grassAt.x=1e9;
+  for(const st0 of cityStreets){/* thin out street points: short segments cost as much as long ones */const P0=st0.pts,q=[P0[0]];for(let k=1;k<P0.length;k++){const l=q[q.length-1];if(k===P0.length-1||Math.hypot(P0[k][0]-l[0],P0[k][1]-l[1])>=.1)q.push(P0[k])}const st={pts:q,w:st0.w,t:st0.t};
+    for(let k=0;k<st.pts.length-1;k++){const a=st.pts[k],b=st.pts[k+1];if(groundY(a[0],a[1])>waterY+.03&&groundY(b[0],b[1])>waterY+.03)rib(a[0],a[1],b[0],b[1],st.w,st.t)}}
+  kitCommit(['bridge']);if(riverVer!==terrVer){riverVer=terrVer;rebuildRivers()}grassAt.x=1e9;
   for(let t=0;t<3;t++){if(!roadMeshes[t]){const m=new THREE.Mesh(new THREE.BufferGeometry(),ROADMATS[t]);m.receiveShadow=true;m.frustumCulled=false;m.renderOrder=1;scene.add(m);roadMeshes[t]=m}
-    const g=freshGeo(roadMeshes[t]);g.setAttribute('position',new THREE.Float32BufferAttribute(P3[t],3));g.setAttribute('uv',new THREE.Float32BufferAttribute(U3[t],2));g.deleteAttribute('normal');g.computeVertexNormals();g.computeBoundingSphere()}
+    const g=freshGeo(roadMeshes[t]);g.setAttribute('position',new THREE.Float32BufferAttribute(P3[t],3));g.setAttribute('uv',new THREE.Float32BufferAttribute(U3[t],2));const nm=new Float32Array(P3[t].length);for(let q=1;q<nm.length;q+=3)nm[q]=1;g.setAttribute('normal',new THREE.BufferAttribute(nm,3));g.computeBoundingSphere()}
 }
 
 /* ---------- forests ---------- */
@@ -684,7 +688,7 @@ function rebuildTrees(){
     if((b===4||b===8)&&dens>.5&&settings.quality!=='high'){const tn=b===4?3:2;for(let t=0;t<tn;t++){const x=x0+hash(i*2.7+t*5)*.96+.02,z=z0+hash(i*4.3+t*7)*.96+.02,y=groundY(x,z);if(y>waterY+.04)add('tuft',x,y-.004,z,.016,.022+hash(i+t)*.014,.016,hash(i*t),b===4?0x4e7232:0x8a8a44)}
       if(hash(i*8.1)<.22){const fc=[0xe8d84a,0xd8504a,0xf2f2f2,0x9a6ad0,0xf0a040][(hash(i*3.9)*5)|0];for(let t=0;t<5;t++){const x=x0+hash(i*6.1+t)*.9+.05,z=z0+hash(i*1.9+t*3)*.9+.05,y=groundY(x,z);if(y>waterY+.04)add('flower',x,y+.006,z,.012,.012,.012,0,fc)}}}
     if(owner[i]>=0&&nations[owner[i]].era>=3&&type!=='rock')n=Math.round(n*.45);
-    n=Math.round(n*dens);
+    {const dd=Math.hypot(x0+.5-camT.x,z0+.5-camT.z),lod=dd>camDist*1.6+6?.3:dd>camDist*1.1+3?.6:1;n=Math.round(n*dens*lod)}
     for(let t=0;t<n;t++){const x=x0+.08+hash(i*3.1+t)*.84,z=z0+.08+hash(i*7.7+t)*.84,y=groundY(x,z);if(y<waterY+.05)continue;
       const s=(.62+hash(i*11.3+t)*.5)*near[i],hv=hash(i*5.9+t);
       if(type==='rock'||(type==='mount'&&hv<.45)){if(hv<.6)add('rock',x,y-.03,z,.08+hv*.25,.06+hv*.16,.08+hv*.2,hv*6,hv<.3?0x8a8378:0x9a9488);continue}
