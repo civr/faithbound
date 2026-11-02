@@ -94,6 +94,10 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .pc b{font-size:.74rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .pc small{font-size:.64rem;color:var(--muted)}
 .pc.poor small{color:var(--war)}
+.goal{position:absolute;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 78px);width:min(420px,calc(100vw - 32px));padding:8px 12px;display:grid;gap:4px;font-size:.78rem;z-index:3;pointer-events:none}
+.goal b{font-family:var(--display);font-weight:400;color:var(--gold2);font-size:.95rem}.goal span{color:var(--muted)}
+.scen{display:grid;gap:8px}.scard{display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:start;text-align:left;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04)}
+.scard:hover{background:rgba(226,189,106,.1);border-color:var(--gold)}.scard svg{width:26px;height:26px;color:var(--gold2)}.scard b{display:block;font-family:var(--display);font-weight:400;font-size:1.05rem;color:var(--gold2)}.scard small{color:var(--muted);font-size:.8rem;line-height:1.35}
 .sliders{display:grid;gap:7px}.sl{display:grid;grid-template-columns:78px 1fr 44px;align-items:center;gap:8px;font-size:.8rem}.sl input{width:100%;accent-color:var(--gold)}
 .sl .ends{grid-column:2;display:flex;justify-content:space-between;font-size:.66rem;color:var(--muted);margin-top:-6px}.sl b{text-align:right;font-weight:600;color:var(--gold2)}
 @media(max-width:560px){.cards{grid-template-columns:repeat(5,1fr);gap:3px}.pc b{font-size:.64rem}.pc small{font-size:.58rem}.pc svg{width:18px;height:18px}.tabs .ib{padding:4px 7px;font-size:.7rem}}
@@ -256,6 +260,7 @@ input[type=text],select{background:rgba(0,0,0,.25);border:1px solid var(--line2)
 <canvas id="ov"></canvas>
 
 <div id="hud" class="hidden">
+  <div class="glass goal" id="goal" hidden></div>
   <div class="bar">
     <div class="glass status">
       <div><div class="yr num" id="yr">Year 0</div><div class="era" id="eraLbl">Stone Age</div></div>
@@ -337,5 +342,8 @@ input[type=text],select{background:rgba(0,0,0,.25);border:1px solid var(--line2)
 <script src="js/politics.js"></script>
 <script src="js/powers.js"></script>
 <script src="js/modern.js"></script>
+<script src="js/economy.js"></script>
+<script src="js/schism.js"></script>
+<script src="js/scenarios.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/ui.js"></script>

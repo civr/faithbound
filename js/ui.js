@@ -43,6 +43,7 @@ const POWERS=[
   {id:'prophet',tab:'Faith',label:'Prophet',cost:35,icon:'staff',hint:'Tap land. A prophet of the selected faith walks from town to town and converts the people. Watch for the column of light.'},
   {id:'miracle',tab:'Faith',label:'Miracle',cost:30,icon:'sparkle',hint:'Tap a nation. Epidemics and famine end at once, and faith in you jumps up.'},
   {id:'anoint',tab:'Faith',label:'Anoint ruler',cost:30,icon:'oil',hint:'Tap a nation. Its ruler becomes your chosen one: the realm steadies, faith in you grows and the ruler lives longer.'},
+  {id:'schism',tab:'Faith',label:'Schism',cost:35,icon:'split',hint:'Tap a nation. Its faith splits: that nation and its neighbours form a new branch with a holy city of their own. Brother faiths often go to war.'},
   {id:'eclipse',tab:'Faith',label:'Eclipse',cost:25,icon:'eclipse',hint:'Tap anywhere. The sun goes dark: faithful nations pray, others panic, riot or go to war.'},
   {id:'reform',tab:'Rule',label:'Change rule',cost:30,icon:'crown',hint:'Tap a nation to choose its form of government.'},
   {id:'assassin',tab:'Rule',label:'Assassinate',cost:35,icon:'dagger',hint:'Tap a nation. Its ruler dies tonight. Without an heir, the throne is up for grabs.'},
@@ -86,6 +87,7 @@ Object.assign(ICON,{
   sprout:'<path d="M12 21v-9M12 12c0-4-3-6-7-6 0 4 3 6 7 6zM12 14c0-3 3-5 7-5 0 3-3 5-7 5zM5 21h14"/>',
   tree:'<path d="M12 21v-5M12 3l6 9h-3l4 4H5l4-4H6z"/>',
   waves:'<path d="M3 9c3-2 6 2 9 0s6 2 9 0M3 14c3-2 6 2 9 0s6 2 9 0M3 19c3-2 6 2 9 0s6 2 9 0"/>',
+  split:'<path d="M12 21v-7M12 14L6 8M12 14l6-6M6 8V4M18 8V4M4 6h4M16 6h4"/>',
   thermo:'<path d="M10 14V5a2 2 0 014 0v9a4 4 0 11-4 0zM12 9v7"/><path d="M17 6h3M17 10h3"/>'});
 const TABS=['People','Faith','Rule','Strife','Land','Sky'];
 let curTab='People',sheetPanel=null,shakeT=0,treesDirty=true;
@@ -151,6 +153,8 @@ function applyTool(i,start){
   case 'miracle':if(!needNation(n)||!spend(30))return;miracle(n);fx(i,'bless');sfx('chime');break;
   case 'prophet':{const f=selectedFaith>=0?selectedFaith:n&&n.faith>=0?n.faith:-1;if(f<0){say('Found a faith first in the Faiths panel.');openSheet('faiths');return}
     if(isWater(i)){say('Tap land. The prophet walks.');return}if(!spend(35))return;spawnProphet(i,f);fx(i,'faith');break}
+  case 'schism':{if(!needNation(n))return;if(n.faith<0){say(`${n.name} follows no faith yet.`);return}if(followersOf(n.faith).length<2){say(`Only ${n.name} follows ${faiths[n.faith].name}. A schism needs at least two nations.`);return}
+    if(!spend(35))return;const ni=schism(n.faith,n,true);if(ni>=0){selectedFaith=ni;fx(i,'faith')}break}
   case 'eclipse':if(eclipseT>0){say('The sun is already dark.');return}if(!spend(25))return;eclipse();break;
   case 'spark':{if(!needNation(n))return;const c=nearestTown(n,i);if(!c||c===n.cities[0]||n.cities.length<2){say('Tap a town that is not the capital.');return}if(!spend(35))return;sparkRevolt(n,c);fx(c.y*W+c.x,'war');break}
   case 'kraken':if(!isWater(i)){say('Tap the open sea.');return}if(!spend(50))return;spawnKraken(i);fx(i,'war');shakeT=.4;break;
@@ -158,7 +162,7 @@ function applyTool(i,start){
   case 'fertile':{if(isWater(i)){say('Tap land.');return}if(!spend(20))return;const r=fertileLand(i);fx(i,'rain');if(!r.n){say(r.cold?'Too cold to bloom here. Warm the climate first.':'This land is already green.');if(!unlimited)belief+=20;return}log('At your touch the dry land turned green.','life');break}
   case 'forest':{if(isWater(i)){say('Tap land.');return}if(!spend(15))return;const k=plantForest(i);if(!k){say('Nothing can grow here.');if(!unlimited)belief+=15;return}fx(i,'bless');log('A new forest sprang up at your word.','life');break}
   case 'flood':{if(!unlimited&&belief<30){say('Not enough belief. This needs 30.');return}const k=riverFlood(i);if(!k){say('Tap close to a river.');return}spend(30);fx(i,'rain');break}
-  case 'climate':openModal(`<h2>Climate</h2><p class="note">Change the whole world. A warmer world melts the ice and raises the seas, so low coasts can drown. A colder world grows glaciers and lowers the seas. Each step costs 40 belief.</p>
+  case 'climate':if(scen()&&scen().id==='climate'){say('In this scenario you cannot cool the world yourself. Guide the nations instead.');return}openModal(`<h2>Climate</h2><p class="note">Change the whole world. A warmer world melts the ice and raises the seas, so low coasts can drown. A colder world grows glaciers and lowers the seas. Each step costs 40 belief.</p>
     <div class="row" style="gap:8px;margin-top:10px"><button class="btn" data-clim="-1">❄ Colder</button><button class="btn primary" data-clim="1">☀ Warmer</button><button class="btn" data-clim="0">Cancel</button></div>`);break;
   case 'anoint':{if(!needNation(n))return;const r=rulerOf(n);if(!r||r.machine){say(`${n.name} has no ruler you can anoint.`);return}if(r.traits.includes('anointed')){say(`${r.name} is already your chosen one.`);return}
     if(!spend(30))return;anoint(n);fx(i,'bless');sfx('chime');break}
@@ -204,7 +208,7 @@ function renderNationCard(){
     ${wars.length?`<p class="note"><b style="color:#f0a196">Fighting:</b> ${esc(wars.join(', '))}</p>`:''}
     <div title="${esc(stTip)}"><div class="row" style="justify-content:space-between"><span class="lab">Stability · ${stabLabel(st)}</span><span class="lab">${sp.slice(0,2).map(p=>`${esc(p[0])} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join(' · ')}</span></div><div class="prog"><i style="width:${st*100}%;background:${stabColor(st)}"></i></div></div>
     <div><div class="row" style="justify-content:space-between"><span class="lab">Faith in you</span><span class="lab">${Math.round((n.devotion??.3)*100)}%${n.cities.filter(c=>c.statue).length?' · '+n.cities.filter(c=>c.statue).length+' statues':''}${n.festival>0?' · festival':''}</span></div><div class="prog"><i style="width:${(n.devotion??.3)*100}%;background:#e8c060"></i></div></div>
-    <p class="note">${esc(CULTURES[cultOf(n)].label)} culture${n.allies&&n.allies.length?` · <b style="color:#9ec8f0">Allies:</b> ${esc(n.allies.map(i=>nations[i].name).join(', '))}`:''}</p>
+    ${resourceLine(n)}<p class="note">${esc(CULTURES[cultOf(n)].label)} culture${n.allies&&n.allies.length?` · <b style="color:#9ec8f0">Allies:</b> ${esc(n.allies.map(i=>nations[i].name).join(', '))}`:''}</p>
     ${n.trade&&n.trade.length?`<p class="note"><b style="color:#a9dba5">Trading with:</b> ${esc(n.trade.map(i=>nations[i].name).join(', '))}</p>`:''}
     ${n.alive?`<div class="quick"><button class="ib" data-q="follow">Follow</button><button class="ib" data-q="bless">Bless</button><button class="ib" data-q="festival">Festival</button><button class="ib" data-q="ally">Ally</button><button class="ib" data-q="inspire">Inspire</button><button class="ib" data-q="faith">Faith</button><button class="ib" data-q="gov">Rule</button><button class="ib" data-q="tech">Tech</button><button class="ib" data-q="war">War</button>${wars.length?'<button class="ib" data-q="peace">Peace</button>':''}</div>`:''}`;
 }
@@ -237,7 +241,7 @@ function renderSheet(full){const B=$('#sheetBody');if(!sheetPanel)return;
       <div class="sec"><h4>Your faiths</h4><div class="flist" id="faithList"></div><p class="note">Tap a faith, then tap a nation to spread it. Faiths also spread on their own between neighbours at peace.</p></div>`;
     $('#faithList').innerHTML=faiths.length?faiths.map((f,i)=>{const c=nations.filter(n=>n.alive&&n.faith===i),pop=c.reduce((s,n)=>s+n.pop,0);
       return `<button class="fcard" data-f="${i}" aria-pressed="${i===selectedFaith}"><span class="fg" style="background:${f.color}">${glyph(f.glyph,'#fff')}</span>
-        <span class="nm">${esc(f.name)}<small>${(f.tenets||[f.tenet]).map(t=>TENETS[t].label).join(' · ')}${f.holy?' · Holy city '+esc(f.holy):''}</small></span>
+        <span class="nm">${esc(f.name)}<small>${(f.tenets||[f.tenet]).map(t=>TENETS[t].label).join(' · ')}${f.holy?' · Holy city '+esc(f.holy):''}${f.parent!=null&&faiths[f.parent]?' · branch of '+esc(faiths[f.parent].name):''}</small></span>
         <span class="pp">${c.length} nations<br>${fmtPop(pop)}</span></button>`}).join(''):'<p class="note">None yet. Your first faith starts your flow of belief.</p>'}
   else if(sheetPanel==='world'){if(full)B.innerHTML=`<div class="sec"><h4>Climate</h4>
       <div class="slider"><div class="top"><label for="tempR">Global temperature</label><output id="tempO"></output></div><input type="range" id="tempR" min="0" max="100"></div>
@@ -346,7 +350,7 @@ function renderLooks(sel){$(sel).innerHTML=Object.keys(LOOKS).map(k=>`<button da
 function applyLook(k){lookKey=k;LK=LOOKS[k];if(VY)colorTerrain();lastEnv=-1e9;settings.look=k;saveSettings()}
 
 /* ---------- HUD ---------- */
-function updateHUD(){
+function updateHUD(){renderGoal();
   const al=nations.filter(n=>n.alive),top=al.reduce((m,n)=>Math.max(m,n.era),0);
   $('#yr').textContent=`Year ${year}`;$('#eraLbl').textContent=ERAS[top].name;
   $('#bel').textContent=unlimited?'∞':Math.floor(belief);$('#belRate').textContent=unlimited?'':`+${beliefRate.toFixed(1)}`;
@@ -369,7 +373,7 @@ function drawOverlay(now){
     for(const cv of coves){const x=wx(cv.x),z=wz(cv.y),[sx,sy,sz]=project(x,surfY(x,z)+.5,z);if(sz>1)continue;
       octx.font=`500 ${Math.round(12*dpr)}px "Marcellus SC", Georgia, serif`;const t='☠ '+cv.name,tw=octx.measureText(t).width;
       octx.fillStyle='rgba(10,10,10,.75)';octx.fillRect(sx-tw/2-8*dpr,sy-11*dpr,tw+16*dpr,22*dpr);octx.fillStyle='#e8e0d0';octx.fillText(t,sx,sy)}octx.textAlign='left'}
-  if(settings.labels&&playing){
+  if(settings.labels&&playing){drawDepositLabels(dpr);
     octx.textBaseline='middle';
     for(const n of nations){if(!n.alive||!n.cities[0])continue;const c=n.cities[0],x=wx(c.x),z=wz(c.y);
       const lift=n.era>=7?1.5:n.era===6?1.1:n.era>=3?.6:.4;const [sx,sy,sz]=project(x,surfY(x,z)+lift,z);if(sz>1||sx<-50||sy<-50||sx>ov.width+50||sy>ov.height+50)continue;
@@ -455,7 +459,7 @@ function renderTitle(){const si=saveInfo(),cw=account.user&&account.worlds[0];
   const cont=cw?`<button class="btn primary" data-m="continue-cloud" data-slot="${esc(cw.slot)}">Continue <small>${esc(cw.name)} · Year ${cw.year.toLocaleString('en-US')}</small></button>`
     :si?`<button class="btn primary" data-m="continue">Continue <small>${esc(si.name||'This browser')} · Year ${si.year.toLocaleString('en-US')}</small></button>`:'';
   $('#titleMenu').innerHTML=`${cont}${account.user?`<button class="btn" data-m="worlds">Your worlds <small>${account.worlds.length}</small></button>`:''}
-    <button class="btn ${cont?'':'primary'}" data-m="new">New world</button><button class="btn" data-m="settings">Settings</button><button class="btn" data-m="help">How to play</button>`;
+    <button class="btn ${cont?'':'primary'}" data-m="new">New world</button><button class="btn" data-m="scen">Scenarios</button><button class="btn" data-m="settings">Settings</button><button class="btn" data-m="help">How to play</button>`;
   $('.credit').textContent=account.user?'Your worlds are saved on this server.':account.online?'Without an account, your world is saved in this browser only.':'Your world is saved in this browser.'}
 /* ---------- accounts and server saves ---------- */
 async function api(path,opts){const o=Object.assign({credentials:'same-origin',headers:{}},opts||{});if(o.json!==undefined){o.method=o.method||'POST';o.headers['Content-Type']='application/json';o.body=JSON.stringify(o.json);delete o.json}
@@ -496,7 +500,7 @@ $('#titleMenu').onclick=async e=>{const b=e.target.closest('[data-m]');if(!b)ret
   if(m==='continue'){if(loadGame()){startPlaying(false);if(worldOpts.calendar)awayFrom=year}else{toast('No save found','Start a new world instead.');renderTitle()}}
   if(m==='continue-cloud'){if(await loadCloud(b.dataset.slot)){startPlaying(false);if(worldOpts.calendar)awayFrom=year}}
   if(m==='worlds')openWorlds();if(m==='login')openAuth('login');if(m==='register')openAuth('register');if(m==='logout')logout();
-  if(m==='new')openSetup();if(m==='settings')openSettings();if(m==='help')openHelp()};
+  if(m==='new')openSetup();if(m==='scen')openScenarios();if(m==='settings')openSettings();if(m==='help')openHelp()};
 const WSL=[['land','Land','More sea','More land',.2,.85,.01,v=>Math.round(v*100)+'%'],['frag','Shape','Continents','Islands',.6,1.8,.05,v=>v<.85?'Big':v>1.3?'Many':'Mixed'],
   ['mtn','Mountains','Flat','Rugged',.4,1.8,.05,v=>v<.75?'Low':v>1.3?'High':'Some'],['rain','Rainfall','Deserts','Forests',.25,.75,.01,v=>v<.42?'Dry':v>.58?'Wet':'Mild'],['rivers','Rivers','Few','Many',.3,2.2,.1,v=>v<.7?'Few':v>1.4?'Many':'Some']];
 function renderWorldSliders(){$('#worldSliders').innerHTML=WSL.map(([k,l,a,b,mn,mx,st,f])=>{const v=worldOpts[k]??(k==='land'||k==='rain'?.5:1);
@@ -561,6 +565,7 @@ $('#modalBox').addEventListener('click',e=>{const fm=e.target.closest('[data-fm]
     if(p==='quit'){saveGame();closeModal();playing=false;closeSheet();$('#hud').classList.add('hidden');$('#title').classList.remove('hidden');$('#setup').hidden=true;$('#titleMain').hidden=false;renderTitle()}
     if(p==='back')playing?openPause():closeModal();return}
   const ds=e.target.closest('[data-dis]');if(ds){settings.disasters=ds.dataset.dis;saveSettings();openSettings();return}
+  const sc_=e.target.closest('[data-scen]');if(sc_){if(sc_.dataset.scen)startScenario(sc_.dataset.scen);else closeModal();return}
   const cl=e.target.closest('[data-clim]');if(cl){const d=+cl.dataset.clim;if(d&&spend(40))shiftClimate(d);closeModal();return}
   const pw=e.target.closest('[data-pow]');if(pw){settings.power=pw.dataset.pow;saveSettings();resize();openSettings();return}
   const q=e.target.closest('[data-q]');if(q){settings.quality=q.dataset.q;saveSettings();applyGraphics();treesDirty=true;propsDirty=true;openSettings()}
@@ -642,7 +647,7 @@ function frameBody(now){
   for(let k=rockets.length-1;k>=0;k--){const r=rockets[k];r.t+=dt;r.g.position.y+=dt*(.3+r.t*r.t*1.2);emit('dark',r.g.position.x,r.g.position.y,r.g.position.z);emit('fire',r.g.position.x,r.g.position.y-.02,r.g.position.z);if(r.t>6){scene.remove(r.g);rockets.splice(k,1)}}
   for(let k=eruptions.length-1;k>=0;k--){const e=eruptions[k];e.t+=dt;const y=groundY(e.x,e.z)+.1;for(let q=0;q<3;q++){emit('fire',e.x+(rng()-.5)*.3,y,e.z+(rng()-.5)*.3)}emit('dark',e.x,y+.2,e.z);if(e.t>12)eruptions.splice(k,1)}
   try{updateAudio(dt)}catch(e){}updateWalkers(dt,yrs);updateCaravans(dt,paused?0:1);updateLife(dt,now);if(!paused)updateEmitters(dt);
-  updateDisasters(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateGodWorks(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6,now);updateModern(dt,paused?0:1,now);updateParticles(paused?0:dt);
+  updateDisasters(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateGodWorks(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6,now);updateModern(dt,paused?0:1,now);updatePilgrims(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateParticles(paused?0:dt);
   if(colorDirty&&now-lastColor>1500){lastColor=now;colorDirty=false;colorTerrain()}
   if(sculptTile>=0&&isSculpt(tool)&&now-lastSculpt>110){lastSculpt=now;applyTool(sculptTile,false)}
   if(terrainDirty){computeTerrain();layoutTerrain();terrainDirty=false;propsDirty=true;bordersDirty=true;treesDirty=true}

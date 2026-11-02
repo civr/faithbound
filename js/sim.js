@@ -22,7 +22,7 @@ function genWorld(seedIn){
   nations=[];faiths=[];logs=[];year=0;ruins=[];warData={};coves=[];belief=100;climate.temp=.5;climate.rain=worldOpts.rain??.5;flags={warm:false,sail:false};milestones=new Set();
   selected=-1;inspectTile=-1;selectedFaith=-1;warFrom=-1;moistActive=0;effects=[];
   buildTerrain();computeTerrain();layoutTerrain();
-  seedCultures();
+  seedCultures();seedDeposits();indexDeposits();
   let placed=0,tries=0;
   while(placed<S.tribes&&tries<6000){tries++;const i=(rng()*N)|0;if(hab[i]<.7||owner[i]>=0||(tries<4000&&siteScore(i)<.6))continue;
     const x=i%W,y=(i/W)|0;let ok=true;for(const n of nations){const c=n.cities[0];if(Math.hypot(c.x-x,c.y-y)<W/(S.tribes>5?5.5:4.2)){ok=false;break}}
@@ -109,7 +109,7 @@ function nearCity(x,y,d){for(const n of nations){if(!n.alive)continue;for(const 
 /* towns want flat, fertile ground: valleys, river banks and coasts, never a mountainside */
 const SL_CITY=.5;
 const flatOk=j=>tslope.length===N?tslope[j]<SL_CITY:true;
-function siteScore(j){if(hab[j]<.45||!flatOk(j)||biome[j]>=10)return -1;let s=hab[j]-(tslope.length===N?tslope[j]:0)*.8;if(river[j])s+=.35;
+function siteScore(j){if(hab[j]<.45||!flatOk(j)||biome[j]>=10)return -1;let s=hab[j]-(tslope.length===N?tslope[j]:0)*.8;if(river[j])s+=.35;if(deposits.length&&nearDeposit(j,2.5))s+=.3;
   const x=j%W,y=(j/W)|0;for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X>=0&&Y>=0&&X<W&&Y<H&&isWater(Y*W+X)){s+=.25;break}}return s}
 function bestSite(A,x,y,r){let best=-1,bs=-1;for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
   if(owner[j]!==A.id)continue;const sc=siteScore(j);if(sc>bs){bs=sc;best=j}}return best}
@@ -352,7 +352,7 @@ function tick(){
       if(n.wars.size&&war<2+(n.era-SAIL)&&rng()<.05){const foes=[...n.wars];launch(n,'war',nations[foes[(rng()*foes.length)|0]])}}
     if(n.era===7&&n.techs&&n.techs.includes('starships')&&rng()<.004)launchRocket(n);
     if(year%5===n.id%5)tradeTick(n);
-    if(year%3===n.id%3)allianceTick(n);independenceTick(n,t);devotionTick(n);politicsTick(n);heroTick(n);terraformTick(n);if(!n.alive)continue;
+    if(year%3===n.id%3)allianceTick(n);independenceTick(n,t);devotionTick(n);politicsTick(n);heroTick(n);terraformTick(n);resourceTick(n);if(!n.alive)continue;
     if(n.era>=SAIL||(n.era>=3&&n.techs.includes('sailing'))){let ex=0,tr=0;for(const s of ships)if(s.owner===n.id&&!s.sink){if(s.kind==='explore')ex++;if(s.kind==='trade')tr++}
       if(ex<1&&rng()<.006*t.sea)launch(n,'explore');
       if(tr<1&&n.trade.length&&rng()<.03){const p=nations[n.trade[(rng()*n.trade.length)|0]];if(p&&p.alive)launch(n,'trade',p)}}
@@ -368,14 +368,14 @@ function tick(){
       const sa=mil(A),sb=mil(B);if(rng()<sa/(sa+sb)*.25*terrFactor(i,j)&&!cityAtTile(j)){const moved=B.pop/Math.max(1,B.tiles);B.pop=Math.max(2,B.pop-moved*.7);A.pop+=moved*.2;claim(j,a)}}
     else if(A.faith>=0&&B.faith!==A.faith&&rng()<.0008*ten(A).spread*(B.gov==='theocracy'?.3:1)*Math.min(3,A.pop/(B.pop+1))){B.faith=A.faith;propsDirty=true;log(`${B.name} adopted ${faiths[A.faith].name}.`,'faith')}
   }
-  warTick();pirateTick();terraformFlush();
+  warTick();pirateTick();terraformFlush();faithTick();scenarioTick();
   for(const n of nations){if(!n.alive)continue;const t=ten(n);
-    for(const b of n.nb){meet(n,nations[b]);if(n.wars.has(b))continue;const B=nations[b];if(!B.alive)continue;/* crowded realms fight over land; different faiths fight more */const crowd=(n.pop/n.cap>.8?1.8:1)*(B.pop/B.cap>.8?1.3:1);if(!allied(n,B)&&rng()<.0035*n.aggr*t.war*crowd*(n.faith!==B.faith?1.6:.6)*(n.ties.includes(b)?.35:1)*(n.trade.includes(b)?.6:1))startWar(n,B,null)}
+    for(const b of n.nb){meet(n,nations[b]);if(n.wars.has(b))continue;const B=nations[b];if(!B.alive)continue;/* crowded realms fight over land; different faiths fight more */const crowd=(n.pop/n.cap>.8?1.8:1)*(B.pop/B.cap>.8?1.3:1);const hw=holyWarFactor(n,B),cv=covets(n,B);if(!allied(n,B)&&rng()<.0035*n.aggr*t.war*crowd*(n.faith!==B.faith?1.6:.6)*(n.ties.includes(b)?.35:1)*(n.trade.includes(b)?.6:1)*hw*(cv?1.8:1)){startWar(n,B,null);if(hw>1&&rng()<.7)holyWarLog(n,B);else if(cv&&(important(n)||important(B)))log(`${n.name} wants the ${RESOURCES[cv].label.toLowerCase()} of ${B.name}.`,'war')}}
     if(n.era>=SAIL&&!n.wars.size&&rng()<.0006*n.aggr*t.war){const o=nations.filter(m=>m.alive&&m!==n&&m.era>=SAIL-1&&n.known.includes(m.id)&&!n.ties.includes(m.id));if(o.length)startWar(n,o[(rng()*o.length)|0],null)}
     if(n.tiles>N*.07&&n.cities.length>=3&&rng()<.002*(1+n.wars.size)/t.stab/Math.sqrt(paceInfo().techMult))rebel(n);
   }
   if(dLevel()>0)naturalEvents();disasterTick();peopleTick();
-  if(emis>0){climate.temp=Math.min(1,climate.temp+emis*4e-8);
+  if(emis>0){climate.temp=Math.min(1,climate.temp+emis*4e-8*(worldOpts.scenario&&worldOpts.scenario.id==='climate'?.14:1));
     if(!flags.warm){flags.warm=true;log('Smoke rises from the first factories. The world begins to warm.','sky')}
     if(year%5===0)terrainDirty=true}
   if(worldPop*100>=1e6)milestone('million','A million souls','The world population passed one million.');
@@ -411,7 +411,7 @@ function tradeTick(n){
   if(n.era<1)return;const cap=1+Math.floor(n.era/2);n.trade=n.trade.filter(i=>nations[i]&&nations[i].alive&&!n.wars.has(i));if(n.trade.length>=cap)return;
   const coastal=x=>x.cities.some(c=>coastWater(c).length);
   const cands=n.known.map(i=>nations[i]).filter(m=>m&&m.alive&&m.era>=1&&!n.wars.has(m.id)&&!n.trade.includes(m.id)&&m.trade.length<1+Math.floor(m.era/2)&&(n.nb.has(m.id)||(n.era>=SAIL&&coastal(n)&&coastal(m))));
-  if(!cands.length||rng()>.25)return;const m=cands[(rng()*cands.length)|0];n.trade.push(m.id);m.trade.push(n.id);
+  if(!cands.length||rng()>.25)return;let m=cands[0];{const w=cands.map(c=>tradeWant(n,c)*tradeWant(c,n));let r=rng()*w.reduce((a,b)=>a+b,0);for(let q=0;q<cands.length;q++){r-=w[q];if(r<=0){m=cands[q];break}}}n.trade.push(m.id);m.trade.push(n.id);
   if(important(n)||important(m))log(`${n.name} and ${m.name} opened a trade route.`,'life');milestone('trade','Merchants on the road','Two nations began to trade.')}
 function exploreArrive(n,X,Y){let found=0,land=0;const seen=new Set();
   for(let dy=-7;dy<=7;dy++)for(let dx=-7;dx<=7;dx++){const x=X+dx,y=Y+dy;if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;
@@ -442,7 +442,7 @@ function unb64(s,T){const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.l
 function buildSave(){
   if(!worldOpts.slot)worldOpts.slot=Date.now().toString(36)+Math.floor(rng()*1e6).toString(36);
   return {v:4,slot:worldOpts.slot,worldName:worldOpts.name||'Unnamed world',owner:account.user||null,worldOpts,sizeKey,lookKey,W,H,worldSeed,year,belief,climate,flags,dayT,
-    h:b64(h),bm:b64(baseMoist),md:b64(moistD),wd:warmD&&warmD.length===N?b64(warmD):null,owner16:b64(owner),
+    deps:deposits,h:b64(h),bm:b64(baseMoist),md:b64(moistD),wd:warmD&&warmD.length===N?b64(warmD):null,owner16:b64(owner),
     nations:nations.map(n=>Object.assign({},n,{wars:[...n.wars],nb:[],front:[],_walk:0})),ruins,warData,cultSeeds,coves,faiths,logs:logs.slice(0,60),
     milestones:[...milestones],mi:milestoneInfo,rivers,riv:b64(river),folk,folkId,houses,saved:Date.now(),
     summary:{nations:nations.filter(n=>n.alive).length,era:nations.reduce((m,n)=>n.alive?Math.max(m,n.era):m,0)}}}
@@ -470,6 +470,6 @@ function applySave(d){
   milestones=new Set(d.milestones);Object.assign(milestoneInfo,d.mi||{});
   selected=-1;inspectTile=-1;selectedFaith=-1;warFrom=-1;moistActive=60;effects=[];
   if(d.lookKey&&LOOKS[d.lookKey])applyLook(d.lookKey);
-  buildTerrain();computeTerrain();layoutTerrain();seedClouds();
+  buildTerrain();computeTerrain();layoutTerrain();seedClouds();deposits=d.deps||[];if(!deposits.length)seedDeposits();indexDeposits();
   camT.set(0,0,0);camDistT=camDist=Math.max(W,H)*.85;propsDirty=true;bordersDirty=true;return true;
 }

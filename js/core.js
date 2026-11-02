@@ -196,6 +196,7 @@ const fmtPop=v=>{v=Math.round(v*100);return v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e4
 function ten(n){const o=Object.assign({},NOTENET);const f=n.faith>=0?faiths[n.faith]:null;
   const parts=[];if(f)for(const t of (f.tenets||[f.tenet]))if(TENETS[t])parts.push(TENETS[t]);if(n.gov&&GOVS[n.gov])parts.push(GOVS[n.gov]);if(n.techs)for(const id of n.techs)if(TECH[id])parts.push(TECH[id]);
   if(n.ruler!=null&&typeof folk!=='undefined'&&folk[n.ruler])for(const t of folk[n.ruler].traits)if(TRAITS[t])parts.push(TRAITS[t]);
+  if(n._resMod)parts.push(n._resMod);
   for(const p of parts)for(const k of MODKEYS)if(p[k]!=null)o[k]*=p[k];
   const tr=n.trade?n.trade.length:0;if(tr){o.grow*=1+.04*tr;o.tech*=1+.05*tr}return o}
 const isWater=j=>biome[j]===0||biome[j]===1;
