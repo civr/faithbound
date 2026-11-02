@@ -1,3 +1,4 @@
+<link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="apple-touch-icon" href="favicon.png"><meta name="theme-color" content="#2a2418">
 <title>Faithbound</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -365,6 +366,7 @@ body.ui-marble .tabs .ib{color:#6f675a}body.ui-marble .tabs .ib[aria-pressed="tr
 body.ui-marble .glass input[type=text],body.ui-marble .glass input[type=password],body.ui-marble .glass select{background:#fff;color:#2a2620;border-color:rgba(168,135,58,.5)}
 body.ui-marble .glass .seg{background:rgba(255,255,255,.6)}body.ui-marble .glass .prog{background:rgba(80,70,50,.14)}body.ui-marble .status .yr{color:#7a5a12}
 body.ui-parchment .tp h1,body.ui-marble .tp h1{color:#f6e2a6}
+#fpsMeter{position:fixed;left:10px;bottom:10px;z-index:30;font:600 11px/1 ui-monospace,Menlo,monospace;color:#f3e6c4;background:rgba(20,16,10,.62);padding:5px 8px;border-radius:6px;pointer-events:none}
 </style>
 
 <canvas id="gl" aria-label="The world of Faithbound"></canvas>
@@ -373,6 +375,7 @@ body.ui-parchment .tp h1,body.ui-marble .tp h1{color:#f6e2a6}
 <div id="hud" class="hidden">
   <div class="glass goal" id="goal" hidden></div>
   <div class="glass rewind" id="rewindBar" hidden></div>
+  <div id="fpsMeter" hidden></div>
   <div class="glass follow" id="follow" hidden></div>
   <div class="glass spacep" id="spacePanel" hidden></div>
   <div class="bar">

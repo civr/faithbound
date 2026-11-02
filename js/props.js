@@ -131,7 +131,7 @@ kit('flame',unitCone(6),MAT.flame,300,false);
 kit('conifer',leafTree(11,'con'),treeMat,32000);
 kit('broad',leafTree(7,'broad'),treeMat,32000);
 kit('palm',merge([{g:tr(unitCyl(5,.35),0,0,0,.035,.34,.035),c:TRUNK},{g:tr(unitCone(7),0,.3,0,.34,-.1,.34),c:LEAF},{g:tr(new THREE.IcosahedronGeometry(.5,0),0,.33,0,.12,.08,.12),c:LEAF}]),treeMat,8000);
-kit('bush',merge([{g:tr(new THREE.IcosahedronGeometry(.5,1),0,.04,0,.14,.1,.14),c:LEAF}]),treeMat,8000);
+kit('bush',merge([{g:tr(new THREE.IcosahedronGeometry(.5,1),0,.04,0,.14,.1,.14),c:LEAF}]),treeMat,16000);
 kit('rock',(()=>{const g=new THREE.DodecahedronGeometry(.5,0);g.translate(0,.25,0);return g})(),stdMat({roughness:1}),6000);
 kit('fence',unitBox(),MAT.plain,30000,false);kit('lamp',unitBox(),MAT.lamp,4000,false);kit('awning',gableGeo(),MAT.awning,2000);
 kit('plazaStone',unitCyl(24),MAT.plaza,400,false);kit('plazaDirt',unitCyl(18),MAT.dirtPlaza,400,false);kit('pool',unitCyl(16),MAT.water,5000,false);
@@ -142,7 +142,7 @@ kit('animal',unitBox(),MAT.plain,1200,false);kit('car',unitBox(),MAT.plain,400,f
 kit('bird',(()=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute([0,0,.3,-1,.25,-.3,0,0,0, 0,0,.3,0,0,0,1,.25,-.3],3));g.computeVertexNormals();return g})(),new THREE.MeshBasicMaterial({color:0x2a2a2a,side:THREE.DoubleSide}),300,false);
 kit('body',unitBox(),MAT.plain,900,false);kit('cart',unitBox(),MAT.plain,200);kit('cartTop',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,8,1,false,0,Math.PI);g.rotateZ(Math.PI/2);g.translate(0,.0,0);return g})(),MAT.plain,200);kit('head',new THREE.SphereGeometry(.5,6,4),MAT.plain,900,false);
 function kitReset(names){for(const n of names)KITS[n].k=0}
-function kitCommit(names){for(const n of names){const K=KITS[n];K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;if(K.mesh.instanceColor)K.mesh.instanceColor.needsUpdate=true}}
+function kitCommit(names){if(typeof shadowForce!=='undefined')shadowForce=true;for(const n of names){const K=KITS[n];K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;if(K.mesh.instanceColor)K.mesh.instanceColor.needsUpdate=true}}
 function add(name,x,y,z,sx,sy,sz,rot,hex,tilt){const K=KITS[name];if(K.k>=K.max)return;
   dummy.position.set(x,y,z);dummy.rotation.set(tilt||0,rot||0,0);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();
   K.mesh.setMatrixAt(K.k,dummy.matrix);K.mesh.setColorAt(K.k,tmpC.set(hex==null?0xffffff:hex).convertSRGBToLinear());K.k++;
@@ -151,7 +151,14 @@ let REC=null;
 /* place relative to a rotated frame */
 function P(name,cx,cy,cz,rot,dx,dz,dy,sx,sy,sz,hex,extraRot){const c=Math.cos(rot),s=Math.sin(rot);add(name,cx+dx*c+dz*s,cy+dy,cz-dx*s+dz*c,sx,sy,sz,rot+(extraRot||0),hex)}
 const BUILD_KITS=['adobe','adobeCyl','hipTile','domeW','hipThatch','timber','bed','hay','plaster','stone','brick','thatch','tiles','coneThatch','coneTile','pyr','tower','office','glass','dome','box','cyl','ring','flame','fence','lamp','awning','plazaStone','plazaDirt','pool','townTree','boat'];
-const TREE_KITS=['conifer','broad','palm','bush','rock','tuft','flower'];
+kit('puddle',unitCyl(12),new THREE.MeshLambertMaterial({color:new THREE.Color(0x46707c).convertSRGBToLinear()}),6000,false);kit('reed',unitCone(4),stdMat({roughness:1}),12000,false);
+const TREE_KITS=['conifer','broad','palm','bush','rock','tuft','flower','puddle','reed'];
+/* marshes: wet, low, flat ground beside rivers, lakes and coasts */
+const MARSH_C=[72,88,52];let MARSH=null,marshVer=-1;
+function marshAt(i){if(!MARSH||MARSH.length!==N||marshVer!==terrVer){MARSH=new Uint8Array(N);marshVer=terrVer;
+    for(let j=0;j<N;j++){if(isWater(j)||!(biome[j]===4||biome[j]===5||biome[j]===8))continue;const m=baseMoist[j]+moistD[j]+(climate.rain-.5)*.7;if(h[j]-sea>.035||m<.5||hash(j*1.71)>.8)continue;
+      const x=j%W,y=(j/W)|0;let wet=false;for(let dy=-2;dy<=2&&!wet;dy++)for(let dx=-2;dx<=2;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(isWater(q)||river[q]){wet=true;break}}if(wet)MARSH[j]=1}}
+  return MARSH[i]===1}
 
 /* ---------- building recipes ---------- */
 const ROOF_RED=[0xa04a32,0x8e3f2c,0xb3593a,0x7c3a2b],ROOF_SLATE=[0x5d6672,0x4f5864,0x6a707a];
@@ -501,11 +508,12 @@ function metroPlan(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[],sl
 /* towns are cached: a town whose look has not changed is replayed from its recorded instances instead of rebuilt */
 const CITYCACHE=new WeakMap();let setsPatched=false;
 function patchSets(){if(setsPatched)return;setsPatched=true;for(const [S_,key] of [[occupied,'occ'],[bare,'bare'],[bgrid,'bg']]){const o=S_.add.bind(S_);S_.add=v=>{if(REC)REC[key].push(v);return o(v)}}}
+const townGrowth=c=>c.born==null?1:clamp((year-c.born)/200,.15,1);
 function cityKey(n,c,ci,e,lvl,gold,cap){const MR=metroRadius(n,c,cap,e),rad=Math.ceil(Math.max(MR,.6))+1;let oh=0;
   for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===n.id)oh++}oh=Math.round(oh/4)
-  const far=MR>.75&&Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
+  const far=Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
   return [n.id,e,lvl,cap?1:0,gold?1:0,n.festival>0?1:0,c.statue?c.statue.faith:-1,c.siege>.08?1:0,c.riot&&year-c.riot<6?1:0,n.faith,n.wonder,flagKey(n.flag),cultOf(n),settings.arch,terrVer,flatSig.length,oh,far?1:0,Math.round(MR*4),
-    n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,n.techs&&n.techs.includes('starships')?1:0,ci].join('|')}
+    n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),n.techs&&n.techs.includes('starships')?1:0,ci].join('|')}
 function replayCity(Rc){for(const name in Rc.k){const K=KITS[name],a=Rc.k[name],cnt=a.length/19,M=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array;
     for(let i=0;i<cnt&&K.k<K.max;i++){M.set(a.subarray(i*19,i*19+16),K.k*16);C.set(a.subarray(i*19+16,i*19+19),K.k*3);K.k++}}
   for(const v of Rc.occ)occupied.add(v);for(const v of Rc.bare)bare.add(v);for(const v of Rc.bg)bgrid.add(v);
@@ -527,10 +535,10 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       if(cap&&n.wonder){const wx_=cx+.42,wz_=cz-.3;wonder(n,wx_,surfY(wx_,wz_),wz_,n.wonder);occupied.add(Math.floor(wz_+H/2)*W+Math.floor(wx_+W/2))}
       if(n.faith>=0&&(cap||hash(i0*3)<.35)){const tx=cx-.32,tz=cz+.2;sacredSite(faiths[n.faith],n,tx,surfY(tx,tz),tz,e,hash(i0)*3,cap)}
       if(c.dike)dikeRing(c,cx,cz);
-      MCTX={lvl,cap,tall:[],w:.12};const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map();const count=plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+lvl*(cap?3.6:2.3))*(e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4));
+      MCTX={lvl,cap,tall:[],w:.12};const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+lvl*(cap?3.6:2.3))*(e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
       if(plan.metro)plan.streets.forEach((st,si)=>reach.set(si,1e9));let k=0,placed=0;c._poi={pts:[],plaza:[cx,cz],r:plan.pr};
-      const far=plan.metro&&Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.3+2.5;MCTX.far=far;
-      for(const sl of slots){if(placed>=count)break;k++;MCTX.w=sl.metro?sl.w:.12;if(far&&sl.core<.3&&hash(k*7.7)<.75)continue;
+      const far=Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.3+2.5;MCTX.far=far;
+      for(const sl of slots){if(placed>=count)break;k++;MCTX.w=sl.metro?sl.w:.12;if(far&&plan.metro&&sl.core<.3&&hash(k*7.7)<.75)continue;
         if(e>=5){const bk=Math.round(sl.x*14)+','+Math.round(sl.z*14);if(bgrid.has(bk))continue;bgrid.add(bk)}
         const ti=tileAt(sl.x,sl.z);if(ti<0||owner[ti]!==n.id)continue;
         const hw=sl.w/2,hd=sl.d/2,ca=Math.cos(sl.rot),sa=Math.sin(sl.rot);let mn=1e9,mx=-1e9;
@@ -540,10 +548,10 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         const y=mx;if(mx-mn>.012&&e>=1)add('stone',sl.x,mn-.03,sl.z,sl.w*1.04,mx-mn+.03,sl.d*1.04,sl.rot,0xa8a090);
         const hk=hash(c.x*31+c.y*17+k*13);
         if(e===5&&sl.core<.5&&hk<.18)factory(sl.x,y,sl.z,sl.rot,true);else dwelling(n,sl.x,y,sl.z,sl.rot,e,hk,k,sl.core);
-        if(sl.pd>0&&e>=1&&e<=4&&cultOf(n)!=='mideast'&&cultOf(n)!=='africa')yard(sl.x,sl.z,sl.rot,sl.w,sl.d,sl.pd,sl.pw,hk);
+        if(!far&&sl.pd>0&&e>=1&&e<=4&&cultOf(n)!=='mideast'&&cultOf(n)!=='africa')yard(sl.x,sl.z,sl.rot,sl.w,sl.d,sl.pd,sl.pw,hk);
         if(sl.st>=0)reach.set(sl.st,Math.max(reach.get(sl.st)||0,sl.at+.12));
         c._poi.pts.push([sl.fx,sl.fz]);
-        if(e>=3&&e<=5&&hk<.16)smokeAt(sl.x,y+.13*(1+sl.core*.6),sl.z,false,.25)}
+        if(!far&&e>=3&&e<=5&&hk<.16)smokeAt(sl.x,y+.13*(1+sl.core*.6),sl.z,false,.25)}
       {const fa=hash(i0*11)*6.283,fr=(cap?.3:.15)*.62,fx=cx+Math.cos(fa)*fr,fz=cz+Math.sin(fa)*fr;townFlag(n,fx,groundY(fx,fz),fz,cap,e)}
       if(c.riot&&year-c.riot<6){for(let q=0;q<2;q++){const a=hash(i0*7+q)*6.283;smokeAt(cx+Math.cos(a)*.12,cy+.06,cz+Math.sin(a)*.12,true,.5)}}
       if(c.siege>.08){for(let q=0;q<3;q++){const a=hash(i0*5+q)*6.283;smokeAt(cx+Math.cos(a)*.2,cy+.08,cz+Math.sin(a)*.2,true,.6+c.siege)}}
@@ -618,6 +626,13 @@ TX.river.encoding=THREE.sRGBEncoding;
 const riverMat=new THREE.MeshStandardMaterial({map:TX.river,color:colL(0x3f86ad),roughness:.1,metalness:.05,transparent:true,opacity:.9,envMapIntensity:1.2});
 let riverMesh=null;
 function chaikin(p,it){for(let k=0;k<it;k++){const o=[p[0]];for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1];o.push([a[0]*.75+b[0]*.25,a[1]*.75+b[1]*.25,a[2]*.75+b[2]*.25],[a[0]*.25+b[0]*.75,a[1]*.25+b[1]*.75,a[2]*.25+b[2]*.75])}o.push(p[p.length-1]);p=o}return p}
+function brooks(){const out=[],src=[];for(let i=0;i<N;i++){if(isWater(i)||river[i]||biome[i]>=11)continue;const a=h[i]-sea,m=baseMoist[i]+moistD[i];if(a<.04||a>.34||m<.4||hash(i*9.13)>.07)continue;src.push(i)}
+  const taken=new Uint8Array(N);
+  for(const s of src){if(taken[s])continue;const path=[s];let cur=s;
+    for(let k=0;k<30;k++){const x=cur%W,y=(cur/W)|0;let best=-1,bh=h[cur];for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(h[q]<bh-.0005){bh=h[q];best=q}}
+      if(best<0)break;path.push(best);cur=best;if(isWater(best)||river[best]||taken[best]||marshAt(best))break}
+    if(path.length<4)continue;for(const t of path)taken[t]=1;out.push(path)}
+  return out}
 function rebuildRivers(){const pos=[],uv=[],idx=[];let base=0;
   for(const r of rivers){const pts=chaikin(r.tiles.map(t=>[wx(t%W)+(hash(t)-.5)*.3,wz((t/W)|0)+(hash(t*3)-.5)*.3,river[t]||1]),2);let v=0;
     for(let k=0;k<pts.length;k++){const p=pts[k],q=pts[Math.min(k+1,pts.length-1)],o=pts[Math.max(k-1,0)];let dx=q[0]-o[0],dz=q[1]-o[1];const L=Math.hypot(dx,dz)||1;dx/=L;dz/=L;
@@ -625,6 +640,10 @@ function rebuildRivers(){const pos=[],uv=[],idx=[];let base=0;
       const y=Math.max(Math.min(gl,gr,gc)+.03,waterY-.02);if(k>0)v+=Math.hypot(p[0]-pts[k-1][0],p[1]-pts[k-1][1])*2.5;
       pos.push(p[0]+nx,y,p[1]+nz,p[0]-nx,y,p[1]-nz);uv.push(0,v,1,v);
       if(k>0){const a=base+(k-1)*2;idx.push(a,a+2,a+1,a+1,a+2,a+3)}}base+=pts.length*2}
+  for(const path of brooks()){const pts=chaikin(path.map((t,k)=>[wx(t%W)+(hash(t*2.1)-.5)*.5,wz((t/W)|0)+(hash(t*4.7)-.5)*.5,k/path.length]),2);let v=0;
+    for(let k=0;k<pts.length;k++){const p=pts[k],q=pts[Math.min(k+1,pts.length-1)],o=pts[Math.max(k-1,0)];let dx=q[0]-o[0],dz=q[1]-o[1];const L=Math.hypot(dx,dz)||1;dx/=L;dz/=L;
+      const w=.012+.02*p[2],nx=-dz*w,nz=dx*w,y=Math.max(Math.min(groundY(p[0]+nx,p[1]+nz),groundY(p[0]-nx,p[1]-nz),groundY(p[0],p[1]))+.008,waterY-.02);if(k>0)v+=Math.hypot(p[0]-pts[k-1][0],p[1]-pts[k-1][1])*4;
+      pos.push(p[0]+nx,y,p[1]+nz,p[0]-nx,y,p[1]-nz);uv.push(0,v,1,v);if(k>0){const a=base+(k-1)*2;idx.push(a,a+2,a+1,a+1,a+2,a+3)}}base+=pts.length*2}
   if(!riverMesh){riverMesh=new THREE.Mesh(new THREE.BufferGeometry(),riverMat);riverMesh.receiveShadow=true;riverMesh.frustumCulled=false;riverMesh.renderOrder=2;scene.add(riverMesh)}
   const g=freshGeo(riverMesh);g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.deleteAttribute('normal');g.computeVertexNormals()}
 kit('bridge',unitBox(),MAT.stone,600);
@@ -682,17 +701,21 @@ function rebuildTrees(){
   const near=new Float32Array(N).fill(1);for(const n of nations)if(n.alive)for(const c of n.cities)for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);near[Y*W+X]=Math.min(near[Y*W+X],.5+smooth(1,3.2,d)*.5)}
   for(let i=0;i<N;i++){const b=biome[i];if(occupied.has(i)||fieldTiles.has(i)||(scorched&&scorched[i]>0)||fires.has(i))continue;
     const x0=i%W-W/2,z0=((i/W)|0)-H/2,lat=1-Math.abs(((i/W)|0)/(H-1)-.5)*2;let n=0,type='broad';
+    if(marshAt(i)){/* a marsh: pools of standing water, reeds and a few willows */for(let t=0;t<4;t++){const x=x0+.1+hash(i*2.3+t)*.8,z=z0+.1+hash(i*5.1+t)*.8,y=groundY(x,z);if(y<waterY+.01)continue;const s=.12+hash(i+t*9)*.22;add('puddle',x,y-.004,z,s,.006,s*.7,hash(i*t+1)*6)}
+      for(let t=0;t<16;t++){const x=x0+hash(i*3.7+t)*.98,z=z0+hash(i*6.3+t*2)*.98,y=groundY(x,z);if(y<waterY+.01)continue;add('reed',x,y-.003,z,.008,.05+hash(i*t+3)*.04,.008,0,hash(i+t)<.5?0x6a7a3a:0x8a7a48)}
+      if(hash(i*4.4)<.5){const x=x0+.5,z=z0+.5,y=groundY(x,z);if(y>waterY+.02)add('broad',x,y-.01,z,.55,.6,.55,hash(i)*6,0x5f7a3a)}continue}
     if(b===5){n=19;type=lat<.45||climate.temp<.4?'conifer':'mix'}else if(b===6){n=10;type='jungle'}else if(b===4){n=hash(i*1.3)<.4?3:0;type='broad'}
     else if(b===8){n=hash(i*1.3)<.3?1:0;type='acacia'}else if(b===9){n=hash(i*1.3)<.55?3:0;type='conifer'}else if(b===3){n=hash(i*1.3)<.3&&lat>.5?1:0;type='palm'}
     else if(b===11){n=5;type='mount'}else if(b===12){n=3;type='rock'}else if(b===7){n=hash(i*1.3)<.3?1:0;type='rock'}
     if((b===4||b===8)&&dens>.5&&settings.quality!=='high'){const tn=b===4?3:2;for(let t=0;t<tn;t++){const x=x0+hash(i*2.7+t*5)*.96+.02,z=z0+hash(i*4.3+t*7)*.96+.02,y=groundY(x,z);if(y>waterY+.04)add('tuft',x,y-.004,z,.016,.022+hash(i+t)*.014,.016,hash(i*t),b===4?0x4e7232:0x8a8a44)}
       if(hash(i*8.1)<.22){const fc=[0xe8d84a,0xd8504a,0xf2f2f2,0x9a6ad0,0xf0a040][(hash(i*3.9)*5)|0];for(let t=0;t<5;t++){const x=x0+hash(i*6.1+t)*.9+.05,z=z0+hash(i*1.9+t*3)*.9+.05,y=groundY(x,z);if(y>waterY+.04)add('flower',x,y+.006,z,.012,.012,.012,0,fc)}}}
     if(owner[i]>=0&&nations[owner[i]].era>=3&&type!=='rock')n=Math.round(n*.45);
-    {const dd=Math.hypot(x0+.5-camT.x,z0+.5-camT.z),lod=dd>camDist*1.6+6?.3:dd>camDist*1.1+3?.6:1;n=Math.round(n*dens*lod)}
+    const lod=(()=>{const dd=Math.hypot(x0+.5-camT.x,z0+.5-camT.z);return dd>camDist*1.6+6?.3:dd>camDist*1.1+3?.6:1})();n=Math.round(n*dens*lod);
     for(let t=0;t<n;t++){const x=x0+.08+hash(i*3.1+t)*.84,z=z0+.08+hash(i*7.7+t)*.84,y=groundY(x,z);if(y<waterY+.05)continue;
       const s=(.62+hash(i*11.3+t)*.5)*near[i],hv=hash(i*5.9+t);
       if(type==='rock'||(type==='mount'&&hv<.45)){if(hv<.6)add('rock',x,y-.03,z,.08+hv*.25,.06+hv*.16,.08+hv*.2,hv*6,hv<.3?0x8a8378:0x9a9488);continue}
       if(type==='mount'){if(y<shapeH(.8))add('conifer',x,y-.01,z,s*.85,s*.95,s*.85,hv*6,0x2f4a30);continue}
+      if((type==='mix'||type==='conifer'||type==='jungle')&&hv<.45&&lod>.5)add('bush',x+.04,y-.01,z+.03,s*.9,s*.7,s*.9,hv*6,type==='jungle'?0x3f6a2a:0x45602e);
       let k=type;if(type==='mix')k=hv<.4?'conifer':'broad';if(type==='jungle')k=hv<.35?'palm':'broad';if(type==='acacia')k='broad';
       const col=k==='conifer'?(hv<.5?0x27412a:0x31502f):k==='palm'?0x5d8a3a:type==='jungle'?(hv<.5?0x2f6a32:0x3d7a35):(hv<.25?0x3a6428:hv<.5?0x46702e:hv<.75?0x527a32:0x5e7f30);
       if(type==='acacia')add('broad',x,y-.01,z,s*1.2,s*.55,s*1.2,hv*6,0x7a8a3c);else add(k,x,y-.01,z,s,s,s,hv*6,col);

@@ -27,8 +27,8 @@ function seasonAmounts(){const p=((seasonT%1)+1)%1;const tri=(c,w)=>{let d=Math.
 const SEASON_C={grass:new THREE.Color(),tree:new THREE.Color()};
 function updateSeasons(dt,k){terrU.uHalfH.value=H/2;if(settings.seasons===false){terrU.uSnow.value=0;terrU.uAutumn.value=0;return}seasonT+=dt*k/90;const s=seasonAmounts(),cold=clamp(1.15-climate.temp*1.2,.3,1);
   terrU.uSnow.value=s.snow*cold;terrU.uAutumn.value=s.autumn;
-  if(KITS.grass){KITS.grass.mesh.material.color.setRGB(1+s.autumn*.25+s.snow*cold*.35,1+s.snow*cold*.32-s.autumn*.05,1-s.autumn*.35+s.snow*cold*.42)}
-  if(typeof treeMat!=='undefined')treeMat.color.setRGB(1+s.autumn*.45+s.snow*cold*.2,1-s.autumn*.08+s.snow*cold*.2,1-s.autumn*.5+s.snow*cold*.28)}
+  if(KITS.grass){const w=s.snow*cold*.12;KITS.grass.mesh.material.color.setRGB(1+s.autumn*.25+w-s.snow*.06,1-s.autumn*.05+w-s.snow*.04,1-s.autumn*.35+w)}
+  if(typeof treeMat!=='undefined')treeMat.color.setRGB(1+s.autumn*.45+s.snow*cold*.08,1-s.autumn*.08+s.snow*cold*.08,1-s.autumn*.5+s.snow*cold*.12)}
 /* a harsh winter can starve the cold north */
 function winterTick(n){if(!n.cities.length||n.famine>0)return;const c=n.cities[0],lat=Math.abs(c.y/(H-1)-.5)*2;if(lat<.45)return;
   if(rng()<.006*lat*(1.4-climate.temp)){if(important(n))log(`A harsh winter gripped ${n.name}. The stores ran out before spring.`,'doom');startFamine(n,'cold',false)}}

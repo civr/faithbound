@@ -51,13 +51,15 @@ function genRivers(){river=new Uint8Array(N);rivers=[];
       river[t]=Math.min(4,Math.max(river[t],1+Math.floor(k/7)));tiles.push(t)});
     rivers.push({tiles});used.push(s)}
 }
+/* a beach only where land actually meets the sea; low inland plains stay green */
+function nearSea(x,y){for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)return true;if(h[Y*W+X]<sea)return true}return false}
 function computeTerrain(){if(typeof roadCache!=='undefined')roadCache.clear();
   sea=.44+(climate.temp-.5)*.16;
   for(let y=0;y<H;y++){const lat=1-Math.abs(y/(H-1)-.5)*2;
     for(let x=0;x<W;x++){const i=y*W+x,alt=h[i]-sea;
       const t=lat*.85+(climate.temp-.5)*.75+.08-Math.max(0,alt)*.9+(warmD&&warmD.length===N?warmD[i]:0),m=clamp(baseMoist[i]+(climate.rain-.5)*.7+moistD[i],0,1);
       let b;if(alt<0)b=t<.12?2:(alt>-.06?1:0);else if(alt>.38)b=12;else if(alt>.26)b=11;else if(t<.1)b=10;else if(t<.22)b=9;
-      else if(alt<.012)b=3;else if(t>.6&&m<.3)b=7;else if(t>.55&&m<.45)b=8;else if(t>.62&&m>.62)b=6;else if(m>.52)b=5;else b=4;
+      else if(alt<.012&&nearSea(x,y))b=3;else if(t>.6&&m<.3)b=7;else if(t>.55&&m<.45)b=8;else if(t>.62&&m>.62)b=6;else if(m>.52)b=5;else b=4;
       biome[i]=b;hab[i]=BIOMES[b].hab;if(river&&river[i]&&alt>=0&&b!==10&&b!==12)hab[i]=Math.min(1,hab[i]+.25);if(owner[i]>=0&&hab[i]<.015)claim(i,-1,'flood')}}
 }
 
@@ -92,7 +94,7 @@ function newNation(x,y,o){
   const n={id,culture,allies:[],devotion:.3,festival:0,name:nm,color,rgb:hexRgb(color),pop:o.pop!=null?o.pop:20,tech:0,era:0,tiles:0,cap:20,
     aggr:.2+rng()*.7,faith:-1,gov:null,techs:[],research:null,known:[],trade:[],ties:[],ruler:null,house:null,reigns:[],wars:new Set(),cities:[],alive:true,bless:0,plague:0,born:year,nb:new Set(),wonder:0,front:[],_walk:0,kills:0};
   n.gov=o.gov||(n.aggr>.6?'chiefdom':'tribal');n.stab=.6;n.flag=makeFlag(n,null);nations.push(n);
-  if(o.claim!==false){n.cities.push({x,y,name:n.name});
+  if(o.claim!==false){n.cities.push({x,y,name:n.name,born:year});
     for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;
       const j=Y*W+X;if(owner[j]<0&&(hab[j]>=.1||(dx===0&&dy===0)))claim(j,id)}}
   bordersDirty=true;return n;
@@ -115,9 +117,9 @@ function bestSite(A,x,y,r){let best=-1,bs=-1;for(let dy=-r;dy<=r;dy++)for(let dx
   if(owner[j]!==A.id)continue;const sc=siteScore(j);if(sc>bs){bs=sc;best=j}}return best}
 /* rivers and ridges slow a nation down, so borders tend to settle on them */
 function terrFactor(i,j){let f=1;if((river[i]>0)!==(river[j]>0))f*=.3;if(tslope.length===N)f*=clamp(1.25-tslope[j]*.9,.2,1);if(biome[j]===11||biome[j]===12)f*=.35;return f}
-function maybeCity(A,x,y,j){if(rng()>.07)return;j=bestSite(A,x,y,1);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,4))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id});propsDirty=true;
+function maybeCity(A,x,y,j){if(rng()>.07)return;j=bestSite(A,x,y,1);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,3))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year});propsDirty=true;
   if(!milestones.has('city2')){milestone('city2','A second city rises','The '+A.name+' founded a new town.')}}
-function foundTown(A,x,y,j){if((A.tiles/Math.max(1,A.cities.length))<14)return;j=bestSite(A,x,y,2);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,4))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id});propsDirty=true}
+function foundTown(A,x,y,j){if((A.tiles/Math.max(1,A.cities.length))<9)return;j=bestSite(A,x,y,2);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,3))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year});propsDirty=true}
 const mil=n=>n.pop/Math.max(1,n.tiles)*ERAS[n.era].mil*ten(n).mil*(n.bless>0?1.3:1)*(n.hero&&n.hero.until>year?1.6:1);
 /* ---------- alliances: sworn friends join each other's wars ---------- */
 const allied=(a,b)=>!!(a.allies&&a.allies.includes(b.id));
@@ -299,7 +301,7 @@ function arrive(s){
   if(s.kind==='trade'){const B=nations[s.foe];if(B&&B.alive&&n.trade.includes(B.id)){n.tech+=TECHCOST[n.era]*.04;B.tech+=TECHCOST[B.era]*.04;if(n.sick&&rng()<.3)infect(B,n.sick,n);if(rng()<.15&&(important(n)||important(B)))log(`Merchants of ${n.name} reached ${B.name} with full holds.`,'life')}return}
   if(s.kind==='colony'){if(owner[L]<0&&hab[L]>=.1){claim(L,n.id);
       for(let d=0;d<4;d++){const x=X+DX[d],y=Y+DY[d];if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]<0&&hab[j]>=.1)claim(j,n.id)}
-      const name=cultureName(cultOf(n));n.cities.push({x:X,y:Y,name,origin:n.id,colony:true});n.pop+=3;fx(L,'bless');propsDirty=true;
+      const name=cultureName(cultOf(n));n.cities.push({x:X,y:Y,name,origin:n.id,colony:true,born:year});n.pop+=3;fx(L,'bless');propsDirty=true;
       log(`Colonists from ${n.name} founded ${name} across the sea.`,'life');milestone('colony','New World','The first overseas colony was founded.')}}
   else{const B=nations[s.foe];if(!B||!B.alive||!n.wars.has(B.id)||owner[L]!==B.id)return;
     const lim=3+(s.era-SAIL)*2,q=[L],seen=new Set([L]);let took=0,head=0;
@@ -339,11 +341,14 @@ function tick(){
     if(!n.cities.length&&year-(n.born||0)>5){for(let i=0;i<N;i++)if(owner[i]===n.id)claim(i,-1);log(`With its last town gone, ${n.name} broke apart.`,'doom');fall(n);continue}
     const t=ten(n),e=ERAS[n.era];
     n.cap=Math.max(5,(capA[n.id]||0)*e.cap*30);if(!isFinite(n.pop))n.pop=10;if(!isFinite(n.tech))n.tech=0;
-    n.pop+=n.pop*.035*t.grow*stabGrow(n)*(n.bless>0?1.8:1)*(n.festival>0?1.25:1)*(1-n.pop/n.cap);
+    n.pop+=n.pop*.035*[.6,.68,.76,.82,.88,.95,1,1][n.era]*t.grow*stabGrow(n)*(n.bless>0?1.8:1)*(n.festival>0?1.25:1)*(1-n.pop/n.cap);
+    /* settlers: a people with room to spare sends families out to found small villages inside its own lands */
+    if(n.tiles/Math.max(1,n.cities.length)>=10&&n.pop>n.cities.length*12&&rng()<.03){const c0=n.cities[(rng()*n.cities.length)|0];
+      for(let q=0;q<6;q++){const x=c0.x+Math.round((rng()-.5)*10),y=c0.y+Math.round((rng()-.5)*10);if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]===n.id&&!nearCity(x,y,3)&&hab[j]>.3){const k=n.cities.length;foundTown(n,x,y,j);if(n.cities.length>k){if(rng()<.25)log(`Settlers from ${c0.name} founded ${n.cities[k].name}.`,'');break}}}}
     if(n.plague>0){n.plague--;n.pop*=.975}
     if(n.wars.size)n.pop*=1-.002*n.wars.size;
     n.pop=Math.max(2,n.pop);worldPop+=n.pop;
-    research(n,Math.sqrt(n.pop)*.055*t.tech*stabTech(n)*(1+n.cities.length*.04)*(n.inspire>0?2:1)/paceInfo().techMult);if(n.inspire>0)n.inspire--;
+    research(n,Math.sqrt(n.pop)*.055*[1.35,1.25,1.15,1.08,1.04,1,1,1][n.era]*t.tech*stabTech(n)*(1+n.cities.length*.04)*(n.inspire>0?2:1)/paceInfo().techMult);if(n.inspire>0)n.inspire--;
     if(n.bless>0)n.bless--;
     if(!govOptions(n).includes(n.gov)||rng()<.0015/Math.sqrt(paceInfo().techMult))aiReform(n);
     emis+=n.pop*e.emit*t.emit;n.nb=new Set();n.front=[];
@@ -363,7 +368,7 @@ function tick(){
   for(let k=0;k<K;k++){
     const i=(rng()*N)|0,a=owner[i];if(a<0)continue;
     const x=i%W,y=(i/W)|0,d=(rng()*4)|0,X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;
-    const j=Y*W+X,b=owner[j],A=nations[a];if(b===a){if(rng()<.0025&&A.pop>A.cities.length*25)foundTown(A,x,y,i);continue}
+    const j=Y*W+X,b=owner[j],A=nations[a];if(b===a){if(rng()<.004&&A.pop>A.cities.length*15)foundTown(A,x,y,i);continue}
     if(b<0){if(hab[j]<.1)continue;const pr=A.pop/A.cap;if(rng()<hab[j]*.4*(pr>.6?1:.2)*ten(A).exp*(1+A.era*.08)*terrFactor(i,j)){claim(j,a);maybeCity(A,X,Y,j)}continue}
     A.nb.add(b);const B=nations[b];
     if(A.wars.has(b)){if(A.front.length<60)A.front.push(i);if(B.front.length<60)B.front.push(j);
@@ -380,7 +385,7 @@ function tick(){
   if(emis>0){climate.temp=Math.min(1,climate.temp+emis*4e-8*(worldOpts.scenario&&worldOpts.scenario.id==='climate'?.14:1));
     if(!flags.warm){flags.warm=true;log('Smoke rises from the first factories. The world begins to warm.','sky')}
     if(year%5===0)terrainDirty=true}
-  if(worldPop*100>=1e6)milestone('million','A million souls','The world population passed one million.');
+  if(worldPop*POPMUL[Math.max(0,...nations.filter(n=>n.alive).map(n=>n.era))]>=1e6)milestone('million','A million souls','The world population passed one million.');
   let inc=.8;for(const n of nations)if(n.alive&&n.faith>=0)inc+=Math.sqrt(n.pop)*.04*ten(n).belief*(.6+(n.devotion??.3));belief+=inc;beliefRate=inc;
   if(moistActive>0){moistActive--;for(let i=0;i<N;i++)moistD[i]*=.985;if(year%4===0)terrainDirty=true}
 }

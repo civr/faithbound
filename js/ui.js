@@ -360,7 +360,7 @@ applyUI(settings.ui||'parchment');
 function applyLook(k){lookKey=k;LK=LOOKS[k];if(VY)colorTerrain();lastEnv=-1e9;settings.look=k;saveSettings()}
 
 /* ---------- HUD ---------- */
-function updateHUD(){renderGoal();if(spaceView&&year%5===0)renderSpacePanel();
+function updateHUD(){renderGoal();worldPopMul=POPMUL[nations.reduce((m,n)=>n.alive?Math.max(m,n.era):m,0)];if(spaceView&&year%5===0)renderSpacePanel();
   const al=nations.filter(n=>n.alive),top=al.reduce((m,n)=>Math.max(m,n.era),0);
   $('#yr').textContent=`Year ${year}${settings.seasons!==false?' · '+seasonName():''}`;if(followId!=null)followTick();$('#eraLbl').textContent=ERAS[top].name;
   $('#bel').textContent=unlimited?'∞':Math.floor(belief);$('#belRate').textContent=unlimited?'':`+${beliefRate.toFixed(1)}`;
@@ -600,7 +600,7 @@ function openSettings(){const t=(k,label,v)=>`<label class="tog">${label}<input 
     <div class="sec"><span class="lab">Interface</span><div class="seg">${UIS.map(([k,l])=>`<button data-ui="${k}" aria-pressed="${(settings.ui||'parchment')===k}">${l}</button>`).join('')}</div></div>
     <div class="sec"><span class="lab">Power</span><div class="seg">${[['saver','Battery saver'],['balanced','Balanced'],['max','Maximum']].map(([k,l])=>`<button data-pow="${k}" aria-pressed="${(settings.power||'balanced')===k}">${l}</button>`).join('')}</div>
     <p class="note">Battery saver runs at 30 frames a second and fewer pixels, so laptops stay cool and quiet. Balanced runs at 60, and at 30 on battery. Maximum has no limit.</p></div>
-    <div class="sec">${t('shadows','Shadows',settings.shadows)}${t('daynight','Day and night cycle',settings.daynight)}${t('borders','Territory borders',settings.borders)}${t('labels','Nation names',settings.labels)}${t('people','People walking around',settings.people)}${t('clouds','Clouds',settings.clouds!==false)}${t('seasons','Seasons (snow in winter, golden autumns)',settings.seasons!==false)}${t('post','Look effects (outlines, focus blur, grading)',settings.post!==false)}${t('unlimited','Sandbox: unlimited belief',unlimited)}</div>
+    <div class="sec">${t('shadows','Shadows',settings.shadows)}${t('daynight','Day and night cycle',settings.daynight)}${t('borders','Territory borders',settings.borders)}${t('labels','Nation names',settings.labels)}${t('people','People walking around',settings.people)}${t('clouds','Clouds',settings.clouds!==false)}${t('seasons','Seasons (snow in winter, golden autumns)',settings.seasons!==false)}${t('post','Look effects (outlines, focus blur, grading)',settings.post!==false)}${t('fps','Show frame rate',!!settings.fps)}${t('unlimited','Sandbox: unlimited belief',unlimited)}</div>
     <div class="sec"><span class="lab">Sound</span>${t('mute','Mute all sound',settings.mute)}
       ${[['master','Master'],['music','Music'],['sfx','Effects'],['amb','Ambience']].map(([k,l])=>`<label class="slid">${l}<input type="range" min="0" max="1" step="0.05" data-vol="${k}" value="${vols()[k]}"></label>`).join('')}
       <p class="note">Sound starts after your first click. Ambience follows the camera: waves on the coast, birds in the woods, crowds in town.</p></div>
@@ -641,7 +641,7 @@ function catchUp(years){catching=true;const total=Math.min(years,25000),startY=y
   setTimeout(chunk,30)}
 
 /* ---------- main loop ---------- */
-let lastColor=0,last=performance.now(),acc=0,lastUI=0,lastProps=-1e9,lastTrees=-1e9,lastMini=0,lastSave=0,lastBorders=0;
+let fpsN=0,fpsAt=0,lastColor=0,last=performance.now(),acc=0,lastUI=0,lastProps=-1e9,lastTrees=-1e9,lastMini=0,lastSave=0,lastBorders=0;
 /* the loop must never die: an error in one frame is reported once and the next frame still runs */
 let frameErrs=0,lastErrMsg='';
 function reportErr(where,e){frameErrs++;const m=(e&&e.message)||String(e);console.error('Faithbound '+where+':',e);
@@ -686,6 +686,7 @@ function frameBody(now){
     if(cs!==flatSig)jobs.push(()=>{layoutTerrain();bordersDirty=true;treesDirty=true});jobs.push(rebuildCities,rebuildFields,()=>{const rs=nations.map(n=>n.alive?n.cities.map(c=>c.x+','+c.y).join(';'):'').join('|');if(rs!==roadSig||now-lastRoads>30000){roadSig=rs;lastRoads=now;rebuildRoads()}},()=>{if(treesDirty||performance.now()-lastTrees>30000){rebuildTrees();lastTrees=performance.now();treesDirty=false}})}
   if(!ranJob&&bordersDirty&&now-lastBorders>(playing&&!bordersUrgent?4000:300)){bordersUrgent=false;rebuildBorders();bordersDirty=false;lastBorders=now}
   if(playing&&now-lastMini>900){lastMini=now;drawMini()}
+  if(settings.fps){fpsN++;if(now-fpsAt>1000){const el=$('#fpsMeter');if(el){el.hidden=false;const ms=(performance.now()-now).toFixed(1);el.textContent=`${Math.round(fpsN*1000/(now-fpsAt))} fps · ${ms} ms · ${Math.round(dynScale*100)}% res`}fpsN=0;fpsAt=now}}else if(fpsN>=0){fpsN=-1;const el=$('#fpsMeter');if(el)el.hidden=true}
   if(playing&&now-lastSave>60000){lastSave=now;saveGame()}
 }
 

@@ -50,7 +50,13 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
     gl_FragColor=vec4(clamp(col,0.,1.),1.);}`});
 POST.scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),postMat));
 function postActive(){return POST.ok&&settings.post!==false&&!!LK.post}
-function renderFrame(){
+let shadowAt=0,shadowSig='';
+function shadowTick(){if(!renderer.shadowMap.enabled)return;renderer.shadowMap.autoUpdate=false;const now=performance.now(),
+    sig=(camT.x*20|0)+','+(camT.z*20|0)+','+(camDist*10|0)+','+(dayT*400|0),moved=sig!==shadowSig,
+    gap=moved?(settings.power==='max'?33:66):(playing?400:1500);
+  if(now-shadowAt>gap||shadowForce){shadowAt=now;shadowSig=sig;shadowForce=false;renderer.shadowMap.needsUpdate=true}}
+let shadowForce=true;
+function renderFrame(){shadowTick();
   if(!postActive()){PLU.uPL.value=0;renderer.render(scene,cam);return}
   renderer.getDrawingBufferSize(POST.size);const w=POST.size.x,h=POST.size.y;
   if(!POST.rt||POST.rt.width!==w||POST.rt.height!==h){if(POST.rt){POST.rt.depthTexture.dispose();POST.rt.dispose()}
@@ -192,7 +198,7 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
     vec3 rockC=mix(vec3(.075,.065,.05),vec3(.13,.12,.10),vn(vWP.xz*9.+vWP.y*3.));diffuseColor.rgb=mix(diffuseColor.rgb,rockC*(.85+dn*.3),st*.85*step(.01,vWP.y-uWaterY));
     /* seasons: golden autumn meadows, snow on cold and high ground in winter */
     diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.28,1.02,.58),uAutumn*gr*.65);
-    float lat=abs(vWP.z)/uHalfH,sn=uSnow*smoothstep(.2,.55,lat*.8+(vWP.y-uWaterY)*.12+(vn(vWP.xz*2.3)-.5)*.35)*step(.02,vWP.y-uWaterY)*(1.-st*.6);
+    float lat=abs(vWP.z)/uHalfH,sn=uSnow*smoothstep(.64,.86,lat+(vWP.y-uWaterY)*.11+(vn(vWP.xz*2.3)-.5)*.2)*step(.02,vWP.y-uWaterY)*(1.-st*.6);
     diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.9,.93,.97),clamp(sn,0.,1.)*.9);
     /* nations: a soft wash of their colour; war fronts: a scorched, striped conflict zone */
     if(uTint>0.){vec2 tuv=(vWP.xz+uMap*.5)/uMap;vec4 own=texture2D(uOwn,tuv);float ab=step(uWaterY+.004,vWP.y);
@@ -266,7 +272,7 @@ function layoutTerrain(){terrVer++;
 function colorTerrain(){
   const col=terrainMesh.geometry.attributes.color.array,nor=terrainMesh.geometry.attributes.normal.array;
   const TC=new Float32Array(N*3);
-  for(let i=0;i<N;i++){const c=GROUND[biome[i]],v=1-.1*hash(i*1.7);let r=c[0]*v,g=c[1]*v,b=c[2]*v;
+  for(let i=0;i<N;i++){const c=typeof marshAt==='function'&&marshAt(i)?MARSH_C:GROUND[biome[i]],v=1-.1*hash(i*1.7);let r=c[0]*v,g=c[1]*v,b=c[2]*v;
     if(typeof scorched!=='undefined'&&scorched&&scorched[i]>0&&!isWater(i)){const t=Math.min(1,scorched[i]/18)*.85;r=lerp(r,56,t);g=lerp(g,50,t);b=lerp(b,44,t)}
     TC[i*3]=r;TC[i*3+1]=g;TC[i*3+2]=b}
   const snowY=shapeH(.84+(climate.temp-.5)*.35),cold=climate.temp<.3;
@@ -277,8 +283,8 @@ function colorTerrain(){
     const y=VY[k];
     if(y<waterY-.01){const t=smooth(0,1.6,waterY-y);r=lerp(SAND[0],SEABED[0]*.55,t);g=lerp(SAND[1],SEABED[1]*.55,t);b=lerp(SAND[2],SEABED[2]*.6,t)}
     else{
-      if(y<waterY+.1&&!cold){const t=1-smooth(waterY+.03,waterY+.1,y);r=lerp(r,SAND[0],t);g=lerp(g,SAND[1],t);b=lerp(b,SAND[2],t)}
-      const sl=1-nor[k*3+1];if(sl>.28){const t=smooth(.28,.55,sl)*.85;r=lerp(r,ROCK[0],t);g=lerp(g,ROCK[1],t);b=lerp(b,ROCK[2],t)}
+      if(y<waterY+.045&&!cold){const t=1-smooth(waterY+.012,waterY+.045,y);r=lerp(r,SAND[0],t);g=lerp(g,SAND[1],t);b=lerp(b,SAND[2],t)}
+      const sl=1-nor[k*3+1];if(sl>.32){const t=smooth(.32,.62,sl)*.75;r=lerp(r,ROCK[0],t);g=lerp(g,ROCK[1],t);b=lerp(b,ROCK[2],t)}
       if(y>snowY){const t=smooth(snowY,snowY+.8,y)*(sl>.5?.5:1);r=lerp(r,SNOW[0],t);g=lerp(g,SNOW[1],t);b=lerp(b,SNOW[2],t)}}
     const l=(r+g+b)/3,s=LK.sat;r=l+(r-l)*s;g=l+(g-l)*s;b=l+(b-l)*s;
     col[k*3]=LIN[clamp(r,0,255)|0];col[k*3+1]=LIN[clamp(g,0,255)|0];col[k*3+2]=LIN[clamp(b,0,255)|0]}
