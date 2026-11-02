@@ -9,5 +9,8 @@ rm -rf dist && mkdir -p dist/js
   sed '1,/<\/style>/d' index.html
   printf '</body>\n</html>\n'; } > dist/index.html
 cp three.min.js dist/ && cp js/*.js dist/js/
+# cache-busting: every build gets its own script URLs, so browsers never run stale code
+V=$(date +%s)
+sed -i "s#src=\"js/\([a-z0-9_-]*\)\.js\"#src=\"js/\1.js?v=$V\"#g" dist/index.html
 cp README.md server/server.js docker/Dockerfile docker/docker-compose.yml docker/.dockerignore dist/
 echo built

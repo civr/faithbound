@@ -352,7 +352,7 @@ function tick(){
       if(n.wars.size&&war<2+(n.era-SAIL)&&rng()<.05){const foes=[...n.wars];launch(n,'war',nations[foes[(rng()*foes.length)|0]])}}
     if(n.era===7&&n.techs&&n.techs.includes('starships')&&rng()<.004)launchRocket(n);
     if(year%5===n.id%5)tradeTick(n);
-    if(year%3===n.id%3)allianceTick(n);independenceTick(n,t);devotionTick(n);politicsTick(n);heroTick(n);terraformTick(n);resourceTick(n);if(!n.alive)continue;
+    if(year%3===n.id%3)allianceTick(n);independenceTick(n,t);devotionTick(n);politicsTick(n);heroTick(n);terraformTick(n);resourceTick(n);winterTick(n);if(!n.alive)continue;
     if(n.era>=SAIL||(n.era>=3&&n.techs.includes('sailing'))){let ex=0,tr=0;for(const s of ships)if(s.owner===n.id&&!s.sink){if(s.kind==='explore')ex++;if(s.kind==='trade')tr++}
       if(ex<1&&rng()<.006*t.sea)launch(n,'explore');
       if(tr<1&&n.trade.length&&rng()<.03){const p=nations[n.trade[(rng()*n.trade.length)|0]];if(p&&p.alive)launch(n,'trade',p)}}
@@ -368,7 +368,7 @@ function tick(){
       const sa=mil(A),sb=mil(B);if(rng()<sa/(sa+sb)*.25*terrFactor(i,j)&&!cityAtTile(j)){const moved=B.pop/Math.max(1,B.tiles);B.pop=Math.max(2,B.pop-moved*.7);A.pop+=moved*.2;claim(j,a)}}
     else if(A.faith>=0&&B.faith!==A.faith&&rng()<.0008*ten(A).spread*(B.gov==='theocracy'?.3:1)*Math.min(3,A.pop/(B.pop+1))){B.faith=A.faith;propsDirty=true;log(`${B.name} adopted ${faiths[A.faith].name}.`,'faith')}
   }
-  warTick();pirateTick();terraformFlush();faithTick();scenarioTick();historyTick();
+  warTick();pirateTick();terraformFlush();faithTick();scenarioTick();historyTick();seaTick();
   for(const n of nations){if(!n.alive)continue;const t=ten(n);
     for(const b of n.nb){meet(n,nations[b]);if(n.wars.has(b))continue;const B=nations[b];if(!B.alive)continue;/* crowded realms fight over land; different faiths fight more */const crowd=(n.pop/n.cap>.8?1.8:1)*(B.pop/B.cap>.8?1.3:1);const hw=holyWarFactor(n,B),cv=covets(n,B);if(!allied(n,B)&&rng()<.0035*n.aggr*t.war*crowd*(n.faith!==B.faith?1.6:.6)*(n.ties.includes(b)?.35:1)*(n.trade.includes(b)?.6:1)*hw*(cv?1.8:1)){startWar(n,B,null);if(hw>1&&rng()<.7)holyWarLog(n,B);else if(cv&&(important(n)||important(B)))log(`${n.name} wants the ${RESOURCES[cv].label.toLowerCase()} of ${B.name}.`,'war')}}
     if(n.era>=SAIL&&!n.wars.size&&rng()<.0006*n.aggr*t.war){const o=nations.filter(m=>m.alive&&m!==n&&m.era>=SAIL-1&&n.known.includes(m.id)&&!n.ties.includes(m.id));if(o.length)startWar(n,o[(rng()*o.length)|0],null)}
@@ -448,7 +448,7 @@ function buildSave(){
     summary:{nations:nations.filter(n=>n.alive).length,era:nations.reduce((m,n)=>n.alive?Math.max(m,n.era):m,0)}}}
 function saveLocal(d){try{localStorage.setItem('faithbound.save',JSON.stringify(d));return true}catch(e){return false}}
 /* saves locally always, and to the account when signed in; returns a promise of where it landed */
-function saveGame(){if(typeof rewind!=='undefined'&&rewind)return Promise.resolve('none');const d=buildSave(),local=saveLocal(d);
+function saveGame(){if(typeof viewOnly!=='undefined'&&viewOnly)return Promise.resolve('none');if(typeof rewind!=='undefined'&&rewind)return Promise.resolve('none');const d=buildSave(),local=saveLocal(d);
   if(account.user)return cloudSave(d).then(ok=>ok?'cloud':local?'local':'none');return Promise.resolve(local?'local':'none')}
 async function cloudSave(d,keepalive){try{const body=JSON.stringify(d);
   const r=await fetch('/api/saves/'+d.slot,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'same-origin',body,keepalive:!!keepalive&&body.length<60000});

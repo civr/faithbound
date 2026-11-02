@@ -100,6 +100,10 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.74rem;color:var(--muted);margin-top:5px}.legend i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
 .book{display:grid;gap:14px;max-height:68vh;overflow:auto;padding-right:4px}.chap h3{margin:0;font-family:var(--display);font-weight:400;color:var(--gold2);display:flex;justify-content:space-between;align-items:baseline}.chap h3 small{font-family:inherit;font-size:.75rem;color:var(--muted)}
 .chap ul{margin:6px 0 0;padding:0;list-style:none;display:grid;gap:4px;font-size:.84rem}.chap time{color:var(--muted);margin-right:8px;font-size:.75rem}
+.follow{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 190px);width:min(300px,calc(100vw - 32px));padding:10px 12px;display:grid;gap:6px;z-index:3}
+.follow .fh{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}.follow .fh b{font-family:var(--display);font-weight:400;color:var(--brass2);font-size:1.05rem;display:block}.follow small{color:var(--muted)}
+.follow ul{margin:0;padding:0;list-style:none;display:grid;gap:3px;font-size:.78rem}.follow time{color:var(--muted);margin-right:6px}.fl{display:flex;flex-wrap:wrap;gap:4px}
+body.viewonly .dock,body.viewonly #nationCard .quick{display:none!important}
 .goal{position:absolute;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 78px);width:min(420px,calc(100vw - 32px));padding:8px 12px;display:grid;gap:4px;font-size:.78rem;z-index:3;pointer-events:none}
 .goal b{font-family:var(--display);font-weight:400;color:var(--gold2);font-size:.95rem}.goal span{color:var(--muted)}
 .scen{display:grid;gap:8px}.scard{display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:start;text-align:left;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04)}
@@ -316,6 +320,7 @@ input[type=text],select{background:rgba(0,0,0,.25);border:1px solid var(--line2)
 <div id="hud" class="hidden">
   <div class="glass goal" id="goal" hidden></div>
   <div class="glass rewind" id="rewindBar" hidden></div>
+  <div class="glass follow" id="follow" hidden></div>
   <div class="bar">
     <div class="glass status">
       <div><div class="yr num" id="yr">Year 0</div><div class="era" id="eraLbl">Stone Age</div></div>
@@ -400,6 +405,7 @@ input[type=text],select{background:rgba(0,0,0,.25);border:1px solid var(--line2)
 <script src="js/economy.js"></script>
 <script src="js/schism.js"></script>
 <script src="js/scenarios.js"></script>
+<script src="js/world2.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/history.js"></script>

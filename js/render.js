@@ -174,10 +174,10 @@ const surfY=(x,z)=>Math.max(groundY(x,z),waterY);
 const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:0});
 const NOISE_GLSL=`varying vec3 vWP;float hn(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hn(i),hn(i+vec2(1,0)),f.x),mix(hn(i+vec2(0,1)),hn(i+vec2(1,1)),f.x),f.y);}`;
-const terrU={uWaterY:{value:0}};
+const terrU={uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30}};
 terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
-  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWaterY;\n'+NOISE_GLSL)
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;\n'+NOISE_GLSL)
    .replace('#include <color_fragment>',`#include <color_fragment>
     float dn=vn(vWP.xz*11.)*.45+vn(vWP.xz*37.)*.3+vn(vWP.xz*2.7)*.25;diffuseColor.rgb*=.86+dn*.28;
     /* meadows: lush and dry patches, mown strips and fine blades, so grass never reads as flat paint */
@@ -189,7 +189,11 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
     diffuseColor.rgb=mix(diffuseColor.rgb,mead,gr*.85);
     /* steep ground shows bare earth and rock */
     vec3 gn=normalize(cross(dFdx(vWP),dFdy(vWP)));float st=smoothstep(.62,.86,1.-abs(gn.y));
-    vec3 rockC=mix(vec3(.075,.065,.05),vec3(.13,.12,.10),vn(vWP.xz*9.+vWP.y*3.));diffuseColor.rgb=mix(diffuseColor.rgb,rockC*(.85+dn*.3),st*.85*step(.01,vWP.y-uWaterY));`);
+    vec3 rockC=mix(vec3(.075,.065,.05),vec3(.13,.12,.10),vn(vWP.xz*9.+vWP.y*3.));diffuseColor.rgb=mix(diffuseColor.rgb,rockC*(.85+dn*.3),st*.85*step(.01,vWP.y-uWaterY));
+    /* seasons: golden autumn meadows, snow on cold and high ground in winter */
+    diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.28,1.02,.58),uAutumn*gr*.65);
+    float lat=abs(vWP.z)/uHalfH,sn=uSnow*smoothstep(.2,.55,lat*.8+(vWP.y-uWaterY)*.12+(vn(vWP.xz*2.3)-.5)*.35)*step(.02,vWP.y-uWaterY)*(1.-st*.6);
+    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.9,.93,.97),clamp(sn,0.,1.)*.9);`);
 };
 function buildTerrain(){
   for(const m of [terrainMesh,skirtMesh,waterMesh,waterSide]){if(m){scene.remove(m);m.geometry.dispose()}}
