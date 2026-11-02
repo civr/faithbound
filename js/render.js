@@ -174,10 +174,10 @@ const surfY=(x,z)=>Math.max(groundY(x,z),waterY);
 const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:0});
 const NOISE_GLSL=`varying vec3 vWP;float hn(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hn(i),hn(i+vec2(1,0)),f.x),mix(hn(i+vec2(0,1)),hn(i+vec2(1,1)),f.x),f.y);}`;
-const terrU={uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30}};
+const terrU={uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30},uOwn:{value:null},uWar:{value:null},uMap:{value:new THREE.Vector2(1,1)},uTint:{value:0},uTime:{value:0}};
 terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
-  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;\n'+NOISE_GLSL)
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;\n'+NOISE_GLSL)
    .replace('#include <color_fragment>',`#include <color_fragment>
     float dn=vn(vWP.xz*11.)*.45+vn(vWP.xz*37.)*.3+vn(vWP.xz*2.7)*.25;diffuseColor.rgb*=.86+dn*.28;
     /* meadows: lush and dry patches, mown strips and fine blades, so grass never reads as flat paint */
@@ -193,7 +193,11 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
     /* seasons: golden autumn meadows, snow on cold and high ground in winter */
     diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.28,1.02,.58),uAutumn*gr*.65);
     float lat=abs(vWP.z)/uHalfH,sn=uSnow*smoothstep(.2,.55,lat*.8+(vWP.y-uWaterY)*.12+(vn(vWP.xz*2.3)-.5)*.35)*step(.02,vWP.y-uWaterY)*(1.-st*.6);
-    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.9,.93,.97),clamp(sn,0.,1.)*.9);`);
+    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.9,.93,.97),clamp(sn,0.,1.)*.9);
+    /* nations: a soft wash of their colour; war fronts: a scorched, striped conflict zone */
+    if(uTint>0.){vec2 tuv=(vWP.xz+uMap*.5)/uMap;vec4 own=texture2D(uOwn,tuv);float ab=step(uWaterY+.004,vWP.y);
+      diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*.6+own.rgb*.55,own.a*uTint*ab);
+      float wz=texture2D(uWar,tuv).r*ab;if(wz>.02){float stp=step(.86,fract((vWP.x+vWP.z)*3.2));float sc=vn(vWP.xz*6.);diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.78,.66,.56)*(.85+sc*.3),wz*.5);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.72,.12,.07),wz*stp*.45);}}`);
 };
 function buildTerrain(){
   for(const m of [terrainMesh,skirtMesh,waterMesh,waterSide]){if(m){scene.remove(m);m.geometry.dispose()}}
@@ -304,28 +308,50 @@ let borderMesh=null;
 const borderMat=new THREE.ShaderMaterial({uniforms:{uOp:{value:.9},uPL:PLU.uPL,uPE:PLU.uPE},transparent:true,depthWrite:false,
   vertexShader:'attribute vec4 aCol;varying vec4 vC;void main(){vC=aCol;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
   fragmentShader:TOSCENE+'uniform float uOp;varying vec4 vC;void main(){gl_FragColor=vec4(toScene(vC.rgb),vC.a*uOp);}'});
-function rebuildBorders(){
+/* territory: a soft colour wash over each nation's land, a striped conflict zone along war fronts, and smooth border lines */
+let ownTex=null,warTex=null;
+function ensureOwnTex(){if(ownTex&&ownTex.image.width===W&&ownTex.image.height===H)return;if(ownTex){ownTex.dispose();warTex.dispose()}
+  ownTex=new THREE.DataTexture(new Uint8Array(W*H*4),W,H,THREE.RGBAFormat);ownTex.magFilter=ownTex.minFilter=THREE.LinearFilter;
+  warTex=new THREE.DataTexture(new Uint8Array(W*H*4),W,H,THREE.RGBAFormat);warTex.magFilter=warTex.minFilter=THREE.LinearFilter;
+  terrU.uOwn.value=ownTex;terrU.uWar.value=warTex;terrU.uMap.value.set(W,H)}
+const contested=new Uint8Array(1<<16);let contestedList=[];
+function updateTerritoryTex(){ensureOwnTex();const a=ownTex.image.data,w=warTex.image.data;contestedList=[];
+  for(let i=0;i<N;i++){const o=owner[i],q=i*4;if(o<0||!nations[o]){a[q+3]=0;w[q]=0;continue}const c=nations[o].rgb;a[q]=LIN[c[0]]*255;a[q+1]=LIN[c[1]]*255;a[q+2]=LIN[c[2]]*255;a[q+3]=isWater(i)?0:255;
+    let war=0;if(nations[o].wars.size){const x=i%W,y=(i/W)|0;for(let dy=-1;dy<=1&&!war;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const p=owner[Y*W+X];if(p>=0&&p!==o&&nations[o].wars.has(p)){war=255;break}}}
+    w[q]=war;w[q+3]=255;if(war&&!isWater(i))contestedList.push(i)}
+  ownTex.needsUpdate=true;warTex.needsUpdate=true}
+/* marching squares over a blurred membership field gives each nation an organic outline instead of tile steps */
+const MS=[[],[[3,0]],[[0,1]],[[3,1]],[[1,2]],null,[[0,2]],[[3,2]],[[2,3]],[[0,2]],null,[[1,2]],[[1,3]],[[0,1]],[[3,0]],[]];
+function nationLoops(o){let x0=W,y0=H,x1=-1,y1=-1;for(let i=0;i<N;i++)if(owner[i]===o){const x=i%W,y=(i/W)|0;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
+  if(x1<0)return[];x0-=2;y0-=2;x1+=2;y1+=2;const GW=x1-x0+1,GH=y1-y0+1;let f=new Float32Array(GW*GH);
+  for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const X=x0+i,Y=y0+j;f[j*GW+i]=X>=0&&Y>=0&&X<W&&Y<H&&owner[Y*W+X]===o?1:0}
+  for(let pass=0;pass<2;pass++){const g=new Float32Array(GW*GH);for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){let s=0,ws=0;for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++){const I=i+a,J=j+b;if(I<0||J<0||I>=GW||J>=GH)continue;const wt=(a?1:2)*(b?1:2);s+=f[J*GW+I]*wt;ws+=wt}g[j*GW+i]=s/ws}f=g}
+  const F=(i,j)=>f[j*GW+i],segs=[],pts=new Map();
+  const ep=(e,i,j)=>{const a=F(i,j),b=F(i+1,j),c=F(i+1,j+1),d=F(i,j+1),t=(u,v)=>clamp((.5-u)/((v-u)||1e-6),0,1);
+    if(e===0)return['h'+i+','+j,i+t(a,b),j];if(e===1)return['v'+(i+1)+','+j,i+1,j+t(b,c)];if(e===2)return['h'+i+','+(j+1),i+t(d,c),j+1];return['v'+i+','+j,i,j+t(a,d)]};
+  for(let j=0;j<GH-1;j++)for(let i=0;i<GW-1;i++){const a=F(i,j),b=F(i+1,j),c=F(i+1,j+1),d=F(i,j+1);const k=(a>=.5?1:0)|(b>=.5?2:0)|(c>=.5?4:0)|(d>=.5?8:0);if(!k||k===15)continue;
+    let L=MS[k];if(!L){const ctr=(a+b+c+d)/4>=.5;L=k===5?(ctr?[[0,1],[2,3]]:[[3,0],[1,2]]):(ctr?[[3,0],[1,2]]:[[0,1],[2,3]])}
+    for(const [e1,e2] of L){const A=ep(e1,i,j),B=ep(e2,i,j),id=segs.length;segs.push({a:A,b:B,u:false});for(const P of [A,B]){if(!pts.has(P[0]))pts.set(P[0],[]);pts.get(P[0]).push(id)}}}
+  const loops=[];for(let s0=0;s0<segs.length;s0++){if(segs[s0].u)continue;const loop=[];let s=s0,from=segs[s0].a[0];
+    while(s!=null&&!segs[s].u){const S=segs[s];S.u=true;const P=S.a[0]===from?S.a:S.b,Q=S.a[0]===from?S.b:S.a;loop.push([P[1]+x0+.5,P[2]+y0+.5]);from=Q[0];const nx=(pts.get(Q[0])||[]).find(q=>!segs[q].u);s=nx==null?null:nx}
+    if(loop.length>=4)loops.push(loop)}
+  return loops}
+function rebuildBorders(){updateTerritoryTex();
   if(!borderMesh){borderMesh=new THREE.Mesh(new THREE.BufferGeometry(),borderMat);borderMesh.renderOrder=3;borderMesh.frustumCulled=false;scene.add(borderMesh)}
   borderMesh.visible=settings.borders;if(!settings.borders)return;
   const pos=[],col=[];const RED=[.95,.18,.12];
-  const edges=new Map(),list=[];
-  for(let i=0;i<N;i++){const o=owner[i];if(o<0)continue;const x=i%W,y=(i/W)|0;
-    for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];const nb=X<0||Y<0||X>=W||Y>=H?-1:owner[Y*W+X];if(nb===o)continue;
-      let a,b;if(d===1){a=[x,y];b=[x,y+1]}else if(d===2){a=[x,y+1];b=[x+1,y+1]}else if(d===0){a=[x+1,y+1];b=[x+1,y]}else{a=[x+1,y];b=[x,y]}
-      const war=nb>=0&&nations[o].wars.has(nb)?1:0,E={o,a,b,war,used:false},k=o+':'+a[0]+','+a[1];if(!edges.has(k))edges.set(k,[]);edges.get(k).push(E);list.push(E)}}
-  for(const E0 of list){if(E0.used)continue;const loop=[];let E=E0;
-    while(E&&!E.used){E.used=true;loop.push([E.a[0],E.a[1],E.war]);const L=edges.get(E.o+':'+E.b[0]+','+E.b[1]);E=L?L.find(q=>!q.used):null}
-    if(loop.length<3)continue;
-    /* chaikin on a closed loop */
-    let p=loop;for(let it=0;it<3;it++){const o=[];for(let i=0;i<p.length;i++){const A=p[i],B=p[(i+1)%p.length];o.push([A[0]*.75+B[0]*.25,A[1]*.75+B[1]*.25,Math.max(A[2],B[2])],[A[0]*.25+B[0]*.75,A[1]*.25+B[1]*.75,Math.max(A[2],B[2])])}p=o}
-    const n=nations[E0.o],c0=n.rgb,base=[LIN[c0[0]],LIN[c0[1]],LIN[c0[2]]],sel=E0.o===selected,lw=sel?.09:.05,band=sel?.6:.38;
-    const M=p.length,nrm=[];for(let i=0;i<M;i++){const A=p[(i-1+M)%M],B=p[(i+1)%M];let dx=B[0]-A[0],dy=B[1]-A[1];const l=Math.hypot(dx,dy)||1;nrm.push([dy/l,-dx/l])}
-    const at=(i,off)=>{const q=p[i%M],nn=nrm[i%M],x=q[0]+nn[0]*off-W/2,z=q[1]+nn[1]*off-H/2;return[x,surfY(x,z)+.045,z]};
-    for(let i=0;i<M;i++){const war=p[i][2]||p[(i+1)%M][2],lc=war?RED:base;
-      const a0=at(i,.02),b0=at(i+1,.02),a1=at(i,.02+lw),b1=at(i+1,.02+lw),a2=at(i,.02+lw+band),b2=at(i+1,.02+lw+band);
-      pos.push(...a0,...b0,...b1,...a0,...b1,...a1);for(let q=0;q<6;q++)col.push(lc[0],lc[1],lc[2],.95);
-      pos.push(...a1,...b1,...b2,...a1,...b2,...a2);const A1=war?.4:.3;
-      col.push(lc[0],lc[1],lc[2],A1,lc[0],lc[1],lc[2],A1,lc[0],lc[1],lc[2],0,lc[0],lc[1],lc[2],A1,lc[0],lc[1],lc[2],0,lc[0],lc[1],lc[2],0)}}
+  for(const n of nations){if(!n.alive||n.tiles<=0)continue;const o=n.id,c0=n.rgb,base=[LIN[c0[0]],LIN[c0[1]],LIN[c0[2]]],sel=o===selected,lw=sel?.08:.045,band=sel?.6:.36;
+    for(let p of nationLoops(o)){for(let it=0;it<2;it++){const q=[];for(let i=0;i<p.length;i++){const A=p[i],B=p[(i+1)%p.length];q.push([A[0]*.75+B[0]*.25,A[1]*.75+B[1]*.25],[A[0]*.25+B[0]*.75,A[1]*.25+B[1]*.75])}p=q}
+      const M=p.length,nrm=[];for(let i=0;i<M;i++){const A=p[(i-1+M)%M],B=p[(i+1)%M];const dx=B[0]-A[0],dy=B[1]-A[1],l=Math.hypot(dx,dy)||1;nrm.push([dy/l,-dx/l])}
+      let inside=0,tot=0;for(let i=0;i<M;i+=Math.max(1,(M/12)|0)){const X=Math.floor(p[i][0]+nrm[i][0]*.6),Y=Math.floor(p[i][1]+nrm[i][1]*.6);tot++;if(X>=0&&Y>=0&&X<W&&Y<H&&owner[Y*W+X]===o)inside++}
+      const sg=inside*2>=tot?1:-1;
+      const warAt=i=>{const X=Math.floor(p[i][0]-nrm[i][0]*sg*.7),Y=Math.floor(p[i][1]-nrm[i][1]*sg*.7);if(X<0||Y<0||X>=W||Y>=H)return 0;const nb=owner[Y*W+X];return nb>=0&&n.wars.has(nb)?1:0};
+      const at=(i,off)=>{const q=p[i%M],nn=nrm[i%M],x=q[0]+nn[0]*off*sg-W/2,z=q[1]+nn[1]*off*sg-H/2;return[x,surfY(x,z)+.045,z]};
+      for(let i=0;i<M;i++){const war=warAt(i)||warAt((i+1)%M),lc=war?RED:base;
+        const a0=at(i,.0),b0=at(i+1,.0),a1=at(i,lw),b1=at(i+1,lw),a2=at(i,lw+band),b2=at(i+1,lw+band);
+        pos.push(...a0,...b0,...b1,...a0,...b1,...a1);for(let k=0;k<6;k++)col.push(lc[0],lc[1],lc[2],.95);
+        pos.push(...a1,...b1,...b2,...a1,...b2,...a2);const A1=war?.4:.28;
+        col.push(lc[0],lc[1],lc[2],A1,lc[0],lc[1],lc[2],A1,lc[0],lc[1],lc[2],0,lc[0],lc[1],lc[2],A1,lc[0],lc[1],lc[2],0,lc[0],lc[1],lc[2],0)}}}
   const g=freshGeo(borderMesh);g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('aCol',new THREE.Float32BufferAttribute(col,4));
 }
 

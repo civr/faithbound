@@ -55,6 +55,7 @@ const POWERS=[
   {id:'peace',tab:'Rule',label:'Force peace',cost:15,icon:'dove',hint:'Tap a nation to end all of its wars.'},
   {id:'war',tab:'Strife',label:'Incite war',cost:25,icon:'swords',hint:'Tap the attacker, then its target.'},
   {id:'discord',tab:'Strife',label:'Sow discord',cost:25,icon:'whisper',hint:'Tap a nation. Nobles plot and crowds gather: stability falls for years, and riots, coups or civil war may follow.'},
+  {id:'nuke',tab:'Strife',label:'Atomic strike',cost:100,icon:'atom',hint:'Tap a town. A nation at war with it that has the bomb (Modern age, Atomic Power) drops it there. The city is destroyed and the land poisoned for decades.'},
   {id:'pirates',tab:'Strife',label:'Send pirates',cost:30,icon:'skull',hint:'Tap a coastal town. Pirates set sail to plunder it.'},
   {id:'kraken',tab:'Strife',label:'Sea monster',cost:50,icon:'tentacle',hint:'Tap the sea. A kraken wakes and drags ships under, pirates too. Steel warships can wound it.'},
   {id:'locusts',tab:'Strife',label:'Locusts',cost:30,icon:'bug',hint:'Tap land. A swarm of locusts drifts over the land and eats the fields of every nation it crosses.'},
@@ -89,6 +90,7 @@ Object.assign(ICON,{
   tree:'<path d="M12 21v-5M12 3l6 9h-3l4 4H5l4-4H6z"/>',
   waves:'<path d="M3 9c3-2 6 2 9 0s6 2 9 0M3 14c3-2 6 2 9 0s6 2 9 0M3 19c3-2 6 2 9 0s6 2 9 0"/>',
   hand:GLYPHS.hand,
+  atom:'<circle cx="12" cy="12" r="1.6" fill="currentColor"/><ellipse cx="12" cy="12" rx="9" ry="3.6"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(-60 12 12)"/>',
   split:'<path d="M12 21v-7M12 14L6 8M12 14l6-6M6 8V4M18 8V4M4 6h4M16 6h4"/>',
   thermo:'<path d="M10 14V5a2 2 0 014 0v9a4 4 0 11-4 0zM12 9v7"/><path d="M17 6h3M17 10h3"/>'});
 const TABS=['People','Faith','Rule','Strife','Land','Sky'];
@@ -151,6 +153,8 @@ function applyTool(i,start){if(viewOnly&&tool!=='inspect'){if(start)say('You are
     const A=migrFrom.n;if(!A.alive||!A.cities.includes(migrFrom.c)){migrFrom=null;say('That town is gone. Pick another.');return}
     if(!unlimited&&belief<20){say('Not enough belief. This needs 20.');return}const err=migrate(A,migrFrom.c,i);if(err){say(err,true);return}spend(20);migrFrom=null;toolHint();break}
   case 'carry':{if(!carry){carryPick(i);return}if(!unlimited&&belief<25){say('Not enough belief. This needs 25.');return}if(carryDrop(i)){spend(25);toolHint()}break}
+  case 'nuke':{if(!needNation(n))return;const c=nearestTown(n,i);const A=[...n.wars].map(id=>nations[id]).find(m=>m&&m.alive&&hasBomb(m));
+    if(!A){say(`No nation with the bomb is at war with ${n.name}.`);return}if(!c){say(`${n.name} has no towns.`);return}if(!spend(100))return;nuke(A,n,c,true);break}
   case 'golden':if(!needNation(n))return;if(n.golden>year){say(`${n.name} is already in a golden age.`);return}if(!spend(45))return;goldenAge(n);fx(i,'bless');sfx('chime');break;
   case 'hero':if(!needNation(n))return;if(heroOf(n)){say(`${n.name} already has a hero: ${heroOf(n).name}.`);return}if(!spend(40))return;raiseHero(n);fx(i,'bless');break;
   case 'miracle':if(!needNation(n)||!spend(30))return;miracle(n);fx(i,'bless');sfx('chime');break;
@@ -650,13 +654,15 @@ function frameBody(now){
   for(let k=rockets.length-1;k>=0;k--){const r=rockets[k];r.t+=dt;r.g.position.y+=dt*(.3+r.t*r.t*1.2);emit('dark',r.g.position.x,r.g.position.y,r.g.position.z);emit('fire',r.g.position.x,r.g.position.y-.02,r.g.position.z);if(r.t>6){scene.remove(r.g);rockets.splice(k,1)}}
   for(let k=eruptions.length-1;k>=0;k--){const e=eruptions[k];e.t+=dt;const y=groundY(e.x,e.z)+.1;for(let q=0;q<3;q++){emit('fire',e.x+(rng()-.5)*.3,y,e.z+(rng()-.5)*.3)}emit('dark',e.x,y+.2,e.z);if(e.t>12)eruptions.splice(k,1)}
   try{updateAudio(dt)}catch(e){}updateWalkers(dt,yrs);updateCaravans(dt,paused?0:1);updateLife(dt,now);if(!paused)updateEmitters(dt);
-  updateDisasters(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateGodWorks(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6,now);updateModern(dt,paused?0:1,now);updatePilgrims(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateSeasons(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.3);updateParticles(paused?0:dt);
+  updateDisasters(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateGodWorks(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6,now);updateModern(dt,paused?0:1,now);updateBlasts(paused?0:dt);updatePilgrims(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateSeasons(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.3);updateParticles(paused?0:dt);
   if(colorDirty&&now-lastColor>1500){lastColor=now;colorDirty=false;colorTerrain()}
   if(sculptTile>=0&&isSculpt(tool)&&now-lastSculpt>110){lastSculpt=now;applyTool(sculptTile,false)}
   if(terrainDirty){computeTerrain();layoutTerrain();terrainDirty=false;propsDirty=true;bordersDirty=true;treesDirty=true}
   waterU.uTime.value=now/1000;
   placeCamera(dt);updateSky(dt,now);
   if(shakeT>0){shakeT-=dt;const a=shakeT*.03*camDist/10;cam.position.x+=(rng()-.5)*a;cam.position.y+=(rng()-.5)*a}
+  terrU.uTint.value=settings.borders?(.1+.16*smooth(3,14,camDist)):0;
+  if(contestedList.length&&!paused&&rng()<dt*8){const i=contestedList[(rng()*contestedList.length)|0],x=wx(i%W)+(rng()-.5)*.6,z=wz((i/W)|0)+(rng()-.5)*.6;if(Math.hypot(x-camT.x,z-camT.z)<camDist*1.2+2)emit(rng()<.3?'fire':'dark',x,groundY(x,z)+.03,z)}
   if(borderMesh)borderMat.uniforms.uOp.value=.95*smooth(2.5,10,camDist)+.25*(1-smooth(2.5,10,camDist))*(selected>=0?1:.6);
   if(spaceView){renderSpace(dt);octx.clearRect(0,0,ov.width,ov.height)}else{renderFrame();try{drawOverlay(now)}catch(e){reportErr('overlay',e)}}
   if(now-lastUI>500){lastUI=now;if(playing)updateHUD()}

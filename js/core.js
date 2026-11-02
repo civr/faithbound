@@ -151,6 +151,7 @@ const TECHS=[
   {id:'massprod',name:'Mass Production',era:5,req:['railroads'],desc:'Factories turn out goods by the million.',grow:1.05,emit:1.2},
   {id:'computers',name:'Computers',era:5,req:['electricity','massprod'],key:6,desc:'Machines that calculate.',tech:1.1},
   {id:'aviation',name:'Aviation',era:6,req:['computers'],desc:'Aircraft shrink the world.',mil:1.15,exp:1.05},
+  {id:'atomic',name:'Atomic Power',era:6,req:['electricity'],desc:'Splitting the atom: power plants, and a bomb that can end cities.',mil:1.1,tech:1.05},
   {id:'internet',name:'Internet',era:6,req:['computers'],desc:'Every library in every pocket.',tech:1.2},
   {id:'green',name:'Green Energy',era:6,req:['electricity','computers'],desc:'Sun and wind replace coal.',emit:.6},
   {id:'genetics',name:'Genetics',era:6,req:['medicine','computers'],desc:'Better crops and cures.',grow:1.1},
