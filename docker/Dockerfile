@@ -3,7 +3,7 @@ FROM node:20-alpine
 ENV NODE_ENV=production PORT=8080 DATA_DIR=/data PUBLIC_DIR=/app/public
 WORKDIR /app
 COPY server.js /app/server.js
-COPY index.html three.min.js /app/public/
+COPY index.html three.min.js favicon.svg favicon.png favicon.ico /app/public/
 COPY js /app/public/js
 RUN mkdir -p /data && chown node:node /data
 USER node

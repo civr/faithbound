@@ -86,8 +86,8 @@ const BIOMES=[
   {n:'Forest',hab:.7},{n:'Jungle',hab:.45},{n:'Desert',hab:.15},{n:'Savanna',hab:.75},{n:'Tundra',hab:.25},
   {n:'Snowfield',hab:.03},{n:'Mountains',hab:.12},{n:'High peaks',hab:.02}];
 /* natural ground colours (sRGB) */
-const GROUND=[[38,70,92],[150,140,110],[226,236,242],[184,160,116],[88,104,58],[52,70,42],[56,80,46],[170,134,88],[150,134,82],[132,134,108],[236,240,244],[118,108,96],[214,216,220]];
-const ROCK=[112,104,96],SNOW=[238,242,247],SAND=[184,160,116],SEABED=[150,138,108];
+const GROUND=[[38,70,92],[150,140,110],[226,236,242],[140,136,88],[76,98,48],[48,68,38],[56,80,46],[170,134,88],[150,134,82],[132,134,108],[236,240,244],[118,108,96],[214,216,220]];
+const ROCK=[94,90,80],SNOW=[238,242,247],SAND=[184,160,116],SEABED=[150,138,108];
 const NCOL=['#d9483b','#2f74d0','#e6a91f','#8a4fd0','#17a085','#e06aa0','#ec7a22','#36b0d0','#78a82c','#a85038','#5560cc','#c9b41a','#2e9e56','#b83d74'];
 const FCOL=['#3f7fd1','#e6a91f','#d84a4a','#3faa66','#9a62e0','#ec8a32','#28aaaa','#c2b01d'];
 const SYL=['ka','ri','on','ma','tel','su','dor','an','vi','eth','or','la','mun','za','bel','ish','no','ra','gul','the','ar','io','nem','sa','ve','ul','ko','mir','thas','en','wy','bran','hel','cor'];
@@ -192,8 +192,10 @@ function saveSettings(){try{localStorage.setItem('faithbound.settings',JSON.stri
 /* ---------- helpers ---------- */
 const hexRgb=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
 function genName(a,b){const k=a+Math.floor(rng()*(b-a+1));let s='';for(let i=0;i<k;i++)s+=SYL[(rng()*SYL.length)|0];return s[0].toUpperCase()+s.slice(1)}
-const people=n=>Math.round(n.pop*100).toLocaleString('en-US');
-const fmtPop=v=>{v=Math.round(v*100);return v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e4?Math.round(v/1e3)+'k':v.toLocaleString('en-US')};
+/* people per unit of population grows with the age: a Stone Age tribe is thousands, a modern nation millions */
+const POPMUL=[6,10,16,25,40,70,100,120];let worldPopMul=6;
+const people=n=>Math.round(n.pop*POPMUL[n.era||0]).toLocaleString('en-US');
+const fmtPop=(v,e)=>{v=Math.round(v*(e!=null?POPMUL[e]:worldPopMul));return v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e4?Math.round(v/1e3)+'k':v.toLocaleString('en-US')};
 /* combined modifiers of a nation: its faith's tenets x its government */
 function ten(n){const o=Object.assign({},NOTENET);const f=n.faith>=0?faiths[n.faith]:null;
   const parts=[];if(f)for(const t of (f.tenets||[f.tenet]))if(TENETS[t])parts.push(TENETS[t]);if(n.gov&&GOVS[n.gov])parts.push(GOVS[n.gov]);if(n.techs)for(const id of n.techs)if(TECH[id])parts.push(TECH[id]);
