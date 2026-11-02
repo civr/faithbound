@@ -231,7 +231,7 @@ let natSort='pop';
 function openSheet(p){if(sheetPanel===p){closeSheet();return}sheetPanel=p;$('#sheet').hidden=false;$('#sheetTitle').textContent=SHEETS[p];
   $$('[data-panel]').forEach(b=>b.classList.toggle('on',b.dataset.panel===p));renderSheet(true)}
 function closeSheet(){sheetPanel=null;$('#sheet').hidden=true;$$('[data-panel]').forEach(b=>b.classList.remove('on'))}
-$$('[data-panel]').forEach(b=>b.onclick=()=>openSheet(b.dataset.panel));$('#sheetX').onclick=closeSheet;
+$$('[data-panel]').forEach(b=>b.onclick=()=>{if(spaceView)closeSpace();openSheet(b.dataset.panel)});$('#spaceBtn').onclick=()=>spaceView?closeSpace():openSpace(colonies.some(c=>c.planet==='mars')&&!colonies.some(c=>c.planet==='moon')?'mars':'moon');$('#sheetX').onclick=closeSheet;
 function renderSheet(full){const B=$('#sheetBody');if(!sheetPanel)return;
   if(sheetPanel==='nations'){if(full)B.innerHTML=`<div class="seg" id="natSort"><button data-s="pop">People</button><button data-s="tiles">Land</button><button data-s="tech">Progress</button></div><p class="note" id="natCount"></p><ul class="list" id="natList"></ul>`;
     $$('#natSort button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===natSort));
@@ -353,7 +353,7 @@ function renderLooks(sel){$(sel).innerHTML=Object.keys(LOOKS).map(k=>`<button da
 function applyLook(k){lookKey=k;LK=LOOKS[k];if(VY)colorTerrain();lastEnv=-1e9;settings.look=k;saveSettings()}
 
 /* ---------- HUD ---------- */
-function updateHUD(){renderGoal();
+function updateHUD(){renderGoal();if(spaceView&&year%5===0)renderSpacePanel();
   const al=nations.filter(n=>n.alive),top=al.reduce((m,n)=>Math.max(m,n.era),0);
   $('#yr').textContent=`Year ${year}${settings.seasons!==false?' · '+seasonName():''}`;if(followId!=null)followTick();$('#eraLbl').textContent=ERAS[top].name;
   $('#bel').textContent=unlimited?'∞':Math.floor(belief);$('#belRate').textContent=unlimited?'':`+${beliefRate.toFixed(1)}`;
@@ -658,7 +658,7 @@ function frameBody(now){
   placeCamera(dt);updateSky(dt,now);
   if(shakeT>0){shakeT-=dt;const a=shakeT*.03*camDist/10;cam.position.x+=(rng()-.5)*a;cam.position.y+=(rng()-.5)*a}
   if(borderMesh)borderMat.uniforms.uOp.value=.95*smooth(2.5,10,camDist)+.25*(1-smooth(2.5,10,camDist))*(selected>=0?1:.6);
-  renderFrame();try{drawOverlay(now)}catch(e){reportErr('overlay',e)}
+  if(spaceView){renderSpace(dt);octx.clearRect(0,0,ov.width,ov.height)}else{renderFrame();try{drawOverlay(now)}catch(e){reportErr('overlay',e)}}
   if(now-lastUI>500){lastUI=now;if(playing)updateHUD()}
   const camMoved=Math.hypot(camT.x-propCam.x,camT.z-propCam.z)>camDist*.9+1.5;
   if((propsDirty&&now-lastProps>(playing?2500:600))||(playing&&now-lastProps>20000)||(camMoved&&now-lastProps>1500)){lastProps=now;propsDirty=false;propCam.x=camT.x;propCam.z=camT.z;const cs=citySig();if(cs!==flatSig){layoutTerrain();bordersDirty=true;treesDirty=true}rebuildCities();rebuildFields();const rs=nations.map(n=>n.alive?n.cities.map(c=>c.x+','+c.y).join(';'):'').join('|');if(rs!==roadSig||now-lastRoads>30000){roadSig=rs;lastRoads=now;rebuildRoads()}
