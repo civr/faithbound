@@ -1,0 +1,19 @@
+# Faithbound on port 8040. Point Nginx Proxy Manager at http://<ip-of-this-vm>:8040
+services:
+  faithbound:
+    build: .
+    image: faithbound:latest
+    container_name: faithbound
+    restart: unless-stopped
+    ports:
+      - "8040:8080"
+    environment:
+      # Set to "false" after you made your own account to stop new sign-ups.
+      ALLOW_SIGNUP: "true"
+      # Optional: people need this code to create an account. Empty = no code.
+      SIGNUP_CODE: ""
+    volumes:
+      - faithbound-data:/data
+
+volumes:
+  faithbound-data:
