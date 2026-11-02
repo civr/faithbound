@@ -22,7 +22,7 @@ function genWorld(seedIn){
   nations=[];faiths=[];logs=[];year=0;ruins=[];warData={};coves=[];belief=100;climate.temp=.5;climate.rain=worldOpts.rain??.5;flags={warm:false,sail:false};milestones=new Set();
   selected=-1;inspectTile=-1;selectedFaith=-1;warFrom=-1;moistActive=0;effects=[];
   buildTerrain();computeTerrain();layoutTerrain();
-  seedCultures();seedDeposits();indexDeposits();
+  seedCultures();seedDeposits();indexDeposits();annals=[];hist=[];snaps=[];
   let placed=0,tries=0;
   while(placed<S.tribes&&tries<6000){tries++;const i=(rng()*N)|0;if(hab[i]<.7||owner[i]>=0||(tries<4000&&siteScore(i)<.6))continue;
     const x=i%W,y=(i/W)|0;let ok=true;for(const n of nations){const c=n.cities[0];if(Math.hypot(c.x-x,c.y-y)<W/(S.tribes>5?5.5:4.2)){ok=false;break}}
@@ -368,7 +368,7 @@ function tick(){
       const sa=mil(A),sb=mil(B);if(rng()<sa/(sa+sb)*.25*terrFactor(i,j)&&!cityAtTile(j)){const moved=B.pop/Math.max(1,B.tiles);B.pop=Math.max(2,B.pop-moved*.7);A.pop+=moved*.2;claim(j,a)}}
     else if(A.faith>=0&&B.faith!==A.faith&&rng()<.0008*ten(A).spread*(B.gov==='theocracy'?.3:1)*Math.min(3,A.pop/(B.pop+1))){B.faith=A.faith;propsDirty=true;log(`${B.name} adopted ${faiths[A.faith].name}.`,'faith')}
   }
-  warTick();pirateTick();terraformFlush();faithTick();scenarioTick();
+  warTick();pirateTick();terraformFlush();faithTick();scenarioTick();historyTick();
   for(const n of nations){if(!n.alive)continue;const t=ten(n);
     for(const b of n.nb){meet(n,nations[b]);if(n.wars.has(b))continue;const B=nations[b];if(!B.alive)continue;/* crowded realms fight over land; different faiths fight more */const crowd=(n.pop/n.cap>.8?1.8:1)*(B.pop/B.cap>.8?1.3:1);const hw=holyWarFactor(n,B),cv=covets(n,B);if(!allied(n,B)&&rng()<.0035*n.aggr*t.war*crowd*(n.faith!==B.faith?1.6:.6)*(n.ties.includes(b)?.35:1)*(n.trade.includes(b)?.6:1)*hw*(cv?1.8:1)){startWar(n,B,null);if(hw>1&&rng()<.7)holyWarLog(n,B);else if(cv&&(important(n)||important(B)))log(`${n.name} wants the ${RESOURCES[cv].label.toLowerCase()} of ${B.name}.`,'war')}}
     if(n.era>=SAIL&&!n.wars.size&&rng()<.0006*n.aggr*t.war){const o=nations.filter(m=>m.alive&&m!==n&&m.era>=SAIL-1&&n.known.includes(m.id)&&!n.ties.includes(m.id));if(o.length)startWar(n,o[(rng()*o.length)|0],null)}
@@ -442,13 +442,13 @@ function unb64(s,T){const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.l
 function buildSave(){
   if(!worldOpts.slot)worldOpts.slot=Date.now().toString(36)+Math.floor(rng()*1e6).toString(36);
   return {v:4,slot:worldOpts.slot,worldName:worldOpts.name||'Unnamed world',owner:account.user||null,worldOpts,sizeKey,lookKey,W,H,worldSeed,year,belief,climate,flags,dayT,
-    deps:deposits,h:b64(h),bm:b64(baseMoist),md:b64(moistD),wd:warmD&&warmD.length===N?b64(warmD):null,owner16:b64(owner),
-    nations:nations.map(n=>Object.assign({},n,{wars:[...n.wars],nb:[],front:[],_walk:0})),ruins,warData,cultSeeds,coves,faiths,logs:logs.slice(0,60),
+    deps:deposits,annals,hist,snaps,h:b64(h),bm:b64(baseMoist),md:b64(moistD),wd:warmD&&warmD.length===N?b64(warmD):null,owner16:b64(owner),
+    nations:nations.map(n=>Object.assign({},n,{wars:[...n.wars],nb:[],front:[],_walk:0,_resMod:null,cities:n.cities.map(c=>{const o={};for(const k in c)if(k[0]!=='_')o[k]=c[k];return o})})),ruins,warData,cultSeeds,coves,faiths,logs:logs.slice(0,60),
     milestones:[...milestones],mi:milestoneInfo,rivers,riv:b64(river),folk,folkId,houses,saved:Date.now(),
     summary:{nations:nations.filter(n=>n.alive).length,era:nations.reduce((m,n)=>n.alive?Math.max(m,n.era):m,0)}}}
 function saveLocal(d){try{localStorage.setItem('faithbound.save',JSON.stringify(d));return true}catch(e){return false}}
 /* saves locally always, and to the account when signed in; returns a promise of where it landed */
-function saveGame(){const d=buildSave(),local=saveLocal(d);
+function saveGame(){if(typeof rewind!=='undefined'&&rewind)return Promise.resolve('none');const d=buildSave(),local=saveLocal(d);
   if(account.user)return cloudSave(d).then(ok=>ok?'cloud':local?'local':'none');return Promise.resolve(local?'local':'none')}
 async function cloudSave(d,keepalive){try{const body=JSON.stringify(d);
   const r=await fetch('/api/saves/'+d.slot,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'same-origin',body,keepalive:!!keepalive&&body.length<60000});
@@ -470,6 +470,6 @@ function applySave(d){
   milestones=new Set(d.milestones);Object.assign(milestoneInfo,d.mi||{});
   selected=-1;inspectTile=-1;selectedFaith=-1;warFrom=-1;moistActive=60;effects=[];
   if(d.lookKey&&LOOKS[d.lookKey])applyLook(d.lookKey);
-  buildTerrain();computeTerrain();layoutTerrain();seedClouds();deposits=d.deps||[];if(!deposits.length)seedDeposits();indexDeposits();
+  buildTerrain();computeTerrain();layoutTerrain();seedClouds();deposits=d.deps||[];if(!deposits.length)seedDeposits();indexDeposits();annals=d.annals||[];hist=d.hist||[];snaps=d.snaps||[];
   camT.set(0,0,0);camDistT=camDist=Math.max(W,H)*.85;propsDirty=true;bordersDirty=true;return true;
 }

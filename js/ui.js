@@ -106,7 +106,7 @@ function burst(i,kind,n,spread){const x=wx(i%W),z=wz((i/W)|0);for(let k=0;k<n;k+
 const needNation=n=>{if(!n){say("Tap inside a nation's borders.");return false}return true};
 
 /* ---------- powers ---------- */
-function applyTool(i,start){
+function applyTool(i,start){if(typeof rewind!=='undefined'&&rewind){if(start)say('You are looking at the past. Press Back to now first.');return}
   if(i<0)return;const o=owner[i],n=o>=0?nations[o]:null;
   if(tool==='raise'||tool==='lower'){const s=tool==='raise'?1:-1;brush(i,2.6,(j,d)=>{h[j]=clamp(h[j]+s*.022*(1-d/3),0,1)});terrainDirty=true;if(rng()<.3)burst(i,'dust',2,1.5);return}
   if(tool==='smooth'){const nh=[];brush(i,2.6,(j,d)=>{let s=0,c=0;brush(j,1,(k)=>{s+=h[k];c++});nh.push([j,lerp(h[j],s/c,.35*(1-d/3))])});for(const [j,v] of nh)h[j]=v;terrainDirty=true;return}
@@ -263,7 +263,7 @@ function renderSheet(full){const B=$('#sheetBody');if(!sheetPanel)return;
       for(const n of al){const c=n.cities[0];if(!c)continue;if(n.famine>0)items.push({t:'Famine',d:`${n.name} · ${n.famine} years left`,x:wx(c.x),z:wz(c.y)});if(n.sick)items.push({t:n.sick.name,d:`Epidemic in ${n.name}`,x:wx(c.x),z:wz(c.y)})}
       $('#disList').innerHTML=items.length?items.slice(0,12).map(it=>`<button class="dis" data-go="${it.x.toFixed(2)},${it.z.toFixed(2)}"><span class="nm">${esc(it.t)}<small>${esc(it.d)}</small></span><span class="pp">Look</span></button>`).join(''):'<p class="note">All is calm, for now.</p>'}
     $('#worldStats').innerHTML=`<div><span>People</span><b>${fmtPop(al.reduce((s,n)=>s+n.pop,0))}</b></div><div><span>Cities</span><b>${cities}</b></div><div><span>Wars</span><b>${wars}</b></div><div><span>Wonders</span><b>${won}</b></div><div><span>Ships</span><b>${ships.length}</b></div><div><span>Faiths</span><b>${faiths.length}</b></div>`}
-  else if(sheetPanel==='chronicle'){if(full)B.innerHTML=`<div class="sec"><h4>Milestones</h4><div class="ms" id="msGrid"></div></div><div class="sec"><h4>Chronicle</h4><ul class="log" id="logList"></ul></div>`;
+  else if(sheetPanel==='chronicle'){if(full)B.innerHTML=`<div class="sec row" style="gap:8px"><button class="btn primary" onclick="openBook()">Open the history book</button><button class="btn" onclick="startRewind()">Rewind the borders</button></div><div class="sec"><h4>Milestones</h4><div class="ms" id="msGrid"></div></div><div class="sec"><h4>Chronicle</h4><ul class="log" id="logList"></ul></div>`;
     $('#msGrid').innerHTML=MILESTONES.map(id=>{const m=milestoneInfo[id],done=milestones.has(id);const title=m?m.title:({city2:'A second city rises',war:'First war',faith:'A faith revealed',era1:'Bronze Age',era3:'Medieval',sail:'Across the sea',colony:'New World',wonder:'A wonder of the world',famine:'The hungry years',contact:'First contact',trade:'Merchants on the road',explore:'Uncharted shores',hurricane:'Eye of the storm',pandemic:'Pandemic',tsunami:'The great wave',era5:'Industrial',democracy:'The first vote',federation:'One world council',naval:'Naval battle',rebel:'Civil war',million:'A million souls',era7:'Future',stars:'To the stars'})[id];
       return `<div class="${done?'done':''}"><b>${esc(title)}</b>${done&&m?'Year '+m.year:'Not yet'}</div>`}).join('');
     $('#logList').innerHTML=logs.slice(0,80).map(l=>`<li><time>Y${l.year}</time><span class="k-${l.kind}">${esc(l.text)}</span></li>`).join('')}

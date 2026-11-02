@@ -164,6 +164,7 @@ const TECH=Object.fromEntries(TECHS.map(t=>[t.id,t]));
    so a week-long age still has wars, rulers and storms at a watchable rate (at most 14,400 years per age). */
 const PACES={quick:{label:'Quick',sec:100},standard:{label:'Standard',sec:600},long:{label:'Long',sec:1800},epic:{label:'Epic',sec:3600},custom:{label:'Custom',sec:0}};
 const TIME_UNITS={minutes:60,hours:3600,days:86400,weeks:604800,months:2629800};
+let annals=[],hist=[],snaps=[];
 let worldOpts={pace:'standard',ageSec:600,customN:1,customUnit:'weeks',calendar:false,anchorReal:0,anchorYear:0,maxEra:7,land:.5,frag:1,mtn:1,rain:.5,rivers:1};
 function ageSeconds(o){o=o||worldOpts;if(o.pace==='custom')return Math.max(60,(o.customN||1)*(TIME_UNITS[o.customUnit]||3600));return PACES[o.pace]?PACES[o.pace].sec:600}
 function paceInfo(o){const T=ageSeconds(o),yearsPerAge=clamp(2*T,175,14400);return{T,yearsPerAge,techMult:yearsPerAge/175,yearRate:yearsPerAge/T}}
