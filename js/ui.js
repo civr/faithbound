@@ -354,6 +354,9 @@ function renderArchs(sel){const el=$(sel);if(!el)return;el.innerHTML=Object.keys
 function applyArch(k){settings.arch=k;saveSettings();propsDirty=true;lastProps=-1e9}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-arch]');if(!b)return;applyArch(b.dataset.arch);renderArchs('#'+b.parentElement.id)});
 function renderLooks(sel){$(sel).innerHTML=Object.keys(LOOKS).map(k=>`<button data-look="${k}" aria-pressed="${k===lookKey}"><b>${LOOKS[k].label}</b><small>${LOOKS[k].desc}</small></button>`).join('')}
+const UIS=[['brass','Dark brass'],['navy','Imperial blue'],['parchment','Parchment'],['marble','Marble']];
+function applyUI(k){settings.ui=k;document.body.classList.remove('ui-navy','ui-parchment','ui-marble');if(k!=='brass')document.body.classList.add('ui-'+k);saveSettings()}
+applyUI(settings.ui||'parchment');
 function applyLook(k){lookKey=k;LK=LOOKS[k];if(VY)colorTerrain();lastEnv=-1e9;settings.look=k;saveSettings()}
 
 /* ---------- HUD ---------- */
@@ -583,6 +586,7 @@ $('#modalBox').addEventListener('click',e=>{const fm=e.target.closest('[data-fm]
   const ds=e.target.closest('[data-dis]');if(ds){settings.disasters=ds.dataset.dis;saveSettings();openSettings();return}
   const sc_=e.target.closest('[data-scen]');if(sc_){if(sc_.dataset.scen)startScenario(sc_.dataset.scen);else closeModal();return}
   const cl=e.target.closest('[data-clim]');if(cl){const d=+cl.dataset.clim;if(d&&spend(40))shiftClimate(d);closeModal();return}
+  const ub=e.target.closest('[data-ui]');if(ub){applyUI(ub.dataset.ui);openSettings();return}
   const pw=e.target.closest('[data-pow]');if(pw){settings.power=pw.dataset.pow;saveSettings();resize();openSettings();return}
   const q=e.target.closest('[data-q]');if(q){settings.quality=q.dataset.q;saveSettings();applyGraphics();treesDirty=true;propsDirty=true;openSettings()}
   const lb=e.target.closest('[data-look]');if(lb){applyLook(lb.dataset.look);renderLooks('#looks3')}});
@@ -593,6 +597,7 @@ $('#modalBox').addEventListener('change',e=>{const k=e.target.dataset.set;if(!k)
 function openSettings(){const t=(k,label,v)=>`<label class="tog">${label}<input type="checkbox" data-set="${k}" ${v?'checked':''}></label>`;
   openModal(`<h2>Settings</h2><div class="sec"><span class="lab">Graphics quality</span><div class="seg">${['low','medium','high'].map(q=>`<button data-q="${q}" aria-pressed="${settings.quality===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div>
     <p class="note">Lower quality draws fewer trees and smaller shadows. Use it on older phones.</p></div>
+    <div class="sec"><span class="lab">Interface</span><div class="seg">${UIS.map(([k,l])=>`<button data-ui="${k}" aria-pressed="${(settings.ui||'parchment')===k}">${l}</button>`).join('')}</div></div>
     <div class="sec"><span class="lab">Power</span><div class="seg">${[['saver','Battery saver'],['balanced','Balanced'],['max','Maximum']].map(([k,l])=>`<button data-pow="${k}" aria-pressed="${(settings.power||'balanced')===k}">${l}</button>`).join('')}</div>
     <p class="note">Battery saver runs at 30 frames a second and fewer pixels, so laptops stay cool and quiet. Balanced runs at 60, and at 30 on battery. Maximum has no limit.</p></div>
     <div class="sec">${t('shadows','Shadows',settings.shadows)}${t('daynight','Day and night cycle',settings.daynight)}${t('borders','Territory borders',settings.borders)}${t('labels','Nation names',settings.labels)}${t('people','People walking around',settings.people)}${t('clouds','Clouds',settings.clouds!==false)}${t('seasons','Seasons (snow in winter, golden autumns)',settings.seasons!==false)}${t('post','Look effects (outlines, focus blur, grading)',settings.post!==false)}${t('unlimited','Sandbox: unlimited belief',unlimited)}</div>

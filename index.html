@@ -282,7 +282,7 @@ input[type=text],select{background:rgba(0,0,0,.25);border:1px solid var(--line2)
 .modal-box h2::after,.setup h2::after{content:'';display:block;height:9px;margin-top:8px;
   background:radial-gradient(circle,var(--brass2) 0 2.5px,transparent 3px) center/9px 9px no-repeat,linear-gradient(90deg,transparent,var(--frame) 20%,var(--brass) 50%,var(--frame) 80%,transparent) center/100% 1px no-repeat}
 .sheet header{border-bottom:1px solid var(--frame);background:linear-gradient(180deg,rgba(201,163,90,.08),transparent)}
-.lab{color:#bfae8a;letter-spacing:.16em}
+.lab{color:var(--lab,#bfae8a);letter-spacing:.16em}
 .btn{font-family:var(--display);letter-spacing:.05em;font-weight:400;font-size:.95rem;border-radius:4px;border:1px solid var(--frame);
   background:linear-gradient(180deg,rgba(255,240,210,.09),rgba(255,240,210,.02));box-shadow:inset 0 1px 0 rgba(255,236,190,.12),inset 0 -1px 0 rgba(0,0,0,.4)}
 .btn:hover{border-color:var(--brass);background:linear-gradient(180deg,rgba(255,240,210,.14),rgba(255,240,210,.04))}
@@ -328,6 +328,43 @@ input[type=text],select{background:rgba(0,0,0,.25);border:1px solid var(--line2)
 .login label{display:grid;gap:4px;font-size:.78rem;color:var(--muted)}.login input{width:100%}
 .login .alt{display:flex;justify-content:space-between;gap:8px;font-size:.8rem}.login .alt button{background:none;border:0;color:var(--brass2);padding:2px 0;text-decoration:underline;text-underline-offset:3px}
 .setup{margin-inline:auto}
+
+/* ===== interface styles (Settings → Interface) ===== */
+/* Imperial blue: deep navy panels in a double gilt frame, ribbon headings */
+body.ui-navy{--panel1:rgba(22,42,66,.96);--panel2:rgba(11,24,41,.96);--frame:rgba(214,178,98,.7);--brass:#d6b262;--brass2:#f2d790;--fg:#f1e8d2;--muted:#b7b2a2;--line:rgba(214,178,98,.28);--line2:rgba(214,178,98,.5)}
+body.ui-navy .glass{box-shadow:inset 0 0 0 1px rgba(0,0,0,.6),inset 0 0 0 3px rgba(11,24,41,.95),inset 0 0 0 4px rgba(214,178,98,.55),inset 0 1px 0 5px rgba(255,236,190,.05),0 16px 40px rgba(0,0,0,.5)}
+body.ui-navy .modal-box h2,body.ui-navy .setup h2{background:linear-gradient(90deg,transparent,rgba(214,178,98,.18) 20%,rgba(214,178,98,.18) 80%,transparent);margin:-4px -18px 0;padding:8px 18px;text-align:center}
+body.ui-navy .sheet header{background:linear-gradient(180deg,rgba(214,178,98,.22),rgba(214,178,98,.04))}
+body.ui-navy .pc svg{background:radial-gradient(circle at 50% 30%,rgba(255,226,160,.25),rgba(5,14,26,.8) 70%);box-shadow:inset 0 0 0 1.5px rgba(214,178,98,.8),0 0 0 2px rgba(5,14,26,.9),0 0 0 3px rgba(214,178,98,.35)}
+body.ui-navy .btn.primary{background:linear-gradient(180deg,#f6dc96 0%,#d9ae5c 50%,#a97a32 100%)}
+
+/* Parchment: warm paper panels, ink text, wax-red accents */
+body.ui-parchment .glass{--lab:#7a5a38;--fg:#3a2a18;--muted:#7a6448;--gold:#8a5a22;--gold2:#7a2316;--brass:#8a6a3a;--brass2:#7a2316;--line:rgba(90,60,30,.25);--line2:rgba(90,60,30,.45);--frame:rgba(110,78,40,.7);color:#3a2a18;
+  background:radial-gradient(ellipse at 30% 20%,rgba(255,250,235,.55),transparent 60%),repeating-linear-gradient(0deg,rgba(120,90,50,.035) 0 2px,transparent 2px 5px),linear-gradient(180deg,#f1e4c6,#e3cfa3);
+  border:1px solid #8a6a3a;box-shadow:inset 0 0 0 1px rgba(255,248,230,.6),inset 0 0 24px rgba(120,80,30,.25),0 14px 34px rgba(0,0,0,.45);backdrop-filter:none}
+body.ui-parchment .glass .btn{background:linear-gradient(180deg,rgba(255,250,235,.7),rgba(220,200,160,.6));color:#3a2a18;border-color:#8a6a3a;box-shadow:inset 0 1px 0 rgba(255,255,255,.6)}
+body.ui-parchment .glass .btn.primary{background:linear-gradient(180deg,#a83a26,#7a2316);color:#fbeedd;border-color:#5a160c;text-shadow:0 1px 0 rgba(0,0,0,.35)}
+body.ui-parchment .glass .ib{color:#3a2a18}body.ui-parchment .glass .ib[aria-pressed="true"],body.ui-parchment .glass .ib.on{background:rgba(122,35,22,.12);color:#7a2316;border-color:rgba(122,35,22,.35)}
+body.ui-parchment .pc{background:rgba(255,250,235,.45);border-color:rgba(110,78,40,.35)}body.ui-parchment .pc svg{color:#7a2316;background:radial-gradient(circle at 50% 30%,#fff7e4,#e2cb9a 75%);box-shadow:inset 0 0 0 1.5px #8a6a3a}
+body.ui-parchment .pc[aria-pressed="true"]{border-color:#7a2316;background:rgba(122,35,22,.12)}
+body.ui-parchment .tabs .ib{color:#6a5232}body.ui-parchment .tabs .ib[aria-pressed="true"]{color:#7a2316}
+body.ui-parchment .glass input[type=text],body.ui-parchment .glass input[type=password],body.ui-parchment .glass select{background:rgba(255,252,242,.8);color:#3a2a18;border-color:#a88a5a}
+body.ui-parchment .glass .seg{background:rgba(255,250,235,.5)}body.ui-parchment .glass .prog{background:rgba(90,60,30,.18)}
+body.ui-parchment .glass .tag{color:#6a5232}body.ui-parchment .status .yr{color:#7a2316}
+
+/* Marble: pale stone with gold inlay, dark text, airy and calm */
+body.ui-marble .glass{--lab:#7a6a4a;--fg:#2a2620;--muted:#6f675a;--gold:#a8873a;--gold2:#8a6a22;--brass:#b8954a;--brass2:#8a6a22;--line:rgba(80,70,50,.18);--line2:rgba(80,70,50,.35);--frame:rgba(168,135,58,.6);color:#2a2620;
+  background:linear-gradient(135deg,rgba(255,255,255,.6),transparent 40%),radial-gradient(ellipse at 70% 80%,rgba(200,195,185,.35),transparent 60%),linear-gradient(180deg,rgba(248,246,240,.97),rgba(232,228,218,.97));
+  border:1px solid rgba(168,135,58,.6);box-shadow:inset 0 0 0 3px rgba(255,255,255,.7),inset 0 0 0 4px rgba(168,135,58,.35),0 14px 34px rgba(0,0,0,.35);backdrop-filter:none}
+body.ui-marble .glass .btn{background:linear-gradient(180deg,#ffffff,#ebe6db);color:#2a2620;border-color:rgba(168,135,58,.6)}
+body.ui-marble .glass .btn.primary{background:linear-gradient(180deg,#d9b866,#b08a3a);color:#fff;border-color:#8a6a22;text-shadow:0 1px 0 rgba(0,0,0,.25)}
+body.ui-marble .glass .ib{color:#2a2620}body.ui-marble .glass .ib[aria-pressed="true"],body.ui-marble .glass .ib.on{background:rgba(168,135,58,.16);color:#7a5a12}
+body.ui-marble .pc{background:rgba(255,255,255,.6);border-color:rgba(168,135,58,.3)}body.ui-marble .pc svg{color:#8a6a22;background:radial-gradient(circle at 50% 30%,#fff,#e9e2d0 75%);box-shadow:inset 0 0 0 1.5px rgba(168,135,58,.8)}
+body.ui-marble .pc[aria-pressed="true"]{border-color:#a8873a;background:rgba(168,135,58,.15)}
+body.ui-marble .tabs .ib{color:#6f675a}body.ui-marble .tabs .ib[aria-pressed="true"]{color:#7a5a12}
+body.ui-marble .glass input[type=text],body.ui-marble .glass input[type=password],body.ui-marble .glass select{background:#fff;color:#2a2620;border-color:rgba(168,135,58,.5)}
+body.ui-marble .glass .seg{background:rgba(255,255,255,.6)}body.ui-marble .glass .prog{background:rgba(80,70,50,.14)}body.ui-marble .status .yr{color:#7a5a12}
+body.ui-parchment .tp h1,body.ui-marble .tp h1{color:#f6e2a6}
 </style>
 
 <canvas id="gl" aria-label="The world of Faithbound"></canvas>

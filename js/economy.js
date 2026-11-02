@@ -62,5 +62,5 @@ function drawDepositLabels(dpr){if(camDist>9)return;octx.textBaseline='middle';o
     octx.fillStyle='rgba(16,16,16,.7)';octx.fillRect(sx-tw/2-11*dpr,sy-8*dpr,tw+18*dpr,16*dpr);octx.fillStyle=R.col==='#2a2a2a'?'#c8c8c8':R.col;octx.beginPath();octx.arc(sx-tw/2-4*dpr,sy,3*dpr,0,7);octx.fill();
     octx.fillStyle='#ece6da';octx.fillText(R.label,sx-tw/2+1*dpr,sy)}}
 function resourceLine(n){if(!n.res)return '';const parts=[];for(const k of RKEYS){if(!need(n,k)&&!(k==='gold'&&n.res.has.gold))continue;const h=n.res.has[k],v=n.res.via[k]||0;
-    parts.push(`<span style="color:${h||v?'#d8d0c0':'#e89a7a'}"><i style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${RESOURCES[k].col==='#2a2a2a'?'#c8c8c8':RESOURCES[k].col};margin-right:4px"></i>${RESOURCES[k].label}${h?'':v?' (trade)':' (lacking)'}</span>`)}
+    parts.push(`<span style="color:${h||v?'var(--fg)':'#c4583a'}"><i style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${RESOURCES[k].col==='#2a2a2a'?'#c8c8c8':RESOURCES[k].col};margin-right:4px"></i>${RESOURCES[k].label}${h?'':v?' (trade)':' (lacking)'}</span>`)}
   return parts.length?`<p class="note" style="display:flex;flex-wrap:wrap;gap:4px 10px">${parts.join('')}</p>`:''}
