@@ -865,8 +865,19 @@ const PK={smoke:{life:3.2,size:.16,grow:.35,vy:.16,col:[.62,.62,.6],a:.5},dark:{
   dust:{life:1.4,size:.25,grow:.4,vy:.05,col:[.6,.5,.38],a:.45},spark:{life:1.6,size:.1,grow:.1,vy:.5,col:[.7,.9,1],a:.8}};
 function emit(kind,x,y,z,vx,vz){if(parts.length>=MAXP)return;const K=PK[kind];parts.push({kind,x,y,z,vx:vx||(rng()-.5)*.04,vz:vz||(rng()-.5)*.04,vy:K.vy*(.7+rng()*.6),t:0,life:K.life*(.7+rng()*.6)})}
 let clouds=[];
-function seedClouds(){clouds=[];for(let c=0;c<Math.round(W*H/220);c++){const cx=(rng()-.5)*W*1.3,cz=(rng()-.5)*H*1.3,cy=13+rng()*5,n=6+((rng()*6)|0);
-  for(let k=0;k<n;k++)clouds.push({x:cx+(rng()-.5)*4,y:cy+(rng()-.5)*1.2,z:cz+(rng()-.5)*2.5,s:3+rng()*3})}}
+/* clouds are camera-facing cards, not points: points have a size limit on many graphics cards and pop or turn square */
+const CLOUDMAX=900,cloudGeo=new THREE.InstancedBufferGeometry();cloudGeo.index=new THREE.PlaneGeometry(1,1).index;cloudGeo.setAttribute('position',new THREE.PlaneGeometry(1,1).attributes.position);cloudGeo.setAttribute('uv',new THREE.PlaneGeometry(1,1).attributes.uv);
+cloudGeo.setAttribute('aOff',new THREE.InstancedBufferAttribute(new Float32Array(CLOUDMAX*4),4));cloudGeo.instanceCount=0;
+const cloudU={map:{value:TX.soft},uCol:{value:new THREE.Color(1,1,1)},uA:{value:.26},uPL:PLU.uPL,uPE:PLU.uPE};
+const cloudMesh=new THREE.Mesh(cloudGeo,new THREE.ShaderMaterial({uniforms:cloudU,transparent:true,depthWrite:false,
+  vertexShader:`attribute vec4 aOff;varying vec2 vUv;varying float vF;void main(){vUv=uv;vec3 R=vec3(viewMatrix[0][0],viewMatrix[1][0],viewMatrix[2][0]),U=vec3(viewMatrix[0][1],viewMatrix[1][1],viewMatrix[2][1]);
+    vec3 p=aOff.xyz+(R*position.x+U*position.y*.62)*aOff.w;vec4 mv=viewMatrix*vec4(p,1.);vF=smoothstep(2.,9.,-mv.z);gl_Position=projectionMatrix*mv;}`,
+  fragmentShader:TOSCENE+`uniform sampler2D map;uniform vec3 uCol;uniform float uA;varying vec2 vUv;varying float vF;void main(){float a=texture2D(map,vUv).a;gl_FragColor=vec4(toScene(uCol),a*uA*vF);}`}));
+cloudMesh.frustumCulled=false;cloudMesh.renderOrder=6;scene.add(cloudMesh);
+function updateCloudCards(dt){const a=cloudGeo.attributes.aOff.array;let n=0;for(const c of clouds){c.x+=dt*.25;if(c.x>W*.75)c.x=-W*.75;if(n>=CLOUDMAX)break;a[n*4]=c.x;a[n*4+1]=c.y;a[n*4+2]=c.z;a[n*4+3]=c.s*1.3;n++}
+  cloudGeo.instanceCount=settings.clouds===false?0:n;cloudGeo.attributes.aOff.needsUpdate=true;const cs=1-nightF*.7;cloudU.uCol.value.setRGB(cs,cs,cs*1.02);cloudU.uA.value=.2*smooth(18,45,camDist)}
+function seedClouds(){clouds=[];for(let c=0;c<Math.round(W*H/260);c++){const cx=(rng()-.5)*W*1.3,cz=(rng()-.5)*H*1.3,cy=13+rng()*5,n=10+((rng()*8)|0),sw=3+rng()*3;
+  for(let k=0;k<n;k++){const a=rng()*6.283,r=Math.sqrt(rng())*sw;clouds.push({x:cx+Math.cos(a)*r*1.4,y:cy+(rng()-.5)*.6+(1-r/sw)*.5,z:cz+Math.sin(a)*r*.8,s:1.6+rng()*1.8*(1-r/sw*.5)})}}}
 function updateParticles(dt,windT){
   const wind=.12;let n=0,g=0;const pa=pGeo.attributes.position.array,sa=pGeo.attributes.aSize.array,aa=pGeo.attributes.aAlpha.array,ca=pGeo.attributes.aColor.array;
   const ga=gGeo.attributes.position.array,gs=gGeo.attributes.aSize.array,gaa=gGeo.attributes.aAlpha.array,gc=gGeo.attributes.aColor.array,tt=performance.now()/1000;
@@ -880,9 +891,7 @@ function updateParticles(dt,windT){
     const c=K.col;ca[n*3]=c[0];ca[n*3+1]=c[1];ca[n*3+2]=c[2];n++}
   gGeo.setDrawRange(0,g);for(const a of ['position','aSize','aAlpha','aColor'])gGeo.attributes[a].needsUpdate=true;
   if(typeof stormPuffs==='function')n=stormPuffs(pa,sa,aa,ca,n);
-  const cs=1-nightF*.7;
-  for(const c of clouds){c.x+=dt*.25;if(c.x>W*.75)c.x=-W*.75;if(n>=MAXP)break;
-    pa[n*3]=c.x;pa[n*3+1]=c.y;pa[n*3+2]=c.z;sa[n]=c.s;aa[n]=settings.clouds===false?0:.26*smooth(18,45,camDist);ca[n*3]=cs;ca[n*3+1]=cs;ca[n*3+2]=cs*1.02;n++}
+  updateCloudCards(dt);
   pGeo.setDrawRange(0,n);for(const a of ['position','aSize','aAlpha','aColor'])pGeo.attributes[a].needsUpdate=true;
   pU.uScale.value=renderer.domElement.height/(2*Math.tan(cam.fov*Math.PI/360));
 }
