@@ -584,6 +584,7 @@ function buildExtras(){
       const hgt=(.012+hash(i0+k*5)*.04)*(1-age/400);add('stone',x,y-.01,z,.07+hash(k+i0)*.05,hgt,.012,a,0x8a8478);
       if(k%3===0)add('box',x+.02,y,z+.01,.06,.008,.008,a+1,0x2a2420)}
     if(age<25)smokeAt(cx,groundY(cx,cz)+.05,cz,true,.5*(1-age/25))}
+  if(typeof buildDeposits==='function')buildDeposits();
   kitCommit(BUILD_KITS);
 }
 
