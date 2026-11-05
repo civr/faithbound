@@ -202,7 +202,16 @@ const FAIRY_A=[[[0,1],[2,1],[4,1]],[[7,2],[6,1]],[[5,1],[4,1],[3,1]],[[4,3]],[[2
   [[0,1],[2,1],[4,1]],[[7,2],[6,1]],[[5,1],[7,1],[9,1]],[[8,3]],[[7,1],[6,1],[5,1]],[[4,1.5],[3,.5],[2,1]],[[1,1],[3,1],[2,1]],[[0,3]]];
 const FAIRY_PROG=[0,4,3,4,1,4,3,4,0,4,3,0,5,1,4,0];
 function celesta(m,t,dur,pk,bus){tone('sine',hz(m),t,dur,pk,bus,{verb:true});tone('sine',hz(m)*4,t,dur*.3,pk*.25,bus,{verb:true});tone('triangle',hz(m)*2,t,dur*.5,pk*.2,bus)}
+/* Peaceful: slow, soft piano notes with lots of space, over a warm string pad. No drums, no tension, not even in war. */
+function softPiano(m,t,dur,pk,bus){const f=hz(m);tone('triangle',f,t,dur,pk,bus,{a:.006,lp:1800,verb:true});tone('sine',f*2,t,dur*.45,pk*.25,bus,{a:.004,verb:true});tone('sine',f,t,dur*1.4,pk*.5,bus,{a:.01})}
 const STYLES={
+  peaceful:{beats:4,prog:[0,2,5,3,0,5,3,4],bpm:()=>62,play(b){const bt=b.beat,L=4*bt,bus=b.bus,bi=b.bar%8,deg=[0,2,5,3,0,5,3,4][bi],ch=[0,2,4].map(i=>b.abs(deg+i,0));
+    ch.forEach((m,i)=>bow(hz(m-12),b.t+i*.2,L*1.3,.011,bus,true));/* the warm pad */
+    softPiano(b.abs(deg,-1),b.t,L*.9,.05,bus);/* a low note to start each bar */
+    if(b.bar%16>=14)return;/* now and then the piano rests and only the pad breathes */
+    const n=1+((Math.random()*4)|0),pool=[0,2,4,7,9].map(d=>b.abs(deg+d,0));let used=new Set();
+    for(let q=0;q<n;q++){let m=pool[(Math.random()*pool.length)|0];if(used.has(m))continue;used.add(m);const t=b.t+bt*(.5+Math.floor(Math.random()*7)/2)+(Math.random()-.5)*.04;softPiano(m,t,bt*3,.04+Math.random()*.015,bus);
+      if(Math.random()<.25)softPiano(m+(Math.random()<.5?5:7),t+bt*.5,bt*2.5,.03,bus)}}},
   fairytale:{minorInWar:'harm',beats:3,prog:FAIRY_PROG,bpm:(war,ww)=>ww?132:war?112:96,play(b,war,era,ww){const e=era,bt=b.beat,L=3*bt,bus=b.bus,bi=b.bar%16,sec=(b.bar>>4)%2,deg=FAIRY_PROG[bi],inten=ww?1:war?.5:0;
     const ch=[0,2,4].map(i=>b.abs(deg+i,0));
     /* the tune: music box first time round, then flute or strings with the music box an octave above */
@@ -264,11 +273,11 @@ const STYLES={
     for(let k=1;k<b.beats;k+=2)drum('frame',b.t+k*b.beat,war?.12:.06,b.bus);
     if(b.bar%4>=2)b.melody(6,.35,(f,t,d)=>flute(f,t,d,.04,b.bus),1)}}};
 function musicBar(){if(!playing){themeBar();lastMusicEra=-1;return}
-  const style=settings.music||'fairytale';if(style==='off'){SND.next=SND.ctx.currentTime+2;return}
+  const style=settings.music||'peaceful';if(style==='off'){SND.next=SND.ctx.currentTime+2;return}
   const c=SND.ctx,era=musicEra(),B=BANDS[era];
-  if(era!==lastMusicEra){/* a short fanfare when the age changes */if(lastMusicEra>=0&&playing){const t=Math.max(SND.next,c.currentTime+.05);[0,4,7,12].forEach((m,i)=>bow(hz(B.root+12+m),t+i*.22,.9,.05,SND.bus.music));drum('timpani',t,.35,SND.bus.music);SND.next=t+1.6;SND.bar=0}lastMusicEra=era}
+  if(era!==lastMusicEra){/* a short fanfare when the age changes */if(lastMusicEra>=0&&playing&&style!=='peaceful'){const t=Math.max(SND.next,c.currentTime+.05);[0,4,7,12].forEach((m,i)=>bow(hz(B.root+12+m),t+i*.22,.9,.05,SND.bus.music));drum('timpani',t,.35,SND.bus.music);SND.next=t+1.6;SND.bar=0}lastMusicEra=era}
   const war=nations.some(n=>n.alive&&n.wars.size);let mode=B.mode;if(war&&(mode==='major'||mode==='mixo'||mode==='lydian'))mode='minor';
-  const ww=typeof worldWars!=='undefined'&&worldWars.some(w=>w.end==null),S=STYLES[style];if(S&&(S===STYLES.cinematic||S.minorInWar)&&(war||ww))mode=S.minorInWar==='harm'?'harm':'minor';else if(S===STYLES.fairytale)mode='lydian';const sc=MODES[mode],beat=60/(S?(typeof S.bpm==='function'?S.bpm(war,ww):S.bpm):B.bpm)*(war&&!S?.92:1),t0=Math.max(SND.next,c.currentTime+.05),deg=S&&S.prog?S.prog[SND.bar%S.prog.length]:B.prog[SND.bar%B.prog.length];
+  const ww=typeof worldWars!=='undefined'&&worldWars.some(w=>w.end==null),S=STYLES[style];if(S&&(S===STYLES.cinematic||S.minorInWar)&&(war||ww))mode=S.minorInWar==='harm'?'harm':'minor';else if(S===STYLES.fairytale)mode='lydian';if(S===STYLES.peaceful)mode='major';const sc=MODES[mode],beat=60/(S?(typeof S.bpm==='function'?S.bpm(war,ww):S.bpm):B.bpm)*(war&&!S?.92:1),t0=Math.max(SND.next,c.currentTime+.05),deg=S&&S.prog?S.prog[SND.bar%S.prog.length]:B.prog[SND.bar%B.prog.length];
   const note=(d,oct)=>B.root+12*(oct||0)+sc[((d%sc.length)+sc.length)%sc.length]+12*Math.floor(d/sc.length);
   const b={abs:(d,oct)=>note(d,oct),t:t0,beat,beats:S?(S.beats||4):B.beats,bus:SND.bus.music,root:B.root,bar:SND.bar,note:(d,oct)=>note(deg+d,oct),
     chord(fn,oct,inv){[0,2,4].forEach((d,i)=>fn(hz(note(deg+d+(inv&&i===0?sc.length:0),oct||0)),i))},
