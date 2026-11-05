@@ -345,32 +345,36 @@ function updateShips(dy,dt,now){
     if(s.sink>0){s.sink+=dt;s.g.position.y=waterY-s.sink*.15;s.g.rotation.z=s.sink*.4;if(rng()<dt*8)emit('dark',s.x,waterY+.05,s.z);if(s.sink>2){disposeShip(s);ships.splice(k,1)}continue}
     if(s.owner>=0&&!nations[s.owner].alive){s.sink=.01;continue}
     if(!s.wp)s.wp=shipRoute(s.path);const WP=s.wp;
-    /* ships move at sailing speed on screen, whatever the speed of the years */let rem=SHIPSPEED[s.era]*Math.min(dy,dt*2.2)*.9;if(s.fight)rem=0;
+    /* ships move at sailing speed on screen, whatever the speed of the years */let rem=dy>0?SHIPSPEED[s.era]*dt*2*.9*clamp(dy/(dt*Math.max(.8,paceInfo().yearRate)),1,3):0;if(s.fight)rem=0;
     if(s.hunt&&!s.fight&&!s.hunt.sink){const h=s.hunt,ddx=h.x-s.x,ddz=h.z-s.z,d=Math.hypot(ddx,ddz)||1,st=Math.min(d,rem),nx=s.x+ddx/d*st,nz=s.z+ddz/d*st,ti=tileAt(nx,nz);if(ti>=0&&isWater(ti)){s.x=nx;s.z=nz;s.head=Math.atan2(-ddz,ddx);rem=0}else s.hunt=null}
     if(s.wasOff&&!s.fight&&!s.hunt){/* back from a fight or a chase: rejoin the route at the nearest point ahead */let bi=s.seg,bd=1e9;for(let q2=s.seg;q2<WP.length;q2++){const d2=Math.hypot(WP[q2][0]-s.x,WP[q2][1]-s.z);if(d2<bd){bd=d2;bi=q2}}s.seg=Math.max(s.seg,bi-1);s.wasOff=false}
     if(s.fight||s.hunt)s.wasOff=true;
     /* steer for a point a little way ahead on the route, so the ship sweeps round bends instead of jerking at each corner */
-    if(rem>0&&s.seg<WP.length-1){while(s.seg<WP.length-1&&Math.hypot(WP[s.seg+1][0]-s.x,WP[s.seg+1][1]-s.z)<.14)s.seg++;
+    if(rem>0&&s.seg<WP.length-1){while(s.seg<WP.length-1){const A_=WP[s.seg+1],dA=Math.hypot(A_[0]-s.x,A_[1]-s.z);if(dA<.14){s.seg++;continue}
+        /* already past the next point: closer to the one after it than that point is */
+        if(s.seg+2<WP.length){const B_=WP[s.seg+2];if(Math.hypot(B_[0]-s.x,B_[1]-s.z)<Math.hypot(B_[0]-A_[0],B_[1]-A_[1])&&clearSea(s.x,s.z,B_[0],B_[1])){s.seg++;continue}}break}
       if(s.seg<WP.length-1){let la=.38,px=s.x,pz=s.z,j=s.seg+1,tx=WP[j][0],tz=WP[j][1],d=Math.hypot(tx-px,tz-pz);
         while(d<la&&j<WP.length-1){la-=d;px=tx;pz=tz;j++;tx=WP[j][0];tz=WP[j][1];d=Math.hypot(tx-px,tz-pz)}
         const f=Math.min(1,la/(d||1));let gx=px+(tx-px)*f,gz=pz+(tz-pz)*f,ddx=gx-s.x,ddz=gz-s.z,D=Math.hypot(ddx,ddz)||1,st=Math.min(rem,D),nx=s.x+ddx/D*st,nz=s.z+ddz/D*st,ti=tileAt(nx,nz);
-        if(ti<0||!isWater(ti)){gx=WP[s.seg+1][0];gz=WP[s.seg+1][1];ddx=gx-s.x;ddz=gz-s.z;D=Math.hypot(ddx,ddz)||1;st=Math.min(rem,D);nx=s.x+ddx/D*st;nz=s.z+ddz/D*st}
+        if(ti<0||!isWater(ti)){gx=WP[s.seg+1][0];gz=WP[s.seg+1][1];ddx=gx-s.x;ddz=gz-s.z;D=Math.hypot(ddx,ddz)||1;st=Math.min(rem,D);nx=s.x+ddx/D*st;nz=s.z+ddz/D*st;const t2=tileAt(nx,nz);if(t2>=0&&!isWater(t2)&&isWater(tileAt(s.x,s.z))){s.seg++;nx=s.x;nz=s.z}}
         s.x=nx;s.z=nz;s.head=Math.atan2(-ddz,ddx)}}
-    if(s.head!=null){const turn=((s.head-s.g.rotation.y+Math.PI*3)%(Math.PI*2)-Math.PI);s.g.rotation.y+=turn*Math.min(1,dt*3);s.lean=lerp(s.lean||0,clamp(turn*.25,-.12,.12),Math.min(1,dt*3))}
-    s.g.position.set(s.x,waterY+(s.era>=7?.06:0)+Math.sin(now/500+k)*.005,s.z);s.g.rotation.x=Math.sin(now/700+k)*.025+(s.lean||0);
+    if(s.head!=null){const turn=Math.atan2(Math.sin(s.head-s.g.rotation.y),Math.cos(s.head-s.g.rotation.y));s.g.rotation.y+=turn*Math.min(1,dt*3);s.lean=lerp(s.lean||0,clamp(turn*.25,-.12,.12),Math.min(1,dt*3))}
+    {/* ride the same swell the sea shader draws, so hulls neither sink into the waves nor float above them */const T=now/1000,wa=s.x*1.7+T*1.1,wb=s.z*1.4+T*1.35,deep=clamp((waterY-groundY(s.x,s.z))*2,0,1);
+      s.g.position.set(s.x,waterY+(s.era>=7?.06:0)+(Math.sin(wa)*.03+Math.cos(wb)*.026)*deep,s.z);s.g.rotation.x=Math.cos(wa)*.05*deep+(s.lean||0);s.g.rotation.z=-Math.sin(wb)*.04*deep}
     if(dy>0){s.foamT+=dt;if(s.foamT>.12){s.foamT=0;const a=s.g.rotation.y;emit('foam',s.x-Math.cos(a)*.2,waterY+.01,s.z+Math.sin(a)*.2,0,0)}
       if(s.era===5&&rng()<dt*3)emit('dark',s.x,waterY+.2,s.z)}
     if(s.seg>=WP.length-1){arrive(s);disposeShip(s);ships.splice(k,1)}}
   if(dy<=0)return;
   /* naval war: warships hunt enemy ships they sight, close in, trade broadsides until one sinks */
-  for(const a of ships){if(a.sink||a.kind!=='war'||a.fight)continue;const A=nations[a.owner];if(!A)continue;let best=null,bd=3.2;
-    for(const b of ships){if(b===a||b.sink||b.owner===a.owner||(b.kind!=='pirate'&&!A.wars.has(b.owner)))continue;const d=Math.hypot(a.x-b.x,a.z-b.z);if(d<bd){bd=d;best=b}}
+  for(const a of ships){if(a.calm>0)a.calm-=dt;if(a.sink||a.kind!=='war'||a.fight||a.calm>0)continue;const A=nations[a.owner];if(!A)continue;let best=null,bd=3.2;
+    for(const b of ships){if(b===a||b.sink||b.owner===a.owner||(b.kind!=='pirate'&&!A.wars.has(b.owner)))continue;const d=Math.hypot(a.x-b.x,a.z-b.z);if(d<bd&&clearSea(a.x,a.z,b.x,b.z)){bd=d;best=b}}
     if(best){if(bd<.9){a.fight=best;if(!best.fight)best.fight=a}else a.hunt=best}else a.hunt=null}
   for(const s_ of ships){if(s_.sink)continue;s_.hp=s_.hp??(s_.kind==='war'?3+s_.era*.6:s_.kind==='pirate'?2.5:1.2);
-    const f=s_.fight;if(f&&(f.sink||Math.hypot(f.x-s_.x,f.z-s_.z)>2.2)){s_.fight=null;continue}if(!f)continue;
-    /* hold a broadside: turn side-on and keep a cannon shot away */
-    const dx=f.x-s_.x,dz=f.z-s_.z,d=Math.hypot(dx,dz)||1,side=Math.atan2(-dz,dx)+Math.PI/2;s_.head=side;
-    const want=s_.kind==='war'?.55:.9,mv=(d-want)*dt*.4,nx=s_.x+dx/d*mv,nz=s_.z+dz/d*mv,ti=tileAt(nx,nz);if(ti>=0&&isWater(ti)){s_.x=nx;s_.z=nz}
+    const f=s_.fight;if(f){s_.fT=(s_.fT||0)+dt;const A_=nations[s_.owner],still=f.owner<0||s_.owner<0||(A_&&A_.wars.has(f.owner));
+      if(f.sink||!still||s_.fT>45||Math.hypot(f.x-s_.x,f.z-s_.z)>2.2||(s_.fT%1<dt&&!clearSea(s_.x,s_.z,f.x,f.z))){if(s_.fT>45)s_.calm=20;s_.fight=null;s_.fT=0;continue}}if(!f)continue;
+    /* circle the enemy with the guns turned toward it, keeping a cannon shot away, instead of sliding sideways */
+    const dx=f.x-s_.x,dz=f.z-s_.z,d=Math.hypot(dx,dz)||1;s_.orb=s_.orb||(rng()<.5?1:-1);const ox=-dz/d*s_.orb,oz=dx/d*s_.orb;s_.head=Math.atan2(-oz,ox);
+    const want=s_.kind==='war'?.55:.9,mv=(d-want)*dt*.4,v=(s_.kind==='war'?.09:.12)*dt,nx=s_.x+ox*v+dx/d*mv,nz=s_.z+oz*v+dz/d*mv,ti=tileAt(nx,nz);if(ti>=0&&isWater(ti)){s_.x=nx;s_.z=nz}else s_.orb=-s_.orb
     if(s_.kind==='colony'||s_.kind==='trade'||s_.kind==='explore')continue;/* unarmed ships only flee */
     s_.gun=(s_.gun??rng()*.6)-dt;if(s_.gun>0)continue;s_.gun=(s_.era>=6?.35:s_.era>=5?.6:.9)+rng()*.5;
     const sx=s_.x+dx/d*.08,sz=s_.z+dz/d*.08;emit('flash',sx,waterY+.06,sz);emit(s_.era>=5?'dark':'smoke',sx,waterY+.06,sz);
