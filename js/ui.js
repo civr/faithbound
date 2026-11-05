@@ -360,13 +360,13 @@ function chipsFor(o){return modList(o).map(m=>`<span class="mod ${m.good?'up':'d
 function openFaithMaker(){if(faiths.length>=8){say('Eight faiths is the most this world can hold.');return}
   const used=new Set(faiths.map(f=>f.color));draft={name:freeFaithName(),glyph:Object.keys(GLYPHS)[(rng()*10)|0],color:FCOL.find(c=>!used.has(c))||FCOL[0],tenets:['harmony']};renderFaithMaker()}
 function renderFaithMaker(){const d=draft,combo={};for(const k of MODKEYS)combo[k]=1;for(const t of d.tenets)for(const k of MODKEYS)if(TENETS[t][k]!=null)combo[k]*=TENETS[t][k];
-  openModal(`<h2>Reveal a faith</h2>
+  openModal(`<h2>Reveal a faith</h2><div class="setcols fmcols"><div class="setcol">
   <div class="fprev"><span class="fg big" style="background:${d.color}">${glyph(d.glyph,'#fff')}</span><div><b id="fpName">${esc(d.name)}</b><div class="mods">${chipsFor(combo)||'<span class="note">Pick tenets below</span>'}</div></div></div>
   <div class="sec"><label class="lab" for="fmName">Name</label><div class="row"><input type="text" id="fmName" maxlength="28" value="${esc(d.name)}" style="flex:1"><button class="btn" data-fm="dice" aria-label="Suggest a name">Suggest</button></div></div>
   <div class="sec"><span class="lab">Symbol</span><div class="glyphs">${Object.keys(GLYPHS).map(k=>`<button data-fm="glyph" data-v="${k}" aria-pressed="${k===d.glyph}" aria-label="${k}">${glyph(k)}</button>`).join('')}</div></div>
   <div class="sec"><span class="lab">Colour</span><div class="row">${FCOL.map(c=>`<button class="swatch" data-fm="color" data-v="${c}" aria-pressed="${c===d.color}" style="background:${c}" aria-label="Colour ${c}"></button>`).join('')}</div></div>
-  <div class="sec"><span class="lab">Tenets · pick two</span><div class="tenets">${Object.keys(TENETS).map(k=>`<button data-fm="tenet" data-v="${k}" aria-pressed="${d.tenets.includes(k)}"><b>${TENETS[k].label}</b><small>${TENETS[k].desc}</small></button>`).join('')}</div></div>
-  <div class="row"><button class="btn" data-p="close">Cancel</button><div class="flex"></div><button class="btn primary" data-fm="found" ${d.tenets.length?'':'disabled'}>Reveal faith · ${costOf(40)} belief</button></div>`)}
+  </div><div class="setcol"><div class="sec"><span class="lab">Tenets · pick two</span><div class="tenets">${Object.keys(TENETS).map(k=>`<button data-fm="tenet" data-v="${k}" aria-pressed="${d.tenets.includes(k)}"><b>${TENETS[k].label}</b><small>${TENETS[k].desc}</small></button>`).join('')}</div></div></div></div>
+  <div class="row"><button class="btn" data-p="close">Cancel</button><div class="flex"></div><button class="btn primary" data-fm="found" ${d.tenets.length?'':'disabled'}>Reveal faith · ${costOf(40)} belief</button></div>`);$('#modalBox').classList.add('setbox')}
 /* actions that change the world from a dialog; in co-op a guest's choice runs on the host through these */
 function doAct(k,p){spendMul=1;
   if(k==='guide'){const n=nations[p.n];if(!n||!n.alive||!TECH[p.t]||!techAvailable(n,TECH[p.t]))return false;spendMul=devCost(n);if(!spend(10))return false;if((n.devotion??.3)<.2&&rng()<.5){say(`The scholars of ${n.name} do not listen to a god they no longer believe in.`);return true}n.research=p.t;n.tech=0;n.guided=true;log(`You guided the scholars of ${n.name} towards ${TECH[n.research].name}.`,'era');return true}
@@ -448,8 +448,8 @@ function renderArchs(sel){const el=$(sel);if(!el)return;el.innerHTML=Object.keys
 function applyArch(k){settings.arch=k;saveSettings();propsDirty=true;lastProps=-1e9}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-arch]');if(!b)return;applyArch(b.dataset.arch);renderArchs('#'+b.parentElement.id)});
 function renderLooks(sel){$(sel).innerHTML=Object.keys(LOOKS).map(k=>`<button data-look="${k}" aria-pressed="${k===lookKey}"><b>${LOOKS[k].label}</b><small>${LOOKS[k].desc}</small></button>`).join('')}
-const UIS=[['brass','Dark brass'],['navy','Imperial blue'],['parchment','Parchment'],['marble','Marble']];
-function applyUI(k){settings.ui=k;document.body.classList.remove('ui-navy','ui-parchment','ui-marble');if(k!=='brass')document.body.classList.add('ui-'+k);saveSettings()}
+const UIS=[['brass','Dark brass'],['navy','Imperial blue'],['parchment','Parchment'],['marble','Marble'],['frost','Frost'],['night','Night'],['clay','Clay']];
+function applyUI(k){settings.ui=k;document.body.classList.remove('ui-navy','ui-parchment','ui-marble','ui-frost','ui-night','ui-clay');if(k!=='brass')document.body.classList.add('ui-'+k);saveSettings()}
 applyUI(settings.ui||'parchment');
 function applyLook(k){lookKey=k;LK=LOOKS[k];if(VY)colorTerrain();lastEnv=-1e9;settings.look=k;saveSettings()}
 
