@@ -22,7 +22,7 @@ function genWorld(seedIn){
   nations=[];faiths=[];logs=[];year=0;ruins=[];warData={};coves=[];belief=100;climate.temp=.5;climate.rain=worldOpts.rain??.5;flags={warm:false,sail:false};milestones=new Set();
   selected=-1;inspectTile=-1;selectedFaith=-1;warFrom=-1;moistActive=0;effects=[];
   buildTerrain();computeTerrain();layoutTerrain();
-  seedCultures();seedDeposits();indexDeposits();annals=[];hist=[];snaps=[];worldWars=[];colonies=[];planets={moon:{terra:0,life:0},mars:{terra:0,life:0}};
+  seedCultures();seedDeposits();indexDeposits();annals=[];endedWars=[];hist=[];snaps=[];worldWars=[];colonies=[];planets={moon:{terra:0,life:0},mars:{terra:0,life:0}};
   let placed=0,tries=0;
   while(placed<S.tribes&&tries<6000){tries++;const i=(rng()*N)|0;if(hab[i]<.7||owner[i]>=0||(tries<4000&&siteScore(i)<.6))continue;
     const x=i%W,y=(i/W)|0;let ok=true;for(const n of nations){const c=n.cities[0];if(Math.hypot(c.x-x,c.y-y)<W/(S.tribes>5?5.5:4.2)){ok=false;break}}
@@ -182,7 +182,10 @@ function siegeTick(A,B,w,sg){
     propsDirty=true;bordersDirty=true;
     if(!B.cities.length){conquer(A,B);return true}}
   return false}
-function conquer(A,B){/* the last town fell: the realm is no more */for(let i=0;i<N;i++)if(owner[i]===B.id)claim(i,A.id);A.pop+=B.pop*.4;B.pop=0;
+/* the last wars that ended, for the Wars panel */
+let endedWars=[];
+function noteWarEnd(a,b,how){const w=warData[warKey(a,b)];endedWars.unshift({a:a.id,b:b.id,an:a.name,bn:b.name,from:w&&w.start!=null?w.start:year-(w?w.years:0),to:year,how});if(endedWars.length>10)endedWars.length=10}
+function conquer(A,B){noteWarEnd(A,B,'conquest');/* the last town fell: the realm is no more */for(let i=0;i<N;i++)if(owner[i]===B.id)claim(i,A.id);A.pop+=B.pop*.4;B.pop=0;
   log(`${B.name} was conquered by ${A.name}.`,'doom');fall(B)}
 function warTick(){
   for(const A of nations){if(!A.alive)continue;for(const bid of [...A.wars]){const B=nations[bid];if(!B||!B.alive||A.id>B.id)continue;
@@ -195,10 +198,11 @@ function warTick(){
         if(A.front.length<60)A.front.push(i);if(B.front.length<60)B.front.push(j)}}
     if(siegeTick(A,B,w,1)||siegeTick(B,A,w,-1)){delete warData[key];continue}
     /* peace grows likelier with time and with a clear winner; the loser cedes the land the winner holds */
-    const tired=.01+w.years*.0025+Math.abs(w.score)*.003;
+    /* wars drag on: no one sues for peace in the first decade, then weariness grows year by year; a crushed side gives in sooner */
+    const tired=(w.years<15?0:.002+(w.years-15)*.0006)+(w.years<8?0:Math.abs(w.score)*.0004)+(Math.abs(w.score)>60?.03:0);
     if(rng()<tired*ten(A).peace*ten(B).peace*wwPeace(A,B)){addRival(A,B,.4);const win=w.score>6?A:w.score<-6?B:null,lose=win===A?B:A;
       makePeace(A,B,false);if(win)log(`${lose.name} ceded land to ${win.name} in the peace treaty.`,'war');delete warData[key]}}}}
-function makePeace(a,b,god){a.wars.delete(b.id);b.wars.delete(a.id);bordersDirty=true;if(typeof consolidate==='function')consolidate();log(god?`You forced peace between ${a.name} and ${b.name}.`:`${a.name} and ${b.name} made peace.`,'life')}
+function makePeace(a,b,god){if(a.wars.has(b.id))noteWarEnd(a,b,god?'forced':'peace');a.wars.delete(b.id);b.wars.delete(a.id);bordersDirty=true;if(typeof consolidate==='function')consolidate();log(god?`You forced peace between ${a.name} and ${b.name}.`:`${a.name} and ${b.name} made peace.`,'life')}
 function fall(n){n.alive=false;for(const o of nations)if(o.allies)o.allies=o.allies.filter(x=>x!==n.id);n.allies=[];for(const o of nations)o.wars.delete(n.id);n.wars.clear();if(warFrom===n.id)warFrom=-1;log(`${n.name} has fallen.`,'doom');propsDirty=true;bordersDirty=true}
 function rebel(n,forced,why){
   const cands=n.cities.slice(1);if(!cands.length)return;const c=forced||cands[(rng()*cands.length)|0];
