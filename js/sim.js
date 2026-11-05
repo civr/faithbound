@@ -111,7 +111,8 @@ function nearCity(x,y,d){for(const n of nations){if(!n.alive)continue;for(const 
 /* towns want flat, fertile ground: valleys, river banks and coasts, never a mountainside */
 const SL_CITY=.5;
 const flatOk=j=>tslope.length===N?tslope[j]<SL_CITY:true;
-function siteScore(j){if(hab[j]<.45||!flatOk(j)||biome[j]>=10)return -1;let s=hab[j]-(tslope.length===N?tslope[j]:0)*.8;if(river[j])s+=.35;if(deposits.length&&nearDeposit(j,2.5))s+=.3;
+function rugged(j){const x=j%W,y=(j/W)|0;let m=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(h[q]>sea)m=Math.max(m,Math.abs(h[q]-h[j]))}return m}
+function siteScore(j){if(hab[j]<.45||!flatOk(j)||biome[j]>=10||h[j]-sea>.2||rugged(j)>.045)return -1;let s=hab[j]-(tslope.length===N?tslope[j]:0)*.8;if(river[j])s+=.35;if(deposits.length&&nearDeposit(j,2.5))s+=.3;
   const x=j%W,y=(j/W)|0;for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X>=0&&Y>=0&&X<W&&Y<H&&isWater(Y*W+X)){s+=.25;break}}return s}
 function bestSite(A,x,y,r){let best=-1,bs=-1;for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
   if(owner[j]!==A.id)continue;const sc=siteScore(j);if(sc>bs){bs=sc;best=j}}return best}
@@ -176,12 +177,12 @@ function conquer(A,B){/* the last town fell: the realm is no more */for(let i=0;
   log(`${B.name} was conquered by ${A.name}.`,'doom');fall(B)}
 function warTick(){
   for(const A of nations){if(!A.alive)continue;for(const bid of [...A.wars]){const B=nations[bid];if(!B||!B.alive||A.id>B.id)continue;
-    const key=warKey(A,B),w=warData[key]||(warData[key]={score:0,years:0});w.years++;
+    const key=warKey(A,B),w=warData[key]||(warData[key]={score:0,years:0,start:year});w.years++;if(w.start==null)w.start=year-w.years;w.ta=w.ta||0;w.tb=w.tb||0;w.da=w.da||0;w.db=w.db||0;
     const pairs=frontPairs(A,B);
     if(pairs.length){const sa=mil(A),sb=mil(B),battles=2+Math.floor((A.era+B.era)/2)+Math.min(6,pairs.length>>3);
       for(let k=0;k<battles;k++){const [i,j]=pairs[(rng()*pairs.length)|0];const tf=terrFactor(i,j);
-        if(rng()<sa/(sa+sb)){if(owner[j]===B.id&&!cityAtTile(j)&&rng()<tf)advance(A,B,j);w.score++;B.pop*=.992;A.pop*=.997}
-        else{if(owner[i]===A.id&&!cityAtTile(i)&&rng()<terrFactor(j,i))advance(B,A,i);w.score--;A.pop*=.992;B.pop*=.997}
+        if(rng()<sa/(sa+sb)){if(owner[j]===B.id&&!cityAtTile(j)&&rng()<tf){advance(A,B,j);if(owner[j]===A.id)w.ta++}w.score++;w.db+=B.pop*.008*POPMUL[B.era];w.da+=A.pop*.003*POPMUL[A.era];B.pop*=.992;A.pop*=.997}
+        else{if(owner[i]===A.id&&!cityAtTile(i)&&rng()<terrFactor(j,i)){advance(B,A,i);if(owner[i]===B.id)w.tb++}w.score--;w.da+=A.pop*.008*POPMUL[A.era];w.db+=B.pop*.003*POPMUL[B.era];A.pop*=.992;B.pop*=.997}
         if(A.front.length<60)A.front.push(i);if(B.front.length<60)B.front.push(j)}}
     if(siegeTick(A,B,w,1)||siegeTick(B,A,w,-1)){delete warData[key];continue}
     /* peace grows likelier with time and with a clear winner; the loser cedes the land the winner holds */
@@ -386,7 +387,9 @@ function tick(){
     if(!flags.warm){flags.warm=true;log('Smoke rises from the first factories. The world begins to warm.','sky')}
     if(year%5===0)terrainDirty=true}
   if(worldPop*POPMUL[Math.max(0,...nations.filter(n=>n.alive).map(n=>n.era))]>=1e6)milestone('million','A million souls','The world population passed one million.');
-  let inc=.8;for(const n of nations)if(n.alive&&n.faith>=0)inc+=Math.sqrt(n.pop)*.04*ten(n).belief*(.6+(n.devotion??.3));belief+=inc;beliefRate=inc;
+  /* belief: a trickle from every faithful people, growing slowly with their numbers; a full treasury fills more slowly */
+  let inc=.45;for(const n of nations)if(n.alive&&n.faith>=0)inc+=Math.cbrt(n.pop)*.045*ten(n).belief*(.6+(n.devotion??.3));
+  inc/=1+Math.max(0,belief-200)/200;belief+=inc;beliefRate=inc;
   if(moistActive>0){moistActive--;for(let i=0;i<N;i++)moistD[i]*=.985;if(year%4===0)terrainDirty=true}
 }
 /* research: points flow into the current discovery; a key discovery opens the next age */
@@ -455,7 +458,7 @@ function buildSave(){
     summary:{nations:nations.filter(n=>n.alive).length,era:nations.reduce((m,n)=>n.alive?Math.max(m,n.era):m,0)}}}
 function saveLocal(d){try{localStorage.setItem('faithbound.save',JSON.stringify(d));return true}catch(e){return false}}
 /* saves locally always, and to the account when signed in; returns a promise of where it landed */
-function saveGame(){if(typeof viewOnly!=='undefined'&&viewOnly)return Promise.resolve('none');if(typeof rewind!=='undefined'&&rewind)return Promise.resolve('none');const d=buildSave(),local=saveLocal(d);
+function saveGame(){if(typeof viewOnly!=='undefined'&&viewOnly)return Promise.resolve('none');if(typeof coopGuest==='function'&&coopGuest())return Promise.resolve('none');if(typeof rewind!=='undefined'&&rewind)return Promise.resolve('none');const d=buildSave(),local=saveLocal(d);
   if(account.user)return cloudSave(d).then(ok=>ok?'cloud':local?'local':'none');return Promise.resolve(local?'local':'none')}
 async function cloudSave(d,keepalive){try{const body=JSON.stringify(d);
   const r=await fetch('/api/saves/'+d.slot,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'same-origin',body,keepalive:!!keepalive&&body.length<60000});

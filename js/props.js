@@ -447,7 +447,9 @@ function townPlan(n,c,cap,e){
   const MR=metroRadius(n,c,cap,e),mb=MR>.75?Math.round(MR*4)/4:0;
   const band=e===0?0:e<5?1:e<6?2:3,key=band+'|'+flatSig.length+'|'+(cap?1:0)+'|'+mb;if(c._plan&&c._plan.key===key)return c._plan;
   const R_=mulberry32((c.x*73856093^c.y*19349663^(cap?777:0))>>>0),cx=wx(c.x),cz=wz(c.y),pr=e===0?.06:cap?.2:.1;
-  const bad=(x,z)=>{const t=tileAt(x,z);return t<0||isWater(t)||groundY(x,z)<waterY+.035||biome[t]>=11};
+  /* never build up a mountain: not much higher than the town square, and not on a steep slope */
+  const cy0=groundY(cx,cz),bad=(x,z)=>{const t=tileAt(x,z);if(t<0||isWater(t)||biome[t]>=11)return true;const y=groundY(x,z);if(y<waterY+.035||y>cy0+.2)return true;
+    return Math.abs(groundY(x+.05,z)-groundY(x-.05,z))+Math.abs(groundY(x,z+.05)-groundY(x,z-.05))>.075};
   const streets=[],slots=[],grid=new Map(),gk=(x,z)=>Math.floor(x/.09)+'_'+Math.floor(z/.09);
   const free=(x,z,r)=>{const gx=Math.floor(x/.09),gz=Math.floor(z/.09);for(let a=-2;a<=2;a++)for(let b=-2;b<=2;b++){const L=grid.get((gx+a)+'_'+(gz+b));if(L)for(const o of L)if(Math.hypot(o[0]-x,o[1]-z)<r+o[2])return false}return true};
   const mark=(x,z,r)=>{const k=gk(x,z);if(!grid.has(k))grid.set(k,[]);grid.get(k).push([x,z,r])};
@@ -478,7 +480,7 @@ function townPlan(n,c,cap,e){
   streets.forEach((st,si)=>{const sw=st.main?.035:.025;
     for(let i=1;i<st.pts.length;i++){const p0=st.pts[i-1],p1=st.pts[i],h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0]);
       for(const side of [1,-1]){const dd=st.base+p1[2],core=clamp(1-dd/(cap?1.1:.6),0,1),rural=band===1&&core<.6;
-        if(R_()<(rural?.3:.12))continue;
+        if(R_()<(rural?.3:band>=2?.28:.12))continue;
         /* villages: detached cottages on long plots with gaps of meadow; town cores: houses shoulder to shoulder */
         const w=hs[0]*(.85+R_()*.35),d=hs[1]*(.85+R_()*.3),off=sw+d/2+(rural?.02+R_()*.04:.008+R_()*.012),nx=-Math.sin(h)*side,nz=Math.cos(h)*side,x=p1[0]+nx*off,z=p1[1]+nz*off;
         const rr=rural?Math.max(w,d)*.66:Math.min(w,d)*.5;if(bad(x,z)||!free(x,z,rr))continue;
@@ -489,7 +491,7 @@ function townPlan(n,c,cap,e){
   slots.sort((a,b)=>a.dd-b.dd);
   return c._plan={key,streets,slots,pr}}
 /* a metropolis: a street grid of blocks out to a ragged edge; towers crowd the middle, flats and villas spread outward */
-function metroPlan(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[],slots=[],ang=R_()*Math.PI/2,ca=Math.cos(ang),sa=Math.sin(ang),B=e>=6?.3:.26,ph=R_()*6.28;
+function metroPlan(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[],slots=[],ang=R_()*Math.PI/2,ca=Math.cos(ang),sa=Math.sin(ang),B=e>=6?.38:.34,ph=R_()*6.28;
   const toW=(u,v)=>[cx+u*ca-v*sa,cz+u*sa+v*ca],edge=(u,v)=>{const t=Math.atan2(v,u);return MR*(.82+.14*Math.sin(3*t+ph)+.08*Math.sin(5*t+ph*2))},inR=(u,v)=>Math.hypot(u,v)<=edge(u,v);
   const NB=Math.ceil(MR/B)+1;
   for(const axis of [0,1])for(let i=-NB;i<=NB;i++){let pts=null,d=0;const flush=()=>{if(pts&&pts.length>2)streets.push({pts,main:i%3===0,base:0});pts=null};
@@ -497,9 +499,11 @@ function metroPlan(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[],sl
       if(!inR(u,v)||bad(x,z)){flush();continue}if(!pts){pts=[];d=0}else d+=.06;pts.push([x,z,d])}flush()}
   for(const st of streets)for(const q of st.pts)mark(q[0],q[1],st.main?.035:.025);
   for(let i=-NB;i<NB;i++)for(let j=-NB;j<NB;j++){const u0=(i+.5)*B,v0=(j+.5)*B,dist=Math.hypot(u0,v0);if(!inR(u0,v0)||dist<pr+.06)continue;
-    const core=clamp(1-dist/MR,0,1),inner=B-.075,big=core>.7,mid=core>.48;if(big&&R_()<.22)continue;/* a park among the towers */
-    const hs=inner*.27,spots=big?[[0,0,inner*.8]]:mid?[[-.25,-.25,inner*.46],[.25,-.25,inner*.46],[-.25,.25,inner*.46],[.25,.25,inner*.46]]:
-      [[-.36,-.36,hs],[0,-.38,hs],[.36,-.36,hs],[-.36,.36,hs],[0,.38,hs],[.36,.36,hs],[-.38,0,hs],[.38,0,hs]];
+    const core=clamp(1-dist/MR,0,1),inner=B-.09,big=core>.7,mid=core>.48;
+    /* parks and squares: a green block among the towers, more among the flats, a few in the suburbs */
+    if(R_()<(big?.2:mid?.24:.12))continue;
+    const hs=Math.min(inner*.24,.062),mw=Math.min(inner*.42,.12),spots=big?[[0,0,Math.min(inner*.72,.2)]]:mid?[[-.25,-.25,mw],[.25,-.25,mw],[-.25,.25,mw],[.25,.25,mw]].filter(()=>R_()>.2):
+      [[-.34,-.34,hs],[.34,-.34,hs],[-.34,.34,hs],[.34,.34,hs],[0,-.36,hs],[0,.36,hs]].filter(()=>R_()>.15);
     if(big&&R_()<.45)spots.splice(0,1,[-.22,0,inner*.5],[.22,0,inner*.5]);
     for(const [du,dv,w] of spots){const u=u0+du*inner,v=v0+dv*inner,[x,z]=toW(u,v);if(bad(x,z)||!free(x,z,w*.45))continue;mark(x,z,w*.45);
       const fu=Math.abs(du)>=Math.abs(dv)?Math.sign(du||1):0,fv=fu?0:Math.sign(dv||1),rot=Math.atan2(fu*ca-fv*sa,fu*sa+fv*ca);
@@ -543,11 +547,11 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         const ti=tileAt(sl.x,sl.z);if(ti<0||owner[ti]!==n.id)continue;
         const hw=sl.w/2,hd=sl.d/2,ca=Math.cos(sl.rot),sa=Math.sin(sl.rot);let mn=1e9,mx=-1e9;
         for(const [a,b] of [[-hw,-hd],[hw,-hd],[-hw,hd],[hw,hd],[0,0]]){const y=groundY(sl.x+a*ca+b*sa,sl.z-a*sa+b*ca);if(y<mn)mn=y;if(y>mx)mx=y}
-        if(mn<waterY+.03||mx-mn>.14)continue;placed++;occupied.add(ti);
+        if(mn<waterY+.03||mx-mn>.09)continue;placed++;occupied.add(ti);
         bareRect(sl.x,sl.z,sl.rot,sl.w*1.15,sl.d*1.2);
         const y=mx;if(mx-mn>.012&&e>=1)add('stone',sl.x,mn-.03,sl.z,sl.w*1.04,mx-mn+.03,sl.d*1.04,sl.rot,0xa8a090);
         const hk=hash(c.x*31+c.y*17+k*13);
-        if(e===5&&sl.core<.5&&hk<.18)factory(sl.x,y,sl.z,sl.rot,true);else dwelling(n,sl.x,y,sl.z,sl.rot,e,hk,k,sl.core);
+        if(e===5&&sl.core<.22&&hk<.3)factory(sl.x,y,sl.z,sl.rot,true);else dwelling(n,sl.x,y,sl.z,sl.rot,e,hk,k,sl.core);
         if(!far&&sl.pd>0&&e>=1&&e<=4&&cultOf(n)!=='mideast'&&cultOf(n)!=='africa')yard(sl.x,sl.z,sl.rot,sl.w,sl.d,sl.pd,sl.pw,hk);
         if(sl.st>=0)reach.set(sl.st,Math.max(reach.get(sl.st)||0,sl.at+.12));
         c._poi.pts.push([sl.fx,sl.fz]);

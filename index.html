@@ -367,6 +367,14 @@ body.ui-marble .glass input[type=text],body.ui-marble .glass input[type=password
 body.ui-marble .glass .seg{background:rgba(255,255,255,.6)}body.ui-marble .glass .prog{background:rgba(80,70,50,.14)}body.ui-marble .status .yr{color:#7a5a12}
 body.ui-parchment .tp h1,body.ui-marble .tp h1{color:#f6e2a6}
 #fpsMeter{position:fixed;left:10px;bottom:10px;z-index:30;font:600 11px/1 ui-monospace,Menlo,monospace;color:#f3e6c4;background:rgba(20,16,10,.62);padding:5px 8px;border-radius:6px;pointer-events:none}
+#coopBtn{position:relative}#coopBtn.on{color:var(--gold2,#f0d58a)}#coopBtn .cnt{position:absolute;top:2px;right:4px;font:700 10px/1 sans-serif;font-style:normal;color:#1a140a;background:var(--gold,#d8b04a);border-radius:8px;padding:2px 5px}#coopBtn .cnt:empty{display:none}
+.coopl,.coopc{list-style:none;margin:6px 0;padding:0;display:grid;gap:6px}.coopl li{display:flex;align-items:center;gap:8px}.coopl .dot{width:12px;height:12px;border-radius:50%;flex:none;box-shadow:0 0 0 2px rgba(0,0,0,.25)}.coopc{max-height:150px;overflow:auto;font-size:.9rem}.code{font-family:ui-monospace,Menlo,monospace;letter-spacing:.12em}
+[data-panel="wars"]{position:relative}#warCnt{position:absolute;top:2px;right:4px;font:700 10px/1 sans-serif;font-style:normal;color:#fff;background:#a8322a;border-radius:8px;padding:2px 5px}#warCnt:empty{display:none}
+.war{border:1px solid var(--line2);border-radius:10px;padding:9px 10px;margin:0 0 8px;background:rgba(0,0,0,.08)}.wh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.wh i{opacity:.6;font-style:italic}
+.wn{display:inline-flex;align-items:center;gap:5px}.wn img{width:20px;height:13px;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.3)}
+.wbar{display:flex;height:7px;border-radius:4px;overflow:hidden;margin:7px 0 5px;background:rgba(0,0,0,.2)}.wbar span{display:block;height:100%}.wbar span:last-child{flex:1}
+.wstat{display:flex;justify-content:space-between;gap:8px;font-size:.82rem;opacity:.85;margin-top:2px}.wtag{font-size:.75rem;color:#c0473a;margin-top:4px;font-weight:700;letter-spacing:.04em}.wsiege{font-size:.82rem;margin-top:3px}
+.wwbar{background:#7a2316;color:#f5e6c8;border-radius:8px;padding:6px 9px;margin:0 0 8px;font-weight:700;font-size:.85rem}
 </style>
 
 <canvas id="gl" aria-label="The world of Faithbound"></canvas>
@@ -397,8 +405,10 @@ body.ui-parchment .tp h1,body.ui-marble .tp h1{color:#f6e2a6}
     <nav class="glass panelsnav" aria-label="Panels">
       <button class="ib" data-panel="nations"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg><span>Nations</span></button>
       <button class="ib" data-panel="faiths"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg><span>Faiths</span></button>
+      <button class="ib" data-panel="wars"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4l10 10M14 14l-2 4 4-2M4 4h4l8 8M20 4L10 14M20 4h-4l-6 6M10 14l2 4-4-2M7 17l-3 3M17 17l3 3"/></svg><span>Wars</span><em class="cnt" id="warCnt"></em></button>
       <button class="ib" data-panel="world"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg><span>World</span></button>
       <button class="ib" data-panel="chronicle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h11a2 2 0 012 2v14a2 2 0 01-2 2H6zM6 3a2 2 0 00-2 2v14a2 2 0 002 2M9 8h7M9 12h7M9 16h4"/></svg><span>Chronicle</span></button>
+      <button class="ib" id="coopBtn" aria-label="Play together"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.4 3-5.2 6-5.2s5.4 1.8 6 5.2"/><circle cx="17" cy="9" r="2.5"/><path d="M15.6 13.9c2.6-.3 4.7 1.2 5.3 4.4"/></svg><span>Together</span><em class="cnt"></em></button>
       <button class="ib" id="spaceBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="5"/><path d="M3.5 15.5c-1.5 2.6-.9 4 1.4 4 3 0 8.2-2.8 12.3-6.9S22.6 4 20.6 3.6c-1.4-.3-3.3.5-5.4 2"/></svg><span>Space</span></button>
       <button class="ib" id="fsBtn" aria-label="Full screen" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg><span>Full screen</span></button>
       <button class="ib" id="menuBtn" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>Menu</span></button>
@@ -469,3 +479,4 @@ body.ui-parchment .tp h1,body.ui-marble .tp h1{color:#f6e2a6}
 <script src="js/audio.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/history.js"></script>
+<script src="js/coop.js"></script>

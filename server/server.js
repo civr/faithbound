@@ -48,11 +48,73 @@ function startSession(req, res, key) {
 }
 const userDir = key => path.join(DATA, 'saves', key);
 
+/* ---------- co-op: one host runs the world, guests watch it live and send their miracles to the host.
+   Rooms live in memory only. Messages go out over Server-Sent Events, so no extra packages are needed. ---------- */
+const rooms = new Map(), ROOM_RE = /^[A-HJ-NP-Z2-9]{6}$/, MAX_PLAYERS = 8, MAX_MSG = 16 * 1024 * 1024;
+const PCOL = ['#e0b44a', '#5fb0e8', '#e2665a', '#7bc47f', '#b98be6', '#f08fc0', '#58c7c0', '#e8925a'];
+const roomCode = () => { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = ''; for (const b of crypto.randomBytes(6)) s += a[b % a.length]; return s; };
+const cleanName = (v, d) => String(v || d).replace(/[<>&"'`]/g, '').trim().slice(0, 20) || d;
+function sse(pl, msg) { if (!pl.res) return; try { pl.res.write('data: ' + msg + '\n\n'); } catch {} }
+function roomPlayers(r) { return [...r.players.values()].map(q => ({ pid: q.pid, name: q.name, color: q.color, on: !!q.res, host: q.pid === 0 })); }
+function roomCast(r, obj, except) { const msg = JSON.stringify(obj); for (const q of r.players.values()) if (q.pid !== except) sse(q, msg); }
+function playerByTok(r, tok) { if (!tok) return null; const h = hashTok(tok); for (const q of r.players.values()) if (q.th === h) return q; return null; }
+function newPlayer(r, name) { const tok = crypto.randomBytes(18).toString('hex'); let pid = 0; while ([...r.players.values()].some(q => q.pid === pid)) pid++;
+  const pl = { pid, name, color: PCOL[pid % PCOL.length], th: hashTok(tok), res: null, seen: Date.now() }; r.players.set(pid, pl); return { pl, tok }; }
+function closeRoom(code, why) { const r = rooms.get(code); if (!r) return; roomCast(r, { t: 'end', why }); for (const q of r.players.values()) if (q.res) try { q.res.end(); } catch {} rooms.delete(code); }
+setInterval(() => { const now = Date.now();
+  for (const [code, r] of rooms) { const host = r.players.get(0);
+    if (!host || (!host.res && now - host.seen > 120e3)) { closeRoom(code, 'The host left the world.'); continue; }
+    for (const q of r.players.values()) { if (q.res) sse(q, '{"t":"ping"}'); else if (q.pid && now - q.seen > 300e3) { r.players.delete(q.pid); roomCast(r, { t: 'players', list: roomPlayers(r) }); } } } }, 15e3).unref();
+async function coop(req, res, url, m, p) {
+  if (p === '/api/coop/host' && m === 'POST') {
+    const b = await readJSONBody(req, 4096); if (rooms.size >= 60) return send(res, 503, { error: 'The server has too many co-op worlds open. Try again later.' });
+    let code; do code = roomCode(); while (rooms.has(code));
+    const r = { code, world: cleanName(b.world, 'A world'), players: new Map(), made: Date.now() }; rooms.set(code, r);
+    const { pl, tok } = newPlayer(r, cleanName(b.name || sessionUser(req) && users[sessionUser(req)].name, 'Host'));
+    return send(res, 200, { room: code, tok, pid: pl.pid, color: pl.color });
+  }
+  const jm = p.match(/^\/api\/coop\/(join|stream|send|leave)\/([A-Z0-9]{6})$/); if (!jm || !ROOM_RE.test(jm[2])) return false;
+  const r = rooms.get(jm[2]); if (!r) return send(res, 404, { error: 'That co-op world is closed or the code is wrong.' });
+  const act = jm[1];
+  if (act === 'join' && m === 'POST') {
+    const b = await readJSONBody(req, 4096); if (r.players.size >= MAX_PLAYERS) return send(res, 409, { error: `This world already has ${MAX_PLAYERS} gods.` });
+    const { pl, tok } = newPlayer(r, cleanName(b.name || sessionUser(req) && users[sessionUser(req)].name, 'Guest'));
+    roomCast(r, { t: 'join', pid: pl.pid, name: pl.name, color: pl.color }, pl.pid); roomCast(r, { t: 'players', list: roomPlayers(r) });
+    return send(res, 200, { room: r.code, tok, pid: pl.pid, color: pl.color, world: r.world, host: (r.players.get(0) || {}).name });
+  }
+  const pl = playerByTok(r, url.searchParams.get('tok')); if (!pl) return send(res, 403, { error: 'You are not part of this world.' });
+  pl.seen = Date.now();
+  if (act === 'stream' && m === 'GET') {
+    if (pl.res) try { pl.res.end(); } catch {}
+    res.writeHead(200, Object.assign({ 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store, no-transform', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' }, SEC));
+    res.write('retry: 2000\n\n'); pl.res = res; req.socket.setTimeout(0);
+    sse(pl, JSON.stringify({ t: 'hello', pid: pl.pid, list: roomPlayers(r), world: r.world }));
+    roomCast(r, { t: 'players', list: roomPlayers(r) }, pl.pid);
+    req.on('close', () => { if (pl.res === res) { pl.res = null; pl.seen = Date.now(); roomCast(r, { t: 'players', list: roomPlayers(r) }); } });
+    return true;
+  }
+  if (act === 'send' && m === 'POST') {
+    const b = await readJSONBody(req, MAX_MSG); const t = String(b.t || ''); if (!/^[a-z]{2,12}$/.test(t)) return send(res, 400, { error: 'Bad message.' });
+    const out = { t, from: pl.pid, d: b.d };
+    if (pl.pid === 0) { if (b.to != null) { const q = r.players.get(+b.to); if (q) sse(q, JSON.stringify(out)); } else roomCast(r, out, 0); }
+    else if (t === 'cur' || t === 'chat') roomCast(r, out, pl.pid);
+    else { const h = r.players.get(0); if (h) sse(h, JSON.stringify(out)); }
+    return send(res, 200, { ok: true });
+  }
+  if (act === 'leave' && m === 'POST') {
+    if (pl.pid === 0) { closeRoom(r.code, 'The host closed the world.'); return send(res, 200, { ok: true }); }
+    if (pl.res) try { pl.res.end(); } catch {} r.players.delete(pl.pid); roomCast(r, { t: 'leave', pid: pl.pid, name: pl.name }); roomCast(r, { t: 'players', list: roomPlayers(r) });
+    return send(res, 200, { ok: true });
+  }
+  return send(res, 405, { error: 'Method not allowed.' });
+}
+
 async function api(req, res, url) {
   const m = req.method, p = url.pathname;
   /* JSON only for writes: blocks cross-site form posts */
   if (m !== 'GET' && m !== 'HEAD' && !(req.headers['content-type'] || '').includes('application/json')) return send(res, 415, { error: 'Send JSON.' });
   if (p === '/api/health') return send(res, 200, { ok: true });
+  if (p.startsWith('/api/coop/')) { const done = await coop(req, res, url, m, p); if (done !== false) return; }
   if (p === '/api/config' && m === 'GET') return send(res, 200, { signup: ALLOW_SIGNUP, code: !!SIGNUP_CODE });
 
   if (p === '/api/register' && m === 'POST') {

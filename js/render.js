@@ -165,7 +165,7 @@ function resize(){const w=innerWidth,hh=innerHeight,dpr=Math.min(settings.power=
 
 /* ---------- terrain ---------- */
 let VW,VH,VY,detail,terrainMesh=null,skirtMesh=null,waterMesh=null,waterSide=null,waterY=0;
-const shapeH=v=>{const d=v-SEA0;return d>=0?SEA0*HS+d*HS*(.5+d*5.2+Math.max(0,d-.3)*6):SEA0*HS+d*HS*1.4};
+const shapeH=v=>{const d=v-SEA0;return d>=0?SEA0*HS+d*HS*(.5+d*2.9+Math.max(0,d-.32)*2.4):SEA0*HS+d*HS*1.4};
 /* towns flatten the ground they stand on, like a real settlement on a terrace */
 let flatSpots=[],flatSig='',tslope=new Float32Array(1);
 function cityRadius(n,cap){return (cap?.62:.42)+Math.min(.5,Math.floor(cityLevel(n))*.05)}
@@ -275,7 +275,7 @@ function colorTerrain(){
   for(let i=0;i<N;i++){const c=typeof marshAt==='function'&&marshAt(i)?MARSH_C:GROUND[biome[i]],v=1-.1*hash(i*1.7);let r=c[0]*v,g=c[1]*v,b=c[2]*v;
     if(typeof scorched!=='undefined'&&scorched&&scorched[i]>0&&!isWater(i)){const t=Math.min(1,scorched[i]/18)*.85;r=lerp(r,56,t);g=lerp(g,50,t);b=lerp(b,44,t)}
     TC[i*3]=r;TC[i*3+1]=g;TC[i*3+2]=b}
-  const snowY=shapeH(.84+(climate.temp-.5)*.35),cold=climate.temp<.3;
+  const snowY=shapeH(.9+(climate.temp-.5)*.3),cold=climate.temp<.3;
   for(let v=0;v<VH;v++)for(let u=0;u<VW;u++){const k=v*VW+u;
     let tx=clamp(u/R-.5,0,W-1),ty=clamp(v/R-.5,0,H-1);const x0=Math.floor(tx),y0=Math.floor(ty),x1=Math.min(x0+1,W-1),y1=Math.min(y0+1,H-1),fx=tx-x0,fy=ty-y0;
     const w=[(1-fx)*(1-fy),fx*(1-fy),(1-fx)*fy,fx*fy],ts=[y0*W+x0,y0*W+x1,y1*W+x0,y1*W+x1];
@@ -285,7 +285,7 @@ function colorTerrain(){
     else{
       if(y<waterY+.045&&!cold){const t=1-smooth(waterY+.012,waterY+.045,y);r=lerp(r,SAND[0],t);g=lerp(g,SAND[1],t);b=lerp(b,SAND[2],t)}
       const sl=1-nor[k*3+1];if(sl>.32){const t=smooth(.32,.62,sl)*.75;r=lerp(r,ROCK[0],t);g=lerp(g,ROCK[1],t);b=lerp(b,ROCK[2],t)}
-      if(y>snowY){const t=smooth(snowY,snowY+.8,y)*(sl>.5?.5:1);r=lerp(r,SNOW[0],t);g=lerp(g,SNOW[1],t);b=lerp(b,SNOW[2],t)}}
+      if(y>snowY){const t=smooth(snowY,snowY+.45,y)*(sl>.5?.5:1);r=lerp(r,SNOW[0],t);g=lerp(g,SNOW[1],t);b=lerp(b,SNOW[2],t)}}
     const l=(r+g+b)/3,s=LK.sat;r=l+(r-l)*s;g=l+(g-l)*s;b=l+(b-l)*s;
     col[k*3]=LIN[clamp(r,0,255)|0];col[k*3+1]=LIN[clamp(g,0,255)|0];col[k*3+2]=LIN[clamp(b,0,255)|0]}
   terrainMesh.geometry.attributes.color.needsUpdate=true;
