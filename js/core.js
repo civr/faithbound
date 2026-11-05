@@ -100,7 +100,7 @@ const SPEEDS=[0,2,6,20];
 const LOOKS={
   manor:{label:'Manor',desc:'Soft natural daylight, hazy distance, lived-in countryside',sat:.9,exposure:.92,sun:0xfff0d8,sunI:1.75,hemiI:.7,fog:1.05,lock:-1,
     skyTop:0x8fb2d4,skyHor:0xd3dee4,post:{sat:.8,con:1.05,lift:[.01,.012,.012],gain:[1,.99,.95],vig:.32,bloom:.1,grain:.016}},
-  realistic:{label:'Realistic',desc:'Natural daylight, full day and night',sat:1.02,exposure:.9,sun:0xfff1dd,sunI:2.2,hemiI:.75,fog:1,lock:-1,
+  realistic:{label:'Realistic',desc:'Natural daylight, full day and night',sat:.95,exposure:.9,sun:0xfff1dd,sunI:2.3,hemiI:.7,fog:1.1,lock:-1,deep:0x123a52,shallow:0x3a8a92,
     skyTop:0x5d93cf,skyHor:0xcfe3ee,post:{sat:1.06,con:1.06,lift:[0,.005,.015],gain:[1.02,1,.98],vig:.3,bloom:.18,grain:.015}},
   golden:{label:'Golden Hour',desc:'Warm low sun, long shadows, glowing haze',sat:1.05,exposure:.95,sun:0xffc98a,sunI:2.6,hemiI:.75,fog:1.2,lock:.09,
     skyTop:0x6f86b8,skyHor:0xf3c79a,post:{sat:1.12,con:1.08,lift:[.03,.01,0],gain:[1.1,1,.85],vig:.45,bloom:.55,grain:.02}},

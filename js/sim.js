@@ -174,7 +174,7 @@ function siegeTick(A,B,w,sg){
     if(c.siege<1)continue;
     c.siege=0;c.besiegedBy=-1;const i=c.y*W+c.x,cap=c===B.cities[0];
     const razeP=(A.era<=2?.45:A.era<=4?.25:.1)+(A.faith>=0&&A.faith!==B.faith?.15:0)+(A.aggr>.75?.1:0);
-    if(rng()<razeP){/* sacked and burned */const k=B.cities.indexOf(c);if(k>=0)B.cities.splice(k,1);B.pop*=.82;
+    if(rng()<razeP){/* sacked and burned */const k=B.cities.indexOf(c);if(k>=0)B.cities.splice(k,1);if(typeof refugees==='function')refugees(B,A,B.pop*.18);B.pop*=.82;
       ruins.push({x:c.x,y:c.y,year,name:c.name});claim(i,A.id);if(typeof ignite==='function')ignite(i);
       log(`${A.name} sacked and burned ${c.name}${cap?', capital of '+B.name:''}${heroTag(A)}.`,'doom');w.score+=4*sg;if(typeof fx==='function')fx(i,'war')}
     else{/* taken: the town and its fields change hands */claim(i,A.id);for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(owner[k]===B.id)claim(k,A.id)}
