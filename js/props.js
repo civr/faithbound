@@ -551,11 +551,11 @@ function townPlan(n,c,cap,e){
       if(!best||bc>1.6)break;x=best[0];z=best[1];h=best[2];d+=step;pts.push([x,z,d])}
     return pts};
   /* main streets leave the square in a few directions; one arm is a street village, five is a star town */
-  const nm=[1,2,2,3,3,3,4,4,5][(R_()*9)|0],a0=R_()*6.283,arms=nm===1?[a0,a0+Math.PI+(R_()-.5)*.6]:Array.from({length:nm},(_,k)=>a0+k*6.283/nm+(R_()-.5)*.7);
+  const nm=e>=3&&e<=4?[3,3,4,4,5,5,6][(R_()*7)|0]:[1,2,2,3,3,3,4,4,5][(R_()*9)|0],a0=R_()*6.283,arms=nm===1?[a0,a0+Math.PI+(R_()-.5)*.6]:Array.from({length:nm},(_,k)=>a0+k*6.283/nm+(R_()-.5)*.7);
   for(const a of arms){const pts=walk(cx+Math.cos(a)*pr,cz+Math.sin(a)*pr,a,len*(.6+R_()*.6),true);if(pts.length>3)streets.push({pts,main:true,base:pr})}
   const mains=streets.length;
   for(let m=0;m<mains;m++){const st=streets[m];let side=R_()<.5?1:-1;
-    for(let i=4;i<st.pts.length-2;i+=3+((R_()*4)|0)){if(R_()>(e>=3&&e<=4?.85:.6))continue;const p0=st.pts[i],p1=st.pts[i+1],h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0])+side*(Math.PI/2+(R_()-.5)*.6);side=-side;
+    for(let i=4;i<st.pts.length-2;i+=3+((R_()*4)|0)){if(R_()>(e>=3&&e<=4?.95:.6))continue;const p0=st.pts[i],p1=st.pts[i+1],h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0])+side*(Math.PI/2+(R_()-.5)*.6);side=-side;
       const pts=walk(p0[0],p0[1],h,.25+R_()*.6*(cap?1.3:1),false);if(pts.length>3)streets.push({pts,main:false,base:p0[2]+st.base})}}
   /* plaza frontage first, then plots along every street, both sides */
   const hs=band===1?[.1,.075]:band===2?[.12,.08]:[.11,.1];
@@ -665,7 +665,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       const CO=cap&&e>=3&&e<=4?2.3:1;if(cap&&n.wonder){const wx_=cx+.42*CO,wz_=cz-.3*CO;wonder(n,wx_,surfY(wx_,wz_),wz_,n.wonder);occupied.add(Math.floor(wz_+H/2)*W+Math.floor(wx_+W/2))}
       if(n.faith>=0&&(cap||hash(i0*3)<.35)){const tx=cx-.32*CO,tz=cz+.2*CO;sacredSite(faiths[n.faith],n,tx,surfY(tx,tz),tz,e,hash(i0)*3,cap)}
       if(c.dike)dikeRing(c,cx,cz);
-      MCTX={lvl,cap,tall:[],w:.12};const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+lvl*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?2.8:2.6):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
+      MCTX={lvl,cap,tall:[],w:.12};const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+lvl*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?3.4:3.2):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
       if(plan.metro)plan.streets.forEach((st,si)=>{if(st.main&&st.base<=plan.pr+.01)reach.set(si,.5)});let k=0,placed=0;c._poi={pts:[],plaza:[cx,cz],r:plan.pr};
       const far=Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.3+2.5;MCTX.far=far;
       for(const sl of slots){if(placed>=count)break;k++;MCTX.w=sl.metro?sl.w:.12;if(far&&plan.metro&&sl.core<.3&&hash(k*7.7)<.75)continue;

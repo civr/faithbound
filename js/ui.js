@@ -354,6 +354,7 @@ function doAct(k,p){
   if(k==='guide'){const n=nations[p.n];if(!n||!n.alive||!TECH[p.t]||!techAvailable(n,TECH[p.t])||!spend(10))return false;n.research=p.t;n.tech=0;n.guided=true;log(`You guided the scholars of ${n.name} towards ${TECH[n.research].name}.`,'era');return true}
   if(k==='gov'){const n=nations[p.n];if(!n||!n.alive||!govOptions(n).includes(p.g)||!spend(30))return false;setGov(n,p.g,true);if(n.cities[0])fx(n.cities[0].y*W+n.cities[0].x,'faith');return true}
   if(k==='peace'){const A=nations[p.a],B=nations[p.b];if(!A||!B||!A.alive||!B.alive||!A.wars.has(B.id)){say('That war is already over.');return false}if(!spend(15))return false;makePeace(A,B,true);delete warData[warKey(A,B)];const c=B.cities[0];if(c)fx(c.y*W+c.x,'bless');return true}
+  if(k==='speed'){const i=p.s|0;if(i<0||i>3)return false;speedIdx=i;updateHUD();return true}
   if(k==='space'){return typeof spaceAction==='function'?spaceAction(p.a,p.k):false}
   if(k==='clim'){if(!p.d||!spend(40))return false;shiftClimate(p.d);return true}
   if(k==='found'){const name=String(p.name||'').trim().slice(0,40);if(!name){say('Give your faith a name first.');return -1}if(!spend(40))return -1;
@@ -434,7 +435,8 @@ function updateHUD(){renderGoal();{const wc=$('#warCnt');if(wc){let k=0;for(cons
   if(sheetPanel)renderSheet(false);
   $$('#cards .pc').forEach(b=>{const p=POWERS.find(p=>p.id===b.dataset.tool);b.classList.toggle('poor',!unlimited&&p.cost>belief)});
 }
-$$('.speed [data-s]').forEach(b=>b.onclick=()=>{speedIdx=+b.dataset.s;updateHUD()});
+function setSpeed(i){if(typeof coopGuest==='function'&&coopGuest()){coopAct('speed',{s:i});say('Asked the host to change the speed.');return}speedIdx=i;updateHUD()}
+$$('.speed [data-s]').forEach(b=>b.onclick=()=>setSpeed(+b.dataset.s));
 
 /* ---------- overlay: labels and effects ---------- */
 const FXC={meteor:'255,140,50',rain:'90,170,230',drought:'230,170,60',bless:'250,210,110',plague:'130,180,90',faith:'136,179,238',war:'226,87,74'};
@@ -516,7 +518,7 @@ addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;const k=e.ke
   if(!playing)return;
   if(k==='f'){toggleFullscreen();return}
   if(k===' '){speedIdx=speedIdx?0:1;updateHUD();e.preventDefault();return}
-  if('1234'.includes(k)&&k.length===1){speedIdx=+k-1;updateHUD();return}
+  if('1234'.includes(k)&&k.length===1){setSpeed(+k-1);return}
   keys.add(k)});
 addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
 addEventListener('blur',()=>keys.clear());
