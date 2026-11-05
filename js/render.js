@@ -270,6 +270,8 @@ function layoutTerrain(){terrVer++;
   colorTerrain();layoutSkirt();layoutWater();
 }
 function colorTerrain(){
+  const TINT=LK.tint||null;if(!!LK.flat!==terrainMat.flatShading){terrainMat.flatShading=!!LK.flat;terrainMat.needsUpdate=true}
+  waterU.uDeep.value.copy(colL(LK.deep||0x0f3f63));waterU.uShallow.value.copy(colL(LK.shallow||0x2f9bb0));
   const col=terrainMesh.geometry.attributes.color.array,nor=terrainMesh.geometry.attributes.normal.array;
   const TC=new Float32Array(N*3),SOOT=new Float32Array(N);
   for(const n of nations){if(!n.alive||n.era<5||n.era>6)continue;const k_=n.era===5?1:.4;n.cities.forEach((c,ci)=>{const R2=(ci===0?3.2:2.2)+Math.min(2,n.pop/Math.max(1,n.cities.length)/600);
@@ -289,6 +291,7 @@ function colorTerrain(){
       if(y<waterY+.045&&!cold){const t=1-smooth(waterY+.012,waterY+.045,y);r=lerp(r,SAND[0],t);g=lerp(g,SAND[1],t);b=lerp(b,SAND[2],t)}
       const sl=1-nor[k*3+1];if(sl>.32){const t=smooth(.32,.62,sl)*.75;r=lerp(r,ROCK[0],t);g=lerp(g,ROCK[1],t);b=lerp(b,ROCK[2],t)}
       if(y>snowY){const t=smooth(snowY,snowY+.45,y)*(sl>.5?.5:1);r=lerp(r,SNOW[0],t);g=lerp(g,SNOW[1],t);b=lerp(b,SNOW[2],t)}}
+    if(TINT){const q=TINT[3]*(y<waterY-.01?.4:1);r=lerp(r,TINT[0],q);g=lerp(g,TINT[1],q);b=lerp(b,TINT[2],q)}
     const l=(r+g+b)/3,s=LK.sat;r=l+(r-l)*s;g=l+(g-l)*s;b=l+(b-l)*s;
     col[k*3]=LIN[clamp(r,0,255)|0];col[k*3+1]=LIN[clamp(g,0,255)|0];col[k*3+2]=LIN[clamp(b,0,255)|0]}
   terrainMesh.geometry.attributes.color.needsUpdate=true;

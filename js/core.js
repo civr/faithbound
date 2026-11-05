@@ -108,6 +108,12 @@ const LOOKS={
     skyTop:0x8a9db0,skyHor:0xd8dee3,post:{sat:.62,con:1.14,lift:[.02,.035,.06],gain:[.92,.98,1.05],vig:.5,bloom:.1,grain:.05}},
   miniature:{label:'Miniature',desc:'Tilt-shift model village, shallow focus',sat:1.22,exposure:.95,sun:0xfff6e8,sunI:2.6,hemiI:1,fog:.5,lock:.22,
     skyTop:0x67b3ea,skyHor:0xdff1f8,post:{sat:1.3,con:1.1,lift:[0,0,0],gain:[1.03,1.01,.97],vig:.25,tilt:1,bloom:.2,grain:0}},
+  stillwater:{label:'Still Water',desc:'Pastel haze, soft light, a calm lilac sky',sat:1,exposure:.84,sun:0xfff0e6,sunI:1.8,hemiI:.9,fog:.75,lock:.2,flat:1,tint:[190,214,186,.16],deep:0x4f8fa6,shallow:0x9fd6cc,
+    skyTop:0xc4c0e6,skyHor:0xf5e2d8,post:{sat:.92,con:1,lift:[.02,.015,.035],gain:[1.01,.98,1.02],vig:.14,bloom:.15,grain:0}},
+  lantern:{label:'Lantern Dusk',desc:'A long blue hour, towns glowing amber',sat:.92,exposure:1.05,sun:0xffae6e,sunI:1.5,hemiI:1,fog:1.3,lock:.499,tint:[60,70,110,.18],deep:0x081830,shallow:0x1a4660,
+    skyTop:0x1d2650,skyHor:0x8a6f8e,post:{sat:.95,con:1.04,lift:[0,.012,.045],gain:[1.05,.98,1],vig:.38,bloom:.65,grain:0}},
+  clay:{label:'Clay Garden',desc:'Warm matte toy world, soft and bright',sat:1.25,exposure:.88,sun:0xfff2df,sunI:2,hemiI:1.05,fog:.75,lock:.2,tint:[240,214,170,.1],deep:0x3a88b4,shallow:0x86cfe4,
+    skyTop:0x9fd3ea,skyHor:0xfff0dc,post:{sat:1.12,con:.96,lift:[.025,.02,.012],gain:[1.03,1,.95],vig:.16,bloom:.1,grain:0}},
   storybook:{label:'Storybook',desc:'Ink outlines and soft painted colour bands',sat:1.15,exposure:1.05,sun:0xfff4e0,sunI:2.3,hemiI:1.25,fog:.7,lock:.2,
     skyTop:0x8cc6ea,skyHor:0xf6ecd8,post:{sat:1.12,con:.96,lift:[.06,.05,.04],gain:[1,.99,.96],vig:.2,line:1,poster:5,bloom:.1,grain:.01}}};
 

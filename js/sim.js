@@ -170,7 +170,7 @@ function besieged(c,A){/* attacker land within two tiles of the town */let n=0;f
 function siegeTick(A,B,w,sg){
   for(const c of [...B.cities]){const near=besieged(c,A);if(!near){c.siege=Math.max(0,(c.siege||0)-.1);continue}
     const sa=mil(A)*(1+near*.15),sb=mil(B)*(c===B.cities[0]?1.6:1)*(1+(c.walls||0));
-    c.siege=(c.siege||0)+.12*sa/(sa+sb)*(1+A.era*.05);c.besiegedBy=A.id;
+    c.siege=(c.siege||0)+Math.max(.025,.12*sa/(sa+sb))*(1+A.era*.05);c.besiegedBy=A.id;
     if(c.siege<1)continue;
     c.siege=0;c.besiegedBy=-1;const i=c.y*W+c.x,cap=c===B.cities[0];
     const razeP=(A.era<=2?.45:A.era<=4?.25:.1)+(A.faith>=0&&A.faith!==B.faith?.15:0)+(A.aggr>.75?.1:0);
@@ -187,7 +187,11 @@ let endedWars=[];
 function noteWarEnd(a,b,how){const w=warData[warKey(a,b)];endedWars.unshift({a:a.id,b:b.id,an:a.name,bn:b.name,from:w&&w.start!=null?w.start:year-(w?w.years:0),to:year,how});if(endedWars.length>10)endedWars.length=10}
 function conquer(A,B){noteWarEnd(A,B,'conquest');/* the last town fell: the realm is no more */for(let i=0;i<N;i++)if(owner[i]===B.id)claim(i,A.id);A.pop+=B.pop*.4;B.pop=0;
   log(`${B.name} was conquered by ${A.name}.`,'doom');fall(B)}
-function warTick(){
+/* sieges that no longer have a war behind them, or drag on without getting anywhere, are lifted */
+function siegeCleanup(){for(const B of nations){if(!B.alive)continue;for(const c of B.cities){if(!(c.siege>0)){c.siegeY=0;continue}
+  const A=nations[c.besiegedBy];if(!A||!A.alive||!B.wars.has(A.id)){c.siege=0;c.besiegedBy=-1;c.siegeY=0;continue}
+  c.siegeY=(c.siegeY||0)+1;if(c.siegeY>30&&c.siege<.7){c.siege=0;c.besiegedBy=-1;c.siegeY=0;if(important(B)||important(A))log(`${c.name} held out. ${A.name} gave up the siege.`,'war')}}}}
+function warTick(){siegeCleanup();
   for(const A of nations){if(!A.alive)continue;for(const bid of [...A.wars]){const B=nations[bid];if(!B||!B.alive||A.id>B.id)continue;
     const key=warKey(A,B),w=warData[key]||(warData[key]={score:0,years:0,start:year});w.years++;if(w.start==null)w.start=year-w.years;w.ta=w.ta||0;w.tb=w.tb||0;w.da=w.da||0;w.db=w.db||0;
     const pairs=frontPairs(A,B);
