@@ -66,7 +66,7 @@ function happyParts(n){const P=[],add=(l,v)=>{if(Math.abs(v)>=.005)P.push([l,v])
   if(n.trade&&n.trade.length)add('Trade and plenty',Math.min(.1,.025*n.trade.length));
   if(n.res&&typeof RKEYS!=='undefined'){let miss=0;for(const k of RKEYS)if(typeof need==='function'&&need(n,k)&&!(n.res.has[k]>0))miss++;if(miss)add('Shortages',-Math.min(.09,.03*miss))}
   if(n.festival>0)add('Festival',.14);if(n.bless>0)add('Your blessing',.07);if(n.golden>year)add('Golden age',.12);
-  add('Faith in you',((n.devotion??.3)-.2)*.2);
+  add('Faith in you',((n.devotion??.3)-.25)*.3);
   const conq=n.cities.filter(c=>c.conq&&year-c.conq<40).length;if(conq)add('Conquered towns',-Math.min(.16,.04*conq));
   const crowd=Math.max(0,n.pop/Math.max(1,n.cities.length)-(220+n.era*90))/900;if(crowd>0)add('Crowded towns',-Math.min(.1,crowd));
   if(n.era===5)add('Smoke and mills',-.05);if(n.era>=6)add('Comforts of the age',.04);
@@ -88,7 +88,7 @@ function stabParts(n){const P=[],add=(l,v)=>{if(Math.abs(v)>=.005)P.push([l,v])}
   const r=rulerOf(n);if(r&&!r.machine){let v=0;for(const t of r.traits)v+=STAB_TRAIT[t]||0;add('Ruler’s character',v);
     if(ageOf(r)<16)add('Child on the throne',-.1);else if(ageOf(r)>72)add('Ageing ruler',-.04);
     const rg=n.reigns&&n.reigns[n.reigns.length-1];if(rg&&['crisis','coup'].includes(rg.how)&&year-rg.from<25)add('Seized power',-.12*(1-(year-rg.from)/25))}
-  add('Faith in you',((n.devotion??.3)-.15)*.3);
+  add('Faith in you',((n.devotion??.3)-.3)*.45);
   add('Mood of the people',(happyOf(n)-.55)*.5);
   if(n.wars.size)add('At war',-Math.min(.15,.05*n.wars.size));
   if(n.famine>0)add('Famine',-.12);if(n.sick)add(n.sick.name,-.08);if(n.festival>0)add('Festival',.08);if(n.bless>0)add('Your blessing',.05);

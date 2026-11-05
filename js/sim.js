@@ -276,7 +276,11 @@ function pirateRaid(s){if(s.home){s.home.loot++;return}
   if(rng()<.35){if(typeof ignite==='function')ignite(s.target);log(`Pirates plundered and burned ${c.name} in ${n.name}.`,'war')}else log(`Pirates plundered ${c.name} in ${n.name} and sailed off with its riches.`,'war');
   if(typeof fx==='function')fx(s.target,'war');sailHome(s.path[s.path.length-1],s.raids+1)}
 
-/* ---------- devotion, festivals and statues ---------- */
+/* ---------- devotion, festivals and statues ----------
+   faith in you is what a god lives on: the devout give much more belief, take your miracles cheaply and do as you ask; the faithless barely hear you */
+const devBelief=n=>.2+1.6*(n.devotion??.3);
+const devCost=n=>clamp(1.35-.75*(n.devotion??.3),.65,1.35);
+const devLabel=d=>d>.75?'Devout':d>.5?'Faithful':d>.3?'Believing':d>.15?'Doubting':'Faithless';
 function devotionTick(n){const yours=n.faith>=0;n.devotion=clamp((n.devotion??.3)+(yours?.004*(1-n.devotion):-.004*n.devotion)+(n.festival>0?.004:0)-(n.plague>0||n.famine>0?.003:0),0,1);
   if(n.festival>0)n.festival--;
   if(yours&&n.devotion>.62&&n.festival<=0&&rng()<.006){n.festival=3;n.pop*=1.02;log(`${n.name} held a harvest feast in honour of ${faiths[n.faith].name}.`,'faith')}
@@ -434,7 +438,9 @@ function tick(){
   if(worldPop*POPMUL[Math.max(0,...nations.filter(n=>n.alive).map(n=>n.era))]>=1e6)milestone('million','A million souls','The world population passed one million.');
   /* belief: a trickle from every faithful people, growing slowly with their numbers; a full treasury fills more slowly */
   /* in co-op every god lives on their own followers: the host counts only the faiths the host revealed */
-  const rival=typeof coopHosting==='function'&&coopHosting();let inc=.45;for(const n of nations)if(n.alive&&n.faith>=0&&(!rival||((faiths[n.faith]&&faiths[n.faith].god)|0)===0))inc+=Math.cbrt(n.pop)*.045*ten(n).belief*(.6+(n.devotion??.3));
+  const rival=typeof coopHosting==='function'&&coopHosting();let inc=.45;for(const n of nations)if(n.alive&&n.faith>=0&&(!rival||((faiths[n.faith]&&faiths[n.faith].god)|0)===0))inc+=Math.cbrt(n.pop)*.045*ten(n).belief*devBelief(n);
+  /* even peoples without a faith of yours pray a little, if they still believe in you */
+  for(const n of nations)if(n.alive&&n.faith<0&&(n.devotion??.3)>.3)inc+=Math.cbrt(n.pop)*.02*((n.devotion??.3)-.3);
   inc/=1+Math.max(0,belief-200)/200;belief+=inc;beliefRate=inc;
   if(moistActive>0){moistActive--;for(let i=0;i<N;i++)moistD[i]*=.985;if(year%4===0)terrainDirty=true}
 }

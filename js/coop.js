@@ -84,7 +84,7 @@ function coopLive(full){
   if(full){d.an=annals;d.hi=hist;d.sn=snaps}
   return d}
 /* every god's belief comes from the peoples who follow that god's own faiths */
-function coopIncome(pid,pool){let inc=.45;for(const n of nations)if(n.alive&&n.faith>=0&&faiths[n.faith]&&(faiths[n.faith].god|0)===pid)inc+=Math.cbrt(n.pop)*.045*ten(n).belief*(.6+(n.devotion??.3));return inc/(1+Math.max(0,pool-200)/200)}
+function coopIncome(pid,pool){let inc=.45;for(const n of nations)if(n.alive&&n.faith>=0&&faiths[n.faith]&&(faiths[n.faith].god|0)===pid)inc+=Math.cbrt(n.pop)*.045*ten(n).belief*devBelief(n);return inc/(1+Math.max(0,pool-200)/200)}
 function coopFollowers(pid){let k=0,ppl=0;for(const n of nations)if(n.alive&&n.faith>=0&&faiths[n.faith]&&(faiths[n.faith].god|0)===pid){k++;ppl+=n.pop*POPMUL[n.era]}return {k,ppl}}
 function coopStandings(){let tot=0;for(const n of nations)if(n.alive)tot+=n.pop*POPMUL[n.era];return coop.players.map(p=>{const f=coopFollowers(p.pid);return {pid:p.pid,name:p.name,color:p.color,ppl:f.ppl,k:f.k,share:tot?f.ppl/tot:0}}).sort((a,b)=>b.ppl-a.ppl)}
 function coopAscend(dy){if(dy<=0)return;coop.asc=coop.asc||{};for(const s of coopStandings()){if(s.share>=.7){coop.asc[s.pid]=(coop.asc[s.pid]||0)+dy;if(coop.asc[s.pid]>=30&&!(coop.won&&coop.won[s.pid])){coop.won=coop.won||{};coop.won[s.pid]=year;
