@@ -80,13 +80,13 @@ function updateAudio(dt){if(!SND.on)return;const c=SND.ctx,t=c.currentTime,A=SND
     if(isWater(i))water++;else{land++;if(river[i])riv++;if(biome[i]===5||biome[i]===6)forest++;if(occupied.has(i))city++}}
   const wf=water/24,coast=wf>0&&wf<1?1-Math.abs(wf-.5)*1.6:wf*.5;
   let rain=0;for(const S of storms){const d=Math.hypot(S.x-camT.x,S.z-camT.z);rain=Math.max(rain,1-smooth(S.r*.6,S.r*1.6+camDist*.3,d))}
-  let fire=0;if(fires.size){let k=0;for(const i of fires.keys()){if(++k>60)break;const d=Math.hypot(wx(i%W)-camT.x,wz((i/W)|0)-camT.z);fire=Math.max(fire,1-smooth(.5,4+camDist*.2,d))}}
+  let fire=0;if(fires.size){let k=0;for(const i of fires.keys()){if(++k>60)break;const d=Math.hypot(wx(i%W)-camT.x,wz((i/W)|0)-camT.z);fire=Math.max(fire,1-smooth(.3,1.6+camDist*.06,d))}fire*=1-smooth(6,22,camDist)}
   const night=nightF||0,set=(L,v,tc)=>L.g.gain.setTargetAtTime(v,t,tc||.6);
   set(A.wind,.07+.22*(1-close)+rain*.25+(biome[tileAt(camT.x,camT.z)]>=10?.2:0));A.wind.f.frequency.setTargetAtTime(A.wind.base*(1+.35*Math.sin(t*.13)+.2*Math.sin(t*.41)),t,.5);
   set(A.waves,.32*coast*(.6+.4*Math.sin(t*.55)*Math.sin(t*.21)+.4));
   set(A.rain,.28*rain);set(A.river,.06*close*(riv/24)*4);
   set(A.crowd,.11*close*close*Math.min(1,city/6)*(1-night*.7),.4);A.crowd.f.frequency.setTargetAtTime(480+Math.random()*160,t,.08);
-  set(A.fire,.11*fire*(.75+.25*Math.sin(t*1.7)*Math.sin(t*.63)),.3);A.fire.f.frequency.setTargetAtTime(380+120*Math.sin(t*.9),t,.2);
+  set(A.fire,.05*fire*(.75+.25*Math.sin(t*1.7)*Math.sin(t*.63)),.3);A.fire.f.frequency.setTargetAtTime(380+120*Math.sin(t*.9),t,.2);
   /* birds by day near trees, crickets at night */
   SND.birdT-=dt;if(SND.birdT<=0){SND.birdT=.6+Math.random()*2.5;const life=close*(land/24);
     if(life>.25&&rain<.3){if(night<.5&&(forest>2||Math.random()<.4)){const base=2200+Math.random()*1800,n=2+((Math.random()*5)|0);for(let k=0;k<n;k++)tone('sine',base*(1+Math.random()*.2),t+k*.09,.07,.025*life,SND.bus.amb,{slide:base*(.75+Math.random()*.6)})}
@@ -102,9 +102,9 @@ function updateAudio(dt){if(!SND.on)return;const c=SND.ctx,t=c.currentTime,A=SND
       if(we<4){if(Math.random()<.6){tone('triangle',1800+Math.random()*1600,t,.05,.03*v,SND.bus.amb);nburst(SND.noise,t,.04,.06*v,'highpass',3000,SND.bus.amb,{a:.001})}if(Math.random()<.08)nburst(SND.brown,t,.5,.12*v,'lowpass',300,SND.bus.amb)}
       else if(we<6){nburst(SND.noise,t,.06,.1*v*Math.random(),'bandpass',1400,SND.bus.amb,{a:.001});if(Math.random()<.12)nburst(SND.brown,t,.9,.3*v,'lowpass',160,SND.bus.amb,{a:.003})}
       else{for(let q=0;q<3;q++)nburst(SND.noise,t+q*.07,.03,.08*v,'bandpass',2200,SND.bus.amb,{a:.001});if(Math.random()<.15)nburst(SND.brown,t,1.2,.35*v,'lowpass',120,SND.bus.amb,{a:.002})}}}
-  SND.crackT-=dt;if(fire>.1&&SND.crackT<=0){SND.crackT=.05+Math.random()*.35/(.5+fire);const n=1+((Math.random()*3.5)|0),loud=Math.random()<.12;
-    for(let q=0;q<n;q++){const tt=t+q*(.012+Math.random()*.04);nburst(SND.noise,tt,.004+Math.random()*.01,(loud?.05:.016+Math.random()*.016)*fire,'bandpass',1800+Math.random()*3200,SND.bus.amb,{a:.0005,q:1.4+Math.random()*2})}
-    if(loud)nburst(SND.brown,t,.08,.03*fire,'lowpass',500,SND.bus.amb,{a:.002})}
+  SND.crackT-=dt;if(fire>.1&&SND.crackT<=0){SND.crackT=.25+Math.random()*.9;const n=1+((Math.random()*3.5)|0),loud=Math.random()<.12;
+    for(let q=0;q<n;q++){const tt=t+q*(.012+Math.random()*.04);nburst(SND.noise,tt,.004+Math.random()*.01,(loud?.025:.008+Math.random()*.008)*fire,'bandpass',900+Math.random()*1400,SND.bus.amb,{a:.0005,q:1.4+Math.random()*2})}
+    if(loud)nburst(SND.brown,t,.08,.015*fire,'lowpass',400,SND.bus.amb,{a:.002})}
   if(t>SND.next-.2)musicBar()}
 
 /* ---------- generative music: every age has its own band, scale, tempo and rhythm ---------- */
