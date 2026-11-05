@@ -100,7 +100,20 @@ let curTab='People',sheetPanel=null,shakeT=0,treesDirty=true;
 const hintEl=$('#hint');let hintTimer=0;
 function toolHint(){const p=POWERS.find(p=>p.id===tool);hintEl.className='glass hint';hintEl.textContent=p.hint}
 function say(msg,sticky){clearTimeout(hintTimer);hintEl.className='glass hint alert';hintEl.textContent=msg;if(!sticky)hintTimer=setTimeout(toolHint,3500)}
-function toast(title,text,x,z){const t=document.createElement('div');t.className='glass toast'+(x!=null?' go':'');t.innerHTML=`<b>${esc(title)}</b><span>${esc(text)}</span>`;if(x!=null)t.onclick=()=>{focusOn(x,z,10);t.remove()};$('#toasts').appendChild(t);
+/* which pop-up messages to show: sorted into kinds, repeats of the same message are held back */
+const MSGKINDS=[['war','Wars, battles and sieges',/war|battle|siege|sack|conquer|captur|fleet|bomb|nuclear|army|invad|front|peace/i],
+  ['disaster','Disasters: famine, plague, fire, storms',/famine|plague|hungry|fire|storm|hurricane|quake|flood|volcan|erupt|locust|kraken|drought|meteor|blizzard|tsunami|fallout|winter|disease|sick/i],
+  ['politics','Rulers, revolts and alliances',/ruler|king|queen|dynast|govern|allian|independ|rebel|revolt|revolution|coup|assassin|anoint|crown|throne|empire|broke away/i],
+  ['faith','Faiths, prophets and miracles',/faith|prophet|schism|miracle|holy|pilgrim|temple|believ|eclipse/i],
+  ['progress','New ages, discoveries and wonders',/age|discover|wonder|colony|colon|oil|gold|space|launch|rocket|first|invent|school|city rises|new world/i]];
+const msgKind=(a,b)=>{const s=a+' '+b;for(const [k,,re] of MSGKINDS)if(re.test(s))return k;return 'other'};
+const msgSeen=new Map();
+function toast(title,text,x,z){if(!toastOk(title,text))return;toastShow(title,text,x,z)}
+function toastOk(title,text){/* answers to the player's own clicks always show */const ev=window.event;if(ev&&/click|pointer|key|change|submit/.test(ev.type))return true;const m=settings.msgs||{},k=msgKind(String(title),String(text||''));if(m[k]===false)return false;
+  const key=title+'|'+text,now=performance.now(),last=msgSeen.get(key)||0;if(now-last<20000)return false;msgSeen.set(key,now);
+  if(msgSeen.size>300){for(const [kk,v] of msgSeen)if(now-v>20000)msgSeen.delete(kk)}
+  /* at most one pop-up of each kind every few seconds */const at=toastOk.at||(toastOk.at={});if(now-(at[k]||0)<(k==='disaster'?4000:1500))return false;at[k]=now;return true}
+function toastShow(title,text,x,z){const t=document.createElement('div');t.className='glass toast'+(x!=null?' go':'');t.innerHTML=`<b>${esc(title)}</b><span>${esc(text)}</span>`;if(x!=null)t.onclick=()=>{focusOn(x,z,10);t.remove()};$('#toasts').appendChild(t);
   setTimeout(()=>t.remove(),5200);while($('#toasts').children.length>3)$('#toasts').firstChild.remove()}
 function log(text,kind){logs.unshift({year,text,kind});if(typeof onLogSound==='function')onLogSound(kind,text);if(logs.length>120)logs.pop()}
 /* the great powers cost more, so a god has to choose */
@@ -640,7 +653,7 @@ $('#modalBox').addEventListener('click',e=>{const fm=e.target.closest('[data-fm]
   const q=e.target.closest('[data-q]');if(q){settings.quality=q.dataset.q;saveSettings();applyGraphics();treesDirty=true;propsDirty=true;openSettings()}
   const lb=e.target.closest('[data-look]');if(lb){applyLook(lb.dataset.look);renderLooks('#looks3')}});
 $('#modalBox').addEventListener('input',e=>{const v=e.target.dataset.vol;if(!v)return;settings.vol=Object.assign({},vols(),{[v]:+e.target.value});saveSettings();audioInit();applyVolumes()});
-$('#modalBox').addEventListener('change',e=>{const k=e.target.dataset.set;if(!k)return;
+$('#modalBox').addEventListener('change',e=>{const mk=e.target.dataset.msg;if(mk){settings.msgs=Object.assign({},settings.msgs||{},{[mk]:e.target.checked});saveSettings();return}const k=e.target.dataset.set;if(!k)return;
   if(k==='unlimited'){unlimited=e.target.checked;updateHUD();return}
   settings[k]=e.target.checked;saveSettings();if(k==='mute')applyVolumes();if(k==='shadows')applyGraphics();if(k==='borders')bordersDirty=true});
 function openSettings(){const t=(k,label,v)=>`<label class="tog">${label}<input type="checkbox" data-set="${k}" ${v?'checked':''}></label>`;
@@ -650,6 +663,8 @@ function openSettings(){const t=(k,label,v)=>`<label class="tog">${label}<input 
     <div class="sec"><span class="lab">Power</span><div class="seg">${[['saver','Battery saver'],['balanced','Balanced'],['max','Maximum']].map(([k,l])=>`<button data-pow="${k}" aria-pressed="${(settings.power||'balanced')===k}">${l}</button>`).join('')}</div>
     <p class="note">Battery saver runs at 30 frames a second and fewer pixels, so laptops stay cool and quiet. Balanced runs at 60, and at 30 on battery. Maximum has no limit.</p></div>
     <div class="sec">${t('shadows','Shadows',settings.shadows)}${t('daynight','Day and night cycle',settings.daynight)}${t('borders','Territory borders',settings.borders)}${t('labels','Nation names',settings.labels)}${t('people','People walking around',settings.people)}${t('clouds','Clouds',settings.clouds!==false)}${t('seasons','Seasons (snow in winter, golden autumns)',settings.seasons!==false)}${t('post','Look effects (outlines, focus blur, grading)',settings.post!==false)}${t('fps','Show frame rate',!!settings.fps)}${t('unlimited','Sandbox: unlimited belief',unlimited)}</div>
+    <div class="sec"><span class="lab">Pop-up messages</span>${MSGKINDS.map(([k,l])=>`<label class="tog">${l}<input type="checkbox" data-msg="${k}" ${(settings.msgs||{})[k]!==false?'checked':''}></label>`).join('')}<label class="tog">Everything else<input type="checkbox" data-msg="other" ${(settings.msgs||{}).other!==false?'checked':''}></label>
+      <p class="note">Everything still goes into the Chronicle. The same message is shown at most once every 20 seconds.</p></div>
     <div class="sec"><span class="lab">Sound</span>${t('mute','Mute all sound',settings.mute)}
       ${[['master','Master'],['music','Music'],['sfx','Effects'],['amb','Ambience']].map(([k,l])=>`<label class="slid">${l}<input type="range" min="0" max="1" step="0.05" data-vol="${k}" value="${vols()[k]}"></label>`).join('')}
       <p class="note">Sound starts after your first click. Ambience follows the camera: waves on the coast, birds in the woods, crowds in town.</p></div>
