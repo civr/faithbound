@@ -124,7 +124,8 @@ for(const p of POWERS)p.cost=costOf(p.cost);
 /* which god is acting: in co-op the host works miracles for each guest */
 const myGod=()=>typeof coop!=='undefined'&&coop?(coop.running!=null?coop.running:coop.pid):0;
 const godOf=f=>faiths[f]?(faiths[f].god|0):0;
-function spend(c){c=costOf(c);if(unlimited)return true;if(belief<c){say(`Not enough belief. This needs ${c}, you have ${Math.floor(belief)}.`);return false}belief-=c;return true}
+let spendMul=1;
+function spend(c){c=Math.round(costOf(c)*spendMul);spendMul=1;if(unlimited)return true;if(belief<c){say(`Not enough belief. This needs ${c}, you have ${Math.floor(belief)}.`);return false}belief-=c;return true}
 function fx(i,kind){const x=wx(i%W),z=wz((i/W)|0);effects.push({x,y:surfY(x,z),z,kind,t0:performance.now()})}
 function brush(i,r,fn){const x=i%W,y=(i/W)|0,R_=Math.ceil(r);for(let dy=-R_;dy<=R_;dy++)for(let dx=-R_;dx<=R_;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d<=r)fn(Y*W+X,d)}}
 function burst(i,kind,n,spread){const x=wx(i%W),z=wz((i/W)|0);for(let k=0;k<n;k++){const px=x+(rng()-.5)*spread,pz=z+(rng()-.5)*spread;emit(kind,px,surfY(px,pz)+.03,pz)}}
@@ -133,7 +134,7 @@ const needNation=n=>{if(!n){say("Tap inside a nation's borders.");return false}r
 /* ---------- powers ---------- */
 function applyTool(i,start){if(viewOnly&&tool!=='inspect'){if(start)say('You are watching a shared world. Nothing here can be changed.');return}if(typeof rewind!=='undefined'&&rewind){if(start)say('You are looking at the past. Press Back to now first.');return}
   if(i<0)return;if(typeof coopGuest==='function'&&coopGuest()&&!COOP_LOCAL.has(tool)){coopCmd(i,start);return}
-  const o=owner[i],n=o>=0?nations[o]:null;
+  const o=owner[i],n=o>=0?nations[o]:null;spendMul=n?devCost(n):1;
   if(tool==='raise'||tool==='lower'){const s=tool==='raise'?1:-1;brush(i,2.6,(j,d)=>{h[j]=clamp(h[j]+s*.022*(1-d/3),0,1)});terrainDirty=true;if(rng()<.3)burst(i,'dust',2,1.5);return}
   if(tool==='smooth'){const nh=[];brush(i,2.6,(j,d)=>{let s=0,c=0;brush(j,1,(k)=>{s+=h[k];c++});nh.push([j,lerp(h[j],s/c,.35*(1-d/3))])});for(const [j,v] of nh)h[j]=v;terrainDirty=true;return}
   if(!start)return;
@@ -244,7 +245,7 @@ function renderNationCard(){
     ${wars.length?`<p class="note"><b style="color:#f0a196">Fighting:</b> ${esc(wars.join(', '))}</p>`:''}
     <div title="${esc(stTip)}"><div class="row" style="justify-content:space-between"><span class="lab">Stability · ${stabLabel(st)}</span><span class="lab">${sp.slice(0,2).map(p=>`${esc(p[0])} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join(' · ')}</span></div><div class="prog"><i style="width:${st*100}%;background:${stabColor(st)}"></i></div></div>
     ${(()=>{const hv=happyOf(n),hp=happyParts(n).sort((p,q)=>Math.abs(q[1])-Math.abs(p[1]));return `<div title="${esc(hp.map(p=>`${p[0]} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join('\n'))}"><div class="row" style="justify-content:space-between"><span class="lab">Happiness · ${happyLabel(hv)}</span><span class="lab">${hp.slice(0,2).map(p=>`${esc(p[0])} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join(' · ')}</span></div><div class="prog"><i style="width:${hv*100}%;background:${happyColor(hv)}"></i></div>${hv<.32?'<p class="note" style="color:#e8645a;margin:3px 0 0">The people are close to rising up.</p>':''}</div>`})()}
-    <div><div class="row" style="justify-content:space-between"><span class="lab">Faith in you</span><span class="lab">${Math.round((n.devotion??.3)*100)}%${n.cities.filter(c=>c.statue).length?' · '+n.cities.filter(c=>c.statue).length+' statues':''}${n.festival>0?' · festival':''}</span></div><div class="prog"><i style="width:${(n.devotion??.3)*100}%;background:#e8c060"></i></div></div>
+    <div><div class="row" style="justify-content:space-between"><span class="lab">Faith in you · ${devLabel(n.devotion??.3)}</span><span class="lab">${Math.round((n.devotion??.3)*100)}%${n.cities.filter(c=>c.statue).length?' · '+n.cities.filter(c=>c.statue).length+' statues':''}${n.festival>0?' · festival':''}</span></div><div class="prog"><i style="width:${(n.devotion??.3)*100}%;background:#e8c060"></i></div><p class="note" style="margin:3px 0 0">${(()=>{const d=n.devotion??.3,c=Math.round((devCost(n)-1)*100);return `Miracles here cost ${c>0?'+':''}${c}% · ${n.faith>=0?'belief ×'+devBelief(n).toFixed(1):d>.3?'prays to you a little':'gives you nothing'}${d<.2?' · ignores your guidance half the time':''}`})()}</p></div>
     ${resourceLine(n)}<p class="note">${esc(CULTURES[cultOf(n)].label)} culture${n.allies&&n.allies.length?` · <b style="color:#9ec8f0">Allies:</b> ${esc(n.allies.map(i=>nations[i].name).join(', '))}`:''}</p>
     ${n.trade&&n.trade.length?`<p class="note"><b style="color:#a9dba5">Trading with:</b> ${esc(n.trade.map(i=>nations[i].name).join(', '))}</p>`:''}
     ${n.alive?`<div class="quick"><button class="ib" data-q="follow">Follow</button><button class="ib" data-q="bless">Bless</button><button class="ib" data-q="festival">Festival</button><button class="ib" data-q="ally">Ally</button><button class="ib" data-q="inspire">Inspire</button><button class="ib" data-q="faith">Faith</button><button class="ib" data-q="gov">Rule</button><button class="ib" data-q="tech">Tech</button><button class="ib" data-q="dip">Treaty</button><button class="ib" data-q="war">War</button>${wars.length?'<button class="ib" data-q="peace">Peace</button>':''}</div>`:''}`;
@@ -364,9 +365,9 @@ function renderFaithMaker(){const d=draft,combo={};for(const k of MODKEYS)combo[
   <div class="sec"><span class="lab">Tenets · pick two</span><div class="tenets">${Object.keys(TENETS).map(k=>`<button data-fm="tenet" data-v="${k}" aria-pressed="${d.tenets.includes(k)}"><b>${TENETS[k].label}</b><small>${TENETS[k].desc}</small></button>`).join('')}</div></div>
   <div class="row"><button class="btn" data-p="close">Cancel</button><div class="flex"></div><button class="btn primary" data-fm="found" ${d.tenets.length?'':'disabled'}>Reveal faith · 40 belief</button></div>`)}
 /* actions that change the world from a dialog; in co-op a guest's choice runs on the host through these */
-function doAct(k,p){
-  if(k==='guide'){const n=nations[p.n];if(!n||!n.alive||!TECH[p.t]||!techAvailable(n,TECH[p.t])||!spend(10))return false;n.research=p.t;n.tech=0;n.guided=true;log(`You guided the scholars of ${n.name} towards ${TECH[n.research].name}.`,'era');return true}
-  if(k==='gov'){const n=nations[p.n];if(!n||!n.alive||!govOptions(n).includes(p.g)||!spend(30))return false;setGov(n,p.g,true);if(n.cities[0])fx(n.cities[0].y*W+n.cities[0].x,'faith');return true}
+function doAct(k,p){spendMul=1;
+  if(k==='guide'){const n=nations[p.n];if(!n||!n.alive||!TECH[p.t]||!techAvailable(n,TECH[p.t]))return false;spendMul=devCost(n);if(!spend(10))return false;if((n.devotion??.3)<.2&&rng()<.5){say(`The scholars of ${n.name} do not listen to a god they no longer believe in.`);return true}n.research=p.t;n.tech=0;n.guided=true;log(`You guided the scholars of ${n.name} towards ${TECH[n.research].name}.`,'era');return true}
+  if(k==='gov'){const n=nations[p.n];if(!n||!n.alive||!govOptions(n).includes(p.g))return false;spendMul=devCost(n);if(!spend(30))return false;if((n.devotion??.3)<.2&&rng()<.5){say(`${n.name} ignores your voice. Win back their faith first.`);return true}setGov(n,p.g,true);if(n.cities[0])fx(n.cities[0].y*W+n.cities[0].x,'faith');return true}
   if(k==='peace'){const A=nations[p.a],B=nations[p.b];if(!A||!B||!A.alive||!B.alive||!A.wars.has(B.id)){say('That war is already over.');return false}if(!spend(15))return false;makePeace(A,B,true);delete warData[warKey(A,B)];const c=B.cities[0];if(c)fx(c.y*W+c.x,'bless');return true}
   if(k==='dip'){const A=nations[p.a],B=nations[p.b];if(!A||!B||!A.alive||!B.alive||A===B)return false;const cost={pact:30,trade:15,marriage:25,tribute:20,ally:20,unally:10}[p.k];if(cost==null)return false;
     if(p.k==='trade'&&(A.wars.has(B.id)||A.trade.includes(B.id))){say(A.wars.has(B.id)?'They are at war.':'They already trade.');return false}
