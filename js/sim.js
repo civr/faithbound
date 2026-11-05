@@ -437,8 +437,9 @@ function tick(){
   }
   if(dLevel()>0)naturalEvents();disasterTick();peopleTick();
   climate.emis=emis;
-  /* warming follows the smoke, but slowly: at most about 0.04 °C a year even in a choking world; when the smoke clears, the extra heat slowly fades */
-  {const dT=emis>0?.0019*(1-Math.exp(-emis/2.5e5))*(worldOpts.scenario&&worldOpts.scenario.id==='climate'?.7:1):0;
+  /* warming follows the smoke, slowly, and levels off at about +2 °C; when the smoke clears, the extra heat slowly fades */
+  {const capA=worldOpts.scenario&&worldOpts.scenario.id==='climate'?.2:.1;/* +2 °C at most from people, approached slowly and then it levels off */
+   const dT=emis>0?.0005*(1-Math.exp(-emis/1.5e5))*Math.max(0,1-(climate.anth||0)/capA):0;
    if(dT>0){const d=Math.min(dT,1-climate.temp);climate.temp+=d;climate.anth=(climate.anth||0)+d}
    if(emis<2e4&&climate.anth>0){const c=climate.anth*.004;climate.anth-=c;climate.temp-=c}}
   if(emis>0){
