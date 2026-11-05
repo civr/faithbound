@@ -382,7 +382,7 @@ function tick(){
     if(!n.cities.length&&year-(n.born||0)>5){for(let i=0;i<N;i++)if(owner[i]===n.id)claim(i,-1);log(`With its last town gone, ${n.name} broke apart.`,'doom');fall(n);continue}
     const t=ten(n),e=ERAS[n.era];
     n.cap=Math.max(5,(capA[n.id]||0)*e.cap*30);if(!isFinite(n.pop))n.pop=10;if(!isFinite(n.tech))n.tech=0;
-    n.pop+=n.pop*.035*[.6,.68,.76,.82,.88,.95,1,1][n.era]*t.grow*stabGrow(n)*(n.bless>0?1.8:1)*(n.festival>0?1.25:1)*(1-n.pop/n.cap);
+    n.pop+=n.pop*.035*[.6,.68,.76,.82,.88,.95,1,1][n.era]*t.grow*stabGrow(n)*(.85+.3*(n.happy??.6))*(n.bless>0?1.8:1)*(n.festival>0?1.25:1)*(1-n.pop/n.cap);
     /* settlers: a people with room to spare sends families out to found small villages inside its own lands */
     if(n.tiles/Math.max(1,n.cities.length)>=10&&n.pop>n.cities.length*12&&rng()<.03){const c0=n.cities[(rng()*n.cities.length)|0];
       for(let q=0;q<6;q++){const x=c0.x+Math.round((rng()-.5)*10),y=c0.y+Math.round((rng()-.5)*10);if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]===n.id&&!nearCity(x,y,3)&&hab[j]>.3){const k=n.cities.length;foundTown(n,x,y,j);if(n.cities.length>k){if(rng()<.25)log(`Settlers from ${c0.name} founded ${n.cities[k].name}.`,'');break}}}}
@@ -428,7 +428,8 @@ function tick(){
     if(year%5===0)terrainDirty=true}
   if(worldPop*POPMUL[Math.max(0,...nations.filter(n=>n.alive).map(n=>n.era))]>=1e6)milestone('million','A million souls','The world population passed one million.');
   /* belief: a trickle from every faithful people, growing slowly with their numbers; a full treasury fills more slowly */
-  let inc=.45;for(const n of nations)if(n.alive&&n.faith>=0)inc+=Math.cbrt(n.pop)*.045*ten(n).belief*(.6+(n.devotion??.3));
+  /* in co-op every god lives on their own followers: the host counts only the faiths the host revealed */
+  const rival=typeof coopHosting==='function'&&coopHosting();let inc=.45;for(const n of nations)if(n.alive&&n.faith>=0&&(!rival||((faiths[n.faith]&&faiths[n.faith].god)|0)===0))inc+=Math.cbrt(n.pop)*.045*ten(n).belief*(.6+(n.devotion??.3));
   inc/=1+Math.max(0,belief-200)/200;belief+=inc;beliefRate=inc;
   if(moistActive>0){moistActive--;for(let i=0;i<N;i++)moistD[i]*=.985;if(year%4===0)terrainDirty=true}
 }
