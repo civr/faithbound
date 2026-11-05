@@ -119,8 +119,8 @@ const KITS={};
 function kit(name,geo,mat,max,shadow){const m=new THREE.InstancedMesh(geo,mat,max);m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   for(let i=0;i<max;i++)m.setColorAt(i,tmpC.setRGB(1,1,1));m.count=0;m.frustumCulled=false;m.castShadow=shadow!==false;m.receiveShadow=true;scene.add(m);KITS[name]={mesh:m,k:0,max}}
 const treeMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.9});
-kit('plaster',unitBox(),MAT.plaster,8000);kit('stone',unitBox(),MAT.stone,16000);kit('brick',unitBox(),MAT.brick,16000);
-kit('thatch',gableGeo(),MAT.thatch,4000);kit('hipThatch',hipGeo(.3),MAT.thatch2,5000);kit('timber',unitBox(),MAT.timber,8000);kit('bed',unitBox(),MAT.soil,6000,false);kit('hay',unitCone(9),MAT.thatch2,1500);kit('tiles',gableGeo(),MAT.tiles,16000);
+kit('plaster',unitBox(),MAT.plaster,20000);kit('stone',unitBox(),MAT.stone,16000);kit('brick',unitBox(),MAT.brick,16000);
+kit('thatch',gableGeo(),MAT.thatch,4000);kit('hipThatch',hipGeo(.3),MAT.thatch2,5000);kit('timber',unitBox(),MAT.timber,8000);kit('bed',unitBox(),MAT.soil,6000,false);kit('hay',unitCone(9),MAT.thatch2,1500);kit('tiles',gableGeo(),MAT.tiles,26000);
 kit('coneThatch',unitCone(12),MAT.thatch,1500);kit('coneTile',unitCone(10),MAT.tiles,1500);kit('pyr',(()=>{const g=unitCone(4);g.rotateY(Math.PI/4);return g})(),MAT.tiles,1200);
 kit('tower',unitCyl(14),MAT.stone,1500);kit('office',unitBox(),MAT.office,2500);kit('glass',unitBox(),MAT.glass,2000);
 kit('dome',(()=>{const g=new THREE.SphereGeometry(.5,16,8,0,Math.PI*2,0,Math.PI/2);return g})(),MAT.metal,700);
@@ -294,10 +294,10 @@ function cultureDwelling(cu,n,x,y,z,rot,e,hk,k,core){const o=hash(hk*97+1),pick=
     flatHouse(x,y,z,rot,.1,.085,h,col,hk,{});if(o<.7)P('hipTile',x,y+h,z,rot,0,0,0,.12,.03,.105,pick([0xc0603a,0xb85a36,0xa85030]));
     if(e>=3&&o>.5)facade(x,y,z,rot,.1,.085,h,hk,h>.07?2:1,false);return true}
   if(cu==='nordic'){
-    if(e===0)return false;
+    if(e===0||e>=5)return false;
     if(e<=3||core<.3){add('timber',x,y-.02,z,.15,.052,.065,rot,pick([0xc8b8a8,0xb0a090,0xd0c4b4]));P('hipThatch',x,y+.03,z,rot,0,0,0,.18,.06,.1,pick([0x8aa860,0x7a9850,0x98b070]));
       facade(x,y,z,rot,.15,.065,.032,hk,1,true);return true}
-    add('timber',x,y-.02,z,.1,.075,.08,rot,pick([0xb04a3a,0xa84434,0xc8a050,0xf0ece4]));framing(x,y,z,rot,.1,.08,.055,1);
+    add('plaster',x,y-.02,z,.1,.075,.08,rot,pick([0xb04a3a,0xa84434,0xd8b050,0xf0ece4,0x8aa0b8]));framing(x,y,z,rot,.1,.08,.055,1);
     P('tiles',x,y+.055,z,rot,0,0,0,.115,.05,.095,0x3e3e42);facade(x,y,z,rot,.1,.08,.055,hk,1);chimney(x,y+.03,z,rot,.1,.08,y+.1,hk,o<.4);return true}
   if(cu==='east'){
     if(e===0)return false;
@@ -324,13 +324,16 @@ function dwelling(n,x,y,z,rot,e,hk,k,core){core=core||0;
   if(e===3){if(hk<.3)house(x,y,z,rot,.1,.08,.055,'plaster',WALLS[(o.hk*3)|0],'thatch',0xffffff,true,o);
     else house(x,y,z,rot,.1,.08,.06*tall,hk<.85?'plaster':'stone',WALLS[(o.hk*6)|0],'tiles',pick(ROOF_RED),true,o);return}
   if(e===4){house(x,y,z,rot,.1,.08,.1*tall,hk<.55?'plaster':hk<.8?'brick':'stone',WALLS[(o.hk*6)|0],'tiles',hk<.7?pick(ROOF_RED):pick(ROOF_SLATE),true,o);return}
-  if(e===5){house(x,y,z,rot,.13,.08,.09*tall,'brick',0xffffff,'tiles',pick(ROOF_SLATE),true,o);return}
+  if(e===5){const v=o.hk,s=clamp((MCTX.w||.12)/.12,.62,1.1);/* houses fit their plot, so streets stay open */
+    if(v<.42)house(x,y,z,rot,.13*s,.08*s,.09*tall*Math.max(s,.8),'brick',0xffffff,'tiles',pick(ROOF_SLATE),true,o);
+    else if(v<.78)house(x,y,z,rot,.12*s,.08*s,.085*tall*Math.max(s,.8),'plaster',WALLS[(hash(hk*41)*WALLS.length)|0],'tiles',pick(ROOF_RED),true,o);
+    else house(x,y,z,rot,.12*s,.08*s,.09*tall*Math.max(s,.8),'stone',0xe8e0d0,'tiles',pick(ROOF_SLATE),true,o);return}
   if(e===6){modernBuilding(n,x,y,z,rot,hk,core,MCTX.w||.12);return}
   futureBuilding(n,x,y,z,rot,hk,core,MCTX.w||.12);
 }
 function factory(x,y,z,rot,dark){P('brick',x,y-.02,z,rot,0,0,0,.26,.1,.15,0xffffff);
   for(let k=-1;k<=1;k++)P('tiles',x,y+.08,z,rot,k*.085,0,0,.085,.05,.16,ROOF_SLATE[0],Math.PI/2);
-  for(const dx of [-.09,.1]){P('cyl',x,y-.02,z,rot,dx,-.09,0,.035,.36,.035,0x5b4136);const c=Math.cos(rot),s=Math.sin(rot);smokeAt(x+dx*c-.09*s,y+.34,z-dx*s-.09*c,dark,1.4)}
+  for(const dx of [-.09,.1]){P('cyl',x,y-.02,z,rot,dx,-.09,0,.035,.36,.035,0x5b4136);const c=Math.cos(rot),s=Math.sin(rot);smokeAt(x+dx*c-.09*s,y+.34,z-dx*s-.09*c,dark,2.4)}
 }
 function windmill(x,y,z,rot){const g=new THREE.Group();
   const t=new THREE.Mesh(KITS.tower.mesh.geometry,MAT.plaster);t.scale.set(.07,.16,.07);t.castShadow=true;g.add(t);
@@ -350,13 +353,35 @@ const ARCH={classic:{label:'Old World',desc:'Timber, plaster, red and slate roof
   harbour:{label:'Harbour Town',desc:'Bright painted fronts and gabled rows',walls:[0xe9b44c,0x6fa8c8,0xd9786a,0x8fbf8a,0xf0e6d8,0xc79ad1],red:[0x8e3f2c,0x7c3a2b],slate:[0x4f5864,0x3f4652],roofH:.95}};
 const AR=()=>ARCH[settings.arch]||ARCH.classic;
 const AWN=[0xc0392b,0xe0b030,0x2e6fb0,0x3f8f4a,0xe8e2d4,0x9b4fa0];
+/* street life for towns near the camera: avenue trees, lamps, road markings, café terraces and gardens */
+kit('smog',new THREE.SphereGeometry(.5,14,7),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.2,depthWrite:false,fog:true}),300,false);KITS.smog.mesh.renderOrder=2;BUILD_KITS.push('smog');
+kit('parasol',unitCone(6),MAT.plain,3000);kit('bloom',new THREE.SphereGeometry(.5,5,3),MAT.plain,8000,false);BUILD_KITS.push('parasol','bloom');
+const HOME_WALL=[0xf0e0c8,0xe8c4bc,0xd8dde2,0xf2ead6,0xe2c9a4,0xc8d8c8,0xf4d6a0],BLOOMS=[0xe8506a,0xf2c040,0xf4f0f0,0xb070d0,0xe87a3a];
+function streetLife(n,c,plan,e,cx,cy,cz,cap,i0,reach){if(e<4)return;let trees=0,lamps=0;const TMAX=cap?520:260;
+  plan.streets.forEach((st,si)=>{const pts=st.pts,lim=reach?reach.get(si):1e9;if(pts.length<4||!lim)return;const w=st.main?(e<5?.05:.066):(e<5?.034:.044);
+    for(let k=2;k<pts.length-2;k++){if(pts[k][2]>lim)break;const p=pts[k],q=pts[k+1],dx=q[0]-p[0],dz=q[1]-p[1],L=Math.hypot(dx,dz)||1,nx=-dz/L,nz=dx/L,hk=hash(i0*7+si*131+k*17);
+      const dc=Math.hypot(p[0]-cx,p[1]-cz);if(dc<plan.pr+.04)continue;
+      /* trees line the avenues; in the suburbs they shade the side streets too */
+      if(trees<TMAX&&k%3===0&&(st.main||plan.metro&&hk<.45)&&e>=5)for(const sd of [1,-1]){const x=p[0]+nx*sd*(w/2+.014),z=p[1]+nz*sd*(w/2+.014),t=tileAt(x,z);if(t<0||owner[t]!==n.id||isWater(t))continue;const y=groundY(x,z);if(y<waterY+.03)continue;
+        const s=.17+hash(hk*9+sd)*.08;add('townTree',x,y,z,s,s*1.15,s,hk*6,e>=7?0x6fae58:0x5a8a3e);trees++}
+      /* lamps along the main roads */
+      if(st.main&&k%5===2&&lamps<160){const sd=k%10===2?1:-1,x=p[0]+nx*sd*(w/2+.006),z=p[1]+nz*sd*(w/2+.006),y=groundY(x,z);if(y>waterY+.03){add('fence',x,y,z,.004,.05,.004,0,e>=6?0x8a9096:0x2e2a26);add('lamp',x,y+.05,z,.01,.006,.01,0);lamps++}}
+      /* a dashed white line down the middle of modern roads */
+      if(e>=6&&st.main&&k%2===0){const y=groundY(p[0],p[1])+.0205,a=Math.atan2(dx,dz);add('fence',p[0],y,p[1],.006,.0015,.034,a,0xf2f0ea)}}});
+  if(e>=4&&!cap){/* café terraces around the square */const r=plan.pr*.78,m=3+((hash(i0*5.5)*4)|0);for(let k=0;k<m;k++){const a=k/m*6.283+hash(i0*2.1)+.35,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r,y=groundY(x,z),col=[0xf2e8d0,0xd8443a,0xf0c040,0x3a7ab8][(hash(i0+k*3)*4)|0];
+    add('fence',x,y,z,.003,.034,.003,0,0x5a4a3a);add('parasol',x,y+.026,z,.04,.014,.04,a,col);add('box',x+.014,y,z+.01,.014,.012,.014,a,0x7a5a3a);add('box',x-.014,y,z-.01,.014,.012,.014,a,0x7a5a3a)}
+    /* benches and flower beds */for(let k=0;k<6;k++){const a=k/6*6.283+.8,r2=plan.pr*.5,x=cx+Math.cos(a)*r2,z=cz+Math.sin(a)*r2,y=groundY(x,z);
+      if(k%2)add('box',x,y,z,.03,.008,.01,-a,0x6a4a30);else{add('box',x,y-.004,z,.03,.012,.03,a,0x4a7a34);for(let b=0;b<3;b++)add('bloom',x+(hash(i0+k+b)-.5)*.02,y+.009,z+(hash(i0*3+k+b)-.5)*.02,.01,.008,.01,0,BLOOMS[(hash(i0*k+b)*5)|0])}}}}
+function frontGarden(x,y,z,rot,w,d,hk){/* a hedge or a white fence around a little lawn with flowers */const c=Math.cos(rot),s=Math.sin(rot),W2=w*.8,D2=d*.85,hedge=hash(hk*5)<.6,col=hedge?0x3f6a2e:0xf0ece2,hh=hedge?.016:.012,th=hedge?.01:.003;
+  const sides=[[0,D2,W2*2,th],[W2,0,th,D2*2],[-W2,0,th,D2*2]];for(const [a,b,ww,dd] of sides)add(hedge?'box':'fence',x+a*c+b*s,y-.004,z-a*s+b*c,ww,hh,dd,rot,col);
+  if(hash(hk*13)<.6)for(let k=0;k<3;k++){const a=(k-1)*W2*.6,b=D2*.75;add('bloom',x+a*c+b*s,y+.003,z-a*s+b*c,.012,.009,.012,0,BLOOMS[(hash(hk*7+k)*5)|0])}}
 function cityCenter(n,c,cx,cy,cz,e,cap,i0){
   const r=cap?.3:.15;if(e>=1){add(e>=3?'plazaStone':'plazaDirt',cx,cy-.012,cz,r*2,.016,r*2,hash(i0)*6)}
   if(cap)return;
   if(e>=1&&e<=3){add('cyl',cx,cy,cz,.04,.025,.04,0,0x9a948a);add('pool',cx,cy+.005,cz,.03,.022,.03);add('cyl',cx-.016,cy,cz,.004,.05,.004,0,0x5a4632);add('cyl',cx+.016,cy,cz,.004,.05,.004,0,0x5a4632);add(e>=3?'tiles':'thatch',cx,cy+.05,cz,.05,.02,.045,0,0x8e3f2c)}
   else if(e<=5){add('cyl',cx,cy,cz,.09,.018,.09,0,0xd8d2c6);add('pool',cx,cy+.004,cz,.078,.016,.078);add('cyl',cx,cy,cz,.012,.05,.012,0,0xd8d2c6);emitters.push({x:cx,y:cy+.05,z:cz,fountain:true,rate:6})}
   else if(e===6){add('pool',cx,cy-.008,cz,r*1.7,.012,r*1.7,0,0x4f8a3a);for(let k=0;k<4;k++){const a=k*1.57+.4;add('townTree',cx+Math.cos(a)*.08,cy,cz+Math.sin(a)*.08,.4,.4,.4,0,0x4f8a3a)}}
-  else{add('ring',cx,cy+.06,cz,.12,1,.12);add('glass',cx,cy,cz,.02,.12,.02,.7,0xe8fdff)}
+  else{/* a green square: a pond among trees and flowers */add('pool',cx,cy-.008,cz,r*1.4,.012,r*1.4,0);for(let k=0;k<6;k++){const a=k/6*6.283+.3;add('townTree',cx+Math.cos(a)*r*.85,cy,cz+Math.sin(a)*r*.85,.32,.36,.32,0,0x4f8a3a);add('bloom',cx+Math.cos(a+.5)*r*.75,cy-.004,cz+Math.sin(a+.5)*r*.75,.03,.02,.03,0,BLOOMS[k%5])}}
   if(e>=1&&e<=5){const stalls=2+((hash(i0*3.3)*4)|0);for(let k=0;k<stalls;k++){const a=k/stalls*6.283+hash(i0+k),sx=cx+Math.cos(a)*r*.72,sz=cz+Math.sin(a)*r*.72,rt=-a;
     P('box',sx,cy,sz,rt,0,0,0,.035,.016,.022,0x7a5a3a);P('cyl',sx,cy,sz,rt,-.015,.009,0,.003,.04,.003,0x5a4632);P('cyl',sx,cy,sz,rt,.015,.009,0,.003,.04,.003,0x5a4632);
     P('awning',sx,cy+.035,sz,rt,0,0,0,.042,.014,.03,AWN[(hash(i0*7+k)*AWN.length)|0])}}
@@ -457,8 +482,8 @@ function townPlan(n,c,cap,e){
     const huts=[[cx+.09,cz]];for(let k=0;k<70;k++){const b=huts[(R_()*huts.length)|0],a=R_()*6.283,d=.085+R_()*.05,x=b[0]+Math.cos(a)*d,z=b[1]+Math.sin(a)*d;
       if(Math.hypot(x-cx,z-cz)<.07||bad(x,z)||!free(x,z,.04))continue;mark(x,z,.04);huts.push([x,z]);slots.push({x,z,rot:R_()*6.283,w:.1,d:.1,core:0,st:-1,at:0,fx:x,fz:z,dd:Math.hypot(x-cx,z-cz)+R_()*.15})}
     slots.sort((a,b)=>a.dd-b.dd);return c._plan={key,streets,slots,pr}}
-  if(mb)return c._plan=metroPlan(c,cap,e,mb,key,R_,cx,cz,pr,bad,free,mark);
-  const straight=band>=2?.35:1,len=(cap?2.1:1.4)*(band>=2?1.25:1)*(band===3?1.4:1)*Math.sqrt(clamp(W/112,.6,1.4));
+  if(mb)return c._plan=organicMetro(c,cap,e,mb,key,R_,cx,cz,pr,bad,free,mark);
+  const straight=band>=2?.65:1,len=(cap?2.1:1.4)*(band>=2?1.25:1)*(band===3?1.4:1)*Math.sqrt(clamp(W/112,.6,1.4));
   const walk=(x,z,h,L,main)=>{const pts=[[x,z,0]],step=.06;let d=0;
     for(let s=0;s<L/step;s++){let best=null,bc=1e9;const y0=groundY(x,z);
       for(const dh of [-.32,-.16,0,.16,.32]){const hh=h+dh*straight+(R_()-.5)*.12*straight,X=x+Math.cos(hh)*step,Z=z+Math.sin(hh)*step;if(bad(X,Z))continue;
@@ -490,6 +515,46 @@ function townPlan(n,c,cap,e){
         slots.push({x,z,rot:Math.atan2(-nx,-nz),w,d,pd,pw,core,st:si,at:p1[2],fx:p1[0],fz:p1[1],dd:dd+R_()*.25})}}});
   slots.sort((a,b)=>a.dd-b.dd);
   return c._plan={key,streets,slots,pr}}
+/* a grown city: avenues leave the old square like spokes, ring roads curve round them at the old wall lines,
+   and crooked lanes fill the gaps. Towers stand in the middle, flats around them, houses with gardens far out. */
+function organicMetro(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[],slots=[],ph=R_()*6.283;
+  const walk=(x,z,h,L,bend)=>{const pts=[[x,z,0]],step=.06;let d=0;
+    for(let s=0;s<L/step;s++){let best=null,bc=1e9;const y0=groundY(x,z);
+      for(const dh of [-.26,-.13,0,.13,.26]){const hh=h+dh*bend+(R_()-.5)*.1*bend,X=x+Math.cos(hh)*step,Z=z+Math.sin(hh)*step;if(bad(X,Z))continue;
+        const cost=Math.abs(groundY(X,Z)-y0)*14+Math.abs(dh)*.7+R_()*.1;if(cost<bc){bc=cost;best=[X,Z,hh]}}
+      if(!best||bc>1.6)break;x=best[0];z=best[1];h=best[2];d+=step;pts.push([x,z,d])}return pts};
+  /* avenues */
+  const nA=5+((R_()*3)|0);for(let k=0;k<nA;k++){const a=ph+k*6.283/nA+(R_()-.5)*.5,pts=walk(cx+Math.cos(a)*pr,cz+Math.sin(a)*pr,a,MR*(.95+R_()*.25),.55);if(pts.length>3)streets.push({pts,main:true,base:pr})}
+  /* ring roads where the old walls once stood */
+  for(const f of [.3,.58,.86]){const r=MR*f;if(r<pr+.14)continue;let pts=null,d=0;const flush=()=>{if(pts&&pts.length>3)streets.push({pts,main:f<.5,base:r});pts=null};
+    const st=.06/r,wob=R_()*6.283;for(let t=0;t<=6.2832+st;t+=st){const rr=r*(1+.08*Math.sin(3*t+wob)+.05*Math.sin(7*t+wob*2)),x=cx+Math.cos(t)*rr,z=cz+Math.sin(t)*rr;
+      if(bad(x,z)){flush();continue}if(!pts){pts=[];d=0}else d+=.06;pts.push([x,z,d])}flush()}
+  /* lanes branch off at a near right angle and run until they meet another street, so the net is joined up, not a tangle of dead ends */
+  const SG=new Map(),sk=(x,z)=>Math.floor(x/.08)+','+Math.floor(z/.08),addS=(st,si)=>{for(const q of st.pts){const k=sk(q[0],q[1]);if(!SG.has(k))SG.set(k,[]);SG.get(k).push([q[0],q[1],si])}};
+  streets.forEach(addS);
+  const near=(x,z,not)=>{const gx=Math.floor(x/.08),gz=Math.floor(z/.08);let best=null,bd=.05;for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){const L=SG.get((gx+a)+','+(gz+b));if(L)for(const q of L){if(q[2]===not)continue;const d=Math.hypot(q[0]-x,q[1]-z);if(d<bd){bd=d;best=q}}}return best};
+  const laneBad=(x,z)=>{if(bad(x,z))return true;const t=tileAt(x,z);return t>=0&&river[t]>0};
+  const lane=(x,z,h,L,parent)=>{const pts=[[x,z,0]],step=.06;let d=0,hit=false;
+    for(let s=0;s<L/step;s++){const X=x+Math.cos(h)*step,Z=z+Math.sin(h)*step;if(laneBad(X,Z))break;
+      if(Math.abs(groundY(X,Z)-groundY(x,z))>.03)break;x=X;z=Z;h+=(R_()-.5)*.12;d+=step;pts.push([x,z,d]);
+      if(s>=2){const q=near(x,z,parent);if(q){d+=Math.hypot(q[0]-x,q[1]-z);pts.push([q[0],q[1],d]);hit=true;break}}}
+    return {pts,hit}};
+  const gen=streets.map((s,i)=>i);for(let g=0;g<2;g++){const next=[];
+    for(const si of gen){const st=streets[si];for(let i=3;i<st.pts.length-2;i+=4+((R_()*4)|0)){if(R_()>(g?.45:.8))continue;const p0=st.pts[i],p1=st.pts[i+1],side=R_()<.5?1:-1,h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0])+side*(Math.PI/2+(R_()-.5)*.25);
+      if(Math.hypot(p0[0]-cx,p0[1]-cz)>MR*1.02)continue;const r=lane(p0[0],p0[1],h,.25+R_()*(g?.4:.6),si);
+      if(r.pts.length<4||(!r.hit&&R_()<.65))continue;/* a few quiet cul-de-sacs are fine, not a maze of them */
+      const s={pts:r.pts,main:false,base:0},k=streets.length;streets.push(s);addS(s,k);next.push(k)}}
+    gen.length=0;gen.push(...next)}
+  for(const st of streets)for(const q of st.pts)mark(q[0],q[1],st.main?.04:.03);
+  /* plots along every street */
+  streets.forEach((st,si)=>{const sw=st.main?.04:.03;
+    for(let i=1;i<st.pts.length;i++){const p0=st.pts[i-1],p1=st.pts[i],h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0]),dist=Math.hypot(p1[0]-cx,p1[1]-cz);if(dist<pr+.05)continue;
+      const core=clamp(1-dist/MR,0,1),kind=core>.84?2:core>.55?1:0;
+      for(const side of [1,-1]){if(R_()<(kind===2?.25:kind===1?.18:.32))continue;
+        const w=kind===2?.15:kind===1?.12+R_()*.03:.07+R_()*.015,d=kind===2?.13:kind===1?.1:.062,rr=Math.max(w,d)*.5,off=sw+rr+(kind===0?.012+R_()*.02:.006),nx=-Math.sin(h)*side,nz=Math.cos(h)*side,x=p1[0]+nx*off,z=p1[1]+nz*off;
+        if(bad(x,z)||!free(x,z,rr))continue;mark(x,z,rr);
+        slots.push({x,z,rot:Math.atan2(-nx,-nz),w,d,pd:0,pw:0,core,st:si,at:p1[2],fx:p1[0],fz:p1[1],dd:dist+R_()*.15,metro:1})}}});
+  slots.sort((a,b)=>a.dd-b.dd);return {key,streets,slots,pr,metro:MR}}
 /* a metropolis: a street grid of blocks out to a ragged edge; towers crowd the middle, flats and villas spread outward */
 function metroPlan(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[],slots=[],ang=R_()*Math.PI/2,ca=Math.cos(ang),sa=Math.sin(ang),B=e>=6?.38:.34,ph=R_()*6.28;
   const toW=(u,v)=>[cx+u*ca-v*sa,cz+u*sa+v*ca],edge=(u,v)=>{const t=Math.atan2(v,u);return MR*(.82+.14*Math.sin(3*t+ph)+.08*Math.sin(5*t+ph*2))},inR=(u,v)=>Math.hypot(u,v)<=edge(u,v);
@@ -499,7 +564,7 @@ function metroPlan(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[],sl
       if(!inR(u,v)||bad(x,z)){flush();continue}if(!pts){pts=[];d=0}else d+=.06;pts.push([x,z,d])}flush()}
   for(const st of streets)for(const q of st.pts)mark(q[0],q[1],st.main?.035:.025);
   for(let i=-NB;i<NB;i++)for(let j=-NB;j<NB;j++){const u0=(i+.5)*B,v0=(j+.5)*B,dist=Math.hypot(u0,v0);if(!inR(u0,v0)||dist<pr+.06)continue;
-    const core=clamp(1-dist/MR,0,1),inner=B-.09,big=core>.7,mid=core>.48;
+    const core=clamp(1-dist/MR,0,1),inner=B-.09,big=core>.84,mid=core>.6;
     /* parks and squares: a green block among the towers, more among the flats, a few in the suburbs */
     if(R_()<(big?.2:mid?.24:.12))continue;
     const hs=Math.min(inner*.24,.062),mw=Math.min(inner*.42,.12),spots=big?[[0,0,Math.min(inner*.72,.2)]]:mid?[[-.25,-.25,mw],[.25,-.25,mw],[-.25,.25,mw],[.25,.25,mw]].filter(()=>R_()>.2):
@@ -524,7 +589,8 @@ function replayCity(Rc){for(const name in Rc.k){const K=KITS[name],a=Rc.k[name],
   emitters.push(...Rc.em);herds.push(...Rc.hd);cityStreets.push(...Rc.cs);airports.push(...Rc.ap);spaceports.push(...Rc.sp);
   for(const g of Rc.wm){scene.add(g);windmills.push(g)}for(const m of Rc.tf){scene.add(m);townFlags.push(m)}}
 let RB0=0;
-function rebuildCities(){patchSets();RB0=performance.now();
+let sootSig='';
+function rebuildCities(){patchSets();RB0=performance.now();{let s='';for(const n of nations)if(n.alive&&n.era>=5&&n.era<=6)s+=n.id+':'+n.era+':'+n.cities.length+';';if(s!==sootSig){sootSig=s;if(typeof colorDirty!=='undefined')colorDirty=true}}
   for(const m of townFlags)scene.remove(m);townFlags=[];airports=[];spaceports=[];bgrid.clear();kitReset(BUILD_KITS);occupied.clear();bare.clear();grassAt.x=1e9;emitters=[];herds=[];cityStreets=[];for(const g of windmills)scene.remove(g);windmills=[];
   for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(10,cityLevel(n)+(gold?1.5:0))*2)/2;
     n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);if(hit&&(hit.key===key||performance.now()-RB0>14)){if(hit.key!==key)propsDirty=true;replayCity(hit);return}
@@ -540,7 +606,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       if(n.faith>=0&&(cap||hash(i0*3)<.35)){const tx=cx-.32,tz=cz+.2;sacredSite(faiths[n.faith],n,tx,surfY(tx,tz),tz,e,hash(i0)*3,cap)}
       if(c.dike)dikeRing(c,cx,cz);
       MCTX={lvl,cap,tall:[],w:.12};const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+lvl*(cap?3.6:2.3))*(e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
-      if(plan.metro)plan.streets.forEach((st,si)=>reach.set(si,1e9));let k=0,placed=0;c._poi={pts:[],plaza:[cx,cz],r:plan.pr};
+      if(plan.metro)plan.streets.forEach((st,si)=>{if(st.main&&st.base<=plan.pr+.01)reach.set(si,.5)});let k=0,placed=0;c._poi={pts:[],plaza:[cx,cz],r:plan.pr};
       const far=Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.3+2.5;MCTX.far=far;
       for(const sl of slots){if(placed>=count)break;k++;MCTX.w=sl.metro?sl.w:.12;if(far&&plan.metro&&sl.core<.3&&hash(k*7.7)<.75)continue;
         if(e>=5){const bk=Math.round(sl.x*14)+','+Math.round(sl.z*14);if(bgrid.has(bk))continue;bgrid.add(bk)}
@@ -551,11 +617,16 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         bareRect(sl.x,sl.z,sl.rot,sl.w*1.15,sl.d*1.2);
         const y=mx;if(mx-mn>.012&&e>=1)add('stone',sl.x,mn-.03,sl.z,sl.w*1.04,mx-mn+.03,sl.d*1.04,sl.rot,0xa8a090);
         const hk=hash(c.x*31+c.y*17+k*13);
-        if(e===5&&sl.core<.22&&hk<.3)factory(sl.x,y,sl.z,sl.rot,true);else dwelling(n,sl.x,y,sl.z,sl.rot,e,hk,k,sl.core);
+        const fa=hash(i0*2.7)*6.283,inD=Math.abs(((Math.atan2(sl.z-cz,sl.x-cx)-fa+9.42)%6.283)-3.14)<1;/* the mills crowd into one smoky quarter */
+        if(e===5&&sl.core<.4&&inD&&hk<.55&&(MCTX.fac|0)<(cap?7:3+lvl)){MCTX.fac=(MCTX.fac|0)+1;factory(sl.x,y,sl.z,sl.rot,true)}else dwelling(n,sl.x,y,sl.z,sl.rot,e,hk,k,sl.core);
         if(!far&&sl.pd>0&&e>=1&&e<=4&&cultOf(n)!=='mideast'&&cultOf(n)!=='africa')yard(sl.x,sl.z,sl.rot,sl.w,sl.d,sl.pd,sl.pw,hk);
+        if(!far&&plan.metro&&e>=5&&e<=6&&sl.core<.5&&hk>.35)frontGarden(sl.x,y,sl.z,sl.rot,Math.min(sl.w,.075),Math.min(sl.d,.075),hk);
         if(sl.st>=0)reach.set(sl.st,Math.max(reach.get(sl.st)||0,sl.at+.12));
         c._poi.pts.push([sl.fx,sl.fz]);
         if(!far&&e>=3&&e<=5&&hk<.16)smokeAt(sl.x,y+.13*(1+sl.core*.6),sl.z,false,.25)}
+      if(e===7&&!far&&typeof windTurbine==='function'){/* wind turbines on the open ground beyond the town */const R2=(plan.metro||(cap?1.1:.7))+.45;for(let k=0;k<(cap?5:3);k++){const a=hash(i0*3.1+k)*6.283,x=cx+Math.cos(a)*R2,z=cz+Math.sin(a)*R2,t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id)continue;windTurbine(x,groundY(x,z),z,.34,hash(i0)*6.28)}}
+      if(MCTX.fac>0){/* smog: a brown haze hangs over the mill towns */const R_=(plan.metro||(cap?1.1:.7))*1.05+.3;add('smog',cx,cy+.05,cz,R_*2,.3+MCTX.fac*.02,R_*2,0,0x6a5a48);
+        const fa=hash(i0*2.7)*6.283;add('smog',cx+Math.cos(fa)*R_*.45,cy+.08,cz+Math.sin(fa)*R_*.45,R_*1.1,.36,R_*1.1,0,0x4a4038)}
       {const fa=hash(i0*11)*6.283,fr=(cap?.3:.15)*.62,fx=cx+Math.cos(fa)*fr,fz=cz+Math.sin(fa)*fr;townFlag(n,fx,groundY(fx,fz),fz,cap,e)}
       if(c.riot&&year-c.riot<6){for(let q=0;q<2;q++){const a=hash(i0*7+q)*6.283;smokeAt(cx+Math.cos(a)*.12,cy+.06,cz+Math.sin(a)*.12,true,.5)}}
       if(c.siege>.08){for(let q=0;q<3;q++){const a=hash(i0*5+q)*6.283;smokeAt(cx+Math.cos(a)*.2,cy+.08,cz+Math.sin(a)*.2,true,.6+c.siege)}}
@@ -572,11 +643,12 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       if(gold&&e>=1){/* a golden age: a ring of white columns with gilded caps around the square */for(let k=0;k<(cap?10:6);k++){const a=k/(cap?10:6)*6.283+.2,r=plan.pr*.82,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r,y=groundY(x,z);
           add('cyl',x,y,z,.009,cap?.09:.065,.009,0,0xf2ede0);add('domeW',x,y+(cap?.09:.065),z,.014,.012,.014,0,0xe0b440)}}
       if(e>=6)modernExtras(n,c,cx,cz,cap,e,plan.pr);
+      if(!far)streetLife(n,c,plan,e,cx,cy,cz,cap,i0,reach);
       if(e>=1)harbour(c,cx,cz,e,i0);
       if(e>=1){const t=e<4?0:e<6?1:2;
         plan.streets.forEach((st,si)=>{const lim=reach.get(si);if(!lim)return;const pts=[];
           for(const q of st.pts){if(q[2]>lim)break;pts.push([q[0],q[1]])}
-          if(pts.length>1)cityStreets.push({pts:chaikin2(pts,2),w:st.main?(e<3?.04:e<5?.05:.07):(e<3?.028:e<5?.034:.05),t})})}
+          if(pts.length>1)cityStreets.push({pts:chaikin2(pts,2),w:st.main?(e<3?.04:e<5?.05:.066):(e<3?.028:e<5?.034:.044),t})})}
     }}
 function buildExtras(){
   /* the pirate lair: shacks behind a palisade, a jetty, beached boats and the black flag */
