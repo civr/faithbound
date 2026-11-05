@@ -19,7 +19,7 @@ function genWorld(seedIn){
     let D=.01;for(let i=0;i<N;i++)D=Math.max(D,.44-(h[i]+sh));
     for(let i=0;i<N;i++){let v=h[i]+sh;if(v>.44)v=.44+.56*mt*Math.pow((v-.44)/A,1.75);else v=.44-.38*Math.pow((.44-v)/D,.6);h[i]=clamp(v,0,1)}}
   genRivers();
-  nations=[];faiths=[];logs=[];year=0;ruins=[];warData={};coves=[];belief=100;climate.temp=.5;climate.rain=worldOpts.rain??.5;flags={warm:false,sail:false};milestones=new Set();
+  nations=[];faiths=[];logs=[];year=0;ruins=[];warData={};coves=[];belief=100;climate.temp=.5;climate.anth=0;climate.rain=worldOpts.rain??.5;flags={warm:false,sail:false};milestones=new Set();
   selected=-1;inspectTile=-1;selectedFaith=-1;warFrom=-1;moistActive=0;effects=[];
   buildTerrain();computeTerrain();layoutTerrain();
   seedCultures();seedDeposits();indexDeposits();annals=[];endedWars=[];hist=[];snaps=[];worldWars=[];colonies=[];planets={moon:{terra:0,life:0},mars:{terra:0,life:0}};
@@ -437,7 +437,11 @@ function tick(){
   }
   if(dLevel()>0)naturalEvents();disasterTick();peopleTick();
   climate.emis=emis;
-  if(emis>0){climate.temp=Math.min(1,climate.temp+emis*4e-8*(worldOpts.scenario&&worldOpts.scenario.id==='climate'?.14:1));
+  /* warming follows the smoke, but slowly: at most about 0.04 °C a year even in a choking world; when the smoke clears, the extra heat slowly fades */
+  {const dT=emis>0?.0019*(1-Math.exp(-emis/2.5e5))*(worldOpts.scenario&&worldOpts.scenario.id==='climate'?.7:1):0;
+   if(dT>0){const d=Math.min(dT,1-climate.temp);climate.temp+=d;climate.anth=(climate.anth||0)+d}
+   if(emis<2e4&&climate.anth>0){const c=climate.anth*.004;climate.anth-=c;climate.temp-=c}}
+  if(emis>0){
     if(!flags.warm){flags.warm=true;log('Smoke rises from the first factories. The world begins to warm.','sky')}
     if(year%5===0)terrainDirty=true}
   if(worldPop*POPMUL[Math.max(0,...nations.filter(n=>n.alive).map(n=>n.era))]>=1e6)milestone('million','A million souls','The world population passed one million.');
