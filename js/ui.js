@@ -683,6 +683,7 @@ $('#modalBox').addEventListener('click',e=>{const fm=e.target.closest('[data-fm]
   const cl=e.target.closest('[data-clim]');if(cl){const d=+cl.dataset.clim;if(d){if(typeof coopGuest==='function'&&coopGuest())coopAct('clim',{d});else doAct('clim',{d})}closeModal();return}
   const ub=e.target.closest('[data-ui]');if(ub){applyUI(ub.dataset.ui);openSettings();return}
   const pw=e.target.closest('[data-pow]');if(pw){settings.power=pw.dataset.pow;saveSettings();resize();openSettings();return}
+  const mu=e.target.closest('[data-mus]');if(mu){settings.music=mu.dataset.mus;saveSettings();SND.bar=0;openSettings();return}
   const q=e.target.closest('[data-q]');if(q){settings.quality=q.dataset.q;saveSettings();applyGraphics();treesDirty=true;propsDirty=true;openSettings()}
   const lb=e.target.closest('[data-look]');if(lb){applyLook(lb.dataset.look);renderLooks('#looks3')}});
 $('#modalBox').addEventListener('input',e=>{const v=e.target.dataset.vol;if(!v)return;settings.vol=Object.assign({},vols(),{[v]:+e.target.value});saveSettings();audioInit();applyVolumes()});
@@ -712,6 +713,8 @@ function openSettings(){const t=(k,label,v)=>`<label class="tog">${label}<input 
     <div class="sec"><span class="lab">Pop-up messages</span>${MSGKINDS.map(([k,l])=>`<label class="tog">${l}<input type="checkbox" data-msg="${k}" ${(settings.msgs||{})[k]!==false?'checked':''}></label>`).join('')}<label class="tog">Everything else<input type="checkbox" data-msg="other" ${(settings.msgs||{}).other!==false?'checked':''}></label>
       <p class="note">Everything still goes into the Chronicle. The same message is shown at most once every 20 seconds.</p></div>
     <div class="sec"><span class="lab">Sound</span>${t('mute','Mute all sound',settings.mute)}
+      <span class="lab" style="margin-top:8px;display:block">Music</span><div class="seg">${[['calm','Calm'],['epic','Epic'],['cozy','Cozy'],['classic','Classic'],['off','Off']].map(([k,l])=>`<button data-mus="${k}" aria-pressed="${(settings.music||'calm')===k}">${l}</button>`).join('')}</div>
+      <p class="note">Calm: slow pads and bells. Epic: strings, horns and timpani. Cozy: harp, soft piano and flute. Classic: the old music, a different band for each age.</p>
       ${[['master','Master'],['music','Music'],['sfx','Effects'],['amb','Ambience']].map(([k,l])=>`<label class="slid">${l}<input type="range" min="0" max="1" step="0.05" data-vol="${k}" value="${vols()[k]}"></label>`).join('')}
       <p class="note">Sound starts after your first click. Ambience follows the camera: waves on the coast, birds in the woods, crowds in town.</p></div>
     <div class="sec"><span class="lab">Disasters</span><div class="seg">${['off','mild','normal','wild'].map(q=>`<button data-dis="${q}" aria-pressed="${(settings.disasters||'normal')===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div>
