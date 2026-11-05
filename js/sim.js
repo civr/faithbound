@@ -145,6 +145,7 @@ function allianceTick(n){if(!n.known)return;
     if(rng()<p)ally(n,m,false)}}
 function startWar(a,b,kind){
   if(a===b||a.wars.has(b.id))return;
+  if(a.pacts&&a.pacts[b.id]>year){if(!kind)return;/* only a god's hand breaks a sworn treaty */delete a.pacts[b.id];if(b.pacts)delete b.pacts[a.id];log(`${a.name} broke its treaty with ${b.name}.`,'war')}
   if(allied(a,b)){breakAlliance(a,b,false);log(`${a.name} betrayed its ally ${b.name}.`,'war')}a.wars.add(b.id);b.wars.add(a.id);bordersDirty=true;meet(a,b);
   if(a.trade.includes(b.id)){a.trade=a.trade.filter(x=>x!==b.id);b.trade=b.trade.filter(x=>x!==a.id);if(kind!=='rebel')log(`The trade between ${a.name} and ${b.name} collapsed.`,'war')}
   if(kind==='god')log(`By your hand, ${a.name} marched on ${b.name}.`,'war');

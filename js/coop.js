@@ -72,7 +72,7 @@ function coopOnMsg(m){if(!coop)return;const t=m.t;
 function coopSnapshot(){const d=buildSave();d.coopPools=coop.pools;return d}
 const coopSum=a=>{if(!a)return 0;let s=0;const st=Math.max(1,(a.length/4000)|0);for(let i=0;i<a.length;i+=st)s=(s*31+((a[i]*4096)|0))|0;return s+a.length};
 function coopLive(full){
-  const d={y:year,sp:speedIdx,cl:climate,dt:dayT,o:b64(owner),bl:belief,pools:coop.pools,rates:coop.rates||{},
+  const d={y:year,sp:speedIdx,cl:climate,dt:dayT,o:b64(owner),bl:belief,pools:coop.pools,rates:coop.rates||{},st:coopStandings().map(s=>[s.pid,Math.round(s.share*1000)]),
     nat:nations.map(n=>Object.assign({},n,{wars:[...n.wars],nb:[],front:[],_walk:0,_resMod:null,cities:n.cities.map(c=>{const o={};for(const k in c)if(k[0]!=='_')o[k]=c[k];return o})})),
     fa:faiths,lg:logs.slice(0,40),wdat:warData,ru:ruins,ww:worldWars,co:colonies,pt:planets,ms:[...milestones],mi:milestoneInfo,deps:deposits,cv:coves,fl:flags};
   const hs=coopSum(h),ms=coopSum(moistD),ws=coopSum(warmD),rs=coopSum(river);
@@ -86,7 +86,10 @@ function coopLive(full){
 /* every god's belief comes from the peoples who follow that god's own faiths */
 function coopIncome(pid,pool){let inc=.45;for(const n of nations)if(n.alive&&n.faith>=0&&faiths[n.faith]&&(faiths[n.faith].god|0)===pid)inc+=Math.cbrt(n.pop)*.045*ten(n).belief*(.6+(n.devotion??.3));return inc/(1+Math.max(0,pool-200)/200)}
 function coopFollowers(pid){let k=0,ppl=0;for(const n of nations)if(n.alive&&n.faith>=0&&faiths[n.faith]&&(faiths[n.faith].god|0)===pid){k++;ppl+=n.pop*POPMUL[n.era]}return {k,ppl}}
-function coopPump(){if(!coopHosting()||!playing)return;coop.k++;coop.rates=coop.rates||{};coop.rates[0]=beliefRate;
+function coopStandings(){let tot=0;for(const n of nations)if(n.alive)tot+=n.pop*POPMUL[n.era];return coop.players.map(p=>{const f=coopFollowers(p.pid);return {pid:p.pid,name:p.name,color:p.color,ppl:f.ppl,k:f.k,share:tot?f.ppl/tot:0}}).sort((a,b)=>b.ppl-a.ppl)}
+function coopAscend(dy){if(dy<=0)return;coop.asc=coop.asc||{};for(const s of coopStandings()){if(s.share>=.7){coop.asc[s.pid]=(coop.asc[s.pid]||0)+dy;if(coop.asc[s.pid]>=30&&!(coop.won&&coop.won[s.pid])){coop.won=coop.won||{};coop.won[s.pid]=year;
+      log(`${s.name} rules the hearts of the world: seven in ten souls believe.`,'faith');toast(`${s.name} ascends`,'For thirty years, seven in ten people have followed this god.');coopSend('chat',{m:`★ ${s.name} has ascended: seven in ten souls follow them.`})}}else coop.asc[s.pid]=0}}
+function coopPump(){if(!coopHosting()||!playing)return;coop.k++;if(coop.lastY!=null&&year>coop.lastY)coopAscend(year-coop.lastY);coop.rates=coop.rates||{};coop.rates[0]=beliefRate;
   const dy=year-coop.lastY;if(dy>0){for(const p of coop.players)if(p.pid){const pool=coop.pools[p.pid]??COOP_START_BELIEF,r=coopIncome(p.pid,pool);coop.rates[p.pid]=r;coop.pools[p.pid]=pool+r*dy}coop.lastY=year}else if(dy<0)coop.lastY=year;
   if(coop.players.filter(p=>p.pid&&p.on).length===0)return;
   coopSend('live',coopLive(coop.k%40===0));if(coop.k%10===0)coopRemember()}
@@ -111,9 +114,9 @@ function coopRunCmd(pid,c){if(!playing)return;const name=coopName(pid);
     if(res.spent>0){coopSend('fx',{by:pid,tool:c.tool,i:c.i});if(c.start)toast(name,`used ${P.label}${owner[c.i]>=0&&nations[owner[c.i]]?' on '+nations[owner[c.i]].name:''}.`,wx(c.i%W),wz((c.i/W)|0))}
     if(c.start||res.msgs.length)coopSend('ack',{k:'tool',msgs:res.msgs,wf:res.ctx.warFrom,sf:res.ctx.selectedFaith,carry:!!res.ctx.carry,mf:!!res.ctx.migrFrom},pid);coopSoon();return}
   if(c.k==='act'&&c.a==='speed'){if(doAct('speed',c.p||{}))toast(name,['paused the world.','set the world to normal speed.','sped the world up.','set the world racing.'][c.p.s|0]||'changed the speed.');coopSoon();return}
-  if(c.k==='act'&&['guide','gov','clim','found','peace','space'].includes(c.a)){const p=Object.assign({},c.p||{});if(c.a==='found'){p.by=name;p.pid=pid}
+  if(c.k==='act'&&['guide','gov','clim','found','peace','space','dip'].includes(c.a)){const p=Object.assign({},c.p||{});if(c.a==='found'){p.by=name;p.pid=pid}
     const res=coopRun(pid,ctx=>{const r=doAct(c.a,p);if(c.a==='found'&&r>=0)selectedFaith=r;return r});
-    if(res.spent>0)toast(name,{guide:'guided a nation\'s scholars.',gov:'changed how a nation is ruled.',clim:'changed the climate of the world.',peace:'forced a peace.',space:'worked a wonder on another world.',found:`revealed the faith ${p.name}.`}[c.a]);
+    if(res.spent>0)toast(name,{guide:'guided a nation\'s scholars.',gov:'changed how a nation is ruled.',clim:'changed the climate of the world.',peace:'forced a peace.',space:'worked a wonder on another world.',dip:'bent the dealings of two nations.',found:`revealed the faith ${p.name}.`}[c.a]);
     coopSend('ack',{k:c.a,r:res.r,name:p.name,msgs:res.msgs,sf:res.ctx.selectedFaith},pid);coopSoon()}}
 /* the host's own miracles also show up for the guests */
 {const _apply=applyTool;applyTool=function(i,start){const b0=belief;const r=_apply(i,start);
@@ -135,7 +138,7 @@ function coopAck(d){for(const m of d.msgs||[])say(m);
   if(d.k==='tool'){if(d.wf>=0)warFrom=d.wf;if(d.sf>=0)selectedFaith=d.sf;if((d.msgs||[]).some(m=>/Found a faith first/.test(m)))openSheet('faiths')}
   if(d.k==='found'&&d.r>=0){coopWhenFaith(d.r,()=>afterFound(d.r,d.name||'your faith'))}}
 function coopWhenFaith(idx,fn,tries){if(faiths[idx]||(tries|0)>20){fn();return}setTimeout(()=>coopWhenFaith(idx,fn,(tries|0)+1),200)}
-const FXKIND={rain:'rain',drought:'drought',plague:'plague',famine:'drought',faith:'faith',prophet:'faith',inspire:'faith',schism:'faith',bless:'bless',festival:'bless',miracle:'bless',golden:'bless',fertile:'bless',forest:'bless',anoint:'bless'};
+const FXKIND={curse:'plague',crusade:'war',rain:'rain',drought:'drought',plague:'plague',famine:'drought',faith:'faith',prophet:'faith',inspire:'faith',schism:'faith',bless:'bless',festival:'bless',miracle:'bless',golden:'bless',fertile:'bless',forest:'bless',anoint:'bless'};
 function coopShowFx(d){if(!Number.isInteger(d.i)||d.i<0||d.i>=N)return;const P=POWERS.find(p=>p.id===d.tool);
   fx(d.i,FXKIND[d.tool]||'bless');if(d.by!==coop.pid){sfx('power');if(P)toast(coopName(d.by),`used ${P.label}${owner[d.i]>=0&&nations[owner[d.i]]?' on '+nations[owner[d.i]].name:''}.`,wx(d.i%W),wz((d.i/W)|0))}}
 function coopFirstWorld(d){if(coop.ready){coopApply(coopFromSave(d));return}
@@ -163,7 +166,7 @@ function coopApply(d){
   if(d.ms)milestones=new Set(d.ms);if(d.mi)Object.assign(milestoneInfo,d.mi);if(d.cv)coves=d.cv;if(d.fl)flags=d.fl;
   if(d.deps&&d.deps.length!==deposits.length){deposits=d.deps;indexDeposits()}else if(d.deps)deposits=d.deps;
   if(d.folk){folk=d.folk;folkId=d.folkId;houses=d.houses||houses}if(d.an)annals=d.an;if(d.hi)hist=d.hi;if(d.sn)snaps=d.sn;
-  if(d.pools&&d.pools[coop.pid]!=null)belief=d.pools[coop.pid];if(d.rates&&d.rates[coop.pid]!=null)beliefRate=d.rates[coop.pid];
+  if(d.st)coop.st=d.st;if(d.pools&&d.pools[coop.pid]!=null)belief=d.pools[coop.pid];if(d.rates&&d.rates[coop.pid]!=null)beliefRate=d.rates[coop.pid];
   if(selected>=0&&(!nations[selected]||!nations[selected].alive)){selected=-1;inspectTile=-1}
   if(selected>=0&&performance.now()-(coop.lastCard||0)>2000){coop.lastCard=performance.now();renderNationCard()}
   if(typeof spaceView!=='undefined'&&spaceView&&typeof refreshPlanet==='function'&&performance.now()-(coop.lastPlanet||0)>2000){coop.lastPlanet=performance.now();refreshPlanet()}
@@ -195,6 +198,7 @@ function coopPanelHTML(){
       :`<p class="note">${esc(coop.hostName||'The host')} runs the years and the speed. Your miracles are sent to their world and use your own belief.</p>`}
     <p class="note">Rival gods: each god earns belief only from the peoples who follow their own faiths. Reveal a faith, spread it, and keep your followers from turning to another god.</p>
     <div class="sec"><span class="lab">Gods in this world</span><ul class="coopl">${pl}</ul></div>
+    <div class="sec"><span class="lab">Who rules the hearts of the world</span>${(coopHosting()?coopStandings().map(s=>[s.pid,Math.round(s.share*1000)]):coop.st||[]).map(([pid,sh],i)=>`<div class="row" style="gap:8px;align-items:center;margin:3px 0"><b style="width:18px">${i===0&&sh>0?'♛':i+1}</b><span style="flex:1">${esc(coopName(pid))}</span><div class="prog" style="flex:2"><i style="width:${sh/10}%;background:${coopColor(pid)}"></i></div><small style="width:40px;text-align:right">${(sh/10).toFixed(0)}%</small></div>`).join('')}<p class="note">A god who holds seven in ten souls for thirty years ascends. Curse rivals' peoples, convert them, or send your faithful on a holy war.</p></div>
     <div class="sec"><span class="lab">Talk</span><ul class="coopc">${chat||'<li class="note">No words yet.</li>'}</ul><div class="row" style="gap:8px"><input id="coopMsg" type="text" maxlength="200" placeholder="Say something" style="flex:1"><button class="btn" data-coop="say">Send</button></div></div>
     <div class="row" style="gap:8px"><button class="btn danger" data-coop="leave">${coopHosting()?'Close to others':'Leave'}</button><div class="flex"></div><button class="btn primary" data-p="close">Back to the world</button></div>`}
 function openCoop(){openModal(coopPanelHTML());$('#modalBox').dataset.coop='1';const i=$('#coopMsg');if(i)i.onkeydown=e=>{if(e.key==='Enter')coopChat()}}
