@@ -32,6 +32,9 @@ const TX={
   furrow:canvasTex(64,(x,s)=>{x.fillStyle='#ffffff';x.fillRect(0,0,s,s);for(let i=0;i<8;i++){x.fillStyle='rgba(0,0,0,.22)';x.fillRect(0,i*8,s,3)}speckle(x,s,.08)}),
   soft:(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.5,'rgba(255,255,255,.55)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c)})()
 };
+/* photo detail (Poly Haven, CC0) blended over the painted building textures once it has loaded: real grain in plaster, stone, brick, thatch and tiles, while the paint keeps windows, beams and colours */
+function photoLayer(key,file,alpha){const t=TX[key];if(!t||!t.image)return;const im=new Image();im.onload=()=>{const src=t.image,S=Math.max(256,src.width);const c=document.createElement('canvas');c.width=c.height=S;const x=c.getContext('2d');
+  x.imageSmoothingQuality='high';x.drawImage(src,0,0,S,S);x.globalCompositeOperation='overlay';x.globalAlpha=alpha;x.drawImage(im,0,0,S,S);t.image=c;t.needsUpdate=true};im.src='assets/textures/'+file+'.jpg'}
 /* pale packed-earth lanes with wheel ruts, pebbles and a grassy crown, like a medieval village track */
 TX.dirt=canvasTex(256,(x,s)=>{x.fillStyle='#6e6452';x.fillRect(0,0,s,s);
   for(let i=0;i<5000;i++){const v=trand();x.fillStyle=v<.5?`rgba(90,72,50,${.08+trand()*.12})`:`rgba(230,220,200,${.06+trand()*.12})`;const r=.6+trand()*1.8;x.beginPath();x.arc(trand()*s,trand()*s,r,0,7);x.fill()}
@@ -514,7 +517,8 @@ function updateGrass(now){grassU.uTime.value=now/1000;
     const nz=gNoise(x*.35,z*.35,2),pat=gNoise(x*2.2+40,z*2.2,2),fade=1,ff=1-smooth(R*.45,R*.8,Math.sqrt(dd));
     const tall=(b===8?1.35:b===9?.7:1)*(.65+pat*.8)*(occupied.has(i)?.6:1),s=(.7+hs*.6)*fade;
     const dry=smooth(.45,.75,nz),col=b===8?0xe0c880:b===9?0xb0b098:b===3?0xc8c088:dry>.5?(hs<.5?0xd8cc88:0xcac080):(hs<.33?0xb4d098:hs<.66?0xc4dca8:0xa4c48c);
-    add('grass',x,y-.002,z,.03*s,.017*tall*s,.03*s,hs*6.283,col);
+    /* the photo ground now carries the grass; blades only as the odd taller tuft, so the meadow is calm instead of speckled */
+    if(settings.grassBlades)add('grass',x,y-.002,z,.034*s,.02*tall*s,.034*s,hs*6.283,col);
     const fh=hash(ax*3.7+az*5.3);
     if(fh<.03*(b===4?1.6:.6)*(1-dry*.5)&&b!==9){const fc=FLOWERS[(hash(ax*9.1+az*2.3)*FLOWERS.length)|0];if(ff>.05)add('wflower',x+.004,y+.02*tall*s,z,.007*ff,.007*ff,.007*ff,0,fc);
       if(fh<.012&&ff>.05)add('wflower',x-.006,y+.016*tall*s,z+.005,.006*ff,.006*ff,.006*ff,0,fc)}
@@ -806,6 +810,7 @@ function rebuildRivers(){const pos=[],uv=[],idx=[];let base=0;
 kit('bridge',unitBox(),MAT.stone,600);
 let cityStreets=[];
 const ROADMATS=[stdMat({map:TX.dirt,roughness:1}),stdMat({map:TX.cobble,roughness:.95}),stdMat({map:TX.asphalt,roughness:.85})];
+[['plaster','b_plaster',.55],['stone','b_stone',.75],['brick','b_brick',.6],['thatch','b_thatch',.7],['thatch2','b_thatch',.7],['tiles','b_tiles',.7],['adobe','b_plaster',.6],['timber','b_timber',.6],['cobble','b_cobble',.7],['plaza','b_plaza',.6],['dirt','b_ground',.6],['soil','b_ground',.5]].forEach(a=>photoLayer(...a));
 let roadMeshes=[];const roadCache=new Map();
 /* A* over tiles: slopes, rivers and mountains cost extra, roads already built are cheap to reuse */
 function roadPath(a,b,nid,used){const key=a.x+','+a.y+'>'+b.x+','+b.y+'|'+nid;if(roadCache.has(key)){const p=roadCache.get(key);if(p)for(const j of p)used[j]=1;return p}

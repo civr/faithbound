@@ -35,9 +35,11 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
     float d0=dep(uv);bool sky0=texture2D(tDep,uv).x>.9999;
     /* ambient occlusion: darken creases, the feet of walls and the gaps between houses and trees */
     if(uAO>0.&&!sky0){float occ=0.;float rad=clamp(.09*uRes.y*uP11*.5/d0,2.,40.);float rot=0.;
-      for(int i=0;i<12;i++){float fi=float(i),a=fi*2.39996+rot,r=sqrt((fi+.5)/12.)*rad;vec2 o=vec2(cos(a),sin(a))*r*px;
-        float ds=dep(uv+o),df=d0-ds;occ+=smoothstep(.0015*d0,.012*d0,df)*(1.-smoothstep(.05*d0,.12*d0,df));}
-      c*=1.-uAO*clamp(occ/12.*1.3,0.,.55);}
+      /* pairs of opposite samples: a flat or sloping surface averages out, only real creases and corners darken (no halos around trees) */
+      for(int i=0;i<6;i++){float fi=float(i),a=fi*2.39996+rot,r=sqrt((fi+.5)/6.)*rad;vec2 o=vec2(cos(a),sin(a))*r*px;
+        float dA=dep(uv+o),dB=dep(uv-o),cr=d0-(dA+dB)*.5,far=max(abs(d0-dA),abs(d0-dB));
+        occ+=smoothstep(.001*d0,.008*d0,cr)*(1.-smoothstep(.06*d0,.14*d0,far));}
+      c*=1.-uAO*clamp(occ/6.*1.1,0.,.5);}
     /* low mist that pools over water and in the valleys, thicker far away */
     if(uMist>0.&&!sky0){vec3 wp=wpos(uv,d0);float above=max(0.,wp.y-uWaterY);float m=exp(-above*2.2)*(1.-exp(-d0*.035))*uMist;c=mix(c,uMistCol*1.08,clamp(m,0.,.55));}
     if(uTilt>0.){float b=uTilt*smoothstep(.08,.42,abs(uv.y-.5));if(b>.01){vec3 acc=c;float w=1.;for(int i=0;i<16;i++){float a=float(i)*2.39996,r=sqrt(float(i)+.5)/4.;vec2 o=vec2(cos(a),sin(a))*r*b*9.*uPx*px;acc+=fetch(uv+o);w+=1.;}c=acc/w;}}
@@ -76,7 +78,7 @@ function renderFrame(){shadowTick();
   const P=LK.post;
   postU.tCol.value=POST.rt.texture;postU.tDep.value=POST.rt.depthTexture;postU.uRes.value.set(w,h);postU.uNear.value=cam.near;postU.uFar.value=cam.far;
   postU.uExp.value=renderer.toneMappingExposure*(POST.flt?1:.8);postU.uTime.value=performance.now()/1000;postU.uPx.value=renderer.getPixelRatio();
-  postU.uAO.value=settings.quality==='low'?0:(P.ao??.85);postU.uP00.value=cam.projectionMatrix.elements[0];postU.uP11.value=cam.projectionMatrix.elements[5];postU.uCamW.value.copy(cam.matrixWorld);
+  postU.uAO.value=settings.quality==='low'?0:(P.ao??0);postU.uP00.value=cam.projectionMatrix.elements[0];postU.uP11.value=cam.projectionMatrix.elements[5];postU.uCamW.value.copy(cam.matrixWorld);
   postU.uWaterY.value=waterY;postU.uMist.value=(P.mist??.5)*(1-.7*smooth(.02,.3,Math.sin(dayT*6.283)-.1)+.2*(typeof weatherDim!=='undefined'?weatherDim:0));postU.uMistCol.value.copy(scene.fog.color);
   postU.uSat.value=P.sat;postU.uCon.value=P.con;postU.uLift.value.fromArray(P.lift||[0,0,0]);postU.uGain.value.fromArray(P.gain||[1,1,1]);postU.uVig.value=P.vig||0;
   postU.uTilt.value=(P.tilt||0)*(1-smooth(20,60,camDist));postU.uLine.value=P.line||0;postU.uPoster.value=P.poster||0;postU.uPaper.value=P.paper||0;postU.uBloom.value=POST.flt?(P.bloom||0):0;postU.uGrain.value=P.grain||0;postU.uBars.value=P.bars||0;
@@ -211,17 +213,26 @@ function makeWaveTex(){const R=256,d=new Uint8Array(R*R*4),hgt=new Float32Array(
   for(let y=0;y<R;y++)for(let x=0;x<R;x++){const H_=(X,Y)=>hgt[((Y+R)%R)*R+((X+R)%R)];const dx=(H_(x+1,y)-H_(x-1,y))*R*.06,dy=(H_(x,y+1)-H_(x,y-1))*R*.06;
     const l=Math.hypot(dx,dy,1),q=(y*R+x)*4;d[q]=((-dx/l)*.5+.5)*255;d[q+1]=((-dy/l)*.5+.5)*255;d[q+2]=(1/l*.5+.5)*255;d[q+3]=hgt[y*R+x]*255}
   const t=new THREE.DataTexture(d,R,R,THREE.RGBAFormat);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.magFilter=THREE.LinearFilter;t.minFilter=THREE.LinearMipmapLinearFilter;t.generateMipmaps=true;t.anisotropy=4;t.needsUpdate=true;return t}
-const DETAIL_TEX=makeDetailTex(),WAVE_TEX=makeWaveTex();
+const WAVE_TEX=makeWaveTex();
 const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:0});
 const NOISE_GLSL=`varying vec3 vWP;float hn(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hn(i),hn(i+vec2(1,0)),f.x),mix(hn(i+vec2(0,1)),hn(i+vec2(1,1)),f.x),f.y);}`;
-const terrU={uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30},uOwn:{value:null},uWar:{value:null},uMap:{value:new THREE.Vector2(1,1)},uTint:{value:0},uTime:{value:0},uDet:{value:DETAIL_TEX}};
+const terrU={uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30},uOwn:{value:null},uWar:{value:null},uMap:{value:new THREE.Vector2(1,1)},uTint:{value:0},uTime:{value:0},uPhoto:{value:0},
+  tG:{value:null},tD:{value:null},tS:{value:null},tR:{value:null},tW:{value:null},nG:{value:null},nR:{value:null},
+  mG:{value:new THREE.Vector3(.57,.53,.36)},mD:{value:new THREE.Vector3(.5,.41,.35)},mS:{value:new THREE.Vector3(.62,.54,.51)},mR:{value:new THREE.Vector3(.43,.36,.2)},mW:{value:new THREE.Vector3(.53,.53,.58)}};
+/* photo-scanned ground (Poly Haven, CC0): grass, earth, sand, rock and snow, with normal maps for grass and rock */
+{const ph=new THREE.DataTexture(new Uint8Array([128,128,128,255]),1,1,THREE.RGBAFormat);ph.needsUpdate=true;const nf=new THREE.DataTexture(new Uint8Array([128,128,255,255]),1,1,THREE.RGBAFormat);nf.needsUpdate=true;
+ for(const k of ['tG','tD','tS','tR','tW'])terrU[k].value=ph;terrU.nG.value=terrU.nR.value=nf;
+ const L=new THREE.TextureLoader(),files={tG:'grass',tD:'ground',tS:'sand',tR:'rock',tW:'snow',nG:'grass_n',nR:'rock_n'};let left=Object.keys(files).length;
+ const done=()=>{if(--left<=0){terrU.uPhoto.value=1;if(typeof colorTerrain==='function')requestAnimationFrame(()=>{})}};
+ for(const [k,f] of Object.entries(files))L.load('assets/textures/'+f+'.jpg',t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;terrU[k].value=t;done()},undefined,()=>{done()});}
 terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
-  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;uniform sampler2D uDet;\n'+NOISE_GLSL)
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;uniform float uPhoto;uniform sampler2D tG,tD,tS,tR,tW,nG,nR;uniform vec3 mG,mD,mS,mR,mW;\n'+NOISE_GLSL)
    .replace('#include <color_fragment>',`#include <color_fragment>
-    float camD=length(vWP-cameraPosition),dfade=(1.-smoothstep(9.,34.,camD))*.85;
-    vec4 d1=texture2D(uDet,vWP.xz*.85),d2=texture2D(uDet,mat2(.8,-.6,.6,.8)*vWP.xz*.29+.37),d3=texture2D(uDet,vWP.xz*3.1);vec4 bumpW=vec4(0.);
+    float camD=length(vWP-cameraPosition),dfade=(1.-smoothstep(14.,52.,camD))*uPhoto;
+    /* two scales of the same photo, turned against each other, so the tiling does not show */
+    vec2 P1=vWP.xz*.42,P2=mat2(.8,-.6,.6,.8)*vWP.xz*.13+.37;vec4 bumpW=vec4(0.);
     float dn=vn(vWP.xz*11.)*.45+vn(vWP.xz*37.)*.3+vn(vWP.xz*2.7)*.25;diffuseColor.rgb*=.9+dn*.2;
     /* meadows: lush and dry patches, mown strips and fine blades, so grass never reads as flat paint */
     float gr=smoothstep(.0,.06,diffuseColor.g-max(diffuseColor.r,diffuseColor.b)*.92);
@@ -237,14 +248,16 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
     {float lum=dot(diffuseColor.rgb,vec3(.3,.59,.11));float above=step(.006,vWP.y-uWaterY);
      float sandy=(1.-gr)*smoothstep(.02,.1,diffuseColor.r-diffuseColor.b)*smoothstep(.14,.3,lum)*(1.-st);
      float soil=(1.-gr)*(1.-sandy)*(1.-st);
-     float g=d1.r*.6+d2.r*.35+d3.r*.05;float so=d1.g*.8+d3.g*.2;float sa=d1.a*.85+d3.a*.15;
-     vec3 an=abs(gn)+1e-3;an/=an.x+an.y+an.z;float rk=texture2D(uDet,vWP.zy*.7).b*an.x+texture2D(uDet,vWP.xy*.7).b*an.z+(d1.b*.6+d2.b*.4)*an.y;
-     vec3 c0=diffuseColor.rgb;
-     c0*=mix(1.,.84+.32*g,gr*dfade*above);c0=mix(c0,c0*vec3(.86,1.05,.8),gr*smoothstep(.55,.8,d2.r)*dfade*.6);
-     c0*=mix(1.,.82+.36*so,soil*dfade*.85);
-     c0*=mix(1.,.9+.2*sa,sandy*dfade);
-     c0*=mix(1.,.55+.9*rk,st*dfade*above);
-     diffuseColor.rgb=c0;bumpW=vec4(gr*.6,soil*.5,st*.9,sandy*.4);}
+     float snowy=smoothstep(.62,.8,min(diffuseColor.r,min(diffuseColor.g,diffuseColor.b)))*(1.-gr);
+     if(dfade>.003){
+      /* the photo's own light and colour, measured against its average, laid over the land's colour so every biome keeps its tone */
+      vec3 g=(texture2D(tG,P1).rgb*.62+texture2D(tG,P2).rgb*.38)/mG,so=(texture2D(tD,P1).rgb*.62+texture2D(tD,P2).rgb*.38)/mD,sa=(texture2D(tS,P1*1.3).rgb*.7+texture2D(tS,P2).rgb*.3)/mS;
+      vec3 an=abs(gn)+1e-3;an/=an.x+an.y+an.z;vec3 rk=(texture2D(tR,vWP.zy*.35).rgb*an.x+texture2D(tR,vWP.xy*.35).rgb*an.z+texture2D(tR,P1*.8).rgb*an.y)/mR;
+      vec3 sn=texture2D(tW,P1).rgb/mW;
+      float wG=gr*above,wR=st*above,wS=sandy*(1.-wR),wD=soil*(1.-wR),wW=snowy;float wsum=wG+wR+wS+wD+wW+1e-3;
+      vec3 det=(g*wG+rk*wR+sa*wS+so*wD+sn*wW)/wsum;det=mix(vec3(1.),det,min(1.,wsum));det=clamp(det,.35,1.8);
+      diffuseColor.rgb*=mix(vec3(1.),det,dfade*.92);
+      bumpW=vec4(wG+wD*.7+wS*.5,wR,0.,0.)/wsum;}}
     /* sunlight dancing on the shallow seabed */
     if(vWP.y<uWaterY){float dep=uWaterY-vWP.y;vec2 cp=vWP.xz*2.2;float c1=vn(cp+vec2(uTime*.35,uTime*.2)),c2=vn(cp*1.3-vec2(uTime*.27,-uTime*.31));float ca=pow(1.-abs(c1-c2),7.);
       diffuseColor.rgb+=vec3(.55,.75,.7)*ca*.35*exp(-dep*2.5)*dfade;}
@@ -257,8 +270,9 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
       diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*.6+own.rgb*.55,own.a*uTint*ab);
       float wz=texture2D(uWar,tuv).r*ab;if(wz>.02){float stp=step(.86,fract((vWP.x+vWP.z)*3.2));float sc=vn(vWP.xz*6.);diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.78,.66,.56)*(.85+sc*.3),wz*.5);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.72,.12,.07),wz*stp*.45);}}`)
    .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
-    if(dfade>.01){vec2 P=vWP.xz*.85;float e=.012;vec4 hx=texture2D(uDet,P+vec2(e,0.)),hz=texture2D(uDet,P+vec2(0.,e));
-     float dHx=dot(hx-d1,bumpW)/e,dHz=dot(hz-d1,bumpW)/e;vec3 pw=vec3(-dHx,0.,-dHz)*.0022*dfade;normal=normalize(normal+(viewMatrix*vec4(pw,0.)).xyz);}`);
+    if(dfade>.01){/* photo normal maps: ground and grass from above, rock on the slopes */
+     vec3 n1=texture2D(nG,P1).xyz*2.-1.,n2=texture2D(nR,P1*.8).xyz*2.-1.;vec2 nn=n1.xy*bumpW.x+n2.xy*bumpW.y;
+     vec3 pw=vec3(nn.x,0.,-nn.y)*.55*dfade;normal=normalize(normal+(viewMatrix*vec4(pw,0.)).xyz);}`);
 };
 function buildTerrain(){
   for(const m of [terrainMesh,skirtMesh,waterMesh,waterSide]){if(m){scene.remove(m);m.geometry.dispose()}}

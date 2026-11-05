@@ -5,6 +5,7 @@ WORKDIR /app
 COPY server.js /app/server.js
 COPY index.html three.min.js favicon.svg favicon.png favicon.ico /app/public/
 COPY js /app/public/js
+COPY assets /app/public/assets
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME /data
