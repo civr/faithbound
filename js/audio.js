@@ -86,7 +86,7 @@ function updateAudio(dt){if(!SND.on)return;const c=SND.ctx,t=c.currentTime,A=SND
   set(A.waves,.32*coast*(.6+.4*Math.sin(t*.55)*Math.sin(t*.21)+.4));
   set(A.rain,.28*rain);set(A.river,.06*close*(riv/24)*4);
   set(A.crowd,.11*close*close*Math.min(1,city/6)*(1-night*.7),.4);A.crowd.f.frequency.setTargetAtTime(480+Math.random()*160,t,.08);
-  set(A.fire,.22*fire*(.75+.25*Math.sin(t*1.7)*Math.sin(t*.63)),.3);A.fire.f.frequency.setTargetAtTime(380+120*Math.sin(t*.9),t,.2);
+  set(A.fire,.11*fire*(.75+.25*Math.sin(t*1.7)*Math.sin(t*.63)),.3);A.fire.f.frequency.setTargetAtTime(380+120*Math.sin(t*.9),t,.2);
   /* birds by day near trees, crickets at night */
   SND.birdT-=dt;if(SND.birdT<=0){SND.birdT=.6+Math.random()*2.5;const life=close*(land/24);
     if(life>.25&&rain<.3){if(night<.5&&(forest>2||Math.random()<.4)){const base=2200+Math.random()*1800,n=2+((Math.random()*5)|0);for(let k=0;k<n;k++)tone('sine',base*(1+Math.random()*.2),t+k*.09,.07,.025*life,SND.bus.amb,{slide:base*(.75+Math.random()*.6)})}
@@ -103,8 +103,8 @@ function updateAudio(dt){if(!SND.on)return;const c=SND.ctx,t=c.currentTime,A=SND
       else if(we<6){nburst(SND.noise,t,.06,.1*v*Math.random(),'bandpass',1400,SND.bus.amb,{a:.001});if(Math.random()<.12)nburst(SND.brown,t,.9,.3*v,'lowpass',160,SND.bus.amb,{a:.003})}
       else{for(let q=0;q<3;q++)nburst(SND.noise,t+q*.07,.03,.08*v,'bandpass',2200,SND.bus.amb,{a:.001});if(Math.random()<.15)nburst(SND.brown,t,1.2,.35*v,'lowpass',120,SND.bus.amb,{a:.002})}}}
   SND.crackT-=dt;if(fire>.1&&SND.crackT<=0){SND.crackT=.05+Math.random()*.35/(.5+fire);const n=1+((Math.random()*3.5)|0),loud=Math.random()<.12;
-    for(let q=0;q<n;q++){const tt=t+q*(.012+Math.random()*.04);nburst(SND.noise,tt,.004+Math.random()*.01,(loud?.11:.035+Math.random()*.035)*fire,'bandpass',1800+Math.random()*3200,SND.bus.amb,{a:.0005,q:1.4+Math.random()*2})}
-    if(loud)nburst(SND.brown,t,.08,.06*fire,'lowpass',500,SND.bus.amb,{a:.002})}
+    for(let q=0;q<n;q++){const tt=t+q*(.012+Math.random()*.04);nburst(SND.noise,tt,.004+Math.random()*.01,(loud?.05:.016+Math.random()*.016)*fire,'bandpass',1800+Math.random()*3200,SND.bus.amb,{a:.0005,q:1.4+Math.random()*2})}
+    if(loud)nburst(SND.brown,t,.08,.03*fire,'lowpass',500,SND.bus.amb,{a:.002})}
   if(t>SND.next-.2)musicBar()}
 
 /* ---------- generative music: every age has its own band, scale, tempo and rhythm ---------- */
@@ -189,7 +189,17 @@ let lastMusicEra=-1;
 function musicEra(){if(selected>=0&&nations[selected]&&nations[selected].alive)return nations[selected].era;let e=0;for(const n of nations)if(n.alive)e=Math.max(e,n.era);return e}
 /* ---------- music styles: pick one in Settings ----------
    Calm: slow pads, a deep hum and bells, no drums.  Epic: strings and horns over timpani, building in war.  Cozy: plucked harp arpeggios, soft piano and flute. */
+function organ(f,t,dur,peak,bus){for(const [h,a] of [[1,1],[2,.5],[3,.28],[4,.18],[6,.08]])tone('sine',f*h,t,dur,peak*a,bus,{a:Math.min(2.5,dur*.3),verb:true})}
 const STYLES={
+  cinematic:{bpm:(war,ww)=>ww?86:war?62:50,play(b,war,era,ww){const L=b.beats*b.beat,inten=ww?1:war?.5:0;
+    /* the organ: long swelling chords */if(b.bar%2===0||ww)b.chord((f,i)=>organ(f,b.t+i*.12,L*(ww?1.05:2.1),.016+.008*inten,b.bus),-1);
+    /* the clock: a soft ticking figure, faster as tension rises */const sub=ww?4:war?2:2,step=b.beat/sub,hi=[b.note(4,1),b.note(2,1)];for(let k=0;k<b.beats*sub;k++)tone('triangle',hz(hi[k%2]),b.t+k*step,step*.9,(k%sub===0?.014:.008)*(1+inten),b.bus,{lp:2600});
+    /* the deep: a drone under everything, and a distant boom now and then */tone('sine',hz(b.note(0,-2)),b.t,L*1.2,.06+.03*inten,b.bus,{a:1.2,lp:200});
+    if(war)tone('sawtooth',hz(b.note(0,-2)),b.t,L,.012+.012*inten,b.bus,{a:.8,lp:180+120*inten});
+    if(b.bar%4===0||(ww&&b.bar%2===0)){drum('timpani',b.t,.22+.25*inten,b.bus);nburst(SND.brown,b.t,1.4,.05+.06*inten,'lowpass',120,b.bus,{a:.02})}
+    /* a world war: driving low strings and drums on every beat, building over eight bars */
+    if(ww){const lift=1+(b.bar%8)*.06;for(let k=0;k<b.beats*2;k++)bow(hz(b.note(k%4===3?1:0,-1)),b.t+k*b.beat/2,b.beat*.4,.03*lift,b.bus,true);for(let k=0;k<b.beats;k++)drum(k%2?'frame':'timpani',b.t+k*b.beat,(k%2?.14:.26)*lift,b.bus)}
+    else if(b.bar%4===2)b.melody(3,.4,(f,t,d)=>bow(f,t,d*1.6,.022,b.bus,true),0)}},
   calm:{bpm:56,play(b,war,era){const L=b.beats*b.beat;
     b.chord((f,i)=>bow(f,b.t+i*.08,L*1.1,.034,b.bus,true),-1);tone('sine',hz(b.note(0,-2)),b.t,L,.05,b.bus,{a:.6,lp:300});
     if(b.bar%2===0){const k=1+((Math.random()*3)|0);for(let q=0;q<k;q++){const m=b.note([0,2,4,7][(Math.random()*4)|0],1);bell(m,b.t+(q+.5)*L/k+Math.random()*.3,.035,b.bus)}}
@@ -205,16 +215,16 @@ const STYLES={
     for(let k=1;k<b.beats;k+=2)drum('frame',b.t+k*b.beat,war?.12:.06,b.bus);
     if(b.bar%4>=2)b.melody(6,.35,(f,t,d)=>flute(f,t,d,.04,b.bus),1)}}};
 function musicBar(){if(!playing){themeBar();lastMusicEra=-1;return}
-  const style=settings.music||'calm';if(style==='off'){SND.next=SND.ctx.currentTime+2;return}
+  const style=settings.music||'cinematic';if(style==='off'){SND.next=SND.ctx.currentTime+2;return}
   const c=SND.ctx,era=musicEra(),B=BANDS[era];
   if(era!==lastMusicEra){/* a short fanfare when the age changes */if(lastMusicEra>=0&&playing){const t=Math.max(SND.next,c.currentTime+.05);[0,4,7,12].forEach((m,i)=>bow(hz(B.root+12+m),t+i*.22,.9,.05,SND.bus.music));drum('timpani',t,.35,SND.bus.music);SND.next=t+1.6;SND.bar=0}lastMusicEra=era}
   const war=nations.some(n=>n.alive&&n.wars.size);let mode=B.mode;if(war&&(mode==='major'||mode==='mixo'||mode==='lydian'))mode='minor';
-  const S=STYLES[style],sc=MODES[mode],beat=60/(S?S.bpm:B.bpm)*(war?.92:1),t0=Math.max(SND.next,c.currentTime+.05),deg=B.prog[SND.bar%B.prog.length];
+  const ww=typeof worldWars!=='undefined'&&worldWars.some(w=>w.end==null),S=STYLES[style];if(S===STYLES.cinematic&&(war||ww))mode='minor';const sc=MODES[mode],beat=60/(S?(typeof S.bpm==='function'?S.bpm(war,ww):S.bpm):B.bpm)*(war&&!S?.92:1),t0=Math.max(SND.next,c.currentTime+.05),deg=B.prog[SND.bar%B.prog.length];
   const note=(d,oct)=>B.root+12*(oct||0)+sc[((d%sc.length)+sc.length)%sc.length]+12*Math.floor(d/sc.length);
   const b={t:t0,beat,beats:S?4:B.beats,bus:SND.bus.music,root:B.root,bar:SND.bar,note:(d,oct)=>note(deg+d,oct),
     chord(fn,oct,inv){[0,2,4].forEach((d,i)=>fn(hz(note(deg+d+(inv&&i===0?sc.length:0),oct||0)),i))},
     melody(slots,rest,fn,oct){let d=deg+2+((Math.random()*3)|0);const step=B.beats*beat/slots;for(let k=0;k<slots;k++){if(Math.random()<rest)continue;d+=Math.round((Math.random()-.5)*3);d=clamp(d,deg-1,deg+9);
       const len=Math.random()<.3?step*2:step;fn(hz(note(d,oct)),t0+k*step+(Math.random()-.5)*.015,len*.95)}}};
-  try{if(S)S.play(b,war,era);else B.play(b)}catch(e){}
+  try{if(S)S.play(b,war,era,ww);else B.play(b)}catch(e){}
   if(!S&&war&&era<5)for(let k=0;k<B.beats;k++)drum('frame',t0+k*beat,.3,SND.bus.music);
   SND.next=t0+beat*b.beats;SND.bar++}
