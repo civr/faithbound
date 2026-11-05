@@ -196,7 +196,31 @@ function organ(f,t,dur,peak,bus){for(const [h,a] of [[1,1],[2,.5],[3,.28],[4,.18
 const THEME_A=[[[0,1],[2,1],[4,2]],[[5,1],[4,1],[2,2]],[[3,1.5],[2,.5],[1,1],[2,1]],[[0,3]],[[4,1],[5,1],[7,2]],[[6,1],[5,1],[4,2]],[[3,1],[4,1],[5,1],[1,1]],[[0,4]]];
 const THEME_PROG=[0,4,5,3,0,3,4,0];
 function snare(t,peak,bus){nburst(SND.noise,t,.09,peak,'bandpass',2200,bus,{a:.002,q:.8});tone('triangle',190,t,.06,peak*.5,bus)}
+/* Fairy tale: a waltz with a music-box melody, harp runs, pizzicato and sparkling bells, in the magical lydian mode.
+   The tune is the same in every age; the band around it changes. War turns it to a dark harmonic minor and quickens it. */
+const FAIRY_A=[[[0,1],[2,1],[4,1]],[[7,2],[6,1]],[[5,1],[4,1],[3,1]],[[4,3]],[[2,1],[4,1],[6,1]],[[8,2],[7,1]],[[6,1],[5,1],[1,1]],[[2,3]],
+  [[0,1],[2,1],[4,1]],[[7,2],[6,1]],[[5,1],[7,1],[9,1]],[[8,3]],[[7,1],[6,1],[5,1]],[[4,1.5],[3,.5],[2,1]],[[1,1],[3,1],[2,1]],[[0,3]]];
+const FAIRY_PROG=[0,4,3,4,1,4,3,4,0,4,3,0,5,1,4,0];
+function celesta(m,t,dur,pk,bus){tone('sine',hz(m),t,dur,pk,bus,{verb:true});tone('sine',hz(m)*4,t,dur*.3,pk*.25,bus,{verb:true});tone('triangle',hz(m)*2,t,dur*.5,pk*.2,bus)}
 const STYLES={
+  fairytale:{minorInWar:'harm',beats:3,prog:FAIRY_PROG,bpm:(war,ww)=>ww?132:war?112:96,play(b,war,era,ww){const e=era,bt=b.beat,L=3*bt,bus=b.bus,bi=b.bar%16,sec=(b.bar>>4)%2,deg=FAIRY_PROG[bi],inten=ww?1:war?.5:0;
+    const ch=[0,2,4].map(i=>b.abs(deg+i,0));
+    /* the tune: music box first time round, then flute or strings with the music box an octave above */
+    let t=b.t;for(const [d,len] of FAIRY_A[bi]){const m=b.abs(d,1),dur=len*bt;
+      if(sec===0||e<=1)celesta(m,t,dur*1.4,.05,bus);
+      else{if(e<=3)flute(hz(m-12),t,dur*.95,.045,bus);else if(e<=5)bow(hz(m-12),t,dur,.05,bus,false);else epiano(hz(m-12),t,dur,.05,bus);celesta(m+12,t,dur,.025,bus)}
+      t+=dur}
+    /* waltz: a low pizzicato on one, soft chords on two and three */
+    pluck(hz(b.abs(deg,-2)),b.t,bt*.8,.08,.35,bus);
+    for(const k of [1,2])ch.forEach((m,i)=>{if(e>=6)epiano(hz(m),b.t+k*bt,bt*.6,.016,bus);else pluck(hz(m),b.t+k*bt+i*.008,bt*.5,.03,.7,bus)});
+    /* the harp: a rising run at the start of every phrase, gentle arpeggios between */
+    if(bi%4===0){for(let k=0;k<8;k++)pluck(hz(b.abs(deg+k,0)),b.t+k*bt/8,bt*.6,.035,1,bus)}
+    else if(bi%2===1){for(let k=0;k<6;k++)pluck(hz(b.abs(deg+[0,2,4,7,4,2][k],0)),b.t+k*bt/2,bt*.7,.022,.9,bus)}
+    /* strings hold the harmony from the age of sail on; the stone and bronze ages keep a soft drum and drone */
+    if(e>=4)ch.forEach(m=>bow(hz(m-12),b.t,L*1.02,.012+.006*inten,bus,true));else{drum('frame',b.t,.07+.06*inten,bus);tone('sine',hz(b.abs(deg,-2)),b.t,L,.03,bus,{a:.3,lp:300})}
+    /* sparkle: a few high bells, like stars */if(!war&&Math.random()<.6)bell(b.abs([4,7,9,11][(Math.random()*4)|0],2),b.t+Math.random()*L,.012,bus);
+    /* the dark side of the tale */if(war){drum('timpani',b.t,.18+.15*inten,bus);bow(hz(b.abs(0,-2)),b.t,L,.02+.015*inten,bus,true)}
+    if(ww){for(let k=0;k<6;k++)pluck(hz(b.abs(deg,-1)+(k%3===2?7:0)),b.t+k*bt/2,bt*.3,.04,.4,bus);for(const k of [1,2])snare(b.t+k*bt,.04,bus)}}},
   anthem:{minorInWar:true,prog:THEME_PROG,bpm:(war,ww)=>ww?124:war?106:90,play(b,war,era,ww){const e=era,bt=b.beat,L=4*bt,sec=(b.bar>>3)%4,bi=b.bar%8,deg=THEME_PROG[bi],bus=b.bus,inten=ww?1:war?.5:0;
     const mel=(d,oct,t,dur,pk)=>{const f=hz(b.abs(d,oct));if(e<=3)flute(f,t,dur*.95,pk,bus);else if(e<=5){bow(f,t,dur,pk*1.1,bus,false);if(e===5&&sec===2)flute(f*2,t,dur*.9,pk*.5,bus)}else if(e===6){epiano(f,t,dur,pk*1.2,bus);bow(f,t,dur,pk*.5,bus,false)}else{epiano(f,t,dur,pk,bus);bell(b.abs(d,oct+1),t,pk*.5,bus)}};
     const tri=(oct)=>[0,2,4].map(i=>b.abs(deg+i,oct));
@@ -240,13 +264,13 @@ const STYLES={
     for(let k=1;k<b.beats;k+=2)drum('frame',b.t+k*b.beat,war?.12:.06,b.bus);
     if(b.bar%4>=2)b.melody(6,.35,(f,t,d)=>flute(f,t,d,.04,b.bus),1)}}};
 function musicBar(){if(!playing){themeBar();lastMusicEra=-1;return}
-  const style=settings.music||'anthem';if(style==='off'){SND.next=SND.ctx.currentTime+2;return}
+  const style=settings.music||'fairytale';if(style==='off'){SND.next=SND.ctx.currentTime+2;return}
   const c=SND.ctx,era=musicEra(),B=BANDS[era];
   if(era!==lastMusicEra){/* a short fanfare when the age changes */if(lastMusicEra>=0&&playing){const t=Math.max(SND.next,c.currentTime+.05);[0,4,7,12].forEach((m,i)=>bow(hz(B.root+12+m),t+i*.22,.9,.05,SND.bus.music));drum('timpani',t,.35,SND.bus.music);SND.next=t+1.6;SND.bar=0}lastMusicEra=era}
   const war=nations.some(n=>n.alive&&n.wars.size);let mode=B.mode;if(war&&(mode==='major'||mode==='mixo'||mode==='lydian'))mode='minor';
-  const ww=typeof worldWars!=='undefined'&&worldWars.some(w=>w.end==null),S=STYLES[style];if(S&&(S===STYLES.cinematic||S.minorInWar)&&(war||ww))mode='minor';const sc=MODES[mode],beat=60/(S?(typeof S.bpm==='function'?S.bpm(war,ww):S.bpm):B.bpm)*(war&&!S?.92:1),t0=Math.max(SND.next,c.currentTime+.05),deg=S&&S.prog?S.prog[SND.bar%S.prog.length]:B.prog[SND.bar%B.prog.length];
+  const ww=typeof worldWars!=='undefined'&&worldWars.some(w=>w.end==null),S=STYLES[style];if(S&&(S===STYLES.cinematic||S.minorInWar)&&(war||ww))mode=S.minorInWar==='harm'?'harm':'minor';else if(S===STYLES.fairytale)mode='lydian';const sc=MODES[mode],beat=60/(S?(typeof S.bpm==='function'?S.bpm(war,ww):S.bpm):B.bpm)*(war&&!S?.92:1),t0=Math.max(SND.next,c.currentTime+.05),deg=S&&S.prog?S.prog[SND.bar%S.prog.length]:B.prog[SND.bar%B.prog.length];
   const note=(d,oct)=>B.root+12*(oct||0)+sc[((d%sc.length)+sc.length)%sc.length]+12*Math.floor(d/sc.length);
-  const b={abs:(d,oct)=>note(d,oct),t:t0,beat,beats:S?4:B.beats,bus:SND.bus.music,root:B.root,bar:SND.bar,note:(d,oct)=>note(deg+d,oct),
+  const b={abs:(d,oct)=>note(d,oct),t:t0,beat,beats:S?(S.beats||4):B.beats,bus:SND.bus.music,root:B.root,bar:SND.bar,note:(d,oct)=>note(deg+d,oct),
     chord(fn,oct,inv){[0,2,4].forEach((d,i)=>fn(hz(note(deg+d+(inv&&i===0?sc.length:0),oct||0)),i))},
     melody(slots,rest,fn,oct){let d=deg+2+((Math.random()*3)|0);const step=B.beats*beat/slots;for(let k=0;k<slots;k++){if(Math.random()<rest)continue;d+=Math.round((Math.random()-.5)*3);d=clamp(d,deg-1,deg+9);
       const len=Math.random()<.3?step*2:step;fn(hz(note(d,oct)),t0+k*step+(Math.random()-.5)*.015,len*.95)}}};
