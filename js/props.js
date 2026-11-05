@@ -468,7 +468,7 @@ function harbour(c,cx,cz,e,i0){let d=-1;for(let q=0;q<4;q++){const X=c.x+DX[q],Y
   if(e>=SAIL){const wx_=cx+DX[d]*.25+DY[d]*.2,wz_=cz+DY[d]*.25+DX[d]*.2,wy=groundY(wx_,wz_);add(e>=5?'brick':'plaster',wx_,wy-.02,wz_,.14,.08,.09,DX[d]?Math.PI/2:0,0xffffff);add('tiles',wx_,wy+.06,wz_,.15,.05,.11,DX[d]?Math.PI/2:0,ROOF_SLATE[1])}
   if(e>=5){const kx=px+DX[d]*len*.3+DY[d]*.05,kz=pz+DY[d]*len*.3+DX[d]*.05;add('cyl',kx,waterY,kz,.012,.22,.012,0,0xd8a02a);add('box',kx,waterY+.21,kz,DX[d]?.016:.14,.012,DX[d]?.14:.016,0,0xd8a02a)}}
 /* grass: a dense field of swaying blades around the camera when zoomed in */
-const grassU={uTime:{value:0}};
+const grassU={uTime:{value:0},uC:{value:new THREE.Vector2()},uR:{value:3},uG:{value:1}};
 /* grass: clumps of curved blades, a dense carpet around the camera that thins out at the edge */
 const grassGeo=(()=>{const P=[],C=[],r=mulberry32(5),base=[.46,.54,.28],mid=[.62,.73,.37],tip=[.74,.85,.45];
   const v=(p,c)=>{P.push(...p);C.push(...c)};
@@ -480,9 +480,11 @@ const grassGeo=(()=>{const P=[],C=[],r=mulberry32(5),base=[.46,.54,.28],mid=[.62
   /* normals point mostly up so blades light like a meadow, not like cards */
   const n=g.attributes.normal;for(let i=0;i<n.count;i++){const x=n.getX(i)*.6,y=Math.abs(n.getY(i))*.4+.55,z=n.getZ(i)*.6,l=Math.hypot(x,y,z);n.setXYZ(i,x/l,y/l,z/l)}return g})();
 const grassMat=new THREE.MeshStandardMaterial({vertexColors:true,side:THREE.DoubleSide,roughness:1,envMapIntensity:.55});
-grassMat.onBeforeCompile=sh=>{sh.uniforms.uTime=grassU.uTime;sh.vertexShader='uniform float uTime;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+grassMat.onBeforeCompile=sh=>{sh.uniforms.uTime=grassU.uTime;sh.uniforms.uC=grassU.uC;sh.uniforms.uR=grassU.uR;sh.uniforms.uG=grassU.uG;sh.vertexShader='uniform float uTime,uR,uG;uniform vec2 uC;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
   #ifdef USE_INSTANCING
-  vec3 ip=vec3(instanceMatrix[3][0],instanceMatrix[3][1],instanceMatrix[3][2]);float gust=sin(uTime*.7+ip.x*.6+ip.z*.4)*.5+.5;float sw=(sin(uTime*2.1+ip.x*9.7+ip.z*6.9)+.5*sin(uTime*3.7+ip.x*15.))*(.4+gust);transformed.x+=sw*.1*position.y*position.y;transformed.z+=sw*.05*position.y*position.y;
+  vec3 ip=vec3(instanceMatrix[3][0],instanceMatrix[3][1],instanceMatrix[3][2]);
+  /* blades grow in and out smoothly at the edge of the carpet and as you zoom, instead of popping */
+  transformed*=uG*(1.-smoothstep(uR*.55,uR,distance(ip.xz,uC)));float gust=sin(uTime*.7+ip.x*.6+ip.z*.4)*.5+.5;float sw=(sin(uTime*2.1+ip.x*9.7+ip.z*6.9)+.5*sin(uTime*3.7+ip.x*15.))*(.4+gust);transformed.x+=sw*.1*position.y*position.y;transformed.z+=sw*.05*position.y*position.y;
   #endif`)};
 kit('grass',grassGeo,grassMat,44000,false);
 kit('wflower',(()=>{const g=new THREE.SphereGeometry(.5,6,4);g.scale(1,.55,1);return g})(),stdMat({roughness:.7}),4000,false);
@@ -496,6 +498,7 @@ const FLOWERS=[0xf4f0e6,0xf2d23c,0xf0e060,0xc84a3a,0x9a6ad0,0xf6f6ff,0xe8a0c0];
 let grassAt={x:1e9,z:1e9,d:0};
 function updateGrass(now){grassU.uTime.value=now/1000;
   const kn=['grass','wflower','pebble'];
+  {const R0=Math.min(4.6,camDist*.85+.7);grassU.uC.value.set(camT.x-Math.sin(camYaw)*R0*.25,camT.z-Math.cos(camYaw)*R0*.25);grassU.uR.value=Math.max(.8,R0-.45);grassU.uG.value=1-smooth(8.5,11,camDist)}
   if(camDist>11||settings.quality==='low'){if(KITS.grass.mesh.count){kitReset(kn);kitCommit(kn)}grassAt.x=1e9;return}
   if(Math.hypot(camT.x-grassAt.x,camT.z-grassAt.z)<.35&&Math.abs(camDist-grassAt.d)<grassAt.d*.2)return;
   grassAt={x:camT.x,z:camT.z,d:camDist};kitReset(kn);
@@ -508,13 +511,13 @@ function updateGrass(now){grassU.uTime.value=now/1000;
     if(fieldTiles.has(i)||(scorched&&scorched[i]>0)||bare.has(bk(x,z))||roadBare.has(bk(x,z)))continue;
     if(b===3&&hs<.9)continue;if((b===5||b===6)&&hs<.35)continue;if(occupied.has(i)&&hs<.25)continue;
     const y=groundY(x,z);if(y<waterY+.03)continue;
-    const nz=gNoise(x*.35,z*.35,2),pat=gNoise(x*2.2+40,z*2.2,2),fade=1-smooth(R*.72,R,Math.sqrt(dd));if(fade<=.02)continue;
+    const nz=gNoise(x*.35,z*.35,2),pat=gNoise(x*2.2+40,z*2.2,2),fade=1,ff=1-smooth(R*.45,R*.8,Math.sqrt(dd));
     const tall=(b===8?1.35:b===9?.7:1)*(.65+pat*.8)*(occupied.has(i)?.6:1),s=(.7+hs*.6)*fade;
     const dry=smooth(.45,.75,nz),col=b===8?0xe0c880:b===9?0xb0b098:b===3?0xc8c088:dry>.5?(hs<.5?0xd8cc88:0xcac080):(hs<.33?0xb4d098:hs<.66?0xc4dca8:0xa4c48c);
     add('grass',x,y-.002,z,.03*s,.017*tall*s,.03*s,hs*6.283,col);
     const fh=hash(ax*3.7+az*5.3);
-    if(fh<.03*(b===4?1.6:.6)*(1-dry*.5)&&b!==9){const fc=FLOWERS[(hash(ax*9.1+az*2.3)*FLOWERS.length)|0];add('wflower',x+.004,y+.02*tall*s,z,.007*fade,.007*fade,.007*fade,0,fc);
-      if(fh<.012)add('wflower',x-.006,y+.016*tall*s,z+.005,.006*fade,.006*fade,.006*fade,0,fc)}
+    if(fh<.03*(b===4?1.6:.6)*(1-dry*.5)&&b!==9){const fc=FLOWERS[(hash(ax*9.1+az*2.3)*FLOWERS.length)|0];if(ff>.05)add('wflower',x+.004,y+.02*tall*s,z,.007*ff,.007*ff,.007*ff,0,fc);
+      if(fh<.012&&ff>.05)add('wflower',x-.006,y+.016*tall*s,z+.005,.006*ff,.006*ff,.006*ff,0,fc)}
     else if(fh>.993)add('pebble',x,y-.002,z,.012+hs*.012,.01,.012+hs*.01,hs*6,hs<.5?0x8a847a:0x9e978a)}
   kitCommit(kn)}
 
