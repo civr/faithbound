@@ -22,7 +22,7 @@ function audioInit(){
     const f=c.createBiquadFilter();f.type=type;f.frequency.value=freq;f.Q.value=q||.7;const gg=c.createGain();gg.gain.value=0;
     s.connect(f);f.connect(gg);gg.connect(SND.bus.amb);s.start();SND.amb[name]={f,g:gg,base:freq}};
   layer('wind',SND.brown,'bandpass',420,.6);layer('waves',SND.brown,'lowpass',380,.5);layer('rain',SND.noise,'highpass',2200,.4);
-  layer('crowd',SND.noise,'bandpass',520,2.2);layer('fire',SND.brown,'lowpass',700,.5);layer('river',SND.noise,'bandpass',1500,.8);
+  layer('crowd',SND.noise,'bandpass',520,2.2);layer('fire',SND.brown,'lowpass',420,.4);layer('river',SND.noise,'bandpass',1500,.8);
   layer('mill',SND.brown,'lowpass',140,3);layer('traffic',SND.noise,'bandpass',300,.6);layer('forest',SND.noise,'highpass',3200,.5);
   SND.next=c.currentTime+.3;SND.on=true;applyVolumes();const sh=document.getElementById('soundHint');if(sh)sh.hidden=true;
 }
@@ -86,7 +86,7 @@ function updateAudio(dt){if(!SND.on)return;const c=SND.ctx,t=c.currentTime,A=SND
   set(A.waves,.32*coast*(.6+.4*Math.sin(t*.55)*Math.sin(t*.21)+.4));
   set(A.rain,.28*rain);set(A.river,.06*close*(riv/24)*4);
   set(A.crowd,.11*close*close*Math.min(1,city/6)*(1-night*.7),.4);A.crowd.f.frequency.setTargetAtTime(480+Math.random()*160,t,.08);
-  set(A.fire,.45*fire,.3);
+  set(A.fire,.22*fire*(.75+.25*Math.sin(t*1.7)*Math.sin(t*.63)),.3);A.fire.f.frequency.setTargetAtTime(380+120*Math.sin(t*.9),t,.2);
   /* birds by day near trees, crickets at night */
   SND.birdT-=dt;if(SND.birdT<=0){SND.birdT=.6+Math.random()*2.5;const life=close*(land/24);
     if(life>.25&&rain<.3){if(night<.5&&(forest>2||Math.random()<.4)){const base=2200+Math.random()*1800,n=2+((Math.random()*5)|0);for(let k=0;k<n;k++)tone('sine',base*(1+Math.random()*.2),t+k*.09,.07,.025*life,SND.bus.amb,{slide:base*(.75+Math.random()*.6)})}
@@ -102,7 +102,9 @@ function updateAudio(dt){if(!SND.on)return;const c=SND.ctx,t=c.currentTime,A=SND
       if(we<4){if(Math.random()<.6){tone('triangle',1800+Math.random()*1600,t,.05,.03*v,SND.bus.amb);nburst(SND.noise,t,.04,.06*v,'highpass',3000,SND.bus.amb,{a:.001})}if(Math.random()<.08)nburst(SND.brown,t,.5,.12*v,'lowpass',300,SND.bus.amb)}
       else if(we<6){nburst(SND.noise,t,.06,.1*v*Math.random(),'bandpass',1400,SND.bus.amb,{a:.001});if(Math.random()<.12)nburst(SND.brown,t,.9,.3*v,'lowpass',160,SND.bus.amb,{a:.003})}
       else{for(let q=0;q<3;q++)nburst(SND.noise,t+q*.07,.03,.08*v,'bandpass',2200,SND.bus.amb,{a:.001});if(Math.random()<.15)nburst(SND.brown,t,1.2,.35*v,'lowpass',120,SND.bus.amb,{a:.002})}}}
-  SND.crackT-=dt;if(fire>.1&&SND.crackT<=0){SND.crackT=.04+Math.random()*.15;nburst(SND.noise,t,.03,.2*fire*Math.random(),'highpass',1200+Math.random()*2000,SND.bus.amb,{a:.001})}
+  SND.crackT-=dt;if(fire>.1&&SND.crackT<=0){SND.crackT=.05+Math.random()*.35/(.5+fire);const n=1+((Math.random()*3.5)|0),loud=Math.random()<.12;
+    for(let q=0;q<n;q++){const tt=t+q*(.012+Math.random()*.04);nburst(SND.noise,tt,.004+Math.random()*.01,(loud?.11:.035+Math.random()*.035)*fire,'bandpass',1800+Math.random()*3200,SND.bus.amb,{a:.0005,q:1.4+Math.random()*2})}
+    if(loud)nburst(SND.brown,t,.08,.06*fire,'lowpass',500,SND.bus.amb,{a:.002})}
   if(t>SND.next-.2)musicBar()}
 
 /* ---------- generative music: every age has its own band, scale, tempo and rhythm ---------- */
@@ -185,16 +187,34 @@ function themeBar(){const c=SND.ctx,beat=60/THEME.bpm,t0=Math.max(SND.next,c.cur
   SND.next=t0+beat*4;SND.bar++}
 let lastMusicEra=-1;
 function musicEra(){if(selected>=0&&nations[selected]&&nations[selected].alive)return nations[selected].era;let e=0;for(const n of nations)if(n.alive)e=Math.max(e,n.era);return e}
+/* ---------- music styles: pick one in Settings ----------
+   Calm: slow pads, a deep hum and bells, no drums.  Epic: strings and horns over timpani, building in war.  Cozy: plucked harp arpeggios, soft piano and flute. */
+const STYLES={
+  calm:{bpm:56,play(b,war,era){const L=b.beats*b.beat;
+    b.chord((f,i)=>bow(f,b.t+i*.08,L*1.1,.034,b.bus,true),-1);tone('sine',hz(b.note(0,-2)),b.t,L,.05,b.bus,{a:.6,lp:300});
+    if(b.bar%2===0){const k=1+((Math.random()*3)|0);for(let q=0;q<k;q++){const m=b.note([0,2,4,7][(Math.random()*4)|0],1);bell(m,b.t+(q+.5)*L/k+Math.random()*.3,.035,b.bus)}}
+    if(war)tone('sawtooth',hz(b.note(0,-2)),b.t,L,.012,b.bus,{a:1,lp:240})}},
+  epic:{bpm:88,play(b,war,era){const L=b.beats*b.beat,eighth=b.beat/2;
+    for(let k=0;k<b.beats*2;k++){const d=[0,2,4,2][k%4];pluck(hz(b.note(d,-1)),b.t+k*eighth,eighth*.9,.05,.5,b.bus)}/* strings ostinato */
+    b.chord((f,i)=>bow(f,b.t,L*.98,.03+(war?.01:0),b.bus,false),0);/* horns and strings swell */
+    drum('timpani',b.t,war?.4:.28,b.bus);if(b.beats>=4)drum('timpani',b.t+2*b.beat,war?.3:.18,b.bus);if(war){for(let k=0;k<b.beats;k++)drum('frame',b.t+k*b.beat+b.beat/2,.18,b.bus)}
+    if(b.bar%2===1)b.melody(4,.25,(f,t,d)=>bow(f,t,d*1.2,.045,b.bus,false),1)}},
+  cozy:{bpm:74,play(b,war,era){const L=b.beats*b.beat,six=b.beat/2,arp=[0,2,4,7,4,2,0,2];
+    for(let k=0;k<b.beats*2;k++)pluck(hz(b.note(arp[k%arp.length],0)),b.t+k*six,six*1.6,.07,.7,b.bus);/* harp */
+    b.chord((f,i)=>epiano(f,b.t+i*.02,L*.9,.03,b.bus),-1);tone('sine',hz(b.note(0,-2)),b.t,b.beat*1.6,.07,b.bus,{a:.01});
+    for(let k=1;k<b.beats;k+=2)drum('frame',b.t+k*b.beat,war?.12:.06,b.bus);
+    if(b.bar%4>=2)b.melody(6,.35,(f,t,d)=>flute(f,t,d,.04,b.bus),1)}}};
 function musicBar(){if(!playing){themeBar();lastMusicEra=-1;return}
+  const style=settings.music||'calm';if(style==='off'){SND.next=SND.ctx.currentTime+2;return}
   const c=SND.ctx,era=musicEra(),B=BANDS[era];
   if(era!==lastMusicEra){/* a short fanfare when the age changes */if(lastMusicEra>=0&&playing){const t=Math.max(SND.next,c.currentTime+.05);[0,4,7,12].forEach((m,i)=>bow(hz(B.root+12+m),t+i*.22,.9,.05,SND.bus.music));drum('timpani',t,.35,SND.bus.music);SND.next=t+1.6;SND.bar=0}lastMusicEra=era}
   const war=nations.some(n=>n.alive&&n.wars.size);let mode=B.mode;if(war&&(mode==='major'||mode==='mixo'||mode==='lydian'))mode='minor';
-  const sc=MODES[mode],beat=60/B.bpm*(war?.92:1),t0=Math.max(SND.next,c.currentTime+.05),deg=B.prog[SND.bar%B.prog.length];
+  const S=STYLES[style],sc=MODES[mode],beat=60/(S?S.bpm:B.bpm)*(war?.92:1),t0=Math.max(SND.next,c.currentTime+.05),deg=B.prog[SND.bar%B.prog.length];
   const note=(d,oct)=>B.root+12*(oct||0)+sc[((d%sc.length)+sc.length)%sc.length]+12*Math.floor(d/sc.length);
-  const b={t:t0,beat,beats:B.beats,bus:SND.bus.music,root:B.root,bar:SND.bar,note:(d,oct)=>note(deg+d,oct),
+  const b={t:t0,beat,beats:S?4:B.beats,bus:SND.bus.music,root:B.root,bar:SND.bar,note:(d,oct)=>note(deg+d,oct),
     chord(fn,oct,inv){[0,2,4].forEach((d,i)=>fn(hz(note(deg+d+(inv&&i===0?sc.length:0),oct||0)),i))},
     melody(slots,rest,fn,oct){let d=deg+2+((Math.random()*3)|0);const step=B.beats*beat/slots;for(let k=0;k<slots;k++){if(Math.random()<rest)continue;d+=Math.round((Math.random()-.5)*3);d=clamp(d,deg-1,deg+9);
       const len=Math.random()<.3?step*2:step;fn(hz(note(d,oct)),t0+k*step+(Math.random()-.5)*.015,len*.95)}}};
-  try{B.play(b)}catch(e){}
-  if(war&&era<5)for(let k=0;k<B.beats;k++)drum('frame',t0+k*beat,.3,SND.bus.music);
-  SND.next=t0+beat*B.beats;SND.bar++}
+  try{if(S)S.play(b,war,era);else B.play(b)}catch(e){}
+  if(!S&&war&&era<5)for(let k=0;k<B.beats;k++)drum('frame',t0+k*beat,.3,SND.bus.music);
+  SND.next=t0+beat*b.beats;SND.bar++}
