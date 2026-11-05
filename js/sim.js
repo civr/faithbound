@@ -450,7 +450,7 @@ function tick(){
   const rival=typeof coopHosting==='function'&&coopHosting();let inc=.45;for(const n of nations)if(n.alive&&n.faith>=0&&(!rival||((faiths[n.faith]&&faiths[n.faith].god)|0)===0))inc+=Math.cbrt(n.pop)*.045*ten(n).belief*devBelief(n);
   /* even peoples without a faith of yours pray a little, if they still believe in you */
   for(const n of nations)if(n.alive&&n.faith<0&&(n.devotion??.3)>.3)inc+=Math.cbrt(n.pop)*.02*((n.devotion??.3)-.3);
-  inc/=1+Math.max(0,belief-200)/200;belief+=inc;beliefRate=inc;
+  inc*=clamp(2/paceInfo().yearRate,1,4);inc/=1+Math.max(0,belief-200)/200;belief+=inc;beliefRate=inc;
   if(moistActive>0){moistActive--;for(let i=0;i<N;i++)moistD[i]*=.985;if(year%4===0)terrainDirty=true}
 }
 /* research: points flow into the current discovery; a key discovery opens the next age */
@@ -459,8 +459,10 @@ function pickResearch(n){const open=TECHS.filter(t=>techAvailable(n,t));if(!open
   let r=rng()*w.reduce((a,b)=>a+b,0);for(let q=0;q<open.length;q++){r-=w[q];if(r<=0){n.research=open[q].id;return}}n.research=open[0].id}
 function research(n,pts){if(!n.techs)n.techs=[];if(!n.research||!techAvailable(n,TECH[n.research]))pickResearch(n);if(!n.research){n.tech=0;return}
   n.tech+=pts;const t=TECH[n.research],cost=TECHCOST[t.era];
+  /* an age is never rushed: the key discovery waits until the age has lasted its full time */
+  if(t.key&&n.tech>=cost&&year-(n.eraY??n.born??0)<paceInfo().yearsPerAge){n.tech=cost;return}
   if(n.tech>=cost){n.tech-=cost;n.techs.push(t.id);n.research=null;n.guided=false;
-    if(t.key){n.era=t.key;propsDirty=true;log(`${n.name} discovered ${t.name} and entered the ${ERAS[n.era].name}.`,'era');milestone('era'+n.era,ERAS[n.era].name,`${n.name} was the first to reach it.`)}
+    if(t.key){n.eraY=year;n.era=t.key;propsDirty=true;log(`${n.name} discovered ${t.name} and entered the ${ERAS[n.era].name}.`,'era');milestone('era'+n.era,ERAS[n.era].name,`${n.name} was the first to reach it.`)}
     else if(n.id===selected||rng()<.15)log(`${n.name} discovered ${t.name}.`,'era');
     pickResearch(n)}}
 function grantTechsUpTo(n){n.techs=TECHS.filter(t=>t.era<n.era).map(t=>t.id);n.research=null}
@@ -532,7 +534,7 @@ function applySave(d){
   sizeKey=d.sizeKey;W=d.W;H=d.H;N=W*H;worldSeed=d.worldSeed;hseed=(worldSeed%9973)/7;
   h=unb64(d.h,Float32Array);baseMoist=unb64(d.bm,Float32Array);moistD=unb64(d.md,Float32Array);warmD=d.wd?unb64(d.wd,Float32Array):null;owner=unb64(d.owner16||d.owner,Int16Array);
   biome=new Uint8Array(N);hab=new Float32Array(N);resetDisasters();
-  worldOpts=Object.assign({pace:'quick',customN:1,customUnit:'weeks',calendar:false,anchorReal:0,anchorYear:0,maxEra:7},d.worldOpts||{});worldOpts.slot=d.slot||worldOpts.slot||null;worldOpts.name=d.worldName||worldOpts.name||'Unnamed world';if(!PACES[worldOpts.pace])worldOpts.pace='quick';
+  worldOpts=Object.assign({pace:'standard',customN:1,customUnit:'weeks',calendar:false,anchorReal:0,anchorYear:0,maxEra:7},d.worldOpts||{});if(!PACES[worldOpts.pace])worldOpts.pace='standard';worldOpts.slot=d.slot||worldOpts.slot||null;worldOpts.name=d.worldName||worldOpts.name||'Unnamed world';if(!PACES[worldOpts.pace])worldOpts.pace='quick';
   year=d.year;belief=d.belief;climate=d.climate;flags=d.flags;dayT=d.dayT||.22;
   ruins=d.ruins||[];warData=d.warData||{};cultSeeds=d.cultSeeds||[];coves=d.coves||[];
   nations=d.nations.map(n=>Object.assign(n,{wars:new Set(n.wars),nb:new Set(),front:[],_walk:0,gov:n.gov||'tribal'}));if(!cultSeeds.length)seedCultures();for(const n of nations){if(!n.culture){const c=n.cities[0];n.culture=c?cultureAt(c.x,c.y):'west'}if(!n.allies)n.allies=[];if(n.devotion==null)n.devotion=.3;if(n.festival==null)n.festival=0;if(!n.techs){grantTechsUpTo(n);n.tech=0}for(const k of ['known','trade','ties','reigns'])if(!n[k])n[k]=[];if(n.ruler===undefined)n.ruler=null;if(n.house===undefined)n.house=null}faiths=d.faiths.map(f=>Object.assign({tenets:f.tenets||[f.tenet],glyph:f.glyph||'star'},f));logs=d.logs;

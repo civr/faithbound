@@ -165,12 +165,13 @@ const TECHS=[
 const TECH=Object.fromEntries(TECHS.map(t=>[t.id,t]));
 /* pace: how long one age lasts in real time. Short paces only slow research; long ones also slow the clock,
    so a week-long age still has wars, rulers and storms at a watchable rate (at most 14,400 years per age). */
-const PACES={quick:{label:'Quick',sec:100},standard:{label:'Standard',sec:600},long:{label:'Long',sec:1800},epic:{label:'Epic',sec:3600},custom:{label:'Custom',sec:0}};
+const PACES={standard:{label:'1 hour',sec:3600},long:{label:'2 hours',sec:7200},epic:{label:'4 hours',sec:14400},custom:{label:'Custom',sec:0}};
 const TIME_UNITS={minutes:60,hours:3600,days:86400,weeks:604800,months:2629800};
 let annals=[],hist=[],snaps=[];
-let worldOpts={pace:'standard',ageSec:600,customN:1,customUnit:'weeks',calendar:false,anchorReal:0,anchorYear:0,maxEra:7,land:.5,frag:1,mtn:1,rain:.5,rivers:1};
-function ageSeconds(o){o=o||worldOpts;if(o.pace==='custom')return Math.max(60,(o.customN||1)*(TIME_UNITS[o.customUnit]||3600));return PACES[o.pace]?PACES[o.pace].sec:600}
-function paceInfo(o){const T=ageSeconds(o),yearsPerAge=clamp(2*T,175,14400);return{T,yearsPerAge,techMult:yearsPerAge/175,yearRate:yearsPerAge/T}}
+let worldOpts={pace:'standard',ageSec:3600,customN:1,customUnit:'weeks',calendar:false,anchorReal:0,anchorYear:0,maxEra:7,land:.5,frag:1,mtn:1,rain:.5,rivers:1};
+/* every age lasts at least an hour of play at normal speed */
+function ageSeconds(o){o=o||worldOpts;if(o.pace==='custom')return Math.max(3600,(o.customN||1)*(TIME_UNITS[o.customUnit]||3600));return PACES[o.pace]?PACES[o.pace].sec:3600}
+function paceInfo(o){const T=ageSeconds(o),yearsPerAge=clamp(T/2,175,3600);return{T,yearsPerAge,techMult:yearsPerAge/175,yearRate:yearsPerAge/T}}
 function fmtDuration(s){if(s<90)return Math.round(s)+' seconds';if(s<5400)return Math.round(s/60)+' minutes';if(s<172800)return Math.round(s/3600*10)/10+' hours';
   if(s<1209600)return Math.round(s/86400*10)/10+' days';if(s<5259600)return Math.round(s/604800*10)/10+' weeks';return Math.round(s/2629800*10)/10+' months'}
 function paceSummary(o){const p=paceInfo(o);const per=p.yearRate>=1?`${Math.round(p.yearRate*10)/10} years per second`:`1 year every ${fmtDuration(1/p.yearRate)}`;
