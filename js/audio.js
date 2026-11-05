@@ -64,7 +64,7 @@ function sfx(name,o){if(!SND.on)return;const c=SND.ctx,t=c.currentTime+(o&&o.del
   case 'faith':[60,64,67,72].forEach(m=>tone('sine',hz(m),t,3,.05,null,{a:.8,verb:true,detune:(Math.random()-.5)*10}));break;
   case 'cannon':nburst(SND.brown,t,.6,.8*near,'lowpass',400,null,{to:80,a:.004});nburst(SND.noise,t,.08,.3*near,'lowpass',2500,null,{});break;
   case 'splash':nburst(SND.noise,t,.5,.25*near,'bandpass',900,null,{to:300,q:1,a:.02});break;
-  case 'fire':nburst(SND.noise,t,1.6,.25*near,'bandpass',600,null,{to:1800,q:1.5,a:.2});break;
+  case 'fire':nburst(SND.brown,t,1.4,.12*near,'lowpass',500,null,{to:900,a:.3});break;
   }}
 /* the chronicle drives most effects */
 function onLogSound(kind,text){if(!SND.on||catching||speedIdx>=3)return;const sel=selected>=0&&nations[selected]?nations[selected].name:null;if(kind!=='era'&&kind!=='war'&&sel&&!text.includes(sel))return;
