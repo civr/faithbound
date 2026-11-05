@@ -23,6 +23,7 @@ function audioInit(){
     s.connect(f);f.connect(gg);gg.connect(SND.bus.amb);s.start();SND.amb[name]={f,g:gg,base:freq}};
   layer('wind',SND.brown,'bandpass',420,.6);layer('waves',SND.brown,'lowpass',380,.5);layer('rain',SND.noise,'highpass',2200,.4);
   layer('crowd',SND.noise,'bandpass',520,2.2);layer('fire',SND.brown,'lowpass',700,.5);layer('river',SND.noise,'bandpass',1500,.8);
+  layer('mill',SND.brown,'lowpass',140,3);layer('traffic',SND.noise,'bandpass',300,.6);layer('forest',SND.noise,'highpass',3200,.5);
   SND.next=c.currentTime+.3;SND.on=true;applyVolumes();const sh=document.getElementById('soundHint');if(sh)sh.hidden=true;
 }
 function applyVolumes(){if(!SND.ctx)return;const v=vols(),t=SND.ctx.currentTime;
@@ -90,6 +91,17 @@ function updateAudio(dt){if(!SND.on)return;const c=SND.ctx,t=c.currentTime,A=SND
   SND.birdT-=dt;if(SND.birdT<=0){SND.birdT=.6+Math.random()*2.5;const life=close*(land/24);
     if(life>.25&&rain<.3){if(night<.5&&(forest>2||Math.random()<.4)){const base=2200+Math.random()*1800,n=2+((Math.random()*5)|0);for(let k=0;k<n;k++)tone('sine',base*(1+Math.random()*.2),t+k*.09,.07,.025*life,SND.bus.amb,{slide:base*(.75+Math.random()*.6)})}
       else if(night>.5)for(let k=0;k<3;k++)tone('sine',4400,t+k*.05,.03,.012*life,SND.bus.amb)}}
+  /* the sound of the age around the camera: mills thump in industrial towns, traffic rushes in modern ones, leaves rustle in the woods */
+  let ind=0,mod=0;{const i0=tileAt(camT.x,camT.z),o=i0>=0?owner[i0]:-1,n=o>=0?nations[o]:null;if(n&&city>0){if(n.era===5)ind=Math.min(1,city/5);else if(n.era>=6)mod=Math.min(1,city/5)}}
+  if(A.mill){set(A.mill,.16*close*ind,.8);A.mill.f.frequency.setTargetAtTime(120+30*Math.sin(t*3.1),t,.05);set(A.traffic,.09*close*mod*(1-night*.5),.8);A.traffic.f.frequency.setTargetAtTime(260+90*Math.sin(t*.37),t,.3);
+    set(A.forest,.05*close*Math.min(1,forest/8)*(.5+.5*Math.sin(t*.3)),1)}
+  /* battle near the front: clashing steel, then musket and cannon fire, then guns and shells */
+  SND.warT=(SND.warT||0)-dt;if(SND.warT<=0){SND.warT=.12+Math.random()*.35;let war=0,we=0;
+    for(const n of nations){if(!n.alive||!n.wars.size||!n.front)continue;for(let k=0;k<n.front.length;k+=3){const i=n.front[k],d=Math.hypot(wx(i%W)-camT.x,wz((i/W)|0)-camT.z),v=1-smooth(.8,3+camDist*.25,d);if(v>war){war=v;we=n.era}}}
+    if(war>.05){const v=war*(.4+.6*close);
+      if(we<4){if(Math.random()<.6){tone('triangle',1800+Math.random()*1600,t,.05,.03*v,SND.bus.amb);nburst(SND.noise,t,.04,.06*v,'highpass',3000,SND.bus.amb,{a:.001})}if(Math.random()<.08)nburst(SND.brown,t,.5,.12*v,'lowpass',300,SND.bus.amb)}
+      else if(we<6){nburst(SND.noise,t,.06,.1*v*Math.random(),'bandpass',1400,SND.bus.amb,{a:.001});if(Math.random()<.12)nburst(SND.brown,t,.9,.3*v,'lowpass',160,SND.bus.amb,{a:.003})}
+      else{for(let q=0;q<3;q++)nburst(SND.noise,t+q*.07,.03,.08*v,'bandpass',2200,SND.bus.amb,{a:.001});if(Math.random()<.15)nburst(SND.brown,t,1.2,.35*v,'lowpass',120,SND.bus.amb,{a:.002})}}}
   SND.crackT-=dt;if(fire>.1&&SND.crackT<=0){SND.crackT=.04+Math.random()*.15;nburst(SND.noise,t,.03,.2*fire*Math.random(),'highpass',1200+Math.random()*2000,SND.bus.amb,{a:.001})}
   if(t>SND.next-.2)musicBar()}
 

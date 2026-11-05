@@ -346,12 +346,26 @@ function nationLoops(o){let x0=W,y0=H,x1=-1,y1=-1;for(let i=0;i<N;i++)if(owner[i
     while(s!=null&&!segs[s].u){const S=segs[s];S.u=true;const P=S.a[0]===from?S.a:S.b,Q=S.a[0]===from?S.b:S.a;loop.push([P[1]+x0+.5,P[2]+y0+.5]);from=Q[0];const nx=(pts.get(Q[0])||[]).find(q=>!segs[q].u);s=nx==null?null:nx}
     if(loop.length>=4)loops.push(loop)}
   return loops}
+/* the border outlines are traced in a worker thread, so the game never stalls while borders move; without workers they are traced here */
+const smoothLoop=p=>{for(let it=0;it<2;it++){const q=[];for(let i=0;i<p.length;i++){const A=p[i],B=p[(i+1)%p.length];q.push([A[0]*.75+B[0]*.25,A[1]*.75+B[1]*.25],[A[0]*.25+B[0]*.75,A[1]*.25+B[1]*.75])}p=q}return p};
+let borderWorker=null,borderBusy=0,borderAgain=false,borderLoops=null;
+function borderWorkerInit(){if(borderWorker!==null)return;try{
+  const src=`"use strict";let owner,W,H,N;const clamp=(v,a,b)=>v<a?a:v>b?b:v;const MS=${JSON.stringify(MS)};const smoothLoop=${smoothLoop.toString()};${nationLoops.toString()}
+onmessage=e=>{const d=e.data;owner=d.owner;W=d.W;H=d.H;N=W*H;const out={};for(const o of d.ids)out[o]=nationLoops(o).map(smoothLoop);postMessage(out)}`;
+  borderWorker=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+  borderWorker.onmessage=e=>{borderBusy=0;borderLoops=e.data;drawBorderMesh();if(borderAgain){borderAgain=false;rebuildBorders()}};
+  borderWorker.onerror=()=>{borderWorker=false;borderBusy=0;borderLoops=null;drawBorderMesh()}}catch(e){borderWorker=false}}
 function rebuildBorders(){updateTerritoryTex();
   if(!borderMesh){borderMesh=new THREE.Mesh(new THREE.BufferGeometry(),borderMat);borderMesh.renderOrder=3;borderMesh.frustumCulled=false;scene.add(borderMesh)}
   borderMesh.visible=settings.borders;if(!settings.borders)return;
+  borderWorkerInit();
+  if(borderWorker){if(borderBusy&&performance.now()-borderBusy>4000){/* the worker never answered: trace here from now on */borderWorker.terminate();borderWorker=false;borderBusy=0}
+    else{if(borderBusy){borderAgain=true;return}borderBusy=performance.now();borderWorker.postMessage({owner:owner.slice(),W,H,ids:nations.filter(n=>n.alive&&n.tiles>0).map(n=>n.id)});return}}
+  borderLoops=null;drawBorderMesh()}
+function drawBorderMesh(){if(!borderMesh)return;
   const pos=[],col=[];const RED=[.95,.18,.12];
   for(const n of nations){if(!n.alive||n.tiles<=0)continue;const o=n.id,c0=n.rgb,base=[LIN[c0[0]],LIN[c0[1]],LIN[c0[2]]],sel=o===selected,lw=sel?.08:.045,band=sel?.6:.36;
-    for(let p of nationLoops(o)){for(let it=0;it<2;it++){const q=[];for(let i=0;i<p.length;i++){const A=p[i],B=p[(i+1)%p.length];q.push([A[0]*.75+B[0]*.25,A[1]*.75+B[1]*.25],[A[0]*.25+B[0]*.75,A[1]*.25+B[1]*.75])}p=q}
+    for(let p of (borderLoops?borderLoops[o]||[]:nationLoops(o).map(smoothLoop))){
       const M=p.length,nrm=[];for(let i=0;i<M;i++){const A=p[(i-1+M)%M],B=p[(i+1)%M];const dx=B[0]-A[0],dy=B[1]-A[1],l=Math.hypot(dx,dy)||1;nrm.push([dy/l,-dx/l])}
       let inside=0,tot=0;for(let i=0;i<M;i+=Math.max(1,(M/12)|0)){const X=Math.floor(p[i][0]+nrm[i][0]*.6),Y=Math.floor(p[i][1]+nrm[i][1]*.6);tot++;if(X>=0&&Y>=0&&X<W&&Y<H&&owner[Y*W+X]===o)inside++}
       const sg=inside*2>=tot?1:-1;

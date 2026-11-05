@@ -293,6 +293,8 @@ function launch(n,kind,foe){
   const res=seaPath(starts,goal);if(!res||res.path.length<2)return;const p0=res.path[0];
   const s={owner:n.id,kind,foe:foe?foe.id:-1,era:n.era,path:res.path,seg:0,target:res.target,x:wx(p0%W),z:wz((p0/W)|0),sink:0,g:makeShip(n.era,kind,n.color,ensureFlag(n)),foamT:0};
   s.g.position.set(s.x,waterY,s.z);ships.push(s);
+  if(kind==='war'){/* warships sail as a small squadron */const extra=n.era>=6?2:1;for(let e_=0;e_<extra;e_++){const o={...s,g:makeShip(n.era,kind,n.color,ensureFlag(n)),x:s.x+(rng()-.5)*.3,z:s.z+(rng()-.5)*.3,foamT:0,escort:true};
+      const ti=tileAt(o.x,o.z);if(ti<0||!isWater(ti)){o.x=s.x;o.z=s.z}o.g.position.set(o.x,waterY,o.z);ships.push(o)}}
   if(kind==='colony'&&!flags.sail){flags.sail=true;log(`The first colony ships of ${n.name} set sail.`,'era');milestone('sail','Across the sea','Colonists set sail for distant shores.')}
 }
 function arrive(s){
@@ -304,7 +306,7 @@ function arrive(s){
       for(let d=0;d<4;d++){const x=X+DX[d],y=Y+DY[d];if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]<0&&hab[j]>=.1)claim(j,n.id)}
       const name=cultureName(cultOf(n));n.cities.push({x:X,y:Y,name,origin:n.id,colony:true,born:year});n.pop+=3;fx(L,'bless');propsDirty=true;
       log(`Colonists from ${n.name} founded ${name} across the sea.`,'life');milestone('colony','New World','The first overseas colony was founded.')}}
-  else{const B=nations[s.foe];if(!B||!B.alive||!n.wars.has(B.id)||owner[L]!==B.id)return;
+  else{if(s.escort)return;const B=nations[s.foe];if(!B||!B.alive||!n.wars.has(B.id)||owner[L]!==B.id)return;
     const lim=3+(s.era-SAIL)*2,q=[L],seen=new Set([L]);let took=0,head=0;
     while(head<q.length&&took<lim){const j=q[head++];if(owner[j]!==B.id)continue;const moved=B.pop/Math.max(1,B.tiles);B.pop=Math.max(2,B.pop-moved*.6);claim(j,n.id);took++;
       const x=j%W,y=(j/W)|0;for(let d=0;d<4;d++){const x2=x+DX[d],y2=y+DY[d];if(x2<0||y2<0||x2>=W||y2>=H)continue;const k=y2*W+x2;if(!seen.has(k)){seen.add(k);q.push(k)}}}
@@ -314,7 +316,8 @@ function updateShips(dy,dt,now){
   for(let k=ships.length-1;k>=0;k--){const s=ships[k];
     if(s.sink>0){s.sink+=dt;s.g.position.y=waterY-s.sink*.15;s.g.rotation.z=s.sink*.4;if(rng()<dt*8)emit('dark',s.x,waterY+.05,s.z);if(s.sink>2){disposeShip(s);ships.splice(k,1)}continue}
     if(s.owner>=0&&!nations[s.owner].alive){s.sink=.01;continue}
-    let rem=SHIPSPEED[s.era]*dy;
+    let rem=SHIPSPEED[s.era]*dy;if(s.fight)rem=0;
+    if(s.hunt&&!s.fight&&!s.hunt.sink){const h=s.hunt,ddx=h.x-s.x,ddz=h.z-s.z,d=Math.hypot(ddx,ddz)||1,st=Math.min(d,rem),nx=s.x+ddx/d*st,nz=s.z+ddz/d*st,ti=tileAt(nx,nz);if(ti>=0&&isWater(ti)){s.x=nx;s.z=nz;s.head=Math.atan2(-ddz,ddx);rem=0}else s.hunt=null}
     while(rem>0&&s.seg<s.path.length-1){const nt=s.path[s.seg+1],tx=wx(nt%W),tz=wz((nt/W)|0),ddx=tx-s.x,ddz=tz-s.z,d=Math.hypot(ddx,ddz);
       if(d>0)s.head=Math.atan2(-ddz,ddx);if(d<=rem){s.x=tx;s.z=tz;s.seg++;rem-=d}else{s.x+=ddx/d*rem;s.z+=ddz/d*rem;rem=0}}
     if(s.head!=null)s.g.rotation.y+=((s.head-s.g.rotation.y+Math.PI*3)%(Math.PI*2)-Math.PI)*Math.min(1,dt*4);
@@ -323,11 +326,25 @@ function updateShips(dy,dt,now){
       if(s.era===5&&rng()<dt*3)emit('dark',s.x,waterY+.2,s.z)}
     if(s.seg>=s.path.length-1){arrive(s);disposeShip(s);ships.splice(k,1)}}
   if(dy<=0)return;
-  for(const a of ships){if(a.sink||a.kind!=='war')continue;const A=nations[a.owner];
-    for(const b of ships){if(b===a||b.sink||b.owner===a.owner||(b.kind!=='pirate'&&!A.wars.has(b.owner)))continue;if(Math.hypot(a.x-b.x,a.z-b.z)>1.1)continue;
-      const sa=ERAS[a.era].mil*(.5+rng()),sb=ERAS[b.era].mil*(b.kind==='war'?1:.4)*(.5+rng()),win=sa>=sb?a:b,lose=win===a?b:a;lose.sink=.01;
-      for(let q=0;q<6;q++)emit('fire',lose.x,waterY+.06,lose.z);
-      const nm=s_=>s_.owner<0?'pirates':nations[s_.owner].name;log(lose.kind==='pirate'?`Warships of ${nm(win)} sank a pirate ship.`:win.kind==='pirate'?`Pirates sank a ship of ${nm(lose)}.`:`Ships of ${nm(win)} sank a ${lose.kind==='war'?'warship':'colony ship'} of ${nm(lose)}.`,'war');milestone('naval','Naval battle','Warships clashed at sea.');break}}
+  /* naval war: warships hunt enemy ships they sight, close in, trade broadsides until one sinks */
+  for(const a of ships){if(a.sink||a.kind!=='war'||a.fight)continue;const A=nations[a.owner];if(!A)continue;let best=null,bd=3.2;
+    for(const b of ships){if(b===a||b.sink||b.owner===a.owner||(b.kind!=='pirate'&&!A.wars.has(b.owner)))continue;const d=Math.hypot(a.x-b.x,a.z-b.z);if(d<bd){bd=d;best=b}}
+    if(best){if(bd<.9){a.fight=best;if(!best.fight)best.fight=a}else a.hunt=best}else a.hunt=null}
+  for(const s_ of ships){if(s_.sink)continue;s_.hp=s_.hp??(s_.kind==='war'?3+s_.era*.6:s_.kind==='pirate'?2.5:1.2);
+    const f=s_.fight;if(f&&(f.sink||Math.hypot(f.x-s_.x,f.z-s_.z)>2.2)){s_.fight=null;continue}if(!f)continue;
+    /* hold a broadside: turn side-on and keep a cannon shot away */
+    const dx=f.x-s_.x,dz=f.z-s_.z,d=Math.hypot(dx,dz)||1,side=Math.atan2(-dz,dx)+Math.PI/2;s_.head=side;
+    const want=s_.kind==='war'?.55:.9,mv=(d-want)*dt*.4,nx=s_.x+dx/d*mv,nz=s_.z+dz/d*mv,ti=tileAt(nx,nz);if(ti>=0&&isWater(ti)){s_.x=nx;s_.z=nz}
+    if(s_.kind==='colony'||s_.kind==='trade'||s_.kind==='explore')continue;/* unarmed ships only flee */
+    s_.gun=(s_.gun??rng()*.6)-dt;if(s_.gun>0)continue;s_.gun=(s_.era>=6?.35:s_.era>=5?.6:.9)+rng()*.5;
+    const sx=s_.x+dx/d*.08,sz=s_.z+dz/d*.08;emit('flash',sx,waterY+.06,sz);emit(s_.era>=5?'dark':'smoke',sx,waterY+.06,sz);
+    const hit=rng()<.45+s_.era*.03,tx=f.x+(hit?0:(rng()-.5)*.5),tz=f.z+(hit?0:(rng()-.5)*.5);
+    for(let q=0;q<(hit?2:4);q++)emit(hit?'fire':'spray',tx,waterY+.04,tz,(rng()-.5)*.06,(rng()-.5)*.06);
+    if(hit){f.hp-=ERAS[s_.era].mil/ERAS[f.era].mil*(s_.owner<0?.6:1)*(.6+rng()*.6);if(f.era>=5||rng()<.5)emit('dark',f.x,waterY+.08,f.z)}
+    if(Math.hypot(s_.x-camT.x,s_.z-camT.z)<camDist*.8&&typeof sfx==='function')sfx('cannon');
+    if(f.hp<=0){const win=s_,lose=f;lose.sink=.01;win.fight=null;for(let q=0;q<6;q++)emit('fire',lose.x,waterY+.06,lose.z);
+      const nm=x_=>x_.owner<0?'pirates':nations[x_.owner].name;log(lose.kind==='pirate'?`Warships of ${nm(win)} sank a pirate ship.`:win.kind==='pirate'?`Pirates sank a ship of ${nm(lose)}.`:`Ships of ${nm(win)} sank a ${lose.kind==='war'?'warship':lose.kind+' ship'} of ${nm(lose)}.`,'war');
+      milestone('naval','Naval battle','Warships fought on the open sea.')}}
 }
 function launchRocket(n){const c=n.cities[0];if(!c)return;const x=wx(c.x)+.3,z=wz(c.y)+.1,y=surfY(x,z);
   rockets.push({g:makeRocket(n,x,y,z),t:0});log(`${n.name} launched a starship toward the stars.`,'era');milestone('stars','To the stars','A starship left the world.')}
