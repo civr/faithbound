@@ -324,7 +324,8 @@ function activeWars(){const out=[];for(const A of nations){if(!A.alive)continue;
     const sieges=[];for(const [X,Y] of [[A,B],[B,A]])for(const c of Y.cities)if(c.siege>0&&c.besiegedBy===X.id)sieges.push({by:X,c});
     out.push({A,B,w,ww,sieges,heat:w.years+Math.abs(w.score)+sieges.length*5})}}return out.sort((a,b)=>(b.ww?1:0)-(a.ww?1:0)||b.heat-a.heat)}
 function warFront(A,B){const f=A.front.find(i=>owner[i]===A.id||owner[i]===B.id)??B.front[0];if(f!=null)return f;const c=B.cities[0]||A.cities[0];return c?c.y*W+c.x:-1}
-function warsHTML(){const L=activeWars();if(!L.length)return '<p class="note" style="padding:8px 4px">The world is at peace. No war is being fought.</p>';
+function endedHTML(){if(!endedWars.length)return '';return `<div class="sec"><h4>Recently ended</h4>${endedWars.slice(0,6).map(w=>`<p class="note" style="margin:2px 0">${esc(w.an)} vs ${esc(w.bn)} · ${w.from}–${w.to} (${w.to-w.from} yr) · ${w.how==='conquest'?esc(w.an)+' conquered '+esc(w.bn):w.how==='forced'?'you forced peace':'peace'}</p>`).join('')}</div>`}
+function warsHTML(){const L=activeWars();if(!L.length)return '<p class="note" style="padding:8px 4px">The world is at peace. No war is being fought.</p>'+endedHTML();
   const nm=n=>`<span class="wn"><img src="${flagURL(n.flag)}" alt=""><b style="color:${n.color}">${esc(n.name)}</b></span>`;
   const wws=worldWars.filter(x=>x.end==null).map(x=>`<div class="wwbar">⚔ The ${ORD[x.n]||(x.n+1)+'th'} World War · since ${x.start} · ${x.a.length+x.b.length} nations</div>`).join('');
   return `<p class="note" style="margin:2px 0 8px">${L.length} war${L.length>1?'s':''} being fought. The bar shows who is winning.</p>${wws}`+L.map(({A,B,w,ww,sieges})=>{
@@ -335,7 +336,7 @@ function warsHTML(){const L=activeWars();if(!L.length)return '<p class="note" st
       <div class="wstat"><span>Land taken: ${w.ta||0} / ${w.tb||0}</span><span>Dead: ${fmtN(w.da||0)} / ${fmtN(w.db||0)}</span></div>
       ${ww?`<div class="wtag">Part of the ${ORD[ww.n]||''} World War</div>`:''}
       ${sieges.map(x=>`<div class="wsiege">🏰 ${esc(x.by.name)} besieges ${esc(x.c.name)} · ${Math.round(Math.min(1,x.c.siege)*100)}%</div>`).join('')}
-      <div class="row" style="gap:6px;margin-top:6px"><button class="btn" data-wgo="${A.id}-${B.id}">Show the front</button><div class="flex"></div><button class="btn primary" data-wpeace="${A.id}-${B.id}">Force peace · 15</button></div></div>`}).join('')}
+      <div class="row" style="gap:6px;margin-top:6px"><button class="btn" data-wgo="${A.id}-${B.id}">Show the front</button><div class="flex"></div><button class="btn primary" data-wpeace="${A.id}-${B.id}">Force peace · 15</button></div></div>`}).join('')+endedHTML()}
 $('#sheetBody').addEventListener('click',e=>{
   const ws=e.target.closest('[data-ws]');if(ws){warTab=ws.dataset.ws;renderSheet(true);return}
   const rl=e.target.closest('[data-rel]');if(rl){const m=nations[+rl.dataset.rel];if(m&&m.cities[0]){focusOn(wx(m.cities[0].x),wz(m.cities[0].y),Math.min(camDist,22));selected=m.id;renderNationCard()}return}
