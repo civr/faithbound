@@ -282,6 +282,13 @@ function seaPath(starts,goal){
     if(t>=0){const path=[];let k=j;while(k!==-1){path.push(k);k=prev[k]}path.reverse();return{path,target:t}}
     for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(prev[k]===-2&&isWater(k)){prev[k]=j;q.push(k)}}}
   return null}
+/* a sailing route: the tile path pulled tight into straight legs over open water, then rounded at the corners */
+function clearSea(x0,z0,x1,z1){const d=Math.hypot(x1-x0,z1-z0),n=Math.ceil(d/.12);for(let k=1;k<n;k++){const t=k/n,i=tileAt(lerp(x0,x1,t),lerp(z0,z1,t));if(i<0||!isWater(i))return false}return true}
+function shipRoute(path){const P=path.map(t=>[wx(t%W),wz((t/W)|0)]),out=[P[0]];let i=0;
+  while(i<P.length-1){let j=Math.min(P.length-1,i+60);while(j>i+1&&!clearSea(P[i][0],P[i][1],P[j][0],P[j][1]))j--;out.push(P[j]);i=j}
+  let r=out;for(let it=0;it<3;it++){if(r.length<3)break;const q=[r[0]];for(let k=0;k<r.length-1;k++){const a=r[k],b=r[k+1];
+      for(const f of [.25,.75]){const x=lerp(a[0],b[0],f),z=lerp(a[1],b[1],f),ti=tileAt(x,z);q.push(ti>=0&&isWater(ti)?[x,z]:(f<.5?a:b))}}q.push(r[r.length-1]);r=q}
+  return r}
 function launch(n,kind,foe){
   const coastal=n.cities.filter(c=>coastWater(c).length);if(!coastal.length)return;
   const c=coastal[(rng()*coastal.length)|0],starts=coastWater(c);
@@ -291,7 +298,7 @@ function launch(n,kind,foe){
     :kind==='explore'?(()=>{let T=-1;for(let q=0;q<60;q++){const j=(rng()*N)|0;if(isWater(j)&&Math.hypot(j%W-c.x,((j/W)|0)-c.y)>Math.max(W,H)*.35){T=j;break}}return (x,y)=>y*W+x===T?T:-1})()
     :(x,y)=>{for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const L=Y*W+X;if(owner[L]===foe.id)return L}return -1};
   const res=seaPath(starts,goal);if(!res||res.path.length<2)return;const p0=res.path[0];
-  const s={owner:n.id,kind,foe:foe?foe.id:-1,era:n.era,path:res.path,seg:0,target:res.target,x:wx(p0%W),z:wz((p0/W)|0),sink:0,g:makeShip(n.era,kind,n.color,ensureFlag(n)),foamT:0};
+  const s={owner:n.id,kind,foe:foe?foe.id:-1,era:n.era,path:res.path,wp:shipRoute(res.path),seg:0,target:res.target,x:wx(p0%W),z:wz((p0/W)|0),sink:0,g:makeShip(n.era,kind,n.color,ensureFlag(n)),foamT:0};
   s.g.position.set(s.x,waterY,s.z);ships.push(s);
   if(kind==='war'){/* warships sail as a small squadron */const extra=n.era>=6?2:1;for(let e_=0;e_<extra;e_++){const o={...s,g:makeShip(n.era,kind,n.color,ensureFlag(n)),x:s.x+(rng()-.5)*.3,z:s.z+(rng()-.5)*.3,foamT:0,escort:true};
       const ti=tileAt(o.x,o.z);if(ti<0||!isWater(ti)){o.x=s.x;o.z=s.z}o.g.position.set(o.x,waterY,o.z);ships.push(o)}}
@@ -316,15 +323,23 @@ function updateShips(dy,dt,now){
   for(let k=ships.length-1;k>=0;k--){const s=ships[k];
     if(s.sink>0){s.sink+=dt;s.g.position.y=waterY-s.sink*.15;s.g.rotation.z=s.sink*.4;if(rng()<dt*8)emit('dark',s.x,waterY+.05,s.z);if(s.sink>2){disposeShip(s);ships.splice(k,1)}continue}
     if(s.owner>=0&&!nations[s.owner].alive){s.sink=.01;continue}
-    let rem=SHIPSPEED[s.era]*dy;if(s.fight)rem=0;
+    if(!s.wp)s.wp=shipRoute(s.path);const WP=s.wp;
+    /* ships move at sailing speed on screen, whatever the speed of the years */let rem=SHIPSPEED[s.era]*Math.min(dy,dt*2.2)*.9;if(s.fight)rem=0;
     if(s.hunt&&!s.fight&&!s.hunt.sink){const h=s.hunt,ddx=h.x-s.x,ddz=h.z-s.z,d=Math.hypot(ddx,ddz)||1,st=Math.min(d,rem),nx=s.x+ddx/d*st,nz=s.z+ddz/d*st,ti=tileAt(nx,nz);if(ti>=0&&isWater(ti)){s.x=nx;s.z=nz;s.head=Math.atan2(-ddz,ddx);rem=0}else s.hunt=null}
-    while(rem>0&&s.seg<s.path.length-1){const nt=s.path[s.seg+1],tx=wx(nt%W),tz=wz((nt/W)|0),ddx=tx-s.x,ddz=tz-s.z,d=Math.hypot(ddx,ddz);
-      if(d>0)s.head=Math.atan2(-ddz,ddx);if(d<=rem){s.x=tx;s.z=tz;s.seg++;rem-=d}else{s.x+=ddx/d*rem;s.z+=ddz/d*rem;rem=0}}
-    if(s.head!=null)s.g.rotation.y+=((s.head-s.g.rotation.y+Math.PI*3)%(Math.PI*2)-Math.PI)*Math.min(1,dt*4);
-    s.g.position.set(s.x,waterY+(s.era>=7?.06:0)+Math.sin(now/500+k)*.006,s.z);s.g.rotation.x=Math.sin(now/700+k)*.03;
+    if(s.wasOff&&!s.fight&&!s.hunt){/* back from a fight or a chase: rejoin the route at the nearest point ahead */let bi=s.seg,bd=1e9;for(let q2=s.seg;q2<WP.length;q2++){const d2=Math.hypot(WP[q2][0]-s.x,WP[q2][1]-s.z);if(d2<bd){bd=d2;bi=q2}}s.seg=Math.max(s.seg,bi-1);s.wasOff=false}
+    if(s.fight||s.hunt)s.wasOff=true;
+    /* steer for a point a little way ahead on the route, so the ship sweeps round bends instead of jerking at each corner */
+    if(rem>0&&s.seg<WP.length-1){while(s.seg<WP.length-1&&Math.hypot(WP[s.seg+1][0]-s.x,WP[s.seg+1][1]-s.z)<.14)s.seg++;
+      if(s.seg<WP.length-1){let la=.38,px=s.x,pz=s.z,j=s.seg+1,tx=WP[j][0],tz=WP[j][1],d=Math.hypot(tx-px,tz-pz);
+        while(d<la&&j<WP.length-1){la-=d;px=tx;pz=tz;j++;tx=WP[j][0];tz=WP[j][1];d=Math.hypot(tx-px,tz-pz)}
+        const f=Math.min(1,la/(d||1));let gx=px+(tx-px)*f,gz=pz+(tz-pz)*f,ddx=gx-s.x,ddz=gz-s.z,D=Math.hypot(ddx,ddz)||1,st=Math.min(rem,D),nx=s.x+ddx/D*st,nz=s.z+ddz/D*st,ti=tileAt(nx,nz);
+        if(ti<0||!isWater(ti)){gx=WP[s.seg+1][0];gz=WP[s.seg+1][1];ddx=gx-s.x;ddz=gz-s.z;D=Math.hypot(ddx,ddz)||1;st=Math.min(rem,D);nx=s.x+ddx/D*st;nz=s.z+ddz/D*st}
+        s.x=nx;s.z=nz;s.head=Math.atan2(-ddz,ddx)}}
+    if(s.head!=null){const turn=((s.head-s.g.rotation.y+Math.PI*3)%(Math.PI*2)-Math.PI);s.g.rotation.y+=turn*Math.min(1,dt*3);s.lean=lerp(s.lean||0,clamp(turn*.25,-.12,.12),Math.min(1,dt*3))}
+    s.g.position.set(s.x,waterY+(s.era>=7?.06:0)+Math.sin(now/500+k)*.005,s.z);s.g.rotation.x=Math.sin(now/700+k)*.025+(s.lean||0);
     if(dy>0){s.foamT+=dt;if(s.foamT>.12){s.foamT=0;const a=s.g.rotation.y;emit('foam',s.x-Math.cos(a)*.2,waterY+.01,s.z+Math.sin(a)*.2,0,0)}
       if(s.era===5&&rng()<dt*3)emit('dark',s.x,waterY+.2,s.z)}
-    if(s.seg>=s.path.length-1){arrive(s);disposeShip(s);ships.splice(k,1)}}
+    if(s.seg>=WP.length-1){arrive(s);disposeShip(s);ships.splice(k,1)}}
   if(dy<=0)return;
   /* naval war: warships hunt enemy ships they sight, close in, trade broadsides until one sinks */
   for(const a of ships){if(a.sink||a.kind!=='war'||a.fight)continue;const A=nations[a.owner];if(!A)continue;let best=null,bd=3.2;
