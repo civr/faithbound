@@ -652,12 +652,19 @@ let RB0=0;
 let sootSig='';
 function rebuildCities(){patchSets();RB0=performance.now();{let s='';for(const n of nations)if(n.alive&&n.era>=5&&n.era<=6)s+=n.id+':'+n.era+':'+n.cities.length+';';if(s!==sootSig){sootSig=s;if(typeof colorDirty!=='undefined')colorDirty=true}}
   for(const m of townFlags)scene.remove(m);townFlags=[];airports=[];spaceports=[];bgrid.clear();kitReset(BUILD_KITS);occupied.clear();bare.clear();grassAt.x=1e9;emitters=[];herds=[];cityStreets=[];for(const g of windmills)scene.remove(g);windmills=[];
+  const stale=[];
   for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(10,cityLevel(n)+(gold?1.5:0))*2)/2;
-    n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);if(hit&&(hit.key===key||performance.now()-RB0>14)){if(hit.key!==key)propsDirty=true;replayCity(hit);return}
-      const L0={em:emitters.length,hd:herds.length,cs:cityStreets.length,ap:airports.length,sp:spaceports.length,wm:windmills.length,tf:townFlags.length};
-      REC={k:{},occ:[],bare:[],bg:[]};try{buildCity(n,c,ci,e,gold,lvl)}finally{const Rc=REC;REC=null;for(const nm in Rc.k)Rc.k[nm]=new Float32Array(Rc.k[nm]);
-        Object.assign(Rc,{key,em:emitters.slice(L0.em),hd:herds.slice(L0.hd),cs:cityStreets.slice(L0.cs),ap:airports.slice(L0.ap),sp:spaceports.slice(L0.sp),wm:windmills.slice(L0.wm),tf:townFlags.slice(L0.tf)});CITYCACHE.set(c,Rc)}})}
+    n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);
+      if(hit&&hit.key===key){replayCity(hit);return}
+      if(!hit){buildOne(n,c,ci,e,gold,lvl,key);return}
+      /* stale: rebuild the most out-of-date towns first so none is left showing an old age */
+      const d=Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z);stale.push({n,c,ci,e,gold,lvl,key,hit,pr:(hit.era!==e?0:1e4)+(hit.key.split('|')[1]!==key.split('|')[1]?0:5e3)+Math.min(4e3,d*20)-Math.min(3e3,(performance.now()-(hit.t||0))/100)})})}
+  stale.sort((a,b)=>a.pr-b.pr);
+  for(const q of stale){if(performance.now()-RB0<14||q.hit.era!==q.e)buildOne(q.n,q.c,q.ci,q.e,q.gold,q.lvl,q.key);else{propsDirty=true;replayCity(q.hit)}}
   buildExtras()}
+function buildOne(n,c,ci,e,gold,lvl,key){const L0={em:emitters.length,hd:herds.length,cs:cityStreets.length,ap:airports.length,sp:spaceports.length,wm:windmills.length,tf:townFlags.length};
+  REC={k:{},occ:[],bare:[],bg:[]};try{buildCity(n,c,ci,e,gold,lvl)}finally{const Rc=REC;REC=null;for(const nm in Rc.k)Rc.k[nm]=new Float32Array(Rc.k[nm]);
+    Object.assign(Rc,{key,era:e,t:performance.now(),em:emitters.slice(L0.em),hd:herds.slice(L0.hd),cs:cityStreets.slice(L0.cs),ap:airports.slice(L0.ap),sp:spaceports.slice(L0.sp),wm:windmills.slice(L0.wm),tf:townFlags.slice(L0.tf)});CITYCACHE.set(c,Rc)}}
 function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),cap=ci===0;occupied.add(i0);
       const cy=surfY(cx,cz);
       if(e>=1)bareMark(cx,cz,(cap?.3:.15)*.95);cityCenter(n,c,cx,cy,cz,e,cap,i0);
