@@ -11,6 +11,7 @@ rm -rf dist && mkdir -p dist/js
 cp three.min.js favicon.svg favicon.png favicon.ico dist/ && cp js/*.js dist/js/
 # cache-busting: every build gets its own script URLs, so browsers never run stale code
 V=$(date +%s)
-sed -i "s#src=\"js/\([a-z0-9_-]*\)\.js\"#src=\"js/\1.js?v=$V\"#g" dist/index.html
+# (written to a temp file instead of sed -i, so this works with both GNU sed on Linux and BSD sed on macOS)
+sed "s#src=\"js/\([a-z0-9_-]*\)\.js\"#src=\"js/\1.js?v=$V\"#g" dist/index.html > dist/index.tmp && mv dist/index.tmp dist/index.html
 cp README.md server/server.js docker/Dockerfile docker/docker-compose.yml docker/.dockerignore dist/
 echo built
