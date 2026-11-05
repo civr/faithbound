@@ -134,7 +134,48 @@ let flights=[],shuttles=[],flyT=0,shutT=0;
 PK.trail={life:2.6,size:.035,grow:.07,vy:0,col:[.96,.97,1],a:.45};
 function planeDest(a){const others=airports.filter(b=>b!==a);if(others.length)return others[(rng()*others.length)|0];
   const cs=[];for(const n of nations)if(n.alive)for(const c of n.cities)cs.push(c);const c=cs[(rng()*cs.length)|0];if(!c)return null;return {ax:wx(c.x),az:wz(c.y),bx:wx(c.x)+.1,bz:wz(c.y),y:groundY(wx(c.x),wz(c.y)),far:true}}
-function updateFlights(dt,k){
+/* ---------- war in the air: biplanes, then fighters and bombers, then drones ---------- */
+const FLY_OLIVE=stdMat({color:colL(0x5a6248),roughness:.6}),FLY_GREY=stdMat({color:colL(0x7a8088),roughness:.45,metalness:.3});
+function makeWarPlane(n,kind){const g=new THREE.Group(),c=flyCol(n.color);g.userData.kind=kind;
+  if(kind==='bi'){partM(g,FLYGEO.fus,c,0,0,0,.1,.016,.016);for(const y of [-.011,.013])partM(g,FLYGEO.box,FLY_OLIVE,.012,y,0,.03,.003,.15);
+    for(const s of [-1,1])partM(g,FLYGEO.box,FLY.dark,.012,0,s*.05,.002,.024,.002);partM(g,FLYGEO.box,FLY_OLIVE,-.048,.002,0,.018,.003,.05);partM(g,FLYGEO.box,c,-.05,.01,0,.016,.016,.002);
+    g.userData.prop=partM(g,FLYGEO.box,FLY.dark,.053,0,0,.002,.034,.004)}
+  else if(kind==='fighter'){partM(g,FLYGEO.fus,FLY_GREY,0,0,0,.13,.014,.014);partM(g,FLYGEO.nose,FLY_GREY,.065,0,0,.03,.012,.012);partM(g,FLYGEO.nose,FLY.glass,.03,.008,0,.03,.008,.008);
+    for(const s of [-1,1]){const w=partM(g,FLYGEO.box,FLY_GREY,-.005,0,s*.032,.045,.002,.06);w.rotation.y=s*.45}partM(g,FLYGEO.box,FLY_GREY,-.058,.012,0,.02,.022,.002);
+    partM(g,FLYGEO.box,c,-.01,.0075,0,.06,.002,.004);partM(g,FLYGEO.fus,FLY.dark,-.068,0,0,.012,.01,.01)}
+  else if(kind==='bomber'){partM(g,FLYGEO.fus,FLY_OLIVE,0,0,0,.2,.022,.022);partM(g,FLYGEO.nose,FLY.glass,.1,0,0,.03,.02,.02);partM(g,FLYGEO.box,FLY_OLIVE,.01,0,0,.05,.004,.26);
+    for(const s of [-.09,-.045,.045,.09])partM(g,FLYGEO.fus,FLY.dark,.03,-.008,s,.04,.012,.012);partM(g,FLYGEO.box,FLY_OLIVE,-.09,.004,0,.026,.003,.09);partM(g,FLYGEO.box,c,-.095,.018,0,.024,.03,.003)}
+  else{partM(g,FLYGEO.box,FLY.white,0,0,0,.05,.01,.012);for(const s of [-1,1])partM(g,FLYGEO.box,FLY.white,-.005,0,s*.03,.02,.003,.05);partM(g,FLYGEO.box,FLY.glow,.026,0,0,.004,.004,.008);partM(g,FLYGEO.box,c,-.02,.006,0,.012,.008,.002)}
+  g.scale.setScalar(1.7);scene.add(g);return g}
+let warPlanes=[],warPlaneT=0;
+function warTarget(A,B){const f=B.front&&B.front.length?B.front[(rng()*B.front.length)|0]:-1;if(f>=0&&owner[f]===B.id)return f;const sc=B.cities.find(c=>c.siege>0&&c.besiegedBy===A.id)||B.cities[(rng()*B.cities.length)|0];return sc?sc.y*W+sc.x:-1}
+function updateWarPlanes(dt,k){
+  warPlaneT-=dt*(k>0?1:0);
+  if(k>0&&warPlaneT<=0&&warPlanes.length<16){warPlaneT=1.2;const pairs=[];for(const A of nations)if(A.alive&&A.era>=5)for(const b of A.wars){const B=nations[b];if(B&&B.alive)pairs.push([A,B])}
+    if(pairs.length){warPlaneT=1.6/Math.min(3,1+pairs.length*.3);const [A,B]=pairs[(rng()*pairs.length)|0],ti=warTarget(A,B);
+      if(ti>=0){const tx=wx(ti%W),tz=wz((ti/W)|0);let home=null,bd=1e9;for(const c of A.cities){const d=Math.hypot(wx(c.x)-tx,wz(c.y)-tz);if(d<bd){bd=d;home=c}}
+        if(home&&bd<26){const kind=A.era===5?'bi':A.era>=7?'drone':rng()<.6?'fighter':'bomber',hx=wx(home.x),hz=wz(home.y);
+          warPlanes.push({g:makeWarPlane(A,kind),kind,n:A.id,foe:B.id,x:hx,z:hz,y:groundY(hx,hz)+.3,tx,tz,ti,hx,hz,ph:'out',t:0,ang:Math.atan2(tz-hz,tx-hx),hp:1,drop:0,spd:kind==='bi'?.55:kind==='bomber'?.75:kind==='drone'?.9:1.3})}}}}
+  for(let q=warPlanes.length-1;q>=0;q--){const p=warPlanes[q],s=dt*(k>0?Math.min(2.2,.8+k*.25):0);p.t+=s;
+    const gy=groundY(p.x,p.z),alt=p.kind==='bomber'?1.1:p.kind==='bi'?.6:.85;
+    if(p.ph==='fall'){p.y-=s*.9;p.x+=Math.cos(p.ang)*s*.4;p.z+=Math.sin(p.ang)*s*.4;p.g.rotation.x+=s*6;if(rng()<s*30)emit('dark',p.x,p.y,p.z);if(rng()<s*20)emit('fire',p.x,p.y,p.z);
+      if(p.y<=gy){for(let k2=0;k2<10;k2++){emit('fire',p.x,gy+.02,p.z);emit('dark',p.x,gy+.05,p.z)}if(Math.hypot(p.x-camT.x,p.z-camT.z)<camDist*.8)sfx('cannon');disposeGroup(p.g);warPlanes.splice(q,1)}
+      else p.g.position.set(p.x,p.y,p.z);continue}
+    let gx=p.tx,gz=p.tz;
+    if(p.ph==='strike'){const a=p.t*1.6;gx=p.tx+Math.cos(a)*.45;gz=p.tz+Math.sin(a)*.45;
+      if(p.kind!=='fighter'){p.drop-=s;if(p.drop<=0){p.drop=p.kind==='bomber'?.35:.6;const bx=p.tx+(rng()-.5)*.6,bz=p.tz+(rng()-.5)*.6,by=groundY(bx,bz);
+        for(let k2=0;k2<4;k2++)emit('fire',bx,by+.02,bz);emit('dark',bx,by+.06,bz);emit('flash',bx,by+.05,bz);if(Math.hypot(bx-camT.x,bz-camT.z)<camDist*.7)sfx('cannon')}}
+      /* dogfights: fighters hunt enemy planes nearby, and one of them goes down */
+      for(const o of warPlanes){if(o===p||o.ph==='fall'||o.n!==p.foe)continue;const d=Math.hypot(o.x-p.x,o.z-p.z);if(d<1.4&&(p.kind==='fighter'||p.kind==='bi')){gx=o.x;gz=o.z;if(d<.35&&rng()<s*.5){(rng()<.5?o:p).ph='fall'}break}}
+      if(p.t>(p.kind==='fighter'?7:5))p.ph='home'}
+    if(p.ph==='home'){gx=p.hx;gz=p.hz}
+    const want=Math.atan2(gz-p.z,gx-p.x);let da=((want-p.ang+9.42)%6.283)-3.14;p.ang+=clamp(da,-s*2.4,s*2.4);
+    p.x+=Math.cos(p.ang)*p.spd*s;p.z+=Math.sin(p.ang)*p.spd*s;p.y+=(gy+alt-p.y)*Math.min(1,s*1.5);
+    const dg=Math.hypot(gx-p.x,gz-p.z);if(p.ph==='out'&&dg<.5){p.ph='strike';p.t=0}if(p.ph==='home'&&dg<.3){disposeGroup(p.g);warPlanes.splice(q,1);continue}
+    const A=nations[p.n],B=nations[p.foe];if(p.ph!=='home'&&(!A||!A.alive||!B||!B.alive||!A.wars.has(B.id)))p.ph='home';
+    p.g.position.set(p.x,p.y,p.z);p.g.rotation.order='YXZ';p.g.rotation.y=-p.ang;p.g.rotation.z=0;p.g.rotation.x=clamp(-da*1.2,-.7,.7);
+    if(p.g.userData.prop)p.g.userData.prop.rotation.x+=s*60;if(k>0&&p.kind!=='bi'&&rng()<dt*10)emit('trail',p.x-Math.cos(p.ang)*.1,p.y,p.z-Math.sin(p.ang)*.1,0,0)}}
+function updateFlights(dt,k){updateWarPlanes(dt,k);
   flyT-=dt*(k>0?1:0);if(k>0&&flyT<=0&&airports.length&&flights.length<12){flyT=2.5+rng()*3;const a=airports[(rng()*airports.length)|0],b=planeDest(a),n=nations[a.nid];
     if(b&&n&&n.alive){const fut=n.era>=7;const f={g:makePlane(n.color,fut),x0:a.ax,z0:a.az,y0:a.y+.02,x1:b.bx,z1:b.bz,y1:(b.y||a.y)+.02,land:!b.far,t:0,alt:1.1+rng()*.5};
       f.len=Math.hypot(f.x1-f.x0,f.z1-f.z0)+1;flights.push(f)}}
