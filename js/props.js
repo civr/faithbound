@@ -195,7 +195,7 @@ kit('palm',palmGeo(5),treeMat,8000);
 kit('bush',bushGeo(3),treeMat,24000);
 kit('rock',(()=>{const g=new THREE.DodecahedronGeometry(.5,0);g.translate(0,.25,0);return g})(),stdMat({roughness:1}),6000);
 kit('fence',unitBox(),MAT.plain,30000,false);kit('lamp',unitBox(),MAT.lamp,4000,false);kit('awning',gableGeo(),MAT.awning,8000);
-kit('plazaStone',unitCyl(24),MAT.plaza,400,false);kit('plazaDirt',unitCyl(18),MAT.dirtPlaza,400,false);kit('pool',unitCyl(16),MAT.water,5000,false);
+kit('plazaStone',unitCyl(24),MAT.plaza,400,false);kit('plazaDirt',unitCyl(18),MAT.dirtPlaza,400,false);kit('pool',unitCyl(16),inlandWaterMat(false),5000,false);
 kit('townTree',leafTree(23,'broad'),treeMat,16000);
 kit('boat',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,6,1,false,0,Math.PI);g.rotateZ(Math.PI);g.rotateY(Math.PI/2);g.scale(1,.6,1);return g})(),MAT.plain,400);
 kit('tuft',unitCone(4),stdMat({roughness:1}),16000,false);kit('flower',new THREE.SphereGeometry(.5,5,3),MAT.plain,8000,false);
@@ -212,7 +212,7 @@ let REC=null;
 /* place relative to a rotated frame */
 function P(name,cx,cy,cz,rot,dx,dz,dy,sx,sy,sz,hex,extraRot){const c=Math.cos(rot),s=Math.sin(rot);add(name,cx+dx*c+dz*s,cy+dy,cz-dx*s+dz*c,sx,sy,sz,rot+(extraRot||0),hex)}
 const BUILD_KITS=['adobe','adobeCyl','hipTile','domeW','hipThatch','timber','bed','hay','plaster','stone','brick','thatch','tiles','coneThatch','coneTile','pyr','tower','office','glass','dome','box','cyl','ring','flame','fence','lamp','awning','plazaStone','plazaDirt','pool','townTree','boat'];
-kit('puddle',unitCyl(12),new THREE.MeshLambertMaterial({color:new THREE.Color(0x46707c).convertSRGBToLinear()}),6000,false);kit('reed',unitCone(4),stdMat({roughness:1}),12000,false);
+kit('puddle',unitCyl(14),inlandWaterMat(false),6000,false);kit('reed',unitCone(4),stdMat({roughness:1}),12000,false);
 kit('hedge',unitBox(),stdMat({roughness:1}),20000,false);kit('farmW',unitBox(),MAT.plain,3000);kit('farmR',gableGeo(),MAT.plain,3000);
 const TREE_KITS=['conifer','broad','palm','bush','rock','tuft','flower','puddle','reed','hedge','farmW','farmR'];
 /* the countryside: hedgerows, dry-stone walls or fences round the fields, and a farmstead with a barn here and there */
@@ -253,6 +253,7 @@ function house(x,y,z,rot,w,d,hh,wall,wallTint,roof,roofTint,chim,o){
   else{add(wall,x,y-.02,z,w,hh+.02,d,rot,wallTint);if(wall==='plaster')framing(x,y,z,rot,w,d,hh,floors)}
   const rh=roof==='thatch'?.85:AR().roofH*(gableFront?1.25:1);
   if(gableFront)P(roof,x,y+hh,z,rot,0,0,0,d*1.2,hh*rh,w*1.1,roofTint,Math.PI/2);else P(roof,x,y+hh,z,rot,0,0,0,w*1.12,hh*rh,d*1.25,roofTint);
+  if(roof!=='thatch'){eaves(x,y+hh,z,rot,w*(gableFront?1.08:1.1),d*(gableFront?1.17:1.22));if(hh>.07&&hk>.4)P('cyl',x,y-.02,z,rot,w/2+.002,d/2+.002,0,.0035,hh+.02,.0035,0x5a5a58)}
   if(gableFront&&hk>.7){/* a dormer looking onto the street */P(wall,x,y+hh,z,rot,0,d*.25,0,.03,.022,.025,wallTint);P(roof,x,y+hh+.022,z,rot,0,d*.25,0,.034,.014,.03,roofTint,Math.PI/2);P('box',x,y+hh,z,rot,0,d*.25+.0128,.006,.014,.012,.002,0x1d232a)}
   facade(x,y,z,rot,w*(floors===2?1.04:1),d*(floors===2?1.06:1),hh,hk,floors);
   if(chim)chimney(x,y+hh*.6,z,rot,w,d,y+hh+hh*rh*.9,hk,hash(hk*23)<.35);
@@ -279,7 +280,7 @@ function cultureLandmark(n,x,y,z,e,nc){const cu=cultOf(n);if(e<1||e>4)return fal
 /* a great castle: moat, curtain wall with battlements, round towers, a gatehouse, a tall keep, a hall and a chapel */
 function crenel(x,y,z,len,rot,col){const k=Math.max(2,Math.round(len/.026)),c=Math.cos(rot),s=Math.sin(rot);for(let i=0;i<k;i+=2){const t=(i+.5)/k-.5;add('stone',x+t*len*c,y,z-t*len*s,len/k*.9,.014,.026,rot,col)}}
 function castle(n,x,y,z,e,nc){const S=.42,WH=.15,T=.032,col=0xd4cdbe,roof=e>=4?0x4a5560:ROOF_SLATE[0];
-  if(typeof bareRect==='function')bareRect(x,z,0,S*3.1,S*3.1);add('moat',x,y-.008,z,S*2.95,.014,S*2.95,0);/* the moat */
+  if(typeof bareRect==='function')bareRect(x,z,0,S*3.1,S*3.1);add('moat',x,y-.012,z,S*2.95,.02,S*2.95,0);/* the moat */
   add('stone',x,y-.035,z,S*2.15,.035,S*2.15,0,0xa8a090);/* the bailey ground */
   const sides=[[0,-S,S*2,0],[0,S,S*2,0],[-S,0,S*2,Math.PI/2],[S,0,S*2,Math.PI/2]];
   sides.forEach(([dx,dz,L,r],si)=>{if(si===1){/* the gate side: two halves and a gatehouse */for(const sd of [-1,1])add('stone',x+sd*S*.6,y-.03,z+dz,S*.8,WH+.03,T,0,col),crenel(x+sd*S*.6,y+WH,z+dz,S*.8,0,col);
@@ -352,15 +353,27 @@ function temple(f,x,y,z,e,rot){const fc=parseInt(f.color.slice(1),16);
 }
 /* the face of a house: door, framed windows with painted shutters, flower boxes, and windows on the sides */
 const SHUTTER=[0x3f6b4a,0x34557a,0x7a3b2c,0x5a4a3a,0x2f4f4f,0x8a6a2a];
-function facade(x,y,z,rot,w,d,hh,hk,floors,plain){const q=plain?0:hash(hk*71+5),sc=SHUTTER[(q*SHUTTER.length)|0],fr=0xe8dfcc,dz=d/2+.0012;
-  const dx=(q<.5?-1:1)*w*.22;P('box',x,y,z,rot,dx,dz,0,.017,.027,.003,0x3b2a1e);P('box',x,y,z,rot,dx,dz+.0006,.027,.021,.004,.003,fr);
-  const fh=hh/floors;
-  for(let f=0;f<floors;f++){const wy=fh*f+Math.min(fh*.42,.022),n=w>.115?3:2;
-    for(let k=0;k<n;k++){const wxp=-w*.36+k*w*.72/(n-1);if(f===0&&Math.abs(wxp-dx)<.02)continue;
-      P('box',x,y,z,rot,wxp,dz,wy,.016,.015,.002,fr);P('box',x,y,z,rot,wxp,dz+.0007,wy+.0015,.012,.012,.002,0x1d232a);
-      if(q>.25){P('box',x,y,z,rot,wxp-.0115,dz+.0004,wy,.006,.015,.002,sc);P('box',x,y,z,rot,wxp+.0115,dz+.0004,wy,.006,.015,.002,sc)}
-      if(f===0&&hash(hk*13+k)<.45){P('box',x,y,z,rot,wxp,dz+.003,wy-.006,.017,.004,.005,0x6a4a30);P('box',x,y,z,rot,wxp,dz+.003,wy-.002,.015,.003,.004,[0xd8504a,0xe8d84a,0xf2f2f2,0x9a6ad0][(hash(hk+k*3)*4)|0])}}
-    for(const sd of [-1,1])if(hash(hk*5+f+sd)<.7){P('box',x,y,z,rot+Math.PI/2,0,sd*(w/2+.0012),wy,.014,.014,.002,fr);P('box',x,y,z,rot+Math.PI/2,0,sd*(w/2+.0019),wy+.001,.011,.011,.002,0x1d232a)}}}
+const DOORS=[0x3b2a1e,0x5a3a22,0x2f4f4f,0x6a2a22,0x34557a,0x4a3a2a];
+function facade(x,y,z,rot,w,d,hh,hk,floors,plain){const q=plain?0:hash(hk*71+5),sc=SHUTTER[(q*SHUTTER.length)|0],fr=plain?0xd8cfbc:0xe8dfcc,dz=d/2+.0012,glass=0x202c38,sill=0xd8d2c4;
+  /* a stone footing round the house */
+  P('stone',x,y-.02,z,rot,0,0,0,w+.005,.027,d+.005,0xa8a094);
+  /* the door: a surround, a panelled door and a step */
+  const dx=(q<.5?-1:1)*w*.22,dc=DOORS[(hash(hk*37+2)*DOORS.length)|0];
+  P('box',x,y,z,rot,dx,dz-.0004,0,.024,.032,.003,fr);P('box',x,y,z,rot,dx,dz+.0006,.0,.017,.027,.003,dc);P('box',x,y,z,rot,dx,dz+.0012,.012,.013,.001,.002,0x18120c);
+  P('box',x,y-.006,z,rot,dx,dz+.004,0,.028,.0075,.008,0xb0a898);
+  const fh=hh/floors,gw=Math.min(.019,w*.17),gh=Math.min(.021,fh*.38);
+  const win=(rr,ox,oz,wy,full)=>{P('box',x,y,z,rr,ox,oz,wy-.0025,gw+.006,gh+.006,.002,fr);P('box',x,y,z,rr,ox,oz+.0007,wy,gw,gh,.002,glass);
+    if(full){P('box',x,y,z,rr,ox,oz+.0012,wy,.0016,gh,.0015,fr);P('box',x,y,z,rr,ox,oz+.0012,wy+gh*.55,gw,.0016,.0015,fr)}
+    P('box',x,y,z,rr,ox,oz+.002,wy-.0042,gw+.009,.0028,.006,sill)};
+  for(let f=0;f<floors;f++){const wy=fh*f+Math.min(fh*.4,.022),n=w>.115?3:2;
+    for(let k=0;k<n;k++){const wxp=-w*.36+k*w*.72/(n-1);if(f===0&&Math.abs(wxp-dx)<.024)continue;
+      win(rot,wxp,dz,wy,!plain);
+      if(q>.25){for(const sd of [-1,1])P('box',x,y,z,rot,wxp+sd*(gw*.5+.0055),dz+.0004,wy-.002,gw*.5,gh+.004,.002,sc)}
+      if(f===0&&hash(hk*13+k)<.45){P('box',x,y,z,rot,wxp,dz+.004,wy-.008,.019,.0045,.006,0x6a4a30);P('box',x,y,z,rot,wxp,dz+.004,wy-.0035,.017,.0035,.005,[0xd8504a,0xe8d84a,0xf2f2f2,0x9a6ad0][(hash(hk+k*3)*4)|0])}}
+    for(const sd of [-1,1])if(hash(hk*5+f+sd)<.7)win(rot+Math.PI/2,0,sd*(w/2+.0012),wy,!plain)}}
+/* the underside of the roof: a dark band where it overhangs the walls, so the roof reads as a solid slab with eaves */
+function eaves(x,y,z,rot,w,d){P('box',x,y-.005,z,rot,0,0,0,w,.006,d,0x2e2620)}
+const shadeHex=(h,f)=>((Math.min(255,((h>>16)&255)*f)|0)<<16)|((Math.min(255,((h>>8)&255)*f)|0)<<8)|(Math.min(255,(h&255)*f)|0);
 /* timber framing on plaster walls: corner posts, floor beams and braces */
 function framing(x,y,z,rot,w,d,hh,floors){const c=0x3a2a1c;
   for(const sx of [-1,1])for(const sz of [-1,1])P('box',x,y-.01,z,rot,sx*(w/2-.002),sz*(d/2-.002),0,.005,hh+.01,.005,c);
@@ -394,6 +407,7 @@ const PASTEL=[0xe8a8a0,0x9ec8e0,0xf0d070,0xa8d8a0,0xf0c090,0xe8e0f0];
 function flatHouse(x,y,z,rot,w,d,hh,col,hk,opt){/* flat-roofed house: parapet, small windows, sometimes a dome or a wind tower */
   add('adobe',x,y-.02,z,w,hh+.02,d,rot,col);const pc=col;
   for(const [dx,dz,sx,sz] of [[0,d/2-.003,w,.006],[0,-d/2+.003,w,.006],[w/2-.003,0,.006,d],[-w/2+.003,0,.006,d]])P('adobe',x,y+hh,z,rot,dx,dz,0,sx,.008,sz,pc);
+  P('adobe',x,y+hh-.005,z,rot,0,0,0,w+.007,.005,d+.007,shadeHex(pc,.86));
   facade(x,y,z,rot,w,d,hh,hk,hh>.07?2:1,true);
   if(opt&&opt.beams)for(let k=0;k<4;k++)for(const sd of [-1,1])P('box',x,y,z,rot,-w*.4+k*w*.27,sd*(d/2+.004),hh*(.35+.4*(k%2)),.003,.003,.01,0x4a3826);
   if(opt&&opt.dome)add('domeW',x,y+hh,z,w*.5,w*.38,w*.5,0,opt.dome);
@@ -411,14 +425,14 @@ function cultureDwelling(cu,n,x,y,z,rot,e,hk,k,core){const o=hash(hk*97+1),pick=
   if(cu==='med'){
     if(e===0)return false;
     const col=e<=2?pick([0xd8c49a,0xe6d6b4]):pick([0xf6f2ea,0xf2eee6,0xe8c890,0xf0d8b0,0xe0b080]),h=.045+(e>=3?core*.045:0);
-    flatHouse(x,y,z,rot,.1,.085,h,col,hk,{});if(o<.7)P('hipTile',x,y+h,z,rot,0,0,0,.12,.03,.105,pick([0xc0603a,0xb85a36,0xa85030]));
+    flatHouse(x,y,z,rot,.1,.085,h,col,hk,{});if(o<.7){P('hipTile',x,y+h,z,rot,0,0,0,.12,.03,.105,pick([0xc0603a,0xb85a36,0xa85030]));eaves(x,y+h,z,rot,.116,.101)}
     if(e>=3&&o>.5)facade(x,y,z,rot,.1,.085,h,hk,h>.07?2:1,false);return true}
   if(cu==='nordic'){
     if(e===0||e>=5)return false;
     if(e<=2||core<.3){add('timber',x,y-.02,z,.15,.052,.065,rot,pick([0xc8b8a8,0xb0a090,0xd0c4b4]));P('hipThatch',x,y+.03,z,rot,0,0,0,.18,.06,.1,pick([0x8aa860,0x7a9850,0x98b070]));
       facade(x,y,z,rot,.15,.065,.032,hk,1,true);return true}
     add('plaster',x,y-.02,z,.1,.075,.08,rot,pick([0xb04a3a,0xa84434,0xd8b050,0xf0ece4,0x8aa0b8]));framing(x,y,z,rot,.1,.08,.055,1);
-    P('tiles',x,y+.055,z,rot,0,0,0,.115,.05,.095,0x3e3e42);facade(x,y,z,rot,.1,.08,.055,hk,1);chimney(x,y+.03,z,rot,.1,.08,y+.1,hk,o<.4);return true}
+    P('tiles',x,y+.055,z,rot,0,0,0,.115,.05,.095,0x3e3e42);eaves(x,y+.055,z,rot,.112,.092);facade(x,y,z,rot,.1,.08,.055,hk,1);chimney(x,y+.03,z,rot,.1,.08,y+.1,hk,o<.4);return true}
   if(cu==='east'){
     if(e===0)return false;
     const h=.04+(e>=3?core*.03:0),col=pick([0xf2eee6,0xe8dcc8,0xd8c8b0]);
@@ -431,7 +445,7 @@ function cultureDwelling(cu,n,x,y,z,rot,e,hk,k,core){const o=hash(hk*97+1),pick=
     if(e===0)return false;
     if(e<=3){const col=pick([0xd8c8a8,0xc8b490,0xe0d4bc]);if(o<.5){flatHouse(x,y,z,rot,.095,.08,.042,col,hk,{beams:o<.2})}
       else{add('adobe',x,y-.02,z,.09,.04,.075,rot,col);P('hipThatch',x,y+.036,z,rot,0,0,0,.12,.07,.105,0xc8b890);facade(x,y,z,rot,.09,.075,.038,hk,1,true)}return true}
-    const h=.045+core*.04,col=pick(PASTEL);add('adobe',x,y-.02,z,.1,h+.02,.085,rot,col);P('hipTile',x,y+h,z,rot,0,0,0,.118,.028,.1,0xb85a36);
+    const h=.045+core*.04,col=pick(PASTEL);add('adobe',x,y-.02,z,.1,h+.02,.085,rot,col);P('hipTile',x,y+h,z,rot,0,0,0,.118,.028,.1,0xb85a36);eaves(x,y+h,z,rot,.114,.097);
     facade(x,y,z,rot,.1,.085,h,hk,h>.07?2:1);if(o>.6)P('box',x,y,z,rot,0,.047,h*.62,.07,.004,.012,0x5a3a26);return true}
   return false}
 function dwelling(n,x,y,z,rot,e,hk,k,core){core=core||0;
@@ -475,7 +489,7 @@ const AR=()=>ARCH[settings.arch]||ARCH.classic;
 const AWN=[0xc0392b,0xe0b030,0x2e6fb0,0x3f8f4a,0xe8e2d4,0x9b4fa0];
 /* street life for towns near the camera: avenue trees, lamps, road markings, café terraces and gardens */
 kit('smog',new THREE.SphereGeometry(.5,14,7),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.2,depthWrite:false,fog:true}),300,false);KITS.smog.mesh.renderOrder=2;BUILD_KITS.push('smog');
-kit('moat',unitCyl(28),new THREE.MeshLambertMaterial({color:new THREE.Color(0x3d7488).convertSRGBToLinear()}),400,false);BUILD_KITS.push('moat');
+kit('moat',unitCyl(28),inlandWaterMat('moat'),400,false);BUILD_KITS.push('moat');
 kit('parasol',unitCone(6),MAT.plain,3000);kit('bloom',new THREE.SphereGeometry(.5,5,3),MAT.plain,20000,false);BUILD_KITS.push('parasol','bloom');
 const HOME_WALL=[0xf0e0c8,0xe8c4bc,0xd8dde2,0xf2ead6,0xe2c9a4,0xc8d8c8,0xf4d6a0],BLOOMS=[0xe8506a,0xf2c040,0xf4f0f0,0xb070d0,0xe87a3a];
 function streetLife(n,c,plan,e,cx,cy,cz,cap,i0,reach){if(e<4)return;let trees=0,lamps=0;const TMAX=cap?520:260;
@@ -576,7 +590,7 @@ function updateGrass(now){grassU.uTime.value=now/1000;
 /* herds wander slowly; birds circle */
 let flocks=[];
 function updateLife(dt,now){
-  TX.river.offset.y=-now/1000*.35;updateGrass(now);
+  TX.river.offset.y=-now/1000*.35;INWU.uTime.value=now/1000;updateGrass(now);
   kitReset(['animal','bird']);
   for(const h of herds){for(let k=0;k<h.n;k++){const s=h.seed*13+k,t=now/1000*.06+hash(s)*20,x=h.x+Math.cos(t+k)*.08*hash(s+1)+(hash(s+2)-.5)*.14,z=h.z+Math.sin(t*.8+k)*.08*hash(s+3)+(hash(s+4)-.5)*.14,y=groundY(x,z),rot=t+k;
     if(h.kind==='sheep'){add('animal',x,y,z,.026,.02,.038,rot,0xf2efe6);add('animal',x+Math.sin(rot)*.022,y+.012,z+Math.cos(rot)*.022,.012,.012,.014,rot,0x2a2622)}
@@ -847,7 +861,29 @@ function rebuildFields(){
 }
 TX.river=canvasTex(64,(x,s)=>{x.fillStyle='#ffffff';x.fillRect(0,0,s,s);for(let i=0;i<40;i++){x.strokeStyle=`rgba(255,255,255,${.3+trand()*.4})`;x.fillStyle='rgba(180,210,230,.35)';const px=trand()*s,py=trand()*s;x.fillRect(px,py,2+trand()*10,1.5)}});
 TX.river.encoding=THREE.sRGBEncoding;
-const riverMat=new THREE.MeshStandardMaterial({map:TX.river,color:colL(0x3f86ad),roughness:.1,metalness:.05,transparent:true,opacity:.9,envMapIntensity:1.2});
+/* inland water: rivers, ponds, marsh pools and moats share one shader. Deep and dark in the middle, muddy and clear at the banks,
+   soft edges that melt into the ground, rippling normals that move with the current, and a glossy surface that picks up the sky */
+const INWU={uTime:{value:0}};
+function inlandWaterMat(kind){const river=kind===true||kind==='river',moat=kind==='moat';const m=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.2,metalness:0,transparent:true,depthWrite:false,envMapIntensity:.5});
+  m.onBeforeCompile=sh=>{sh.uniforms.uTime=INWU.uTime;sh.uniforms.uWave={value:WAVE_TEX};
+    sh.vertexShader='varying vec2 vIU,vIL;varying vec3 vIW;varying float vIY;\n'+sh.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\n  vIU=uv;vIY=normal.y;vIL=position.xz*2.;').replace('#include <worldpos_vertex>',`#include <worldpos_vertex>
+    {vec4 tw=vec4(transformed,1.);
+    #ifdef USE_INSTANCING
+    tw=instanceMatrix*tw;
+    #endif
+    vIW=(modelMatrix*tw).xyz;}`);
+    sh.fragmentShader='uniform float uTime;uniform sampler2D uWave;varying vec2 vIU,vIL;varying vec3 vIW;varying float vIY;float iwDepth;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+    ${river?'float acr=abs(vIU.x-.5)*2.;iwDepth=1.-acr*acr;':moat?'float rr=length(vIL);iwDepth=clamp(1.-abs(rr-.87)/.14,0.,1.);':'float rr=length(vIL);iwDepth=clamp(1.-rr,0.,1.);'}
+    vec2 fp=${river?'vec2(vIU.x*.35,vIU.y*.22-uTime*.12)':'vIW.xz*.9+vec2(uTime*.012,uTime*.008)'};
+    float wh=texture2D(uWave,fp).a*.6+texture2D(uWave,vIW.xz*2.1-vec2(uTime*.03,-uTime*.02)).a*.4;
+    vec3 bank=vec3(.11,.12,.075),mid=vec3(.025,.065,.075),deep=vec3(.012,.035,.05);
+    vec3 wc=mix(bank,mid,smoothstep(.0,.55,iwDepth));wc=mix(wc,deep,smoothstep(.55,1.,iwDepth)*.8);wc*=.9+wh*.22;
+    ${river?'float rip=smoothstep(.8,.96,wh)*(1.-smoothstep(.0,.5,iwDepth))*.3+smoothstep(.9,.98,wh)*.08;wc=mix(wc,vec3(.6,.66,.66),rip);':''}
+    diffuseColor.rgb=wc;diffuseColor.a=smoothstep(0.,.38,iwDepth)*.94${river?'':'*step(.5,vIY)'};`).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+    {vec3 n1=texture2D(uWave,${river?'vec2(vIU.x*.35,vIU.y*.22-uTime*.12)':'vIW.xz*.9+vec2(uTime*.012,uTime*.008)'}).xyz*2.-1.,n2=texture2D(uWave,vIW.xz*2.1-vec2(uTime*.03,-uTime*.02)).xyz*2.-1.;
+     vec3 wn=normalize(vec3((n1.x+n2.x*.6)*.28,1.,(n1.y+n2.y*.6)*.28));normal=normalize(mix(normal,(viewMatrix*vec4(wn,0.)).xyz,.9));}`)};
+  m.customProgramCacheKey=()=>'inland-'+(river?'river':moat?'moat':'pond');return m}
+const riverMat=inlandWaterMat(true),pondMat=inlandWaterMat(false);
 let riverMesh=null;
 function chaikin(p,it){for(let k=0;k<it;k++){const o=[p[0]];for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1];o.push([a[0]*.75+b[0]*.25,a[1]*.75+b[1]*.25,a[2]*.75+b[2]*.25],[a[0]*.25+b[0]*.75,a[1]*.25+b[1]*.75,a[2]*.25+b[2]*.75])}o.push(p[p.length-1]);p=o}return p}
 function brooks(){const out=[],src=[];for(let i=0;i<N;i++){if(isWater(i)||river[i]||biome[i]>=11)continue;const a=h[i]-sea,m=baseMoist[i]+moistD[i];if(a<.04||a>.34||m<.4||hash(i*9.13)>.07)continue;src.push(i)}
@@ -934,7 +970,7 @@ function rebuildTrees(){
   const near=new Float32Array(N).fill(1);for(const n of nations)if(n.alive)for(const c of n.cities)for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);near[Y*W+X]=Math.min(near[Y*W+X],.5+smooth(1,3.2,d)*.5)}
   for(let i=0;i<N;i++){const b=biome[i];if(occupied.has(i)||fieldTiles.has(i)||farm.has(i)||(scorched&&scorched[i]>0)||fires.has(i))continue;
     const x0=i%W-W/2,z0=((i/W)|0)-H/2,lat=1-Math.abs(((i/W)|0)/(H-1)-.5)*2;let n=0,type='broad';
-    if(marshAt(i)){/* a marsh: pools of standing water, reeds and a few willows */for(let t=0;t<4;t++){const x=x0+.1+hash(i*2.3+t)*.8,z=z0+.1+hash(i*5.1+t)*.8,y=groundY(x,z);if(y<waterY+.01)continue;const s=.12+hash(i+t*9)*.22;add('puddle',x,y-.004,z,s,.006,s*.7,hash(i*t+1)*6)}
+    if(marshAt(i)){/* a marsh: pools of standing water, reeds and a few willows */for(let t=0;t<4;t++){const x=x0+.1+hash(i*2.3+t)*.8,z=z0+.1+hash(i*5.1+t)*.8,y=groundY(x,z);if(y<waterY+.01)continue;const s=.12+hash(i+t*9)*.22;let lo=y,hi=y;for(let q=0;q<4;q++){const a=q*1.571,g=groundY(x+Math.cos(a)*s*.45,z+Math.sin(a)*s*.32);lo=Math.min(lo,g);hi=Math.max(hi,g)}if(hi-lo>.03)continue;add('puddle',x,lo-.004,z,s,hi-lo+.0055,s*.7,hash(i*t+1)*6)}
       for(let t=0;t<16;t++){const x=x0+hash(i*3.7+t)*.98,z=z0+hash(i*6.3+t*2)*.98,y=groundY(x,z);if(y<waterY+.01)continue;add('reed',x,y-.003,z,.008,.05+hash(i*t+3)*.04,.008,0,hash(i+t)<.5?0x6a7a3a:0x8a7a48)}
       if(hash(i*4.4)<.5){const x=x0+.5,z=z0+.5,y=groundY(x,z);if(y>waterY+.02)add('broad',x,y-.01,z,.55,.6,.55,hash(i)*6,0x5f7a3a)}continue}
     if(b===5){n=19;type=lat<.45||climate.temp<.4?'conifer':'mix'}else if(b===6){n=10;type='jungle'}else if(b===4){n=hash(i*1.3)<.4?3:0;type='broad'}
@@ -980,8 +1016,12 @@ const CLOTH=[
 const limbGeo=(w,l,d)=>{const g=new THREE.BoxGeometry(w,l,d);g.translate(0,-l/2,0);return g};
 const upGeo=g=>{g.computeBoundingBox();g.translate(0,-g.boundingBox.min.y,0);return g};
 const figMat=stdMat({roughness:.8});
-kit('pLeg',limbGeo(1,1,1),figMat,5200,false);kit('pArm',limbGeo(1,1,1),figMat,5200,false);
-kit('pTorso',upGeo(new THREE.CylinderGeometry(.42,.5,1,8)),figMat,2600,false);
+const limbCyl=(t,b)=>{const g=new THREE.CylinderGeometry(t,b,1,7);g.translate(0,-.5,0);return g};
+kit('pLeg',limbCyl(.5,.42),figMat,5200,false);kit('pArm',limbCyl(.5,.4),figMat,5200,false);kit('pShin',limbCyl(.44,.36),figMat,5200,false);
+kit('pShoe',(()=>{const g=new THREE.SphereGeometry(.5,7,4,0,Math.PI*2,0,Math.PI/2);g.translate(0,0,.12);return g})(),figMat,5200,false);
+kit('pHand',new THREE.SphereGeometry(.5,6,4),figMat,5200,false);
+/* a torso with hips, a waist, a chest and rounded shoulders */
+kit('pTorso',new THREE.LatheGeometry([[0,0],[.46,0],[.47,.16],[.41,.44],[.47,.68],[.5,.8],[.42,.95],[.2,1.02],[0,1.03]].map(p=>new THREE.Vector2(p[0],p[1])),10),figMat,2600,false);
 kit('pHead',new THREE.SphereGeometry(.5,10,8),figMat,2600,false);
 kit('pHair',new THREE.SphereGeometry(.5,10,6,0,Math.PI*2,0,Math.PI*.55),figMat,2600,false);
 kit('pSkirt',(()=>{const g=new THREE.CylinderGeometry(.35,.62,1,10,1,true);g.translate(0,-.5,0);return g})(),stdMat({roughness:.85,side:THREE.DoubleSide}),1200,false);
@@ -989,7 +1029,7 @@ kit('pCone',upGeo(new THREE.ConeGeometry(.5,1,10)),figMat,2600,false);kit('pBrim
 kit('pTri',upGeo(new THREE.ConeGeometry(.5,1,3)),figMat,600,false);
 kit('pStick',limbGeo(1,1,1),figMat,2600,false);kit('pPack',new THREE.BoxGeometry(1,1,1),figMat,2600,false);
 kit('pShield',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,12);g.rotateZ(Math.PI/2);return g})(),figMat,1800,false);
-const FIG_KITS=['pLeg','pArm','pTorso','pHead','pHair','pSkirt','pCone','pBrim','pTri','pStick','pPack','pShield'];
+const FIG_KITS=['pLeg','pArm','pShin','pShoe','pHand','pTorso','pHead','pHair','pSkirt','pCone','pBrim','pTri','pStick','pPack','pShield'];
 /* add with heading (ry) then a swing around the local x axis (rx) and a sideways lean (rz) */
 const dummyR=new THREE.Object3D();dummyR.rotation.order='YXZ';
 function addR(name,x,y,z,sx,sy,sz,ry,rx,rz,hex){const K=KITS[name];if(K.k>=K.max)return;
@@ -998,7 +1038,7 @@ function addR(name,x,y,z,sx,sy,sz,ry,rx,rz,hex){const K=KITS[name];if(K.k>=K.max
 function dressFolk(w,n){const e=n.era,C=CLOTH[e],r=mulberry32(w.seed),pk=a=>a[(r()*a.length)|0];
   w.fem=r()<.5;w.kid=r()<.14;w.skin=pk(SKIN);w.hair=e>=5&&r()<.15?0x9a9a96:pk(FHAIR);w.top=r()<.18?parseInt(n.color.slice(1),16):pk(C.top);w.bot=pk(C.bot);
   w.dress=w.fem&&(e<6||r()<.4)?pk(C.dress):0;w.hat=w.kid?null:pk(C.hat);w.hatCol=w.hat==='straw'?0xd8c078:w.hat==='hood'?w.top:w.hat==='visor'?0x9ad8e8:0x2a2420;
-  w.pack=!w.kid&&r()<(e<5?.3:.12)?(e<3?0x8a6a3a:e<6?0x9a7a4a:0x3a4a5a):0;w.tool=!w.kid&&!w.fem&&r()<.25&&e<5;w.long=w.fem&&r()<.6;w.era=e}
+  w.pack=!w.kid&&r()<(e<5?.3:.12)?(e<3?0x8a6a3a:e<6?0x9a7a4a:0x3a4a5a):0;w.shoe=e===0?w.skin:e>=7?0xd8dee4:pk([0x2a2018,0x3a2a1c,0x4a3424,0x1e1a18]);w.tool=!w.kid&&!w.fem&&r()<.25&&e<5;w.long=w.fem&&r()<.6;w.era=e}
 function soldierKit(w,n){const e=n.era,nc=parseInt(n.color.slice(1),16);w.top=e<=1?0x7a5a3a:e<=3?nc:e===4?nc:e===5?(r=>r)(0x5a5a3a):e===6?0x4a5a3a:0xd8dee4;
   w.bot=e===4?0xe8e0d0:e>=5&&e<7?0x4a4a3a:e===7?0xc8ced4:0x5a4630;w.dress=0;w.pack=e>=5?0x4a4a32:0;w.hat=e<=1?null:e<=3?'helm':e===4?'tricorn':e===7?'visor':'helm';w.hatCol=e<=3?0x9aa0a8:e===4?0x1a1a1a:e===7?0x9ad8e8:0x4a5038;w.kid=false;w.fem=false;w.uni=e}
 function cityPoint(c,near,fest){const P_=c._poi;if(!P_||!P_.pts.length){const a=rng()*6.28,r=.08+rng()*.25;return[wx(c.x)+Math.cos(a)*r,wz(c.y)+Math.sin(a)*r]}
@@ -1008,7 +1048,17 @@ function cityPoint(c,near,fest){const P_=c._poi;if(!P_||!P_.pts.length){const a=
 function fieldPoint(c){const cx=c.x,cy=c.y;for(let q=0;q<10;q++){const X=cx+((rng()*5)|0)-2,Y=cy+((rng()*5)|0)-2;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(fieldTiles.has(j))return[wx(X)+(rng()-.5)*.7,wz(Y)+(rng()-.5)*.7]}return null}
 function updateWalkers(dt,yrs){
   if(!settings.people){for(const k of FIG_KITS)KITS[k].mesh.count=0;return}
-  const cap=settings.quality==='high'?650:settings.quality==='medium'?380:180;
+  const cap=settings.quality==='high'?900:settings.quality==='medium'?550:250;
+  /* towns near the camera fill up with people: walkers far away move to the town you are looking at */
+  if(camDist<16&&(updateWalkers._t=(updateWalkers._t||0)-dt)<=0){updateWalkers._t=.4;const RR=(camDist*1.2+2)**2,loc=[];
+    for(const n of nations){if(!n.alive||n.era<1)continue;for(const c of n.cities){const ex=wx(c.x)-camT.x,ez=wz(c.y)-camT.z;if(ex*ex+ez*ez<RR)loc.push([n,c])}}
+    if(loc.length){const have=new Map();for(const w of walkers)have.set(w.ci,(have.get(w.ci)||0)+1);
+      for(const [n,c] of loc){const want=Math.min(90,Math.round(Math.sqrt(n.pop/Math.max(1,n.cities.length))*2.4*(settings.quality==='low'?.5:1)));let h=have.get(c)||0;
+        for(let q=0;q<8&&h<want;q++){let w=null;
+          if(walkers.length<cap){w={x:0,z:0,wait:rng()*2,sol:false,t:rng()*10,ph:rng()*6,dir:rng()*6.28,act:'idle',seed:(rng()*1e9)|0};walkers.push(w)}
+          else{for(let t=0;t<12;t++){const v=walkers[(rng()*walkers.length)|0];if(v.sol||loc.some(l=>l[1]===v.ci))continue;w=v;break}if(!w)break;const on=nations[w.nid];if(on)on._walk=(on._walk||1)-1}
+          const p=cityPoint(c);w.nid=n.id;w.ci=c;w.x=w.tx=p[0];w.z=w.tz=p[1];w.wait=rng()*2;w.moving=false;w.sheaf=false;dressFolk(w,n);n._walk=(n._walk||0)+1;h++}
+        have.set(c,h)}}}
   for(const n of nations){if(!n.alive||!n.cities.length)continue;
     const want=Math.min(80,Math.round(Math.sqrt(n.pop)*1.1)),have=n._walk||0;
     if(have<want&&walkers.length<cap&&rng()<.3){const c=n.cities[(rng()*n.cities.length)|0],p=cityPoint(c);
@@ -1053,9 +1103,12 @@ function drawFolk(w){
   else{arm=Math.sin(w.t*1.3)*.05}
   if(w.sol&&w.moving)armR=-.15;
   const legL=.0165*sc,hipY=legL+bob,hx=.0026*sc;
-  const lw=.0042*sc,ld=.0046*sc;
-  if(!w.dress||!w.long){addR('pLeg',...L(-hx,hipY,0),lw,legL,ld,ry,leg,0,w.bot);addR('pLeg',...L(hx,hipY,0),lw,legL,ld,ry,-leg,0,w.bot)}
-  else{addR('pLeg',...L(-hx,hipY*.25,0),lw*.9,hipY*.25,ld,ry,leg*.6,0,0x3a2a1a);addR('pLeg',...L(hx,hipY*.25,0),lw*.9,hipY*.25,ld,ry,-leg*.6,0,0x3a2a1a)}
+  const lw=.0044*sc,ld=.0048*sc,th=legL*.52,shn=legL*.5,sw=w.moving?1:0,legCol=w.dress&&w.long?0x3a2a1a:w.bot;
+  /* two-part legs: the knee bends as the foot swings forward, and the shoe follows */
+  for(const sd of [-1,1]){const a=sd<0?leg:-leg,kb=sw*Math.max(0,(sd<0?-1:1)*Math.cos(w.ph))*.85+bend*.5,a2=a+kb;
+    const ky=hipY-Math.cos(a)*th,kz=-Math.sin(a)*th,ay=ky-Math.cos(a2)*shn,az=kz-Math.sin(a2)*shn;
+    addR('pLeg',...L(sd*hx,hipY,0),lw,th+.0006,ld,ry,a,0,legCol);addR('pShin',...L(sd*hx,ky,kz),lw,shn,ld,ry,a2,0,legCol);
+    addR('pShoe',...L(sd*hx,Math.max(0,ay-.0008),az+.0008),lw*1.15,.0034*sc,.0072*sc,ry,0,0,w.shoe||0x2a2018)}
   const tl=.0125*sc,tw=.0105*sc,cb=Math.cos(bend),sb=Math.sin(bend);
   addR('pTorso',...L(0,hipY-.001,0),tw,tl+.001,tw*.62,ry,bend,lean,w.top);
   if(w.dress)addR('pSkirt',...L(0,hipY+.0015,sb*.002),tw*1.05,w.long?hipY-.001:hipY*.45,tw*.95,ry,bend*.3,0,w.dress);
@@ -1063,6 +1116,7 @@ function drawFolk(w){
   const sh=(f)=>L(0,hipY+cb*tl*f,sb*tl*f),shY=hipY+cb*tl*.9,shZ=sb*tl*.9,ax=tw*.6;
   const aL=.0122*sc,aw=.0034*sc;
   addR('pArm',...L(-ax,shY,shZ),aw,aL,aw,ry,arm-bend*.3,.06,w.top);addR('pArm',...L(ax,shY,shZ),aw,aL,aw,ry,(armR||-arm)-bend*.3,-.06,w.top);
+  for(const [sd,sa] of [[-1,arm],[1,armR||-arm]]){const a=sa-bend*.3;addR('pHand',...L(sd*ax*1.04,shY-Math.cos(a)*aL,shZ-Math.sin(a)*aL),aw*1.15,aw*1.25,aw*1.15,ry,0,0,w.skin)}
   const hr=.0092*sc,hp=L(0,hipY+cb*(tl+hr*.48),sb*(tl+hr*.48));
   addR('pHead',hp[0],hp[1],hp[2],hr*.92,hr,hr*.95,ry,0,0,w.skin);
   const hat=w.hat;
