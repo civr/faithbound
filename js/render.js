@@ -41,7 +41,7 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
         occ+=smoothstep(.001*d0,.008*d0,cr)*(1.-smoothstep(.06*d0,.14*d0,far));}
       c*=1.-uAO*clamp(occ/6.*1.1,0.,.5);}
     /* low mist that pools over water and in the valleys, thicker far away */
-    if(uMist>0.&&!sky0){vec3 wp=wpos(uv,d0);float above=max(0.,wp.y-uWaterY);float m=exp(-above*2.2)*(1.-exp(-d0*.035))*uMist;c=mix(c,uMistCol*1.08,clamp(m,0.,.55));}
+    if(uMist>0.&&!sky0){vec3 wp=wpos(uv,d0);float above=max(0.,wp.y-uWaterY);float m=exp(-above*5.)*(1.-exp(-d0*.035))*uMist;c=mix(c,uMistCol*1.04,clamp(m,0.,.38));}
     if(uTilt>0.){float b=uTilt*smoothstep(.08,.42,abs(uv.y-.5));if(b>.01){vec3 acc=c;float w=1.;for(int i=0;i<16;i++){float a=float(i)*2.39996,r=sqrt(float(i)+.5)/4.;vec2 o=vec2(cos(a),sin(a))*r*b*9.*uPx*px;acc+=fetch(uv+o);w+=1.;}c=acc/w;}}
     if(uBloom>0.){vec3 bl=vec3(0);for(int i=0;i<12;i++){float a=float(i)*2.39996,r=sqrt(float(i)+.5)/3.5;vec3 s=fetch(uv+vec2(cos(a),sin(a))*r*22.*uPx*px);bl+=max(s-vec3(.9),0.);}c+=bl/12.*uBloom*1.6;}
     vec3 col=srgb(aces(c));
@@ -303,7 +303,7 @@ function buildOcean(){const sh=new THREE.Shape();sh.moveTo(-1500,-1500);sh.lineT
   const g=new THREE.ShapeGeometry(sh);g.rotateX(-Math.PI/2);ocean.geometry.dispose();ocean.geometry=g}
 const waterSideMat=new THREE.MeshStandardMaterial({color:colL(0x1d5f86),transparent:true,opacity:.72,roughness:.2,depthWrite:false});
 const waterU={uTime:{value:0},uDeep:{value:colL(0x0f3f63)},uShallow:{value:colL(0x2f9bb0)},uWave:{value:WAVE_TEX}};
-const waterMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.14,metalness:0,transparent:true,envMapIntensity:1.1});
+const waterMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.16,metalness:0,transparent:true,envMapIntensity:.85});
 waterMat.onBeforeCompile=sh=>{
   Object.assign(sh.uniforms,waterU);
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float aDepth;attribute float aIce;varying float vDepth;varying float vIce;varying vec3 vWP;uniform float uTime;')
@@ -311,19 +311,22 @@ waterMat.onBeforeCompile=sh=>{
    .replace('#include <begin_vertex>','vec3 transformed=vec3(position);transformed.y+=(sin(wa)*.03+cos(wb)*.026)*(1.-aIce)*clamp(aDepth*2.,0.,1.);vDepth=aDepth;vIce=aIce;vWP=(modelMatrix*vec4(transformed,1.)).xyz;');
   sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uTime;uniform vec3 uDeep;uniform vec3 uShallow;uniform sampler2D uWave;varying float vDepth;varying float vIce;\n'+NOISE_GLSL)
    .replace('#include <color_fragment>',`#include <color_fragment>
-    float dd=clamp(vDepth/1.2,0.,1.);vec3 wc=mix(uShallow*1.08,uDeep,pow(dd,.6));
+    /* clear at the very edge, then quickly deeper and darker, so lakes and coasts are not milky */
+    float dd=clamp(vDepth/.8,0.,1.);vec3 wc=mix(uShallow*.95,uDeep,pow(dd,.5));
     vec4 w1=texture2D(uWave,vWP.xz*.32+vec2(uTime*.018,uTime*.011)),w2=texture2D(uWave,vWP.xz*.81-vec2(uTime*.024,-uTime*.017));float wh=w1.a*.6+w2.a*.4;
-    wc*=.92+wh*.16;
-    float edge=1.-smoothstep(0.,.035,vDepth);float surf=smoothstep(.72,.95,sin(vDepth*42.-uTime*1.6+wh*5.)*.5+.5)*(1.-smoothstep(.02,.2,vDepth));
-    float fo=clamp((edge*.9+surf*.6)*(.45+.75*smoothstep(.35,.7,wh+vn(vWP.xz*16.+uTime*.3)*.35)),0.,1.);
+    wc*=.95+wh*.09;
+    float edge=1.-smoothstep(0.,.022,vDepth);float surf=smoothstep(.8,.97,sin(vDepth*42.-uTime*1.6+wh*5.)*.5+.5)*(1.-smoothstep(.015,.09,vDepth));
+    /* a thin, broken line of foam at the shore instead of a white sheet over wide shallows */
+    float brk=smoothstep(.45,.75,vn(vWP.xz*9.+uTime*.25)*.7+wh*.5);
+    float fo=clamp((edge*.5*(.3+.7*brk)+surf*.4*brk)*(.5+.6*smoothstep(.35,.7,wh+vn(vWP.xz*16.+uTime*.3)*.35)),0.,.7);
     float caps=smoothstep(.83,.9,wh)*smoothstep(.6,1.,dd)*.35;
-    diffuseColor.rgb=mix(wc,vec3(.92,.96,.97),max(fo,caps));diffuseColor.a=mix(.55,.97,smoothstep(0.,.9,vDepth))+fo*.35;
+    diffuseColor.rgb=mix(wc,vec3(.92,.96,.97),max(fo,caps));diffuseColor.a=mix(.5,.97,smoothstep(0.,.3,vDepth))+fo*.35;
     float ic=vIce*(.85+.15*vn(vWP.xz*5.));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.86,.92,.97),ic);diffuseColor.a=max(diffuseColor.a,ic);`)
    .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.55,vIce);')
    .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
     {vec3 n1=texture2D(uWave,vWP.xz*.32+vec2(uTime*.018,uTime*.011)).xyz*2.-1.,n2=texture2D(uWave,vWP.xz*.81-vec2(uTime*.024,-uTime*.017)).xyz*2.-1.,n3=texture2D(uWave,vWP.xz*2.3+vec2(-uTime*.05,uTime*.04)).xyz*2.-1.;
      float camD=length(vWP-cameraPosition),k=(1.-vIce)*(.55+.45*(1.-smoothstep(10.,60.,camD)));
-     vec3 wn=normalize(vec3((n1.x+n2.x*.7+n3.x*.18)*k*.8,1.,(n1.y+n2.y*.7+n3.y*.18)*k*.8));normal=normalize(mix(normal,(viewMatrix*vec4(wn,0.)).xyz,.85));}`);
+     vec3 wn=normalize(vec3((n1.x+n2.x*.7+n3.x*.18)*k*.48,1.,(n1.y+n2.y*.7+n3.y*.18)*k*.48));normal=normalize(mix(normal,(viewMatrix*vec4(wn,0.)).xyz,.85));}`);
 };
 
 function layoutTerrain(){terrVer++;
