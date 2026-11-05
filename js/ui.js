@@ -47,6 +47,7 @@ const POWERS=[
   {id:'schism',tab:'Faith',label:'Schism',cost:35,icon:'split',hint:'Tap a nation. Its faith splits: that nation and its neighbours form a new branch with a holy city of their own. Brother faiths often go to war.'},
   {id:'curse',tab:'Faith',label:'Curse',cost:35,icon:'skull',hint:'Tap a nation. Sorrow falls on it: the people grow unhappy and their faith wavers. A people of another god may turn away from that god.'},
   {id:'crusade',tab:'Faith',label:'Holy war',cost:45,icon:'swords',hint:'Tap a nation of another faith. The strongest people of your faith nearby marches on it.'},
+  {id:'avatar',tab:'Faith',label:'Avatar',cost:0,icon:'sparkle',hint:'Tap the land. Your avatar walks there. Around it faith in you grows and miracles cost less.'},
   {id:'eclipse',tab:'Faith',label:'Eclipse',cost:25,icon:'eclipse',hint:'Tap anywhere. The sun goes dark: faithful nations pray, others panic, riot or go to war.'},
   {id:'reform',tab:'Rule',label:'Change rule',cost:30,icon:'crown',hint:'Tap a nation to choose its form of government.'},
   {id:'assassin',tab:'Rule',label:'Assassinate',cost:35,icon:'dagger',hint:'Tap a nation. Its ruler dies tonight. Without an heir, the throne is up for grabs.'},
@@ -77,6 +78,7 @@ const POWERS=[
   {id:'storm',tab:'Sky',label:'Thunderstorm',cost:20,icon:'bolt',hint:'Tap to summon a storm. Lightning can start fires and sink ships.'},
   {id:'hurricane',tab:'Sky',label:'Hurricane',cost:60,icon:'cyclone',hint:'Tap the sea or a coast. The hurricane drifts in and wrecks what it crosses.'},
   {id:'meteor',tab:'Sky',label:'Meteor',cost:60,icon:'meteor',hint:'Tap to strike. Leaves a crater and ruin.'},
+  {id:'cleanse',tab:'Sky',label:'Clean air',cost:50,icon:'rain',hint:'Tap anywhere. You breathe the smoke out of the sky and undo some of the warming the factories caused.'},
   {id:'climate',tab:'Sky',label:'Climate',cost:40,icon:'thermo',hint:'Tap anywhere, then choose a warmer or colder world. Sea level and snow lines shift.'}];
 Object.assign(ICON,{
   walk:'<circle cx="13" cy="4" r="2"/><path d="M9 21l2-6 3 3v3M11 15l1-5 3 3 3 1M12 10l-4 2-1 3"/>',
@@ -125,7 +127,7 @@ for(const p of POWERS)p.cost=costOf(p.cost);
 const myGod=()=>typeof coop!=='undefined'&&coop?(coop.running!=null?coop.running:coop.pid):0;
 const godOf=f=>faiths[f]?(faiths[f].god|0):0;
 let spendMul=1;
-function spend(c){c=Math.round(costOf(c)*spendMul);spendMul=1;if(unlimited)return true;if(belief<c){say(`Not enough belief. This needs ${c}, you have ${Math.floor(belief)}.`);return false}belief-=c;return true}
+function spend(c){c=Math.round(costOf(c)*spendMul*(typeof spendMulAvatar!=='undefined'?spendMulAvatar:1));spendMul=1;if(unlimited)return true;if(belief<c){say(`Not enough belief. This needs ${c}, you have ${Math.floor(belief)}.`);return false}belief-=c;return true}
 function fx(i,kind){const x=wx(i%W),z=wz((i/W)|0);effects.push({x,y:surfY(x,z),z,kind,t0:performance.now()})}
 function brush(i,r,fn){const x=i%W,y=(i/W)|0,R_=Math.ceil(r);for(let dy=-R_;dy<=R_;dy++)for(let dx=-R_;dx<=R_;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d<=r)fn(Y*W+X,d)}}
 function burst(i,kind,n,spread){const x=wx(i%W),z=wz((i/W)|0);for(let k=0;k<n;k++){const px=x+(rng()-.5)*spread,pz=z+(rng()-.5)*spread;emit(kind,px,surfY(px,pz)+.03,pz)}}
@@ -245,6 +247,7 @@ function renderNationCard(){
     ${wars.length?`<p class="note"><b style="color:#f0a196">Fighting:</b> ${esc(wars.join(', '))}</p>`:''}
     <div title="${esc(stTip)}"><div class="row" style="justify-content:space-between"><span class="lab">Stability · ${stabLabel(st)}</span><span class="lab">${sp.slice(0,2).map(p=>`${esc(p[0])} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join(' · ')}</span></div><div class="prog"><i style="width:${st*100}%;background:${stabColor(st)}"></i></div></div>
     ${(()=>{const hv=happyOf(n),hp=happyParts(n).sort((p,q)=>Math.abs(q[1])-Math.abs(p[1]));return `<div title="${esc(hp.map(p=>`${p[0]} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join('\n'))}"><div class="row" style="justify-content:space-between"><span class="lab">Happiness · ${happyLabel(hv)}</span><span class="lab">${hp.slice(0,2).map(p=>`${esc(p[0])} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join(' · ')}</span></div><div class="prog"><i style="width:${hv*100}%;background:${happyColor(hv)}"></i></div>${hv<.32?'<p class="note" style="color:#e8645a;margin:3px 0 0">The people are close to rising up.</p>':''}</div>`})()}
+    ${(n.greats||[]).filter(g=>g.until>year).length?`<div class="greats"><span class="lab">Great people</span>${n.greats.filter(g=>g.until>year).map(g=>`<p class="note" style="margin:2px 0"><b>${esc(g.name)}</b> · ${GREAT[g.k].label} · ${GREAT[g.k].fx}</p>`).join('')}</div>`:''}
     <div><div class="row" style="justify-content:space-between"><span class="lab">Faith in you · ${devLabel(n.devotion??.3)}</span><span class="lab">${Math.round((n.devotion??.3)*100)}%${n.cities.filter(c=>c.statue).length?' · '+n.cities.filter(c=>c.statue).length+' statues':''}${n.festival>0?' · festival':''}</span></div><div class="prog"><i style="width:${(n.devotion??.3)*100}%;background:#e8c060"></i></div><p class="note" style="margin:3px 0 0">${(()=>{const d=n.devotion??.3,c=Math.round((devCost(n)-1)*100);return `Miracles here cost ${c>0?'+':''}${c}% · ${n.faith>=0?'belief ×'+devBelief(n).toFixed(1):d>.3?'prays to you a little':'gives you nothing'}${d<.2?' · ignores your guidance half the time':''}`})()}</p></div>
     ${resourceLine(n)}<p class="note">${esc(CULTURES[cultOf(n)].label)} culture${n.allies&&n.allies.length?` · <b style="color:#9ec8f0">Allies:</b> ${esc(n.allies.map(i=>nations[i].name).join(', '))}`:''}</p>
     ${n.trade&&n.trade.length?`<p class="note"><b style="color:#a9dba5">Trading with:</b> ${esc(n.trade.map(i=>nations[i].name).join(', '))}</p>`:''}
@@ -286,7 +289,7 @@ function renderSheet(full){const B=$('#sheetBody');if(!sheetPanel)return;
   else if(sheetPanel==='world'){if(full)B.innerHTML=`<div class="sec"><h4>Climate</h4>
       <div class="slider"><div class="top"><label for="tempR">Global temperature</label><output id="tempO"></output></div><input type="range" id="tempR" min="0" max="100"></div>
       <div class="slider"><div class="top"><label for="rainR">Rainfall</label><output id="rainO"></output></div><input type="range" id="rainR" min="0" max="100"></div>
-      <div class="kv"><div><span>Sea level</span><b id="seaO"></b></div><div><span>Time of day</span><b id="todO"></b></div></div>
+      <div class="kv"><div><span>Sea level</span><b id="seaO"></b></div><div><span>Time of day</span><b id="todO"></b></div><div><span>Smoke in the air</span><b id="smokeO"></b></div><div><span>Warmer since the dawn</span><b id="warmO"></b></div></div>
       <p class="note">Factories in the Industrial and Modern ages warm the world. Warm seas rise and swallow coasts; cold freezes the poles.</p></div>
       <div class="sec"><h4>Pace of history</h4><div id="paceBox2"></div></div>
       <div class="sec"><h4>Disasters now</h4><div class="list" id="disList"></div></div>
@@ -294,7 +297,7 @@ function renderSheet(full){const B=$('#sheetBody');if(!sheetPanel)return;
       <div class="sec"><h4>Look</h4><div class="looks" id="looks2"></div></div>`;
     if(full){renderPaceBox('#paceBox2');$('#tempR').value=Math.round(climate.temp*100);$('#rainR').value=Math.round(climate.rain*100);renderLooks('#looks2')}
     $('#tempO').textContent=(14+(climate.temp-.5)*24).toFixed(1)+' °C';$('#rainO').textContent=Math.round(40+climate.rain*120)+'%';
-    const s=Math.round((sea-.44)*900);$('#seaO').textContent=(s>=0?'+':'')+s+' m';
+    const s=Math.round((sea-.44)*900);$('#seaO').textContent=(s>=0?'+':'')+s+' m';{const em=climate.emis||0,wm=climate.temp-(worldOpts.t0??.5);if($('#smokeO'))$('#smokeO').textContent=em<=0?'Clean':em<2e4?'A little':em<1e5?'Heavy':'Choking';if($('#warmO'))$('#warmO').textContent=(wm>=0?'+':'')+(wm*20).toFixed(1)+' °C'}
     const hr=(dayT*24+6)%24;$('#todO').textContent=`${String(Math.floor(hr)).padStart(2,'0')}:${String(Math.floor(hr%1*60)).padStart(2,'0')}`;
     if(document.activeElement!==$('#tempR'))$('#tempR').value=Math.round(climate.temp*100);
     const al=nations.filter(n=>n.alive),cities=al.reduce((s,n)=>s+n.cities.length,0),won=al.filter(n=>n.wonder).length,wars=al.reduce((s,n)=>s+n.wars.size,0)/2;
@@ -705,7 +708,7 @@ function openSettings(){const t=(k,label,v)=>`<label class="tog">${label}<input 
     <div class="sec"><span class="lab">Interface</span><div class="seg">${UIS.map(([k,l])=>`<button data-ui="${k}" aria-pressed="${(settings.ui||'parchment')===k}">${l}</button>`).join('')}</div></div>
     <div class="sec"><span class="lab">Power</span><div class="seg">${[['saver','Battery saver'],['balanced','Balanced'],['max','Maximum']].map(([k,l])=>`<button data-pow="${k}" aria-pressed="${(settings.power||'balanced')===k}">${l}</button>`).join('')}</div>
     <p class="note">Battery saver runs at 30 frames a second and fewer pixels, so laptops stay cool and quiet. Balanced runs at 60, and at 30 on battery. Maximum has no limit.</p></div>
-    <div class="sec">${t('shadows','Shadows',settings.shadows)}${t('daynight','Day and night cycle',settings.daynight)}${t('borders','Territory borders',settings.borders)}${t('labels','Nation names',settings.labels)}${t('people','People walking around',settings.people)}${t('clouds','Clouds',settings.clouds!==false)}${t('seasons','Seasons (snow in winter, golden autumns)',settings.seasons!==false)}${t('post','Look effects (outlines, focus blur, grading)',settings.post!==false)}${t('fps','Show frame rate',!!settings.fps)}${t('unlimited','Sandbox: unlimited belief',unlimited)}</div>
+    <div class="sec">${t('shadows','Shadows',settings.shadows)}${t('daynight','Day and night cycle',settings.daynight)}${t('borders','Territory borders',settings.borders)}${t('labels','Nation names',settings.labels)}${t('people','People walking around',settings.people)}${t('clouds','Clouds',settings.clouds!==false)}${t('seasons','Seasons (snow in winter, golden autumns)',settings.seasons!==false)}${t('post','Look effects (outlines, focus blur, grading)',settings.post!==false)}${t('fps','Show frame rate',!!settings.fps)}${t('events','Choice events (peoples ask you to decide)',settings.events!==false)}${t('unlimited','Sandbox: unlimited belief',unlimited)}</div>
     <div class="sec"><span class="lab">Pop-up messages</span>${MSGKINDS.map(([k,l])=>`<label class="tog">${l}<input type="checkbox" data-msg="${k}" ${(settings.msgs||{})[k]!==false?'checked':''}></label>`).join('')}<label class="tog">Everything else<input type="checkbox" data-msg="other" ${(settings.msgs||{}).other!==false?'checked':''}></label>
       <p class="note">Everything still goes into the Chronicle. The same message is shown at most once every 20 seconds.</p></div>
     <div class="sec"><span class="lab">Sound</span>${t('mute','Mute all sound',settings.mute)}
@@ -775,7 +778,7 @@ function frameBody(now){
   for(let k=rockets.length-1;k>=0;k--){const r=rockets[k];r.t+=dt;r.g.position.y+=dt*(.3+r.t*r.t*1.2);emit('dark',r.g.position.x,r.g.position.y,r.g.position.z);emit('fire',r.g.position.x,r.g.position.y-.02,r.g.position.z);if(r.t>6){scene.remove(r.g);rockets.splice(k,1)}}
   for(let k=eruptions.length-1;k>=0;k--){const e=eruptions[k];e.t+=dt;const y=groundY(e.x,e.z)+.1;for(let q=0;q<3;q++){emit('fire',e.x+(rng()-.5)*.3,y,e.z+(rng()-.5)*.3)}emit('dark',e.x,y+.2,e.z);if(e.t>12)eruptions.splice(k,1)}
   try{updateAudio(dt)}catch(e){}updateWalkers(dt,yrs);updateCaravans(dt,paused?0:1);updateLife(dt,now);if(!paused)updateEmitters(dt);
-  updateDisasters(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateGodWorks(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6,now);if(typeof updateArmies==='function')updateArmies(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:0,now);updateModern(dt,paused?0:1,now);updateBlasts(paused?0:dt);updatePilgrims(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateSeasons(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.3);updateParticles(paused?0:dt);
+  updateDisasters(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateGodWorks(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6,now);if(typeof updateLiving==='function')updateLiving(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:0,now);if(typeof updateArmies==='function')updateArmies(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:0,now);updateModern(dt,paused?0:1,now);updateBlasts(paused?0:dt);updatePilgrims(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.6);updateSeasons(dt,paused?0:playing?[0,1,1.6,2.5][speedIdx]:.3);updateParticles(paused?0:dt);
   if(colorDirty&&now-lastColor>1500&&!jobs.length){lastColor=now;colorDirty=false;jobs.push(colorTerrain)}
   if(sculptTile>=0&&isSculpt(tool)&&now-lastSculpt>110){lastSculpt=now;applyTool(sculptTile,false)}
   if(terrainDirty&&(sculptTile>=0||!jobs.some(j=>j.terr))){terrainDirty=false;const tj=()=>{computeTerrain();layoutTerrain();propsDirty=true;bordersDirty=true;treesDirty=true};tj.terr=1;if(sculptTile>=0)tj();else jobs.unshift(tj)}

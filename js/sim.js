@@ -129,7 +129,7 @@ function terrFactor(i,j){let f=1;if((river[i]>0)!==(river[j]>0))f*=.3;if(tslope.
 function maybeCity(A,x,y,j){if(rng()>.07)return;j=bestSite(A,x,y,1);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,3))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year});propsDirty=true;
   if(!milestones.has('city2')){milestone('city2','A second city rises','The '+A.name+' founded a new town.')}}
 function foundTown(A,x,y,j){if((A.tiles/Math.max(1,A.cities.length))<9)return;j=bestSite(A,x,y,2);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,3))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year});propsDirty=true}
-const mil=n=>n.pop/Math.max(1,n.tiles)*ERAS[n.era].mil*ten(n).mil*(n.bless>0?1.3:1)*(n.hero&&n.hero.until>year?1.6:1);
+const mil=n=>n.pop/Math.max(1,n.tiles)*ERAS[n.era].mil*ten(n).mil*(n.gpMil||1)*(n.bless>0?1.3:1)*(n.hero&&n.hero.until>year?1.6:1);
 /* ---------- alliances: sworn friends join each other's wars ---------- */
 const allied=(a,b)=>!!(a.allies&&a.allies.includes(b.id));
 function ally(a,b,god){if(a===b||!a.alive||!b.alive||allied(a,b))return;if(a.wars.has(b.id))makePeace(a,b,false);a.allies=a.allies||[];b.allies=b.allies||[];a.allies.push(b.id);b.allies.push(a.id);
@@ -398,7 +398,7 @@ function tick(){
     if(n.plague>0){n.plague--;n.pop*=.975}
     if(n.wars.size)n.pop*=1-.002*n.wars.size;
     n.pop=Math.max(2,n.pop);worldPop+=n.pop;
-    research(n,Math.sqrt(n.pop)*.055*[1.35,1.25,1.15,1.08,1.04,1,1,1][n.era]*t.tech*stabTech(n)*(1+n.cities.length*.04)*(n.inspire>0?2:1)/paceInfo().techMult);if(n.inspire>0)n.inspire--;
+    research(n,Math.sqrt(n.pop)*.055*[1.35,1.25,1.15,1.08,1.04,1,1,1][n.era]*t.tech*stabTech(n)*(n.gpTech||1)*(1+n.cities.length*.04)*(n.inspire>0?2:1)/paceInfo().techMult);if(n.inspire>0)n.inspire--;
     if(n.bless>0)n.bless--;
     if(!govOptions(n).includes(n.gov)||rng()<.0015/Math.sqrt(paceInfo().techMult))aiReform(n);
     emis+=n.pop*e.emit*t.emit;n.nb=new Set();n.front=[];
@@ -432,6 +432,7 @@ function tick(){
     if(n.tiles>N*.07&&n.cities.length>=3&&rng()<.002*(1+n.wars.size)/t.stab/Math.sqrt(paceInfo().techMult))rebel(n);
   }
   if(dLevel()>0)naturalEvents();disasterTick();peopleTick();
+  climate.emis=emis;
   if(emis>0){climate.temp=Math.min(1,climate.temp+emis*4e-8*(worldOpts.scenario&&worldOpts.scenario.id==='climate'?.14:1));
     if(!flags.warm){flags.warm=true;log('Smoke rises from the first factories. The world begins to warm.','sky')}
     if(year%5===0)terrainDirty=true}
