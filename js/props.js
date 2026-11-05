@@ -108,13 +108,16 @@ const tr=(g,x,y,z,sx,sy,sz)=>{g.scale(sx,sy,sz);g.translate(x,y,z);return g};
 const TRUNK=[.28,.2,.13],LEAF=[1,1,1];
 /* trees built from lumpy leaf clusters with darker undersides, so forests read as canopy instead of balls */
 function leafTree(seed,kind){const r=mulberry32(seed),pos=[],nor=[],col=[];
-  const push=(g,cf)=>{g=g.index?g.toNonIndexed():g;g.computeVertexNormals();const a=g.attributes.position.array,n=g.attributes.normal.array;for(let i=0;i<a.length;i+=3){pos.push(a[i],a[i+1],a[i+2]);nor.push(n[i],n[i+1],n[i+2]);const c=cf(a[i],a[i+1],a[i+2]);col.push(c[0],c[1],c[2])}};
+  const push=(g,cf,smooth)=>{if(smooth&&g.index)g.computeVertexNormals();g=g.index?g.toNonIndexed():g;if(!smooth)g.computeVertexNormals();const a=g.attributes.position.array,n=g.attributes.normal.array;for(let i=0;i<a.length;i+=3){pos.push(a[i],a[i+1],a[i+2]);nor.push(n[i],n[i+1],n[i+2]);const c=cf(a[i],a[i+1],a[i+2]);col.push(c[0],c[1],c[2])}};
   const trunk=new THREE.CylinderGeometry(.022,.04,kind==='con'?.2:.24,6);trunk.translate(0,kind==='con'?.1:.12,0);push(trunk,()=>TRUNK);
   if(kind==='con'){for(let t=0;t<5;t++){const cg=new THREE.ConeGeometry(.2-t*.033,.16,9,1);const p=cg.attributes.position;for(let i=0;i<p.count;i++){if(p.getY(i)<0){const k=.85+r()*.3;p.setX(i,p.getX(i)*k);p.setZ(i,p.getZ(i)*k);p.setY(i,p.getY(i)-r()*.02)}}
-    cg.translate(0,.12+t*.072,0);push(cg,(x,y,z)=>{const ao=.55+.45*clamp((y-.04)/.42,0,1)*(.8+.2*Math.hypot(x,z)/.2);return[ao*.85,ao*.95,ao*.85]})}}
-  else{const n=6+((r()*3)|0);for(let b=0;b<n;b++){const ig=new THREE.IcosahedronGeometry(.5,0),p=ig.attributes.position;for(let i=0;i<p.count;i++){const k=.82+r()*.3;p.setXYZ(i,p.getX(i)*k,p.getY(i)*k,p.getZ(i)*k)}
+    cg.translate(0,.12+t*.072,0);push(cg,(x,y,z)=>{const ao=.55+.45*clamp((y-.04)/.42,0,1)*(.8+.2*Math.hypot(x,z)/.2);return[ao*.85,ao*.95,ao*.85]},true)}}
+  else{/* soft, rounded leaf clumps: smooth normals and a lumpy surface that stays closed (shared corners move together) */
+    const n=6+((r()*3)|0),sd=r()*100;for(let b=0;b<n;b++){const ig=new THREE.IcosahedronGeometry(.5,b<3?1:0),P=ig.attributes.position,N=ig.attributes.normal;
+    for(let i=0;i<P.count;i++){const x=P.getX(i),y=P.getY(i),z=P.getZ(i),l=Math.hypot(x,y,z)||1;const k=.84+.3*(Math.sin(x*9.1+sd+b)*Math.cos(z*8.3-sd)*.5+.5);P.setXYZ(i,x*k,y*k,z*k);N.setXYZ(i,x/l,y/l,z/l)}
     const a=r()*6.283,d=b===0?0:.06+r()*.07,s=b===0?.24:.13+r()*.08;ig.scale(s,s*.85,s);ig.translate(Math.cos(a)*d,.27+(b===0?.03:r()*.1-.03),Math.sin(a)*d);
-    const tone=.72+r()*.18;push(ig,(x,y,z)=>{const ao=(.45+.55*clamp((y-.16)/.26,0,1))*tone;return[ao,ao,ao]})}}
+    for(let i=0;i<N.count;i++){const nx=N.getX(i)/s,ny=N.getY(i)/(s*.85),nz=N.getZ(i)/s,l=Math.hypot(nx,ny,nz)||1;N.setXYZ(i,nx/l,ny/l,nz/l)}
+    const tone=.72+r()*.18;push(ig,(x,y,z)=>{const ao=(.45+.55*clamp((y-.16)/.26,0,1))*tone;return[ao,ao,ao]},true)}}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));return g}
 
 /* ---------- instanced kits ---------- */
@@ -122,16 +125,33 @@ const KITS={};
 function kit(name,geo,mat,max,shadow){const m=new THREE.InstancedMesh(geo,mat,max);m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   for(let i=0;i<max;i++)m.setColorAt(i,tmpC.setRGB(1,1,1));m.count=0;m.frustumCulled=false;m.castShadow=shadow!==false;m.receiveShadow=true;scene.add(m);KITS[name]={mesh:m,k:0,max}}
 const treeMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.9});
-const TREEU={uTime:{value:0}};
-treeMat.onBeforeCompile=sh=>{sh.uniforms.uTime=TREEU.uTime;sh.vertexShader='uniform float uTime;varying float vTH;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+const TREEU={uTime:{value:0},tL:{value:null},tB:{value:null},nL:{value:null},uPh:{value:0}};
+/* photo leaves and bark (Poly Haven, CC0), projected from three sides onto every crown and trunk */
+{const g=new THREE.DataTexture(new Uint8Array([128,128,128,255]),1,1,THREE.RGBAFormat);g.needsUpdate=true;const nf=new THREE.DataTexture(new Uint8Array([128,128,255,255]),1,1,THREE.RGBAFormat);nf.needsUpdate=true;
+ TREEU.tL.value=TREEU.tB.value=g;TREEU.nL.value=nf;let left=3;const L=new THREE.TextureLoader();
+ for(const [k,f] of [['tL','t_leaf'],['tB','t_bark'],['nL','t_leaf_n']])L.load('assets/textures/'+f+'.jpg',t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=4;TREEU[k].value=t;if(--left<=0)TREEU.uPh.value=1},undefined,()=>{left--})}
+treeMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,TREEU);
+  sh.vertexShader='uniform float uTime;varying float vTH;varying vec3 vTW,vTN;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
   vTH=position.y;
   #ifdef USE_INSTANCING
   vec3 ip=vec3(instanceMatrix[3][0],instanceMatrix[3][1],instanceMatrix[3][2]);float gust=sin(uTime*.45+ip.x*.21+ip.z*.17)*.5+.5;
   float hgt=max(0.,position.y-.06);float sw=(sin(uTime*1.6+ip.x*3.1+ip.z*2.3)*.6+sin(uTime*2.7+ip.x*7.+ip.z*5.)*.25)*(.35+gust*.9)*hgt*hgt*.55;
   transformed.x+=sw;transformed.z+=sw*.6;
-  #endif`);
-  sh.fragmentShader='varying float vTH;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
-  diffuseColor.rgb*=.92+.16*smoothstep(.18,.45,vTH);`)};
+  #endif`).replace('#include <worldpos_vertex>',`#include <worldpos_vertex>
+  {vec4 tw=vec4(transformed,1.);
+  #ifdef USE_INSTANCING
+  tw=instanceMatrix*tw;vTN=normalize(mat3(modelMatrix)*mat3(instanceMatrix)*objectNormal);
+  #else
+  vTN=normalize(mat3(modelMatrix)*objectNormal);
+  #endif
+  vTW=(modelMatrix*tw).xyz;}`);
+  sh.fragmentShader='uniform sampler2D tL,tB,nL;uniform float uPh;varying float vTH;varying vec3 vTW,vTN;\nvec3 tri(sampler2D t,vec3 p,vec3 w){return texture2D(t,p.zy).rgb*w.x+texture2D(t,p.xz).rgb*w.y+texture2D(t,p.xy).rgb*w.z;}\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+  diffuseColor.rgb*=.92+.16*smoothstep(.18,.45,vTH);
+  float tf=(1.-smoothstep(5.,26.,length(vTW-cameraPosition)))*uPh;float leafW=max(smoothstep(0.,.05,diffuseColor.g-diffuseColor.r),smoothstep(.12,.2,vTH));
+  vec3 tw3=pow(abs(vTN),vec3(4.));tw3/=tw3.x+tw3.y+tw3.z+1e-4;
+  if(tf>.01){float lv=tri(tL,vTW*5.5,tw3).r,bv=tri(tB,vTW*vec3(14.,5.,14.),tw3).r;
+    float d=mix(bv,lv,leafW);diffuseColor.rgb*=mix(1.,.45+1.1*d,tf*.85);}`).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+  if(tf>.01){vec3 nn=tri(nL,vTW*5.5,tw3)*2.-1.;normal=normalize(normal+(viewMatrix*vec4(nn.x*vTN.z,nn.y*.4,-nn.x*vTN.x,0.)).xyz*.6*tf*leafW);}`)};
 kit('plaster',unitBox(),MAT.plaster,20000);kit('stone',unitBox(),MAT.stone,32000);kit('brick',unitBox(),MAT.brick,16000);
 kit('thatch',gableGeo(),MAT.thatch,4000);kit('hipThatch',hipGeo(.3),MAT.thatch2,5000);kit('timber',unitBox(),MAT.timber,8000);kit('bed',unitBox(),MAT.soil,6000,false);kit('hay',unitCone(9),MAT.thatch2,5000);kit('tiles',gableGeo(),MAT.tiles,26000);
 kit('coneThatch',unitCone(12),MAT.thatch,12000);kit('coneTile',unitCone(10),MAT.tiles,4000);kit('pyr',(()=>{const g=unitCone(4);g.rotateY(Math.PI/4);return g})(),MAT.tiles,1200);

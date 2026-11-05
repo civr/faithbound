@@ -20,3 +20,5 @@ The b_ files are greyscale detail layers blended over the painted building textu
 - b_cobble: cobblestone_floor_04
 - b_timber: weathered_brown_planks
 - b_plaza: grassy_cobblestone
+- t_leaf, t_leaf_n: forest_leaves_02 (greyscale detail for tree crowns)
+- t_bark, t_bark_n: bark_brown_02 (greyscale detail for trunks)
