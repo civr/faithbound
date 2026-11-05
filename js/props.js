@@ -802,7 +802,9 @@ function roadPath(a,b,nid,used){const key=a.x+','+a.y+'>'+b.x+','+b.y+'|'+nid;if
   if(roadCache.size>800)roadCache.clear();roadCache.set(key,path);return path}
 const DISCS=new Map();function discOff(n){if(!DISCS.has(n)){const o=[];for(let a=-n;a<=n;a++)for(let b=-n;b<=n;b++)if(a*a+b*b<=n*n+1)o.push([a,b]);DISCS.set(n,o)}return DISCS.get(n)}
 let riverVer=-1;
-function rebuildRoads(){roadBare.clear();grassAt.x=1e9;
+/* finished road ribbons are kept: a road or street that has not changed is copied, not traced again */
+const RIBC=new Map();let ribcVer=-1;
+function rebuildRoads(){roadBare.clear();grassAt.x=1e9;if(ribcVer!==terrVer){RIBC.clear();ribcVer=terrVer}
   const P3=[[],[],[]],U3=[[],[],[]];
   kitReset(['bridge']);const bridged=new Set();
   const rib=(ax,az,bx,bz,w,t)=>{const L=Math.hypot(bx-ax,bz-az);if(L<1e-4)return;const S=Math.max(1,Math.ceil(L/.1)),nx=-(bz-az)/L*w/2,nz=(bx-ax)/L*w/2,rep=t===2?3:t===1?w*40:2;
@@ -822,10 +824,16 @@ function rebuildRoads(){roadBare.clear();grassAt.x=1e9;
       const path=roadPath(a,b,n.id,used);if(path)lines.push({path,w,t})}}
   for(const n of nations){if(!n.alive||!n.cities.length)continue;for(const m of n.trade){const B=nations[m];if(!B||!B.alive||m<n.id||!B.cities.length||!n.nb.has(m))continue;
     const path=roadPath(n.cities[0],B.cities[0],-1,used);if(path){const e=Math.min(n.era,B.era);lines.push({path,w:e<3?.05:e<5?.065:.09,t:e<4?0:e<6?1:2})}}}
-  for(const L of lines){const pts=chaikin2(L.path.map(j=>[wx(j%W)+(hash(j*3.1)-.5)*.25,wz((j/W)|0)+(hash(j*7.3)-.5)*.25]),3);
-    for(let k=0;k<pts.length-1;k++)rib(pts[k][0],pts[k][1],pts[k+1][0],pts[k+1][1],L.w,L.t)}
+  const cached=(key,t,fn)=>{let c=RIBC.get(key);const K=KITS.bridge;
+    if(!c){const p0=P3[t].length,u0=U3[t].length,b0=K.k,bare=[];roadBare.add=v=>{bare.push(v);return Set.prototype.add.call(roadBare,v)};try{fn()}finally{delete roadBare.add}
+      c={P:P3[t].slice(p0),U:U3[t].slice(u0),bare,bn:K.k-b0,bm:K.mesh.instanceMatrix.array.slice(b0*16,K.k*16),bc:K.mesh.instanceColor?K.mesh.instanceColor.array.slice(b0*3,K.k*3):null};if(RIBC.size>5000)RIBC.clear();RIBC.set(key,c);return}
+    const A=P3[t],B=U3[t];for(let i=0;i<c.P.length;i++)A.push(c.P[i]);for(let i=0;i<c.U.length;i++)B.push(c.U[i]);for(const v of c.bare)roadBare.add(v);
+    if(c.bn&&K.k+c.bn<=K.max){K.mesh.instanceMatrix.array.set(c.bm,K.k*16);if(c.bc&&K.mesh.instanceColor)K.mesh.instanceColor.array.set(c.bc,K.k*3);K.k+=c.bn}};
+  for(const L of lines){const pa=L.path;cached('L'+L.t+'|'+L.w+'|'+pa.length+'|'+pa[0]+'|'+pa[pa.length>>1]+'|'+pa[pa.length-1],L.t,()=>{const pts=chaikin2(pa.map(j=>[wx(j%W)+(hash(j*3.1)-.5)*.25,wz((j/W)|0)+(hash(j*7.3)-.5)*.25]),3);
+    for(let k=0;k<pts.length-1;k++)rib(pts[k][0],pts[k][1],pts[k+1][0],pts[k+1][1],L.w,L.t)})}
   for(const st0 of cityStreets){/* thin out street points: short segments cost as much as long ones */const P0=st0.pts,q=[P0[0]];for(let k=1;k<P0.length;k++){const l=q[q.length-1];if(k===P0.length-1||Math.hypot(P0[k][0]-l[0],P0[k][1]-l[1])>=.1)q.push(P0[k])}const st={pts:q,w:st0.w,t:st0.t};
-    for(let k=0;k<st.pts.length-1;k++){const a=st.pts[k],b=st.pts[k+1];if(groundY(a[0],a[1])>waterY+.03&&groundY(b[0],b[1])>waterY+.03)rib(a[0],a[1],b[0],b[1],st.w,st.t)}}
+    const f=q[0],m=q[q.length>>1],l=q[q.length-1];cached('S'+st.t+'|'+st.w+'|'+q.length+'|'+f[0].toFixed(3)+','+f[1].toFixed(3)+'|'+m[0].toFixed(3)+','+m[1].toFixed(3)+'|'+l[0].toFixed(3)+','+l[1].toFixed(3),st.t,()=>{
+    for(let k=0;k<st.pts.length-1;k++){const a=st.pts[k],b=st.pts[k+1];if(groundY(a[0],a[1])>waterY+.03&&groundY(b[0],b[1])>waterY+.03)rib(a[0],a[1],b[0],b[1],st.w,st.t)}})}
   kitCommit(['bridge']);if(riverVer!==terrVer){riverVer=terrVer;rebuildRivers()}grassAt.x=1e9;
   for(let t=0;t<3;t++){if(!roadMeshes[t]){const m=new THREE.Mesh(new THREE.BufferGeometry(),ROADMATS[t]);m.receiveShadow=true;m.frustumCulled=false;m.renderOrder=1;scene.add(m);roadMeshes[t]=m}
     const g=freshGeo(roadMeshes[t]);g.setAttribute('position',new THREE.Float32BufferAttribute(P3[t],3));g.setAttribute('uv',new THREE.Float32BufferAttribute(U3[t],2));const nm=new Float32Array(P3[t].length);for(let q=1;q<nm.length;q+=3)nm[q]=1;g.setAttribute('normal',new THREE.BufferAttribute(nm,3));g.computeBoundingSphere()}

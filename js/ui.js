@@ -45,6 +45,8 @@ const POWERS=[
   {id:'miracle',tab:'Faith',label:'Miracle',cost:30,icon:'sparkle',hint:'Tap a nation. Epidemics and famine end at once, and faith in you jumps up.'},
   {id:'anoint',tab:'Faith',label:'Anoint ruler',cost:30,icon:'oil',hint:'Tap a nation. Its ruler becomes your chosen one: the realm steadies, faith in you grows and the ruler lives longer.'},
   {id:'schism',tab:'Faith',label:'Schism',cost:35,icon:'split',hint:'Tap a nation. Its faith splits: that nation and its neighbours form a new branch with a holy city of their own. Brother faiths often go to war.'},
+  {id:'curse',tab:'Faith',label:'Curse',cost:35,icon:'skull',hint:'Tap a nation. Sorrow falls on it: the people grow unhappy and their faith wavers. A people of another god may turn away from that god.'},
+  {id:'crusade',tab:'Faith',label:'Holy war',cost:45,icon:'swords',hint:'Tap a nation of another faith. The strongest people of your faith nearby marches on it.'},
   {id:'eclipse',tab:'Faith',label:'Eclipse',cost:25,icon:'eclipse',hint:'Tap anywhere. The sun goes dark: faithful nations pray, others panic, riot or go to war.'},
   {id:'reform',tab:'Rule',label:'Change rule',cost:30,icon:'crown',hint:'Tap a nation to choose its form of government.'},
   {id:'assassin',tab:'Rule',label:'Assassinate',cost:35,icon:'dagger',hint:'Tap a nation. Its ruler dies tonight. Without an heir, the throne is up for grabs.'},
@@ -119,6 +121,9 @@ function log(text,kind){logs.unshift({year,text,kind});if(typeof onLogSound==='f
 /* the great powers cost more, so a god has to choose */
 const costOf=c=>c>=40?Math.round(c*1.35/5)*5:c>=25?Math.round(c*1.15/5)*5:c;
 for(const p of POWERS)p.cost=costOf(p.cost);
+/* which god is acting: in co-op the host works miracles for each guest */
+const myGod=()=>typeof coop!=='undefined'&&coop?(coop.running!=null?coop.running:coop.pid):0;
+const godOf=f=>faiths[f]?(faiths[f].god|0):0;
 function spend(c){c=costOf(c);if(unlimited)return true;if(belief<c){say(`Not enough belief. This needs ${c}, you have ${Math.floor(belief)}.`);return false}belief-=c;return true}
 function fx(i,kind){const x=wx(i%W),z=wz((i/W)|0);effects.push({x,y:surfY(x,z),z,kind,t0:performance.now()})}
 function brush(i,r,fn){const x=i%W,y=(i/W)|0,R_=Math.ceil(r);for(let dy=-R_;dy<=R_;dy++)for(let dx=-R_;dx<=R_;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d<=r)fn(Y*W+X,d)}}
@@ -150,7 +155,9 @@ function applyTool(i,start){if(viewOnly&&tool!=='inspect'){if(start)say('You are
   case 'quake':{if(!needNation(n)||!spend(40))return;earthquake(n,true);n.devotion=clamp((n.devotion??.3)-.1,0,1);break}
   case 'faith':if(selectedFaith<0){say('Found a faith first in the Faiths panel.');openSheet('faiths');return}
     if(!needNation(n))return;if(n.faith===selectedFaith){say(`${n.name} already follows ${faiths[selectedFaith].name}.`);return}
-    if(!spend(30))return;n.faith=selectedFaith;fx(i,'faith');propsDirty=true;{const f=faiths[selectedFaith];if(!f.holy&&n.cities[0]){f.holy=n.cities[0].name;log(`${n.cities[0].name} became the holy city of ${f.name}.`,'faith')}}log(`${n.name} embraced ${faiths[selectedFaith].name}.`,'faith');break;
+    {const rival=n.faith>=0&&godOf(n.faith)!==myGod();if(!spend(rival?45:30))return;
+      if(rival&&rng()<(n.devotion??.3)*.55){say(`The faithful of ${n.name} cling to ${faiths[n.faith].name}. Try again, or curse them first.`);fx(i,'faith');break}if(rival)n.devotion=.25}
+    n.faith=selectedFaith;fx(i,'faith');propsDirty=true;{const f=faiths[selectedFaith];if(!f.holy&&n.cities[0]){f.holy=n.cities[0].name;log(`${n.cities[0].name} became the holy city of ${f.name}.`,'faith')}}log(`${n.name} embraced ${faiths[selectedFaith].name}.`,'faith');break;
   case 'peace':if(!needNation(n))return;if(!n.wars.size){say(`${n.name} is not at war.`);return}
     if(!spend(15))return;for(const b of [...n.wars])makePeace(n,nations[b],true);fx(i,'bless');break;
   case 'war':if(!needNation(n))return;
@@ -179,6 +186,11 @@ function applyTool(i,start){if(viewOnly&&tool!=='inspect'){if(start)say('You are
     if(isWater(i)){say('Tap land. The prophet walks.');return}if(!spend(35))return;spawnProphet(i,f);fx(i,'faith');break}
   case 'schism':{if(!needNation(n))return;if(n.faith<0){say(`${n.name} follows no faith yet.`);return}if(followersOf(n.faith).length<2){say(`Only ${n.name} follows ${faiths[n.faith].name}. A schism needs at least two nations.`);return}
     if(!spend(35))return;const ni=schism(n.faith,n,true);if(ni>=0){selectedFaith=ni;fx(i,'faith')}break}
+  case 'curse':{if(!needNation(n))return;if(!spend(35))return;n.cursed=year+20;n.devotion=Math.max(0,(n.devotion??.3)-.2);fx(i,'plague');
+    if(n.faith>=0&&godOf(n.faith)!==myGod()&&rng()<.35){const f=faiths[n.faith];n.faith=-1;log(`Cursed and afraid, ${n.name} turned away from ${f.name}.`,'faith')}else log(`A curse fell on ${n.name}. Wells sour and children cry at night.`,'doom');break}
+  case 'crusade':{if(!needNation(n))return;let best=null;for(const m of nations){if(!m.alive||m===n||m.faith<0||godOf(m.faith)!==myGod()||m.faith===n.faith)continue;if(!(m.nb&&m.nb.has&&m.nb.has(n.id))&&!(m.known||[]).includes(n.id))continue;if(!best||mil(m)*m.tiles>mil(best)*best.tiles)best=m}
+    if(!best){say(`None of your faithful peoples can reach ${n.name}.`);return}if(best.wars.has(n.id)){say(`${best.name} is already at war with ${n.name}.`);return}if(!spend(45))return;
+    startWar(best,n,'god');log(`In the name of ${faiths[best.faith].name}, ${best.name} marched on ${n.name}.`,'war');fx(i,'war');break}
   case 'eclipse':if(eclipseT>0){say('The sun is already dark.');return}if(!spend(25))return;eclipse();break;
   case 'spark':{if(!needNation(n))return;const c=nearestTown(n,i);if(!c||c===n.cities[0]||n.cities.length<2){say('Tap a town that is not the capital.');return}if(!spend(35))return;sparkRevolt(n,c);fx(c.y*W+c.x,'war');break}
   case 'kraken':if(!isWater(i)){say('Tap the open sea.');return}if(!spend(50))return;spawnKraken(i);fx(i,'war');shakeT=.4;break;
@@ -235,12 +247,13 @@ function renderNationCard(){
     <div><div class="row" style="justify-content:space-between"><span class="lab">Faith in you</span><span class="lab">${Math.round((n.devotion??.3)*100)}%${n.cities.filter(c=>c.statue).length?' · '+n.cities.filter(c=>c.statue).length+' statues':''}${n.festival>0?' · festival':''}</span></div><div class="prog"><i style="width:${(n.devotion??.3)*100}%;background:#e8c060"></i></div></div>
     ${resourceLine(n)}<p class="note">${esc(CULTURES[cultOf(n)].label)} culture${n.allies&&n.allies.length?` · <b style="color:#9ec8f0">Allies:</b> ${esc(n.allies.map(i=>nations[i].name).join(', '))}`:''}</p>
     ${n.trade&&n.trade.length?`<p class="note"><b style="color:#a9dba5">Trading with:</b> ${esc(n.trade.map(i=>nations[i].name).join(', '))}</p>`:''}
-    ${n.alive?`<div class="quick"><button class="ib" data-q="follow">Follow</button><button class="ib" data-q="bless">Bless</button><button class="ib" data-q="festival">Festival</button><button class="ib" data-q="ally">Ally</button><button class="ib" data-q="inspire">Inspire</button><button class="ib" data-q="faith">Faith</button><button class="ib" data-q="gov">Rule</button><button class="ib" data-q="tech">Tech</button><button class="ib" data-q="war">War</button>${wars.length?'<button class="ib" data-q="peace">Peace</button>':''}</div>`:''}`;
+    ${n.alive?`<div class="quick"><button class="ib" data-q="follow">Follow</button><button class="ib" data-q="bless">Bless</button><button class="ib" data-q="festival">Festival</button><button class="ib" data-q="ally">Ally</button><button class="ib" data-q="inspire">Inspire</button><button class="ib" data-q="faith">Faith</button><button class="ib" data-q="gov">Rule</button><button class="ib" data-q="tech">Tech</button><button class="ib" data-q="dip">Treaty</button><button class="ib" data-q="war">War</button>${wars.length?'<button class="ib" data-q="peace">Peace</button>':''}</div>`:''}`;
 }
 $('#nationCard').onclick=e=>{if(e.target.closest('[data-x]')){selected=-1;inspectTile=-1;bordersDirty=true;renderNationCard();return}
   const q=e.target.closest('[data-q]');if(!q)return;const n=nations[selected];if(!n)return;const a=q.dataset.q;
   if(a==='follow'){const c=n.cities[0];if(c)focusOn(wx(c.x),wz(c.y),9);return}
   if(a==='gov'){openGov(n);return}
+  if(a==='dip'){openDiplo(n);return}
   if(a==='tech'){openTech(n);return}
   if(a==='court'){openCourt(n);return}
   if(a==='war'){warFrom=n.id;setTool('war');curTab='Strife';buildDock();say(`Now tap the nation that ${n.name} should attack.`,true);return}
@@ -354,6 +367,18 @@ function doAct(k,p){
   if(k==='guide'){const n=nations[p.n];if(!n||!n.alive||!TECH[p.t]||!techAvailable(n,TECH[p.t])||!spend(10))return false;n.research=p.t;n.tech=0;n.guided=true;log(`You guided the scholars of ${n.name} towards ${TECH[n.research].name}.`,'era');return true}
   if(k==='gov'){const n=nations[p.n];if(!n||!n.alive||!govOptions(n).includes(p.g)||!spend(30))return false;setGov(n,p.g,true);if(n.cities[0])fx(n.cities[0].y*W+n.cities[0].x,'faith');return true}
   if(k==='peace'){const A=nations[p.a],B=nations[p.b];if(!A||!B||!A.alive||!B.alive||!A.wars.has(B.id)){say('That war is already over.');return false}if(!spend(15))return false;makePeace(A,B,true);delete warData[warKey(A,B)];const c=B.cities[0];if(c)fx(c.y*W+c.x,'bless');return true}
+  if(k==='dip'){const A=nations[p.a],B=nations[p.b];if(!A||!B||!A.alive||!B.alive||A===B)return false;const cost={pact:30,trade:15,marriage:25,tribute:20,ally:20,unally:10}[p.k];if(cost==null)return false;
+    if(p.k==='trade'&&(A.wars.has(B.id)||A.trade.includes(B.id))){say(A.wars.has(B.id)?'They are at war.':'They already trade.');return false}
+    if(p.k==='ally'&&allied(A,B)){say('They are already allies.');return false}if(p.k==='unally'&&!allied(A,B)){say('They are not allies.');return false}
+    if(!spend(cost))return false;const c=B.cities[0];if(c)fx(c.y*W+c.x,p.k==='tribute'?'war':'bless');
+    if(p.k==='pact'){if(A.wars.has(B.id))makePeace(A,B,true);A.pacts=A.pacts||{};B.pacts=B.pacts||{};A.pacts[B.id]=B.pacts[A.id]=year+30;if(typeof addRival==='function'){A.rivals=A.rivals||{};B.rivals=B.rivals||{};A.rivals[B.id]=B.rivals[A.id]=Math.max(0,(A.rivals[B.id]||0)-1.5)}log(`At your word, ${A.name} and ${B.name} swore thirty years of peace.`,'life')}
+    else if(p.k==='trade'){A.trade.push(B.id);B.trade.push(A.id);log(`You opened the roads of trade between ${A.name} and ${B.name}.`,'life')}
+    else if(p.k==='marriage'){A.ties=A.ties||[];B.ties=B.ties||[];if(!A.ties.includes(B.id))A.ties.push(B.id);if(!B.ties.includes(A.id))B.ties.push(A.id);if(A.rivals)A.rivals[B.id]=Math.max(0,(A.rivals[B.id]||0)-2);if(B.rivals)B.rivals[A.id]=Math.max(0,(B.rivals[A.id]||0)-2);
+      log(`The royal houses of ${A.name} and ${B.name} were joined by a marriage you blessed.`,'life')}
+    else if(p.k==='tribute'){const pa=mil(A)*A.tiles,pb=mil(B)*B.tiles;if(pa>pb*1.4){const t=B.pop*.04;B.pop-=t;A.pop+=t*.5;A.tech+=Math.max(0,B.tech)*.08;B.tribute={pay:true,until:year+20,to:A.id};A.tribute={pay:false,until:year+20,to:B.id};log(`${B.name} bowed to ${A.name} and pays tribute.`,'war')}
+      else{if(typeof addRival==='function')addRival(A,B,1);log(`${B.name} laughed at the demand of ${A.name}.`,'war');if(rng()<.4)startWar(A,B,null)}}
+    else if(p.k==='ally')ally(A,B,true);else if(p.k==='unally')breakAlliance(A,B,true);
+    return true}
   if(k==='speed'){const i=p.s|0;if(i<0||i>3)return false;speedIdx=i;updateHUD();return true}
   if(k==='space'){return typeof spaceAction==='function'?spaceAction(p.a,p.k):false}
   if(k==='clim'){if(!p.d||!spend(40))return false;shiftClimate(p.d);return true}
@@ -659,6 +684,19 @@ $('#modalBox').addEventListener('input',e=>{const v=e.target.dataset.vol;if(!v)r
 $('#modalBox').addEventListener('change',e=>{const mk=e.target.dataset.msg;if(mk){settings.msgs=Object.assign({},settings.msgs||{},{[mk]:e.target.checked});saveSettings();return}const k=e.target.dataset.set;if(!k)return;
   if(k==='unlimited'){unlimited=e.target.checked;updateHUD();return}
   settings[k]=e.target.checked;saveSettings();if(k==='mute')applyVolumes();if(k==='shadows')applyGraphics();if(k==='borders')bordersDirty=true});
+let diploFor=-1,diploTo=-1;
+function openDiplo(n){diploFor=n.id;const others=nations.filter(m=>m.alive&&m!==n).sort((a,b)=>(n.nb&&n.nb.has?(n.nb.has(b.id)?1:0)-(n.nb.has(a.id)?1:0):0)||b.pop-a.pop);if(!others.length){say('There is no one to deal with.');return}
+  if(!others.some(m=>m.id===diploTo))diploTo=others[0].id;const B=nations[diploTo],rel=[n.wars.has(B.id)?'at war':null,allied(n,B)?'allies':null,n.trade.includes(B.id)?'trading':null,n.ties&&n.ties.includes(B.id)?'related by marriage':null,n.pacts&&n.pacts[B.id]>year?`treaty until ${n.pacts[B.id]}`:null,typeof rivalry==='function'&&rivalry(n,B)>=1?'rivals':null].filter(Boolean);
+  const act=(k,l,c,d,dis)=>`<button class="btn dipb" data-dip="${k}"${dis?' disabled':''}><b>${l}</b><small>${costOf(c)} belief · ${d}</small></button>`;
+  openModal(`<h2>Treaties of ${esc(n.name)}</h2><p class="note">Bend the nations' dealings with each other. Every treaty costs belief.</p>
+    <div class="sec"><span class="lab">With</span><select id="dipTo">${others.map(m=>`<option value="${m.id}"${m.id===diploTo?' selected':''}>${esc(m.name)}${n.wars.has(m.id)?' (at war)':''}</option>`).join('')}</select><p class="note">${rel.length?esc(B.name)+': '+rel.join(', '):esc(B.name)+': no dealings yet.'}</p></div>
+    <div class="dipgrid">${act('pact','Peace treaty',30,'ends a war and forbids one for 30 years')}${act('trade','Trade pact',15,'merchants and ideas flow both ways',n.wars.has(B.id)||n.trade.includes(B.id))}
+      ${act('marriage','Royal marriage',25,'joins the ruling houses; far less likely to fight')}${act('tribute','Demand tribute',20,'the weaker side pays, or takes offence')}
+      ${allied(n,B)?act('unally','Break alliance',10,'they stand alone again'):act('ally','Alliance',20,'they join each other\'s wars',n.wars.has(B.id))}</div>
+    <div class="row" style="margin-top:10px"><div class="flex"></div><button class="btn" data-p="close">Done</button></div>`)}
+$('#modalBox').addEventListener('change',e=>{if(e.target.id==='dipTo'){diploTo=+e.target.value;const n=nations[diploFor];if(n)openDiplo(n)}});
+$('#modalBox').addEventListener('click',e=>{const b=e.target.closest('[data-dip]');if(!b||b.disabled)return;const p={a:diploFor,b:diploTo,k:b.dataset.dip};
+  if(typeof coopGuest==='function'&&coopGuest()){coopAct('dip',p);closeModal();return}if(doAct('dip',p)){const n=nations[diploFor];if(n)openDiplo(n);renderNationCard()}});
 function openSettings(){const t=(k,label,v)=>`<label class="tog">${label}<input type="checkbox" data-set="${k}" ${v?'checked':''}></label>`;
   openModal(`<h2>Settings</h2><div class="sec"><span class="lab">Graphics quality</span><div class="seg">${['low','medium','high'].map(q=>`<button data-q="${q}" aria-pressed="${settings.quality===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div>
     <p class="note">Lower quality draws fewer trees and smaller shadows. Use it on older phones.</p></div>

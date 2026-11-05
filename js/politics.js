@@ -70,7 +70,7 @@ function happyParts(n){const P=[],add=(l,v)=>{if(Math.abs(v)>=.005)P.push([l,v])
   const conq=n.cities.filter(c=>c.conq&&year-c.conq<40).length;if(conq)add('Conquered towns',-Math.min(.16,.04*conq));
   const crowd=Math.max(0,n.pop/Math.max(1,n.cities.length)-(220+n.era*90))/900;if(crowd>0)add('Crowded towns',-Math.min(.1,crowd));
   if(n.era===5)add('Smoke and mills',-.05);if(n.era>=6)add('Comforts of the age',.04);
-  if(n.discord>0)add('Discord you sowed',-.12);if(n.upheaval!=null&&year-n.upheaval<20)add('Hope after upheaval',.06*(1-(year-n.upheaval)/20));
+  if(n.discord>0)add('Discord you sowed',-.12);if(n.cursed>year)add('Cursed by a god',-.16);if(n.tribute&&n.tribute.until>year)add(n.tribute.pay?'Paying tribute':'Tribute flowing in',n.tribute.pay?-.08:.04);if(n.upheaval!=null&&year-n.upheaval<20)add('Hope after upheaval',.06*(1-(year-n.upheaval)/20));
   return P}
 const happyTarget=n=>clamp(.64+happyParts(n).reduce((s,p)=>s+p[1],0),0,1);
 const happyOf=n=>n.happy==null?.6:n.happy;
