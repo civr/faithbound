@@ -58,21 +58,58 @@ function drawArmies(now){
     /* the troops in blocks, with a banner at the front */
     const rows=e>=6?2:4,cols=Math.ceil(men/rows),sp=e>=6?.07:.046;
     if(e>=6){for(let i=0;i<Math.max(2,Math.round(men/9));i++){const u=(i%3-1)*.09,v=-Math.floor(i/3)*.1,x=a.x+c*v-sn*u,z=a.z+sn*v+c*u,y=groundY(x,z);if(y<waterY+.01)continue;tank(e,x,y,z,f,nc)}}
-    for(let i=0;i<men;i++){const u=((i%cols)-(cols-1)/2)*sp,v=-Math.floor(i/cols)*sp-(e>=6?.2:0),x=a.x+c*v-sn*u,z=a.z+sn*v+c*u,y=groundY(x,z);if(y<waterY+.01)continue;
+    a._men=men;a._walk=walk;a._rows=rows;a._cols=cols;a._sp=sp;
+    if(!FOLKMODE())for(let i=0;i<men;i++){const u=((i%cols)-(cols-1)/2)*sp,v=-Math.floor(i/cols)*sp-(e>=6?.2:0),x=a.x+c*v-sn*u,z=a.z+sn*v+c*u,y=groundY(x,z);if(y<waterY+.01)continue;
       const bob=walk?Math.abs(Math.sin(now/140+i*.7+a.ph))*.009:0,col=i%3===0?L.cloth:nc;/* tunics in the nation's colour */
       add('soldier',x,y+bob-.002,z,.017,.04,.013,-f,col);add('soldier',x,y+bob+.038,z,.011,.011,.011,-f,e===3?0xb8bcc4:0xe0c0a0);
       if(i%2===0||e>=4)add('pike',x+sn*.009,y+bob,z-c*.009,.003,L.len*1.5,.003,0,L.tool,e>=4?.6:0)}
     {const bx=a.x+c*.04,bz=a.z+sn*.04,by=groundY(bx,bz);add('pike',bx,by,bz,.004,.17,.004,0,0x5a4a3a);add('soldier',bx+.022*c,by+.13,bz+.022*sn,.045,.032,.004,-f,nc)}}
   armyCommitNow()}
 function armyCommitNow(){for(const n of ARMY_KITS){const K=KITS[n];K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;if(K.mesh.instanceColor)K.mesh.instanceColor.needsUpdate=true}}
-function siegeEngine(e,x,y,z,f,nc){const c=Math.cos(f),s=Math.sin(f);
-  if(e<=2){add('engine',x,y-.01,z,.08,.03,.04,-f,0x6a4a30);add('engine',x,y+.02,z,.09,.02,.05,-f,0x8a6a40);add('barrel',x+c*.05,y+.015,z+s*.05,.012,.06,.012,-f,0x5a3a20,Math.PI/2)}
-  else if(e===3){add('engine',x,y-.01,z,.05,.02,.05,-f,0x6a4a30);add('engine',x,y,z,.012,.12,.05,-f,0x7a5a38);add('barrel',x-c*.03,y+.1,z-s*.03,.006,.14,.006,-f,0x5a3a20,-.9)}
-  else if(e<=5){add('engine',x,y-.012,z,.035,.012,.03,-f,0x4a3a2a);add('barrel',x,y+.008,z,.01,.07,.01,-f,e===5?0x3a3a3a:0x1a1a1a,Math.PI/2-.25);for(const sd of [-1,1])add('barrel',x-s*.018*sd,y,z+c*.018*sd,.016,.004,.016,-f,0x5a4030,Math.PI/2)}
+/* parts placed in the frame of a vehicle facing angle f: lx forward, lz to the side; rx/rz turn a cylinder onto its axle or barrel */
+const dummyA=new THREE.Object3D();dummyA.rotation.order='YZX';
+function addA(name,x,y,z,sx,sy,sz,yaw,rz,hex,rx){const K=KITS[name];if(K.k>=K.max)return;dummyA.position.set(x,y,z);dummyA.rotation.set(rx||0,yaw,rz||0);dummyA.scale.set(sx,sy,sz);dummyA.updateMatrix();
+  K.mesh.setMatrixAt(K.k,dummyA.matrix);K.mesh.setColorAt(K.k,tmpC.set(hex).convertSRGBToLinear());K.k++}
+function vehicle(x,y,z,f){const c=Math.cos(f),s=Math.sin(f),yaw=-f;
+  return {box:(lx,ly,lz,sx,sy,sz,hex,rz)=>addA('engine',x+lx*c-lz*s,y+ly,z+lx*s+lz*c,sx,sy,sz,yaw,rz||0,hex),
+    wheel:(lx,ly,lz,r,w,hex)=>addA('barrel',x+lx*c-lz*s,y+ly,z+lx*s+lz*c,r,w,r,yaw,0,hex,Math.PI/2),
+    tube:(lx,ly,lz,r,len,el,hex)=>{const ce=Math.cos(el),se=Math.sin(el);addA('barrel',x+(lx+ce*len/2)*c-lz*s,y+ly+se*len/2,z+(lx+ce*len/2)*s+lz*c,r,len,r,yaw,-(Math.PI/2-el),hex)},
+    post:(lx,ly,lz,r,len,hex)=>addA('barrel',x+lx*c-lz*s,y+ly+len/2,z+lx*s+lz*c,r,len,r,yaw,0,hex)}}
+function siegeEngine(e,x,y,z,f,nc){const V=vehicle(x,y,z,f),wood=0x7a5634,dark=0x4a3424;
+  if(e<=2){/* catapult: a wheeled frame and a throwing arm */
+    V.box(0,.012,0,.07,.008,.04,wood);for(const sd of [-1,1]){V.wheel(.024,.009,sd*.023,.009,.005,dark);V.wheel(-.024,.009,sd*.023,.009,.005,dark);V.box(0,.026,sd*.014,.012,.028,.005,wood)}
+    V.tube(-.02,.03,0,.003,.07,.55,0x8a6a44);V.box(.004,.016,0,.012,.01,.024,0x5a4030)}
+  else if(e===3){/* trebuchet: A-frame, long beam and a heavy counterweight */
+    V.box(0,.004,0,.08,.008,.05,wood);for(const sd of [-1,1]){V.tube(-.02,.006,sd*.02,.0028,.075,1.2,wood);V.tube(.02,.006,sd*.02,.0028,.075,Math.PI-1.2,wood)}
+    V.tube(-.06,.035,0,.0028,.14,-.45+Math.sin(performance.now()/900)*.15,0x8a6a44);V.box(.03,.04,0,.02,.022,.02,0x6a6a66)}
+  else if(e<=5){/* field gun on a two-wheeled carriage */
+    const steel=e===5?0x3a3c3a:0x2a2a28;for(const sd of [-1,1])V.wheel(0,.012,sd*.02,.012,.004,dark);
+    V.box(-.03,.006,0,.06,.006,.012,0x5a4030,.12);V.tube(-.006,.014,0,.0045,.07,.18,steel);V.box(.006,.016,0,.014,.012,.03,e===5?0x4a4c40:0x5a4030)}
   else tank(e,x,y,z,f,nc)}
-function tank(e,x,y,z,f,nc){const fut=e>=7,body=fut?0xe8ecef:0x5a6448;add('engine',x,y-.01,z,.06,.016,.036,-f,fut?0xd8dde2:0x3a3a30);add('engine',x,y+.006,z,.05,.014,.032,-f,body);
-  add('engine',x,y+.02,z,.024,.012,.022,-f,body);add('barrel',x+Math.cos(f)*.03,y+.026,z+Math.sin(f)*.03,.0045,.05,.0045,-f+Math.PI/2,fut?0x9ff4ff:0x2a2a2a,Math.PI/2);add('engine',x,y+.032,z,.008,.004,.008,-f,nc)}
+function tank(e,x,y,z,f,nc){const V=vehicle(x,y,z,f);
+  if(e>=7){/* hover tank: sleek white hull floating on a blue glow */const fy=.012+Math.sin(performance.now()/400+x*7)*.003;
+    V.box(0,fy-.006,0,.06,.002,.03,0x9ff4ff);V.box(0,fy+.004,0,.072,.012,.036,0xe8ecef);V.box(.03,fy+.004,0,.016,.008,.032,0xd4dadf,-.35);
+    V.box(-.004,fy+.016,0,.032,.01,.026,0xf2f4f6);for(const sd of [-1,1])V.tube(.008,fy+.017,sd*.006,.002,.05,.02,0x9ff4ff);V.box(-.004,fy+.022,0,.01,.002,.012,nc);return}
+  const olive=0x55603f,dark=0x3a422e,track=0x262622;
+  /* tracks with road wheels */
+  for(const sd of [-1,1]){V.box(0,.009,sd*.022,.074,.016,.012,track);for(const lx of [-.027,-.009,.009,.027])V.wheel(lx,.008,sd*.0225,.0065,.0135,0x3a3a36);V.box(0,.018,sd*.022,.072,.003,.014,dark)}
+  /* hull with a sloped front, turret, gun and a cupola */
+  V.box(-.004,.021,0,.064,.012,.032,olive);V.box(.032,.02,0,.014,.008,.032,olive,-.5);V.box(-.036,.024,0,.008,.008,.03,dark);
+  V.box(-.006,.033,0,.03,.012,.024,olive);V.box(.009,.033,0,.008,.011,.018,dark);
+  V.tube(.012,.034,0,.0022,.056,.04,0x2e3226);V.box(.07,.0365,0,.008,.005,.005,0x2a2e24);
+  V.post(-.012,.039,.006,.005,.004,dark);V.post(-.02,.039,-.008,.0007,.04,0x2a2a2a);
+  V.box(-.006,.034,.0122,.016,.006,.0008,nc);V.box(-.006,.034,-.0122,.016,.006,.0008,nc)}
 
+/* up close the troops are real people: helmets, tunics in their nation's colour, spears and shields or rifles */
+const FOLKMODE=()=>camDist<16&&settings.people!==false;
+function drawArmyFolk(R2){if(!FOLKMODE())return;const now=performance.now()/1000;let cnt=0;
+  for(const a of armies){const ex=a.x-camT.x,ez=a.z-camT.z;if(ex*ex+ez*ez>R2)continue;const A=nations[a.n];if(!A||!a._men)continue;
+    const e=Math.min(7,A.era),f=a.face,c=Math.cos(f),sn=Math.sin(f),dir=Math.atan2(c,sn),fighting=a.mode==='field'&&armies.some(o=>o.n===a.foe&&o.mode!=='home'&&Math.hypot(o.x-a.x,o.z-a.z)<.7);
+    if(!a.folk||a.folk.era!==e){a.folk=[];a.folk.era=e}
+    for(let i=0;i<a._men&&cnt<900;i++){let w=a.folk[i];if(!w){const r=mulberry32(i*977+a.n*31);w={nid:a.n,sol:true,skin:SKIN[(r()*SKIN.length)|0],hair:FHAIR[(r()*FHAIR.length)|0],long:false,ph:r()*6.3,t:r()*9};soldierKit(w,A);a.folk[i]=w}
+      const u=((i%a._cols)-(a._cols-1)/2)*a._sp,v=-Math.floor(i/a._cols)*a._sp-(e>=6?.2:0),x=a.x+c*v-sn*u,z=a.z+sn*v+c*u;if(groundY(x,z)<waterY+.01)continue;
+      w.x=x;w.z=z;w.dir=dir+(fighting?Math.sin(now*3+i)*.25:0);w.moving=a._walk;if(a._walk)w.ph=now*11+i*.9;w.t=now+i*.37;w.act=fighting?'chat':'idle';w.wait=1;
+      drawFolk(w);cnt++}}}
 /* a siege bar over every besieged town in view */
 document.addEventListener('DOMContentLoaded',()=>{const _draw=drawOverlay;drawOverlay=function(now){_draw(now);if(!playing||typeof spaceView!=='undefined'&&spaceView)return;const dpr=ov.width/innerWidth;
   for(const n of nations){if(!n.alive)continue;for(const c of n.cities){if(!(c.siege>.04))continue;const x=wx(c.x),z=wz(c.y),[sx,sy,sz]=project(x,groundY(x,z)+.35,z);if(sz>1||sx<0||sy<0||sx>ov.width||sy>ov.height)continue;
