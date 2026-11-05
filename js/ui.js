@@ -789,7 +789,7 @@ function frameBody(now){
   if(colorDirty&&now-lastColor>1500&&!jobs.length){lastColor=now;colorDirty=false;jobs.push(colorTerrain)}
   if(sculptTile>=0&&isSculpt(tool)&&now-lastSculpt>110){lastSculpt=now;applyTool(sculptTile,false)}
   if(terrainDirty&&(sculptTile>=0||!jobs.some(j=>j.terr))){terrainDirty=false;const tj=()=>{computeTerrain();layoutTerrain();propsDirty=true;bordersDirty=true;treesDirty=true};tj.terr=1;if(sculptTile>=0)tj();else jobs.unshift(tj)}
-  waterU.uTime.value=now/1000;
+  waterU.uTime.value=now/1000;terrU.uTime.value=now/1000;
   placeCamera(dt);updateSky(dt,now);
   if(shakeT>0){shakeT-=dt;const a=shakeT*.03*camDist/10;cam.position.x+=(rng()-.5)*a;cam.position.y+=(rng()-.5)*a}
   terrU.uTint.value=settings.borders?(.025+.22*smooth(9,32,camDist)):0;

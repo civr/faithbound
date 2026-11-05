@@ -460,7 +460,7 @@ function harbour(c,cx,cz,e,i0){let d=-1;for(let q=0;q<4;q++){const X=c.x+DX[q],Y
 /* grass: a dense field of swaying blades around the camera when zoomed in */
 const grassU={uTime:{value:0}};
 /* grass: clumps of curved blades, a dense carpet around the camera that thins out at the edge */
-const grassGeo=(()=>{const P=[],C=[],r=mulberry32(5),base=[.05,.085,.025],mid=[.15,.25,.06],tip=[.27,.38,.1];
+const grassGeo=(()=>{const P=[],C=[],r=mulberry32(5),base=[.12,.17,.06],mid=[.19,.28,.08],tip=[.29,.39,.11];
   const v=(p,c)=>{P.push(...p);C.push(...c)};
   for(let k=0;k<11;k++){const a=r()*6.283,d=Math.sqrt(r())*.5,bx=Math.cos(a)*d,bz=Math.sin(a)*d,h=.45+r()*.65,w=.05+r()*.05,fa=r()*6.283,fx=Math.cos(fa),fz=Math.sin(fa),la=r()*6.283,lean=.12+r()*.4,lx=Math.cos(la)*lean,lz=Math.sin(la)*lean;
     const bL=[bx-fx*w,0,bz-fz*w],bR=[bx+fx*w,0,bz+fz*w],m=.55,mL=[bx-fx*w*.6+lx*h*m*m,h*m,bz-fz*w*.6+lz*h*m*m],mR=[bx+fx*w*.6+lx*h*m*m,h*m,bz+fz*w*.6+lz*h*m*m],T=[bx+lx*h,h,bz+lz*h];

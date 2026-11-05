@@ -177,14 +177,35 @@ function groundY(x,z){if(!VY)return 0;let u=(x+W/2)*R,v=(z+H/2)*R;u=clamp(u,0,VW
   return lerp(lerp(VY[k],VY[k+1],fu),lerp(VY[k+VW],VY[k+VW+1],fu),fv)}
 const surfY=(x,z)=>Math.max(groundY(x,z),waterY);
 
+/* ---------- detail textures, made once at start: grass, soil, rock and sand for the land, ripples for the sea ---------- */
+function tileNoise(S,seed){const g=new Float32Array(S*S);let a=seed>>>0;for(let i=0;i<S*S;i++){a=(a*1664525+1013904223)>>>0;g[i]=a/4294967296}
+  return (x,y)=>{x=((x%S)+S)%S;y=((y%S)+S)%S;const x0=Math.floor(x),y0=Math.floor(y),fx=x-x0,fy=y-y0,x1=(x0+1)%S,y1=(y0+1)%S,ux=fx*fx*(3-2*fx),uy=fy*fy*(3-2*fy);
+    const a_=g[y0*S+x0],b=g[y0*S+x1],c=g[y1*S+x0],d=g[y1*S+x1];return a_+(b-a_)*ux+(c-a_)*uy+(a_-b-c+d)*ux*uy}}
+function makeDetailTex(){const R=512,d=new Uint8Array(R*R*4);
+  const n8=tileNoise(8,11),n16=tileNoise(16,23),n32=tileNoise(32,37),n64=tileNoise(64,41),n128=tileNoise(128,53),n256=tileNoise(256,67),w16=tileNoise(16,71);
+  for(let y=0;y<R;y++)for(let x=0;x<R;x++){const u=x/R,v=y/R,q=(y*R+x)*4;
+    const cl=n8(u*8,v*8)*.35+n32(u*32,v*32)*.3,bl=n128(u*128,v*32)*.5+n256(u*64,v*256)*.5;const gr=cl+bl*.35+n64(u*64,v*64)*.15;
+    const crumb=n64(u*64,v*64)*.5+n128(u*128,v*128)*.3+n256(u*256,v*256)*.2,peb=n128(u*128+3.1,v*128+7.7);const so=crumb*.8+(peb>.78?.35:0)-(peb<.12?.15:0);
+    const r1=1-Math.abs(2*n16(u*16,v*16)-1),r2=1-Math.abs(2*n32(u*32+5,v*32+2)-1),st=Math.sin((v+n8(u*8,v*8)*.12)*Math.PI*2*24)*.5+.5;const ro=Math.pow(r1,5)*.45+Math.pow(r2,7)*.3+st*.15+n128(u*128,v*128)*.2;
+    const wv=w16(u*16,v*16),rp=Math.sin((u*40+wv*2.2+n32(u*32,v*32)*.6)*Math.PI*2)*.5+.5;const sa=rp*.6+n256(u*256,v*256)*.4;
+    d[q]=Math.min(255,gr*230)|0;d[q+1]=Math.max(0,Math.min(255,so*230))|0;d[q+2]=Math.min(255,ro*255)|0;d[q+3]=Math.min(255,sa*255)|0}
+  const t=new THREE.DataTexture(d,R,R,THREE.RGBAFormat);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.magFilter=THREE.LinearFilter;t.minFilter=THREE.LinearMipmapLinearFilter;t.generateMipmaps=true;t.anisotropy=8;t.needsUpdate=true;return t}
+function makeWaveTex(){const R=256,d=new Uint8Array(R*R*4),hgt=new Float32Array(R*R);const a=tileNoise(8,91),b=tileNoise(16,97),c=tileNoise(32,101),e=tileNoise(64,103);
+  for(let y=0;y<R;y++)for(let x=0;x<R;x++){const u=x/R,v=y/R;hgt[y*R+x]=a(u*8,v*8)*.45+b(u*16,v*16)*.28+c(u*32,v*32)*.17+e(u*64,v*64)*.1}
+  for(let y=0;y<R;y++)for(let x=0;x<R;x++){const H_=(X,Y)=>hgt[((Y+R)%R)*R+((X+R)%R)];const dx=(H_(x+1,y)-H_(x-1,y))*R*.06,dy=(H_(x,y+1)-H_(x,y-1))*R*.06;
+    const l=Math.hypot(dx,dy,1),q=(y*R+x)*4;d[q]=((-dx/l)*.5+.5)*255;d[q+1]=((-dy/l)*.5+.5)*255;d[q+2]=(1/l*.5+.5)*255;d[q+3]=hgt[y*R+x]*255}
+  const t=new THREE.DataTexture(d,R,R,THREE.RGBAFormat);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.magFilter=THREE.LinearFilter;t.minFilter=THREE.LinearMipmapLinearFilter;t.generateMipmaps=true;t.anisotropy=4;t.needsUpdate=true;return t}
+const DETAIL_TEX=makeDetailTex(),WAVE_TEX=makeWaveTex();
 const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:0});
 const NOISE_GLSL=`varying vec3 vWP;float hn(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hn(i),hn(i+vec2(1,0)),f.x),mix(hn(i+vec2(0,1)),hn(i+vec2(1,1)),f.x),f.y);}`;
-const terrU={uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30},uOwn:{value:null},uWar:{value:null},uMap:{value:new THREE.Vector2(1,1)},uTint:{value:0},uTime:{value:0}};
+const terrU={uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30},uOwn:{value:null},uWar:{value:null},uMap:{value:new THREE.Vector2(1,1)},uTint:{value:0},uTime:{value:0},uDet:{value:DETAIL_TEX}};
 terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
-  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;\n'+NOISE_GLSL)
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;uniform sampler2D uDet;\n'+NOISE_GLSL)
    .replace('#include <color_fragment>',`#include <color_fragment>
+    float camD=length(vWP-cameraPosition),dfade=1.-smoothstep(14.,46.,camD);
+    vec4 d1=texture2D(uDet,vWP.xz*.85),d2=texture2D(uDet,mat2(.8,-.6,.6,.8)*vWP.xz*.29+.37),d3=texture2D(uDet,vWP.xz*3.1);vec4 bumpW=vec4(0.);
     float dn=vn(vWP.xz*11.)*.45+vn(vWP.xz*37.)*.3+vn(vWP.xz*2.7)*.25;diffuseColor.rgb*=.86+dn*.28;
     /* meadows: lush and dry patches, mown strips and fine blades, so grass never reads as flat paint */
     float gr=smoothstep(.0,.06,diffuseColor.g-max(diffuseColor.r,diffuseColor.b)*.92);
@@ -196,6 +217,21 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
     /* steep ground shows bare earth and rock */
     vec3 gn=normalize(cross(dFdx(vWP),dFdy(vWP)));float st=smoothstep(.62,.86,1.-abs(gn.y));
     vec3 rockC=mix(vec3(.075,.065,.05),vec3(.13,.12,.10),vn(vWP.xz*9.+vWP.y*3.));diffuseColor.rgb=mix(diffuseColor.rgb,rockC*(.85+dn*.3),st*.85*step(.01,vWP.y-uWaterY));
+    /* real ground: grass tufts, crumbly soil, sand ripples and cracked rock, fading out with distance */
+    {float lum=dot(diffuseColor.rgb,vec3(.3,.59,.11));float above=step(.006,vWP.y-uWaterY);
+     float sandy=(1.-gr)*smoothstep(.02,.1,diffuseColor.r-diffuseColor.b)*smoothstep(.14,.3,lum)*(1.-st);
+     float soil=(1.-gr)*(1.-sandy)*(1.-st);
+     float g=d1.r*.55+d2.r*.3+d3.r*.15;float so=d1.g*.6+d3.g*.4;float sa=d1.a*.7+d3.a*.3;
+     vec3 an=abs(gn)+1e-3;an/=an.x+an.y+an.z;float rk=texture2D(uDet,vWP.zy*.7).b*an.x+texture2D(uDet,vWP.xy*.7).b*an.z+(d1.b*.6+d2.b*.4)*an.y;
+     vec3 c0=diffuseColor.rgb;
+     c0*=mix(1.,.74+.52*g,gr*dfade*above);c0=mix(c0,c0*vec3(.86,1.05,.8),gr*smoothstep(.55,.8,d2.r)*dfade*.6);
+     c0*=mix(1.,.72+.56*so,soil*dfade*.85);
+     c0*=mix(1.,.84+.3*sa,sandy*dfade);
+     c0*=mix(1.,.55+.9*rk,st*dfade*above);
+     diffuseColor.rgb=c0;bumpW=vec4(gr*.6,soil*.5,st*.9,sandy*.4);}
+    /* sunlight dancing on the shallow seabed */
+    if(vWP.y<uWaterY){float dep=uWaterY-vWP.y;vec2 cp=vWP.xz*2.2;float c1=vn(cp+vec2(uTime*.35,uTime*.2)),c2=vn(cp*1.3-vec2(uTime*.27,-uTime*.31));float ca=pow(1.-abs(c1-c2),7.);
+      diffuseColor.rgb+=vec3(.55,.75,.7)*ca*.35*exp(-dep*2.5)*dfade;}
     /* seasons: golden autumn meadows, snow on cold and high ground in winter */
     diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.28,1.02,.58),uAutumn*gr*.65);
     float lat=abs(vWP.z)/uHalfH,sn=uSnow*smoothstep(.64,.86,lat+(vWP.y-uWaterY)*.11+(vn(vWP.xz*2.3)-.5)*.2)*step(.02,vWP.y-uWaterY)*(1.-st*.6);
@@ -203,7 +239,10 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
     /* nations: a soft wash of their colour; war fronts: a scorched, striped conflict zone */
     if(uTint>0.){vec2 tuv=(vWP.xz+uMap*.5)/uMap;vec4 own=texture2D(uOwn,tuv);float ab=step(uWaterY+.004,vWP.y);
       diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*.6+own.rgb*.55,own.a*uTint*ab);
-      float wz=texture2D(uWar,tuv).r*ab;if(wz>.02){float stp=step(.86,fract((vWP.x+vWP.z)*3.2));float sc=vn(vWP.xz*6.);diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.78,.66,.56)*(.85+sc*.3),wz*.5);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.72,.12,.07),wz*stp*.45);}}`);
+      float wz=texture2D(uWar,tuv).r*ab;if(wz>.02){float stp=step(.86,fract((vWP.x+vWP.z)*3.2));float sc=vn(vWP.xz*6.);diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.78,.66,.56)*(.85+sc*.3),wz*.5);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.72,.12,.07),wz*stp*.45);}}`)
+   .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+    if(dfade>.01){vec2 P=vWP.xz*.85;float e=.012;vec4 hx=texture2D(uDet,P+vec2(e,0.)),hz=texture2D(uDet,P+vec2(0.,e));
+     float dHx=dot(hx-d1,bumpW)/e,dHz=dot(hz-d1,bumpW)/e;vec3 pw=vec3(-dHx,0.,-dHz)*.0035*dfade;normal=normalize(normal+(viewMatrix*vec4(pw,0.)).xyz);}`);
 };
 function buildTerrain(){
   for(const m of [terrainMesh,skirtMesh,waterMesh,waterSide]){if(m){scene.remove(m);m.geometry.dispose()}}
@@ -233,22 +272,28 @@ function buildOcean(){const sh=new THREE.Shape();sh.moveTo(-1500,-1500);sh.lineT
   const hole=new THREE.Path();hole.moveTo(-W/2,-H/2);hole.lineTo(-W/2,H/2);hole.lineTo(W/2,H/2);hole.lineTo(W/2,-H/2);hole.lineTo(-W/2,-H/2);sh.holes.push(hole);
   const g=new THREE.ShapeGeometry(sh);g.rotateX(-Math.PI/2);ocean.geometry.dispose();ocean.geometry=g}
 const waterSideMat=new THREE.MeshStandardMaterial({color:colL(0x1d5f86),transparent:true,opacity:.72,roughness:.2,depthWrite:false});
-const waterU={uTime:{value:0},uDeep:{value:colL(0x0f3f63)},uShallow:{value:colL(0x2f9bb0)}};
+const waterU={uTime:{value:0},uDeep:{value:colL(0x0f3f63)},uShallow:{value:colL(0x2f9bb0)},uWave:{value:WAVE_TEX}};
 const waterMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.06,metalness:0,transparent:true,envMapIntensity:1.1});
 waterMat.onBeforeCompile=sh=>{
   Object.assign(sh.uniforms,waterU);
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float aDepth;attribute float aIce;varying float vDepth;varying float vIce;varying vec3 vWP;uniform float uTime;')
    .replace('#include <beginnormal_vertex>','float wa=position.x*1.7+uTime*1.1,wb=position.z*1.4+uTime*1.35;vec3 objectNormal=normalize(vec3(-cos(wa)*.05,1.,sin(wb)*.045));')
    .replace('#include <begin_vertex>','vec3 transformed=vec3(position);transformed.y+=(sin(wa)*.03+cos(wb)*.026)*(1.-aIce)*clamp(aDepth*2.,0.,1.);vDepth=aDepth;vIce=aIce;vWP=(modelMatrix*vec4(transformed,1.)).xyz;');
-  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uTime;uniform vec3 uDeep;uniform vec3 uShallow;varying float vDepth;varying float vIce;\n'+NOISE_GLSL)
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uTime;uniform vec3 uDeep;uniform vec3 uShallow;uniform sampler2D uWave;varying float vDepth;varying float vIce;\n'+NOISE_GLSL)
    .replace('#include <color_fragment>',`#include <color_fragment>
-    float dd=clamp(vDepth/1.2,0.,1.);vec3 wc=mix(uShallow,uDeep,sqrt(dd));
-    float fo=(1.-smoothstep(0.,.14,vDepth))*(.55+.45*vn(vWP.xz*14.+vec2(uTime*.8,-uTime*.5)));
-    diffuseColor.rgb=mix(wc,vec3(.9,.95,.97),clamp(fo,0.,1.));diffuseColor.a=mix(.7,.96,smoothstep(0.,.8,vDepth))+fo*.3;
+    float dd=clamp(vDepth/1.2,0.,1.);vec3 wc=mix(uShallow*1.08,uDeep,pow(dd,.6));
+    vec4 w1=texture2D(uWave,vWP.xz*.32+vec2(uTime*.018,uTime*.011)),w2=texture2D(uWave,vWP.xz*.81-vec2(uTime*.024,-uTime*.017));float wh=w1.a*.6+w2.a*.4;
+    wc*=.92+wh*.16;
+    float edge=1.-smoothstep(0.,.035,vDepth);float surf=smoothstep(.72,.95,sin(vDepth*42.-uTime*1.6+wh*5.)*.5+.5)*(1.-smoothstep(.02,.2,vDepth));
+    float fo=clamp((edge*.9+surf*.6)*(.45+.75*smoothstep(.35,.7,wh+vn(vWP.xz*16.+uTime*.3)*.35)),0.,1.);
+    float caps=smoothstep(.83,.9,wh)*smoothstep(.6,1.,dd)*.35;
+    diffuseColor.rgb=mix(wc,vec3(.92,.96,.97),max(fo,caps));diffuseColor.a=mix(.55,.97,smoothstep(0.,.9,vDepth))+fo*.35;
     float ic=vIce*(.85+.15*vn(vWP.xz*5.));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.86,.92,.97),ic);diffuseColor.a=max(diffuseColor.a,ic);`)
    .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.55,vIce);')
    .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
-    vec2 q=vWP.xz*7.+vec2(uTime*.7,uTime*.45);normal=normalize(normal+vec3(vn(q)-.5,0.,vn(q+19.)-.5)*.22*(1.-vIce));`);
+    {vec3 n1=texture2D(uWave,vWP.xz*.32+vec2(uTime*.018,uTime*.011)).xyz*2.-1.,n2=texture2D(uWave,vWP.xz*.81-vec2(uTime*.024,-uTime*.017)).xyz*2.-1.,n3=texture2D(uWave,vWP.xz*2.3+vec2(-uTime*.05,uTime*.04)).xyz*2.-1.;
+     float camD=length(vWP-cameraPosition),k=(1.-vIce)*(.55+.45*(1.-smoothstep(10.,60.,camD)));
+     vec3 wn=normalize(vec3((n1.x+n2.x*.8+n3.x*.5)*k,1.,(n1.y+n2.y*.8+n3.y*.5)*k));normal=normalize(mix(normal,(viewMatrix*vec4(wn,0.)).xyz,.85));}`);
 };
 
 function layoutTerrain(){terrVer++;
