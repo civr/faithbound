@@ -109,7 +109,7 @@ const stabUnrest=n=>1.7-stabOf(n)*1.4;
 
 function politicsTick(n){ensureFlag(n);if(n.stab==null)n.stab=.6;if(n.happy==null)n.happy=.6;if(n.discord>0)n.discord--;
   n.happy+=(happyTarget(n)-n.happy)*.08;n.happy=clamp(n.happy,0,1);
-  if(n.happy<.32&&n.cities.length&&rng()<(.32-n.happy)*.09){uprising(n);return}
+  if(n.happy<.32&&n.cities.length&&rng()<(.32-n.happy)*.09*mood().riot){uprising(n);return}
   n.stab+=(stabTarget(n)-n.stab)*.06;n.stab=clamp(n.stab,0,1);
   if(n.golden>year&&n.stab<.55){n.golden=0;if(important(n))log(`The golden age of ${n.name} came to an end.`,'life')}
   if(!(n.golden>year)&&n.stab>.8&&n.era>=1&&rng()<.012){n.golden=year+40;n.devotion=clamp((n.devotion??.3)+.05,0,1);log(`A golden age dawns in ${n.name}: art, learning and plenty.`,'era');milestone('golden','A golden age','A nation flourished in peace and plenty.')}

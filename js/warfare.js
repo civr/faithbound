@@ -21,7 +21,7 @@ function sides(comp){/* split the fighting nations into two camps: enemies of th
   return [[...A],[...B]]}
 const curWW=()=>worldWars.find(w=>!w.end);
 function worldWarTick(){const al=nations.filter(n=>n.alive);if(!al.length)return;const tot=al.reduce((s,n)=>s+n.pop,0),top=al.reduce((m,n)=>Math.max(m,n.era),0),ww=curWW();
-  if(!ww){if(top<4)return;const last=worldWars.length?worldWars[worldWars.length-1].end||year:-1e9;if(top>=5&&year-last>50&&rng()<.012/(1+worldWars.length*.6))escalate();for(const comp of warGroups()){const pop=comp.reduce((s,n)=>s+n.pop,0);if(comp.length>=5&&pop>tot*.35){
+  if(!ww){if(top<4)return;const last=worldWars.length?worldWars[worldWars.length-1].end||year:-1e9;if(top>=5&&year-last>50&&rng()<.012*mood().war/(1+worldWars.length*.6))escalate();for(const comp of warGroups()){const pop=comp.reduce((s,n)=>s+n.pop,0);if(comp.length>=5&&pop>tot*.35){
       const [a,b]=sides(comp),i=worldWars.length;worldWars.push({n:i,start:year,a,b,deaths:0,end:null});const lead=nations[a[0]],foe=nations[b[0]];
       log(`The ${ORD[i]||(i+1)+'th'} World War has begun. ${comp.length} nations are at war, led by ${lead.name}${foe?' and '+foe.name:''}.`,'doom');
       milestone('worldwar','World war','Most of the world went to war at once.');if(typeof toast==='function')toast('World war',`${comp.length} nations are at war.`);for(const n of comp)n.stab=Math.max(0,stabOf(n)-.1);return}}return}
