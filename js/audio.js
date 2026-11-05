@@ -190,7 +190,32 @@ function musicEra(){if(selected>=0&&nations[selected]&&nations[selected].alive)r
 /* ---------- music styles: pick one in Settings ----------
    Calm: slow pads, a deep hum and bells, no drums.  Epic: strings and horns over timpani, building in war.  Cozy: plucked harp arpeggios, soft piano and flute. */
 function organ(f,t,dur,peak,bus){for(const [h,a] of [[1,1],[2,.5],[3,.28],[4,.18],[6,.08]])tone('sine',f*h,t,dur,peak*a,bus,{a:Math.min(2.5,dur*.3),verb:true})}
+/* Anthem: one main theme for the whole game, like a Civilization or Anno score. The melody stays; the band grows with
+   every age (bone flute and drums, then lute and fiddle, strings, a full orchestra, piano, and shimmering synths in the future).
+   War turns it to minor and quickens it; a world war drives it hard. Form: theme, development, theme an octave up, development. */
+const THEME_A=[[[0,1],[2,1],[4,2]],[[5,1],[4,1],[2,2]],[[3,1.5],[2,.5],[1,1],[2,1]],[[0,3]],[[4,1],[5,1],[7,2]],[[6,1],[5,1],[4,2]],[[3,1],[4,1],[5,1],[1,1]],[[0,4]]];
+const THEME_PROG=[0,4,5,3,0,3,4,0];
+function snare(t,peak,bus){nburst(SND.noise,t,.09,peak,'bandpass',2200,bus,{a:.002,q:.8});tone('triangle',190,t,.06,peak*.5,bus)}
 const STYLES={
+  anthem:{minorInWar:true,prog:THEME_PROG,bpm:(war,ww)=>ww?124:war?106:90,play(b,war,era,ww){const e=era,bt=b.beat,L=4*bt,sec=(b.bar>>3)%4,bi=b.bar%8,deg=THEME_PROG[bi],bus=b.bus,inten=ww?1:war?.5:0;
+    const mel=(d,oct,t,dur,pk)=>{const f=hz(b.abs(d,oct));if(e<=3)flute(f,t,dur*.95,pk,bus);else if(e<=5){bow(f,t,dur,pk*1.1,bus,false);if(e===5&&sec===2)flute(f*2,t,dur*.9,pk*.5,bus)}else if(e===6){epiano(f,t,dur,pk*1.2,bus);bow(f,t,dur,pk*.5,bus,false)}else{epiano(f,t,dur,pk,bus);bell(b.abs(d,oct+1),t,pk*.5,bus)}};
+    const tri=(oct)=>[0,2,4].map(i=>b.abs(deg+i,oct));
+    /* melody: the theme in A sections, a freer line in B sections */
+    if(sec===0||sec===2){let t=b.t;for(const [d,len] of THEME_A[bi]){mel(d,sec===2?1:0,t,len*bt,.05);if(sec===2&&e>=4)mel(d+2,0,t,len*bt,.025);t+=len*bt}}
+    else b.melody(4,.3,(f,t,d)=>{if(e<=3)flute(f,t,d,.035,bus);else if(e<=5)bow(f,t,d*1.1,.04,bus,false);else epiano(f,t,d,.045,bus)},0);
+    /* accompaniment */const ch=tri(-1);
+    if(e<=2){if(bi%2===0)pluck(hz(ch[0]),b.t,L,.05,.4,bus);tone('sine',hz(b.abs(deg,-2)),b.t,L,.04,bus,{a:.4,lp:300})}
+    else if(e===3){for(let k=0;k<8;k++)pluck(hz([ch[0],ch[1],ch[2],ch[1]][k%4]),b.t+k*bt/2,bt*.9,.045,.55,bus);bow(hz(b.abs(deg,-2)),b.t,L,.02,bus,true)}
+    else if(e===4){for(let k=0;k<8;k++)pluck(hz([ch[0],ch[2],ch[1],ch[2]][k%4]+12),b.t+k*bt/2,bt*.6,.04,.9,bus);ch.forEach((m,i)=>bow(hz(m),b.t,L,.018,bus,true))}
+    else if(e===5){ch.forEach((m,i)=>bow(hz(m),b.t+i*.03,L,.026,bus,false));for(let k=0;k<8;k++)pluck(hz(ch[k%3]),b.t+k*bt/2,bt*.5,.03,.6,bus)}
+    else if(e===6){for(const k of [0,2])ch.forEach(m=>epiano(hz(m+12),b.t+k*bt,bt*1.8,.022,bus));ch.forEach(m=>bow(hz(m),b.t,L,.014,bus,true))}
+    else{ch.forEach(m=>bow(hz(m),b.t,L,.016,bus,true));for(let k=0;k<8;k++)pluck(hz(ch[k%3]+24),b.t+k*bt/2,bt*.5,.025,1,bus)}
+    if(e>=3)for(const k of [0,2])tone(e>=6?'sine':'triangle',hz(b.abs(deg,-2)),b.t+k*bt,bt*1.6,.07,bus,{a:.01,lp:500});
+    /* percussion, heavier with every age and with war */
+    if(e<=3){for(const k of [0,1.5,2])drum('frame',b.t+k*bt,.12+.08*inten,bus)}else{drum('timpani',b.t,.16+.14*inten,bus);if(e>=5)drum('timpani',b.t+2*bt,.12+.1*inten,bus)}
+    if(e>=5&&(war||sec===3))for(const k of [1,3])snare(b.t+k*bt,.05+.05*inten,bus);
+    if(war)for(let k=0;k<8;k++)drum('frame',b.t+k*bt/2,.05+.06*inten,bus);
+    if(ww){for(let k=0;k<16;k++)pluck(hz(b.abs(deg,-1)+(k%4===3?7:0)),b.t+k*bt/4,bt*.22,.035,.4,bus);if(bi===7)for(let k=0;k<8;k++)snare(b.t+2*bt+k*bt/4,.03+k*.008,bus)}}},
   cinematic:{bpm:(war,ww)=>ww?86:war?62:50,play(b,war,era,ww){const L=b.beats*b.beat,inten=ww?1:war?.5:0;
     /* the organ: long swelling chords */if(b.bar%2===0||ww)b.chord((f,i)=>organ(f,b.t+i*.12,L*(ww?1.05:2.1),.016+.008*inten,b.bus),-1);
     /* the clock: a soft ticking figure, faster as tension rises */const sub=ww?4:war?2:2,step=b.beat/sub,hi=[b.note(4,1),b.note(2,1)];for(let k=0;k<b.beats*sub;k++)tone('triangle',hz(hi[k%2]),b.t+k*step,step*.9,(k%sub===0?.014:.008)*(1+inten),b.bus,{lp:2600});
@@ -215,13 +240,13 @@ const STYLES={
     for(let k=1;k<b.beats;k+=2)drum('frame',b.t+k*b.beat,war?.12:.06,b.bus);
     if(b.bar%4>=2)b.melody(6,.35,(f,t,d)=>flute(f,t,d,.04,b.bus),1)}}};
 function musicBar(){if(!playing){themeBar();lastMusicEra=-1;return}
-  const style=settings.music||'cinematic';if(style==='off'){SND.next=SND.ctx.currentTime+2;return}
+  const style=settings.music||'anthem';if(style==='off'){SND.next=SND.ctx.currentTime+2;return}
   const c=SND.ctx,era=musicEra(),B=BANDS[era];
   if(era!==lastMusicEra){/* a short fanfare when the age changes */if(lastMusicEra>=0&&playing){const t=Math.max(SND.next,c.currentTime+.05);[0,4,7,12].forEach((m,i)=>bow(hz(B.root+12+m),t+i*.22,.9,.05,SND.bus.music));drum('timpani',t,.35,SND.bus.music);SND.next=t+1.6;SND.bar=0}lastMusicEra=era}
   const war=nations.some(n=>n.alive&&n.wars.size);let mode=B.mode;if(war&&(mode==='major'||mode==='mixo'||mode==='lydian'))mode='minor';
-  const ww=typeof worldWars!=='undefined'&&worldWars.some(w=>w.end==null),S=STYLES[style];if(S===STYLES.cinematic&&(war||ww))mode='minor';const sc=MODES[mode],beat=60/(S?(typeof S.bpm==='function'?S.bpm(war,ww):S.bpm):B.bpm)*(war&&!S?.92:1),t0=Math.max(SND.next,c.currentTime+.05),deg=B.prog[SND.bar%B.prog.length];
+  const ww=typeof worldWars!=='undefined'&&worldWars.some(w=>w.end==null),S=STYLES[style];if(S&&(S===STYLES.cinematic||S.minorInWar)&&(war||ww))mode='minor';const sc=MODES[mode],beat=60/(S?(typeof S.bpm==='function'?S.bpm(war,ww):S.bpm):B.bpm)*(war&&!S?.92:1),t0=Math.max(SND.next,c.currentTime+.05),deg=S&&S.prog?S.prog[SND.bar%S.prog.length]:B.prog[SND.bar%B.prog.length];
   const note=(d,oct)=>B.root+12*(oct||0)+sc[((d%sc.length)+sc.length)%sc.length]+12*Math.floor(d/sc.length);
-  const b={t:t0,beat,beats:S?4:B.beats,bus:SND.bus.music,root:B.root,bar:SND.bar,note:(d,oct)=>note(deg+d,oct),
+  const b={abs:(d,oct)=>note(d,oct),t:t0,beat,beats:S?4:B.beats,bus:SND.bus.music,root:B.root,bar:SND.bar,note:(d,oct)=>note(deg+d,oct),
     chord(fn,oct,inv){[0,2,4].forEach((d,i)=>fn(hz(note(deg+d+(inv&&i===0?sc.length:0),oct||0)),i))},
     melody(slots,rest,fn,oct){let d=deg+2+((Math.random()*3)|0);const step=B.beats*beat/slots;for(let k=0;k<slots;k++){if(Math.random()<rest)continue;d+=Math.round((Math.random()-.5)*3);d=clamp(d,deg-1,deg+9);
       const len=Math.random()<.3?step*2:step;fn(hz(note(d,oct)),t0+k*step+(Math.random()-.5)*.015,len*.95)}}};
