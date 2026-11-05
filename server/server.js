@@ -200,7 +200,7 @@ async function serveStatic(req, res, url) {
   let p; try { p = decodeURIComponent(url.pathname); } catch { return send(res, 400, { error: 'Bad path.' }); }
   if (p === '/') p = '/index.html';
   /* only the game itself is public: never the data folder, the server or config files */
-  if (!/^\/(index\.html|three\.min\.js|js\/[a-z0-9_-]+\.js|favicon\.(ico|svg|png))$/i.test(p)) return send(res, 404, { error: 'Not found.' });
+  if (!/^\/(index\.html|three\.min\.js|js\/[a-z0-9_-]+\.js|favicon\.(ico|svg|png)|assets\/(textures|models)\/[a-z0-9_-]+\.(jpg|png|glb))$/i.test(p)) return send(res, 404, { error: 'Not found.' });
   const f = path.normalize(path.join(PUB, p));
   if (!f.startsWith(PUB + path.sep)) return send(res, 404, { error: 'Not found.' });
   let st; try { st = await fsp.stat(f); } catch { return send(res, 404, { error: 'Not found.' }); }
