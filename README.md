@@ -3,9 +3,16 @@
 A browser god game. Guide followers from the Stone Age to the Future.
 
 ## Run it with Docker (recommended)
-This folder has everything: the game, a small save server (`server.js`, plain Node, no packages), a Dockerfile and a compose file. Copy it to the VM, then:
+The repository has a `docker-compose.yml` at the top. It builds the game inside Docker, so nothing else is needed on the server:
+
+    git clone https://github.com/civr/faithbound.git
+    cd faithbound
+    docker compose up -d --build
+
+To update later:
 
     cd faithbound
+    git pull
     docker compose up -d --build
 
 The game runs on port **8040** of that VM. In Nginx Proxy Manager, add a Proxy Host:
@@ -13,7 +20,11 @@ The game runs on port **8040** of that VM. In Nginx Proxy Manager, add a Proxy H
 - Forward Port: 8040, scheme http
 - Websockets are not needed. Block Common Exploits is fine. Request an SSL certificate on the SSL tab.
 
-To update: replace the files in the folder and run the same command again. Saved worlds stay in the Docker volume.
+Saved worlds and accounts live in the Docker volume `dist_faithbound-data` (the same one the older `dist/` setup used), so they survive updates.
+
+Coming from the older way (`./build.sh` and running compose inside `dist/`)? Stop that one once with `cd dist && docker compose down` (this keeps the volume), then use the commands above from the top folder.
+
+The zip (`faithbound.zip`) still works too: it is the built `dist/` folder with its own compose file.
 
 ### Accounts and saves
 Players make an account on the title screen (name and password). Their worlds are saved on the server, so they can continue on any device. Without an account, a world is saved in that browser only.
