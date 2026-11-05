@@ -37,9 +37,15 @@ async function coopJoin(room,name){room=String(room||'').toUpperCase().replace(/
   coopConnect();coopBadge();openModal(`<h2>Joining ${esc(r.data.world)}</h2><p class="note">Waiting for ${esc(r.data.host||'the host')} to send the world…</p>`);return true}
 function coopLeave(){if(!coop)return;const c=coop;fetch(`/api/coop/leave/${c.room}?tok=${c.tok}`,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:'{}',keepalive:true}).catch(()=>{});
   coopStop();if(c.role==='guest'){worldOpts.slot=null;toast('You left the shared world','You keep a copy of it to play on your own.')}else toast('Co-op closed','Your world is yours alone again.')}
-function coopStop(){if(!coop)return;if(coop.es)coop.es.close();clearInterval(coop.timer);clearTimeout(coop.soon);coop=null;coopBadge();if(location.hash.startsWith('#coop='))history.replaceState(null,'',location.pathname+location.search)}
+/* a host who reloads the page picks the shared world up again */
+function coopRemember(){if(!coopHosting())return;try{sessionStorage.setItem('fb.coopHost',JSON.stringify({room:coop.room,tok:coop.tok,color:coop.color,name:(coopMe()||{}).name||'Host',pools:coop.pools,slot:worldOpts.slot||null,at:Date.now()}))}catch(e){}}
+function coopResume(){if(coop)return;let d=null;try{d=JSON.parse(sessionStorage.getItem('fb.coopHost')||'null')}catch(e){}if(!d||Date.now()-d.at>110000||(d.slot&&worldOpts.slot&&d.slot!==worldOpts.slot))return;
+  coop={role:'host',room:d.room,tok:d.tok,pid:0,color:d.color,players:[{pid:0,name:d.name,color:d.color,on:true,host:true}],pools:d.pools||{},ctx:{},cursors:{},chat:[],lastY:year,sent:{},k:0,fails:0,online:false};
+  coopConnect();coop.timer=setInterval(coopPump,COOP_PUMP);coopBadge();toast('Your shared world is open again','Your friends are still here.');setTimeout(()=>{if(coopHosting())coopSend('snap',coopSnapshot())},1500)}
+{const _sp=startPlaying;startPlaying=function(fresh){const r=_sp(fresh);if(!fresh)setTimeout(coopResume,400);return r}}
+function coopStop(){if(!coop)return;try{sessionStorage.removeItem('fb.coopHost')}catch(e){}if(coop.es)coop.es.close();clearInterval(coop.timer);clearTimeout(coop.soon);coop=null;coopBadge();if(location.hash.startsWith('#coop='))history.replaceState(null,'',location.pathname+location.search)}
 function coopEnded(why){if(!coop)return;const g=coopGuest();coopStop();if(g){worldOpts.slot=null;toast('The shared world closed',(why||'The host left.')+' You keep a copy to play on your own.')}}
-addEventListener('pagehide',()=>{if(coop)try{fetch(`/api/coop/leave/${coop.room}?tok=${coop.tok}`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',keepalive:true})}catch(e){}});
+addEventListener('pagehide',()=>{if(coopHosting()){coopRemember();return}/* the host may only be reloading: the world stays open for two minutes */if(coop)try{fetch(`/api/coop/leave/${coop.room}?tok=${coop.tok}`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',keepalive:true})}catch(e){}});
 
 /* ---------- messages ---------- */
 function coopOnMsg(m){if(!coop)return;const t=m.t;
@@ -83,20 +89,20 @@ function coopFollowers(pid){let k=0,ppl=0;for(const n of nations)if(n.alive&&n.f
 function coopPump(){if(!coopHosting()||!playing)return;coop.k++;coop.rates=coop.rates||{};coop.rates[0]=beliefRate;
   const dy=year-coop.lastY;if(dy>0){for(const p of coop.players)if(p.pid){const pool=coop.pools[p.pid]??COOP_START_BELIEF,r=coopIncome(p.pid,pool);coop.rates[p.pid]=r;coop.pools[p.pid]=pool+r*dy}coop.lastY=year}else if(dy<0)coop.lastY=year;
   if(coop.players.filter(p=>p.pid&&p.on).length===0)return;
-  coopSend('live',coopLive(coop.k%40===0))}
+  coopSend('live',coopLive(coop.k%40===0));if(coop.k%10===0)coopRemember()}
 function coopSoon(){if(!coopHosting())return;clearTimeout(coop.soon);coop.soon=setTimeout(()=>{if(coopHosting()&&playing)coopSend('live',coopLive(false))},120)}
 
 /* ---------- host: work a guest's miracle with that guest's belief and choices ---------- */
 function coopRun(pid,fn){const ctx=coop.ctx[pid]||(coop.ctx[pid]={warFrom:-1,carry:null,migrFrom:null,selectedFaith:-1});
-  const sv={belief,tool,warFrom,carry,migrFrom,selectedFaith,selected,inspectTile,curTab,say,openSheet,openModal,openGov,focusOn,renderNationCard,setTool};
+  const sv={belief,tool,warFrom,carry,migrFrom,selectedFaith,selected,inspectTile,curTab,say,openSheet,openModal,openGov,focusOn,renderNationCard,setTool,toast};const who=coopName(pid);
   belief=coop.pools[pid]??COOP_START_BELIEF;warFrom=ctx.warFrom;carry=ctx.carry;migrFrom=ctx.migrFrom;selectedFaith=ctx.selectedFaith;
-  const msgs=[],noop=()=>{};say=m=>{msgs.push(String(m))};openSheet=noop;openModal=noop;openGov=noop;focusOn=noop;renderNationCard=noop;coop.running=pid;
+  const msgs=[],noop=()=>{};say=m=>{msgs.push(String(m))};openSheet=noop;openModal=noop;openGov=noop;focusOn=noop;renderNationCard=noop;coop.running=pid;toast=(a,b,x,z)=>sv.toast(a,String(b||'').replace(/^Your /,who+'’s ').replace(/\byou\b/g,who),x,z);
   setTool=id=>{tool=id;ctx.tool=id;if(id!=='carry')carry=null;if(id!=='war'&&id!=='ally')warFrom=-1;if(id!=='migrate')migrFrom=null};tool=ctx.tool||'inspect';
   let r,spent=0;const b0=belief;
   try{r=fn(ctx)}catch(e){console.error('coop cmd',e);msgs.push('That did not work.')}
   finally{spent=b0-belief;coop.pools[pid]=belief;Object.assign(ctx,{warFrom,carry,migrFrom,selectedFaith});
     belief=sv.belief;tool=sv.tool;warFrom=sv.warFrom;carry=sv.carry;migrFrom=sv.migrFrom;selectedFaith=sv.selectedFaith;selected=sv.selected;inspectTile=sv.inspectTile;curTab=sv.curTab;
-    say=sv.say;openSheet=sv.openSheet;openModal=sv.openModal;openGov=sv.openGov;focusOn=sv.focusOn;renderNationCard=sv.renderNationCard;setTool=sv.setTool;coop.running=null;
+    say=sv.say;openSheet=sv.openSheet;openModal=sv.openModal;openGov=sv.openGov;focusOn=sv.focusOn;renderNationCard=sv.renderNationCard;setTool=sv.setTool;toast=sv.toast;coop.running=null;
     buildDock();if(selected>=0)renderNationCard()}
   return {r,msgs,spent,ctx}}
 function coopRunCmd(pid,c){if(!playing)return;const name=coopName(pid);
@@ -104,6 +110,7 @@ function coopRunCmd(pid,c){if(!playing)return;const name=coopName(pid);
     const res=coopRun(pid,ctx=>{if(tool!==c.tool)setTool(c.tool);if(c.wf>=0&&(c.tool==='war'||c.tool==='ally'))warFrom=c.wf;if(c.sf>=0&&faiths[c.sf])selectedFaith=c.sf;applyTool(c.i,!!c.start)});
     if(res.spent>0){coopSend('fx',{by:pid,tool:c.tool,i:c.i});if(c.start)toast(name,`used ${P.label}${owner[c.i]>=0&&nations[owner[c.i]]?' on '+nations[owner[c.i]].name:''}.`,wx(c.i%W),wz((c.i/W)|0))}
     if(c.start||res.msgs.length)coopSend('ack',{k:'tool',msgs:res.msgs,wf:res.ctx.warFrom,sf:res.ctx.selectedFaith,carry:!!res.ctx.carry,mf:!!res.ctx.migrFrom},pid);coopSoon();return}
+  if(c.k==='act'&&c.a==='speed'){if(doAct('speed',c.p||{}))toast(name,['paused the world.','set the world to normal speed.','sped the world up.','set the world racing.'][c.p.s|0]||'changed the speed.');coopSoon();return}
   if(c.k==='act'&&['guide','gov','clim','found','peace','space'].includes(c.a)){const p=Object.assign({},c.p||{});if(c.a==='found'){p.by=name;p.pid=pid}
     const res=coopRun(pid,ctx=>{const r=doAct(c.a,p);if(c.a==='found'&&r>=0)selectedFaith=r;return r});
     if(res.spent>0)toast(name,{guide:'guided a nation\'s scholars.',gov:'changed how a nation is ruled.',clim:'changed the climate of the world.',peace:'forced a peace.',space:'worked a wonder on another world.',found:`revealed the faith ${p.name}.`}[c.a]);
@@ -115,9 +122,10 @@ function coopRunCmd(pid,c){if(!playing)return;const name=coopName(pid);
 /* ---------- disasters: when one begins on the host, the guests see it begin too ---------- */
 const COOP_EV={spawnStorm:a=>a,startWildfire:a=>a,spawnLocusts:a=>a,spawnKraken:a=>a,eruptVolcano:a=>a,riverFlood:a=>a,tsunami:a=>[a[0],a[1],a[2]?a[2].id:-1]};
 for(const f in COOP_EV){const orig=window[f];if(typeof orig!=='function')continue;
-  window[f]=function(...a){const r=orig.apply(this,a);if(coopHosting()&&!coop.replay)try{coopSend('ev',{f,a:COOP_EV[f](a)})}catch(e){}return r}}
+  window[f]=function(...a){const r=orig.apply(this,a);if(coopHosting()&&!coop.replay)try{coopSend('ev',{f,a:COOP_EV[f](a),by:coop.running==null?0:coop.running})}catch(e){}return r}}
 function coopReplay(d){const f=window[d.f];if(!COOP_EV[d.f]||typeof f!=='function'||!Array.isArray(d.a))return;const a=d.a.slice();if(d.f==='tsunami')a[2]=nations[a[2]]||null;
-  try{coop.replay=true;f.apply(null,a)}catch(e){console.error('coop ev',e)}finally{coop.replay=false}}
+  const sv=toast,who=coopName(d.by|0);if((d.by|0)!==coop.pid)toast=(t,b,x,z)=>sv(t,String(b||'').replace(/^Your /,who+'’s ').replace(/\byou\b/g,who),x,z);
+  try{coop.replay=true;f.apply(null,a)}catch(e){console.error('coop ev',e)}finally{coop.replay=false;toast=sv}}
 /* ---------- guest: send taps, take in the world ---------- */
 function coopCmd(i,start){if(!coop.ready)return;const now=performance.now();if(!start&&now-(coop.lastSculpt||0)<100)return;coop.lastSculpt=now;
   coopSend('cmd',{k:'tool',tool,i,start:!!start,wf:warFrom,sf:selectedFaith});
