@@ -12,10 +12,11 @@ const TOSCENE=`uniform float uPL,uPE;vec3 toScene(vec3 c){if(uPL<.5)return c;c=c
 const POST={rt:null,size:new THREE.Vector2(),scene:new THREE.Scene(),cam:new THREE.OrthographicCamera(-1,1,1,-1,0,1),ok:true};
 const postU={tCol:{value:null},tDep:{value:null},uRes:{value:new THREE.Vector2(1,1)},uNear:{value:.02},uFar:{value:900},uExp:{value:1},uTime:{value:0},
   uSat:{value:1},uCon:{value:1},uLift:{value:new THREE.Vector3()},uGain:{value:new THREE.Vector3(1,1,1)},uVig:{value:0},uTilt:{value:0},uLine:{value:0},
-  uPoster:{value:0},uPaper:{value:0},uBloom:{value:0},uGrain:{value:0},uBars:{value:0},uPx:{value:1}};
+  uPoster:{value:0},uPaper:{value:0},uBloom:{value:0},uGrain:{value:0},uBars:{value:0},uPx:{value:1},
+  uAO:{value:0},uP00:{value:1},uP11:{value:1},uCamW:{value:new THREE.Matrix4()},uWaterY:{value:0},uMist:{value:0},uMistCol:{value:new THREE.Color()}};
 const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrite:false,
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
-  fragmentShader:`precision highp float;varying vec2 vUv;uniform sampler2D tCol,tDep;uniform vec2 uRes;uniform float uNear,uFar,uExp,uTime,uSat,uCon,uVig,uTilt,uLine,uPoster,uPaper,uBloom,uGrain,uBars,uPx;uniform vec3 uLift,uGain;
+  fragmentShader:`precision highp float;varying vec2 vUv;uniform sampler2D tCol,tDep;uniform vec2 uRes;uniform float uNear,uFar,uExp,uTime,uSat,uCon,uVig,uTilt,uLine,uPoster,uPaper,uBloom,uGrain,uBars,uPx,uAO,uP00,uP11,uWaterY,uMist;uniform vec3 uLift,uGain,uMistCol;uniform mat4 uCamW;
   float lin(float d){float z=d*2.-1.;return 2.*uNear*uFar/(uFar+uNear-z*(uFar-uNear));}
   float dep(vec2 uv){return lin(texture2D(tDep,uv).x);}
   vec3 aces(vec3 c){c*=uExp*.6;return clamp((c*(2.51*c+.03))/(c*(2.43*c+.59)+.14),0.,1.);}
@@ -28,8 +29,17 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
     float ln=dot(fetch(uv+vec2(0,px.y)),vec3(.299,.587,.114)),ls=dot(fetch(uv-vec2(0,px.y)),vec3(.299,.587,.114)),le=dot(fetch(uv+vec2(px.x,0)),vec3(.299,.587,.114)),lw=dot(fetch(uv-vec2(px.x,0)),vec3(.299,.587,.114));
     float mx=max(max(ln,ls),max(le,lw)),mn=min(min(ln,ls),min(le,lw));if(mx-mn<max(.04,mx*.15))return c;
     vec2 dir=normalize(vec2(-(ln-ls),(le-lw))+1e-5)*px;return (fetch(uv+dir*.5)+fetch(uv-dir*.5)+c*2.)*.25;}
+  /* world position of a pixel, rebuilt from the depth buffer */
+  vec3 wpos(vec2 uv,float d){vec3 v=vec3((uv.x*2.-1.)*d/uP00,(uv.y*2.-1.)*d/uP11,-d);return (uCamW*vec4(v,1.)).xyz;}
   void main(){vec2 uv=vUv,px=1./uRes;vec3 c=fxaa(uv);
-    float d0=dep(uv);
+    float d0=dep(uv);bool sky0=texture2D(tDep,uv).x>.9999;
+    /* ambient occlusion: darken creases, the feet of walls and the gaps between houses and trees */
+    if(uAO>0.&&!sky0){float occ=0.;float rad=clamp(.09*uRes.y*uP11*.5/d0,2.,40.);float rot=0.;
+      for(int i=0;i<12;i++){float fi=float(i),a=fi*2.39996+rot,r=sqrt((fi+.5)/12.)*rad;vec2 o=vec2(cos(a),sin(a))*r*px;
+        float ds=dep(uv+o),df=d0-ds;occ+=smoothstep(.0015*d0,.012*d0,df)*(1.-smoothstep(.05*d0,.12*d0,df));}
+      c*=1.-uAO*clamp(occ/12.*1.3,0.,.55);}
+    /* low mist that pools over water and in the valleys, thicker far away */
+    if(uMist>0.&&!sky0){vec3 wp=wpos(uv,d0);float above=max(0.,wp.y-uWaterY);float m=exp(-above*2.2)*(1.-exp(-d0*.035))*uMist;c=mix(c,uMistCol*1.08,clamp(m,0.,.55));}
     if(uTilt>0.){float b=uTilt*smoothstep(.08,.42,abs(uv.y-.5));if(b>.01){vec3 acc=c;float w=1.;for(int i=0;i<16;i++){float a=float(i)*2.39996,r=sqrt(float(i)+.5)/4.;vec2 o=vec2(cos(a),sin(a))*r*b*9.*uPx*px;acc+=fetch(uv+o);w+=1.;}c=acc/w;}}
     if(uBloom>0.){vec3 bl=vec3(0);for(int i=0;i<12;i++){float a=float(i)*2.39996,r=sqrt(float(i)+.5)/3.5;vec3 s=fetch(uv+vec2(cos(a),sin(a))*r*22.*uPx*px);bl+=max(s-vec3(.9),0.);}c+=bl/12.*uBloom*1.6;}
     vec3 col=srgb(aces(c));
@@ -53,7 +63,7 @@ function postActive(){return POST.ok&&settings.post!==false&&!!LK.post}
 let shadowAt=0,shadowSig='';
 function shadowTick(){if(!renderer.shadowMap.enabled)return;renderer.shadowMap.autoUpdate=false;const now=performance.now(),
     sig=(camT.x*20|0)+','+(camT.z*20|0)+','+(camDist*10|0)+','+(dayT*400|0),moved=sig!==shadowSig,
-    gap=moved?(settings.power==='max'?33:66):(playing?400:1500);
+    gap=moved?(settings.power==='saver'?66:16):(playing?250:1500);
   if(now-shadowAt>gap||shadowForce){shadowAt=now;shadowSig=sig;shadowForce=false;renderer.shadowMap.needsUpdate=true}}
 let shadowForce=true;
 function renderFrame(){shadowTick();
@@ -66,6 +76,8 @@ function renderFrame(){shadowTick();
   const P=LK.post;
   postU.tCol.value=POST.rt.texture;postU.tDep.value=POST.rt.depthTexture;postU.uRes.value.set(w,h);postU.uNear.value=cam.near;postU.uFar.value=cam.far;
   postU.uExp.value=renderer.toneMappingExposure*(POST.flt?1:.8);postU.uTime.value=performance.now()/1000;postU.uPx.value=renderer.getPixelRatio();
+  postU.uAO.value=settings.quality==='low'?0:(P.ao??.85);postU.uP00.value=cam.projectionMatrix.elements[0];postU.uP11.value=cam.projectionMatrix.elements[5];postU.uCamW.value.copy(cam.matrixWorld);
+  postU.uWaterY.value=waterY;postU.uMist.value=(P.mist??.5)*(1-.7*smooth(.02,.3,Math.sin(dayT*6.283)-.1)+.2*(typeof weatherDim!=='undefined'?weatherDim:0));postU.uMistCol.value.copy(scene.fog.color);
   postU.uSat.value=P.sat;postU.uCon.value=P.con;postU.uLift.value.fromArray(P.lift||[0,0,0]);postU.uGain.value.fromArray(P.gain||[1,1,1]);postU.uVig.value=P.vig||0;
   postU.uTilt.value=(P.tilt||0)*(1-smooth(20,60,camDist));postU.uLine.value=P.line||0;postU.uPoster.value=P.poster||0;postU.uPaper.value=P.paper||0;postU.uBloom.value=POST.flt?(P.bloom||0):0;postU.uGrain.value=P.grain||0;postU.uBars.value=P.bars||0;
   PLU.uPL.value=1;PLU.uPE.value=postU.uExp.value;renderer.setRenderTarget(POST.rt);renderer.render(scene,cam);renderer.setRenderTarget(null);
@@ -107,6 +119,7 @@ function refreshEnv(){const x=envCan.getContext('2d'),g=x.createLinearGradient(0
   const rt=pmrem.fromEquirectangular(t);t.dispose();if(envRT)envRT.dispose();envRT=rt;scene.environment=rt.texture}
 scene.fog=new THREE.Fog(0xcfe3ee,60,240);
 
+const V3b=new THREE.Vector3(),V3c=new THREE.Vector3(),V3d=new THREE.Vector3(),SNAPT=new THREE.Vector3();
 let dayT=.22,nightF=0;const DAYLEN=200;
 const C_NTOP=new THREE.Color(0x070d22),C_NHOR=new THREE.Color(0x1a2850),C_DTOP=new THREE.Color(0x4a5688),C_DHOR=new THREE.Color(0xf09a5c),C_MOON=new THREE.Color(0x8ea4ff),C_DUSKSUN=new THREE.Color(0xff9a58);
 function updateSky(dt,now){
@@ -120,7 +133,10 @@ function updateSky(dt,now){
   skyU.sunDir.value.set(az,el,.32).normalize();skyU.sunCol.value.set(LK.sun).lerp(C_DUSKSUN,dusk).multiplyScalar(day);
   skyU.stars.value=1-day;
   const ld=el>0?V3.set(az,Math.max(el,.06),.32):V3.set(-az,Math.max(-el,.06),.32);ld.normalize();
-  sunL.position.copy(camT).addScaledVector(ld,150);sunL.target.position.copy(camT);
+  {/* keep shadows steady while the camera moves: snap the shadow box to whole shadow-map texels in the light's own frame */
+    const sc0=sunL.shadow.camera,tx=(sc0.right-sc0.left)/Math.max(1,sunL.shadow.mapSize.x);const fw=V3b.copy(ld).negate(),rt=V3c.crossVectors(fw,V3d.set(0,1,0)).normalize(),up=V3d.crossVectors(rt,fw).normalize();
+    const pr=camT.dot(rt),pu=camT.dot(up),pf=camT.dot(fw),sr=Math.round(pr/tx)*tx,su=Math.round(pu/tx)*tx;SNAPT.copy(rt).multiplyScalar(sr).addScaledVector(up,su).addScaledVector(fw,pf);
+    sunL.position.copy(SNAPT).addScaledVector(ld,150);sunL.target.position.copy(SNAPT)}
   if(el>0){sunL.color.set(LK.sun).lerp(C_DUSKSUN,1-smooth(.02,.35,el));sunL.intensity=LK.sunI*smooth(0,.12,el)}
   else{sunL.color.copy(C_MOON);sunL.intensity=.7*smooth(0,.15,-el)}
   hemi.intensity=LK.hemiI*(.4+.6*day)*(1-.35*weatherDim)+flashT*9;sunL.intensity*=1-.7*weatherDim;
@@ -204,15 +220,15 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
   sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;uniform sampler2D uDet;\n'+NOISE_GLSL)
    .replace('#include <color_fragment>',`#include <color_fragment>
-    float camD=length(vWP-cameraPosition),dfade=1.-smoothstep(14.,46.,camD);
+    float camD=length(vWP-cameraPosition),dfade=(1.-smoothstep(9.,34.,camD))*.85;
     vec4 d1=texture2D(uDet,vWP.xz*.85),d2=texture2D(uDet,mat2(.8,-.6,.6,.8)*vWP.xz*.29+.37),d3=texture2D(uDet,vWP.xz*3.1);vec4 bumpW=vec4(0.);
-    float dn=vn(vWP.xz*11.)*.45+vn(vWP.xz*37.)*.3+vn(vWP.xz*2.7)*.25;diffuseColor.rgb*=.86+dn*.28;
+    float dn=vn(vWP.xz*11.)*.45+vn(vWP.xz*37.)*.3+vn(vWP.xz*2.7)*.25;diffuseColor.rgb*=.9+dn*.2;
     /* meadows: lush and dry patches, mown strips and fine blades, so grass never reads as flat paint */
     float gr=smoothstep(.0,.06,diffuseColor.g-max(diffuseColor.r,diffuseColor.b)*.92);
     float p1=vn(vWP.xz*.7),p2=vn(vWP.xz*3.1+7.),p4=vn(vWP.xz*13.+3.);
     vec3 lush=diffuseColor.rgb*vec3(.74,.93,.66),dry=diffuseColor.rgb*vec3(1.22,1.12,.78);
     vec3 mead=mix(lush,dry,smoothstep(.4,.8,p1*.6+p2*.4));mead*=.84+.3*p4;
-    float bl=vn(vWP.xz*vec2(190.,60.))*.5+vn(vWP.xz*vec2(70.,210.))*.5;mead*=.9+bl*.2;
+    float bl=vn(vWP.xz*vec2(190.,60.))*.5+vn(vWP.xz*vec2(70.,210.))*.5;mead*=.96+bl*.08*dfade;
     diffuseColor.rgb=mix(diffuseColor.rgb,mead,gr*.85);
     /* steep ground shows bare earth and rock */
     vec3 gn=normalize(cross(dFdx(vWP),dFdy(vWP)));float st=smoothstep(.62,.86,1.-abs(gn.y));
@@ -221,12 +237,12 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
     {float lum=dot(diffuseColor.rgb,vec3(.3,.59,.11));float above=step(.006,vWP.y-uWaterY);
      float sandy=(1.-gr)*smoothstep(.02,.1,diffuseColor.r-diffuseColor.b)*smoothstep(.14,.3,lum)*(1.-st);
      float soil=(1.-gr)*(1.-sandy)*(1.-st);
-     float g=d1.r*.55+d2.r*.3+d3.r*.15;float so=d1.g*.6+d3.g*.4;float sa=d1.a*.7+d3.a*.3;
+     float g=d1.r*.6+d2.r*.35+d3.r*.05;float so=d1.g*.8+d3.g*.2;float sa=d1.a*.85+d3.a*.15;
      vec3 an=abs(gn)+1e-3;an/=an.x+an.y+an.z;float rk=texture2D(uDet,vWP.zy*.7).b*an.x+texture2D(uDet,vWP.xy*.7).b*an.z+(d1.b*.6+d2.b*.4)*an.y;
      vec3 c0=diffuseColor.rgb;
-     c0*=mix(1.,.74+.52*g,gr*dfade*above);c0=mix(c0,c0*vec3(.86,1.05,.8),gr*smoothstep(.55,.8,d2.r)*dfade*.6);
-     c0*=mix(1.,.72+.56*so,soil*dfade*.85);
-     c0*=mix(1.,.84+.3*sa,sandy*dfade);
+     c0*=mix(1.,.84+.32*g,gr*dfade*above);c0=mix(c0,c0*vec3(.86,1.05,.8),gr*smoothstep(.55,.8,d2.r)*dfade*.6);
+     c0*=mix(1.,.82+.36*so,soil*dfade*.85);
+     c0*=mix(1.,.9+.2*sa,sandy*dfade);
      c0*=mix(1.,.55+.9*rk,st*dfade*above);
      diffuseColor.rgb=c0;bumpW=vec4(gr*.6,soil*.5,st*.9,sandy*.4);}
     /* sunlight dancing on the shallow seabed */
@@ -242,7 +258,7 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
       float wz=texture2D(uWar,tuv).r*ab;if(wz>.02){float stp=step(.86,fract((vWP.x+vWP.z)*3.2));float sc=vn(vWP.xz*6.);diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.78,.66,.56)*(.85+sc*.3),wz*.5);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.72,.12,.07),wz*stp*.45);}}`)
    .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
     if(dfade>.01){vec2 P=vWP.xz*.85;float e=.012;vec4 hx=texture2D(uDet,P+vec2(e,0.)),hz=texture2D(uDet,P+vec2(0.,e));
-     float dHx=dot(hx-d1,bumpW)/e,dHz=dot(hz-d1,bumpW)/e;vec3 pw=vec3(-dHx,0.,-dHz)*.0035*dfade;normal=normalize(normal+(viewMatrix*vec4(pw,0.)).xyz);}`);
+     float dHx=dot(hx-d1,bumpW)/e,dHz=dot(hz-d1,bumpW)/e;vec3 pw=vec3(-dHx,0.,-dHz)*.0022*dfade;normal=normalize(normal+(viewMatrix*vec4(pw,0.)).xyz);}`);
 };
 function buildTerrain(){
   for(const m of [terrainMesh,skirtMesh,waterMesh,waterSide]){if(m){scene.remove(m);m.geometry.dispose()}}
@@ -273,7 +289,7 @@ function buildOcean(){const sh=new THREE.Shape();sh.moveTo(-1500,-1500);sh.lineT
   const g=new THREE.ShapeGeometry(sh);g.rotateX(-Math.PI/2);ocean.geometry.dispose();ocean.geometry=g}
 const waterSideMat=new THREE.MeshStandardMaterial({color:colL(0x1d5f86),transparent:true,opacity:.72,roughness:.2,depthWrite:false});
 const waterU={uTime:{value:0},uDeep:{value:colL(0x0f3f63)},uShallow:{value:colL(0x2f9bb0)},uWave:{value:WAVE_TEX}};
-const waterMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.06,metalness:0,transparent:true,envMapIntensity:1.1});
+const waterMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.14,metalness:0,transparent:true,envMapIntensity:1.1});
 waterMat.onBeforeCompile=sh=>{
   Object.assign(sh.uniforms,waterU);
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float aDepth;attribute float aIce;varying float vDepth;varying float vIce;varying vec3 vWP;uniform float uTime;')
@@ -293,7 +309,7 @@ waterMat.onBeforeCompile=sh=>{
    .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
     {vec3 n1=texture2D(uWave,vWP.xz*.32+vec2(uTime*.018,uTime*.011)).xyz*2.-1.,n2=texture2D(uWave,vWP.xz*.81-vec2(uTime*.024,-uTime*.017)).xyz*2.-1.,n3=texture2D(uWave,vWP.xz*2.3+vec2(-uTime*.05,uTime*.04)).xyz*2.-1.;
      float camD=length(vWP-cameraPosition),k=(1.-vIce)*(.55+.45*(1.-smoothstep(10.,60.,camD)));
-     vec3 wn=normalize(vec3((n1.x+n2.x*.8+n3.x*.5)*k,1.,(n1.y+n2.y*.8+n3.y*.5)*k));normal=normalize(mix(normal,(viewMatrix*vec4(wn,0.)).xyz,.85));}`);
+     vec3 wn=normalize(vec3((n1.x+n2.x*.7+n3.x*.18)*k*.8,1.,(n1.y+n2.y*.7+n3.y*.18)*k*.8));normal=normalize(mix(normal,(viewMatrix*vec4(wn,0.)).xyz,.85));}`);
 };
 
 function layoutTerrain(){terrVer++;
