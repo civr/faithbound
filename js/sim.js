@@ -53,12 +53,20 @@ function genRivers(){river=new Uint8Array(N);rivers=[];
 }
 /* a beach only where land actually meets the sea; low inland plains stay green */
 function nearSea(x,y){for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)return true;if(h[Y*W+X]<sea)return true}return false}
+let TNOISE=null;
 function computeTerrain(){if(typeof roadCache!=='undefined')roadCache.clear();
   sea=.44+(climate.temp-.5)*.16;
+  /* temperature: latitude, height and wandering weather fronts; ice sheets then creep out from where ice already lies */
+  if(!TNOISE||TNOISE.length!==N||TNOISE.key!==h[(N/3)|0]){TNOISE=new Float32Array(N);TNOISE.key=h[(N/3)|0];const off=Math.floor(h[(N/3)|0]*9973)%97;const vn=(x,y,s,k)=>{const X=Math.floor(x/s),Y=Math.floor(y/s),fx=x/s-X,fy=y/s-Y,q=(a,b)=>hash((a+k)*157.31+(b-k)*311.7),u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy);
+      return lerp(lerp(q(X,Y),q(X+1,Y),u),lerp(q(X,Y+1),q(X+1,Y+1),u),v)};for(let y=0;y<H;y++)for(let x=0;x<W;x++)TNOISE[y*W+x]=vn(x,y,9,3+off)*.6+vn(x,y,4,11+off)*.3+vn(x,y,2,29+off)*.1-.5}
+  const TT=new Float32Array(N);
+  for(let y=0;y<H;y++){const lat=1-Math.abs(y/(H-1)-.5)*2;for(let x=0;x<W;x++){const i=y*W+x,alt=h[i]-sea;
+    TT[i]=lat*.85+(climate.temp-.5)*.75+.08-Math.max(0,alt)*1.25+TNOISE[i]*.22+(warmD&&warmD.length===N?warmD[i]:0)}}
+  for(let pass=0;pass<3;pass++){const T2=TT.slice();for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){const i=y*W+x;let ice=0;for(let d=0;d<4;d++)if(TT[i+DX[d]+DY[d]*W]<.1)ice++;if(ice)T2[i]-=ice*.012}TT.set(T2)}
   for(let y=0;y<H;y++){const lat=1-Math.abs(y/(H-1)-.5)*2;
     for(let x=0;x<W;x++){const i=y*W+x,alt=h[i]-sea;
-      const t=lat*.85+(climate.temp-.5)*.75+.08-Math.max(0,alt)*.9+(warmD&&warmD.length===N?warmD[i]:0),m=clamp(baseMoist[i]+(climate.rain-.5)*.7+moistD[i],0,1);
-      let b;if(alt<0)b=t<.12?2:(alt>-.06?1:0);else if(alt>.38)b=12;else if(alt>.26)b=11;else if(t<.1)b=10;else if(t<.22)b=9;
+      const t=TT[i],m=clamp(baseMoist[i]+(climate.rain-.5)*.7+moistD[i],0,1);
+      let b;if(alt<0)b=t+TNOISE[i]*.1<.1?2:(alt>-.06?1:0);else if(alt>.38)b=12;else if(alt>.26)b=11;else if(t<.1)b=10;else if(t<.22)b=9;
       else if(alt<.012&&nearSea(x,y))b=3;else if(t>.6&&m<.3)b=7;else if(t>.55&&m<.45)b=8;else if(t>.62&&m>.62)b=6;else if(m>.52)b=5;else b=4;
       biome[i]=b;hab[i]=BIOMES[b].hab;if(river&&river[i]&&alt>=0&&b!==10&&b!==12)hab[i]=Math.min(1,hab[i]+.25);if(owner[i]>=0&&hab[i]<.015)claim(i,-1,'flood')}}
 }
