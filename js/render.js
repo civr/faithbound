@@ -271,9 +271,12 @@ function layoutTerrain(){terrVer++;
 }
 function colorTerrain(){
   const col=terrainMesh.geometry.attributes.color.array,nor=terrainMesh.geometry.attributes.normal.array;
-  const TC=new Float32Array(N*3);
+  const TC=new Float32Array(N*3),SOOT=new Float32Array(N);
+  for(const n of nations){if(!n.alive||n.era<5||n.era>6)continue;const k_=n.era===5?1:.4;n.cities.forEach((c,ci)=>{const R2=(ci===0?3.2:2.2)+Math.min(2,n.pop/Math.max(1,n.cities.length)/600);
+    for(let dy=-Math.ceil(R2);dy<=Math.ceil(R2);dy++)for(let dx=-Math.ceil(R2);dx<=Math.ceil(R2);dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d>R2)continue;const j=Y*W+X;SOOT[j]=Math.max(SOOT[j],k_*(1-d/R2))}})}
   for(let i=0;i<N;i++){const c=typeof marshAt==='function'&&marshAt(i)?MARSH_C:GROUND[biome[i]],v=1-.1*hash(i*1.7);let r=c[0]*v,g=c[1]*v,b=c[2]*v;
     if(typeof scorched!=='undefined'&&scorched&&scorched[i]>0&&!isWater(i)){const t=Math.min(1,scorched[i]/18)*.85;r=lerp(r,56,t);g=lerp(g,50,t);b=lerp(b,44,t)}
+    if(SOOT[i]>0&&!isWater(i)){const t=SOOT[i]*.5;r=lerp(r,82,t);g=lerp(g,76,t);b=lerp(b,62,t)}
     TC[i*3]=r;TC[i*3+1]=g;TC[i*3+2]=b}
   const snowY=shapeH(.9+(climate.temp-.5)*.3),cold=climate.temp<.3;
   for(let v=0;v<VH;v++)for(let u=0;u<VW;u++){const k=v*VW+u;
