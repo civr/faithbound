@@ -231,6 +231,7 @@ function renderNationCard(){
     <div><span>Capital</span><b>${n.cities[0]?esc(n.cities[0].name):'None'}</b></div><div><span>Wonder</span><b>${n.wonder?esc(WONDERS[n.wonder].name):'None'}</b></div></div>
     ${wars.length?`<p class="note"><b style="color:#f0a196">Fighting:</b> ${esc(wars.join(', '))}</p>`:''}
     <div title="${esc(stTip)}"><div class="row" style="justify-content:space-between"><span class="lab">Stability · ${stabLabel(st)}</span><span class="lab">${sp.slice(0,2).map(p=>`${esc(p[0])} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join(' · ')}</span></div><div class="prog"><i style="width:${st*100}%;background:${stabColor(st)}"></i></div></div>
+    ${(()=>{const hv=happyOf(n),hp=happyParts(n).sort((p,q)=>Math.abs(q[1])-Math.abs(p[1]));return `<div title="${esc(hp.map(p=>`${p[0]} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join('\n'))}"><div class="row" style="justify-content:space-between"><span class="lab">Happiness · ${happyLabel(hv)}</span><span class="lab">${hp.slice(0,2).map(p=>`${esc(p[0])} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join(' · ')}</span></div><div class="prog"><i style="width:${hv*100}%;background:${happyColor(hv)}"></i></div>${hv<.32?'<p class="note" style="color:#e8645a;margin:3px 0 0">The people are close to rising up.</p>':''}</div>`})()}
     <div><div class="row" style="justify-content:space-between"><span class="lab">Faith in you</span><span class="lab">${Math.round((n.devotion??.3)*100)}%${n.cities.filter(c=>c.statue).length?' · '+n.cities.filter(c=>c.statue).length+' statues':''}${n.festival>0?' · festival':''}</span></div><div class="prog"><i style="width:${(n.devotion??.3)*100}%;background:#e8c060"></i></div></div>
     ${resourceLine(n)}<p class="note">${esc(CULTURES[cultOf(n)].label)} culture${n.allies&&n.allies.length?` · <b style="color:#9ec8f0">Allies:</b> ${esc(n.allies.map(i=>nations[i].name).join(', '))}`:''}</p>
     ${n.trade&&n.trade.length?`<p class="note"><b style="color:#a9dba5">Trading with:</b> ${esc(n.trade.map(i=>nations[i].name).join(', '))}</p>`:''}
@@ -254,18 +255,18 @@ function openSheet(p){if(sheetPanel===p){closeSheet();return}sheetPanel=p;$('#sh
 function closeSheet(){sheetPanel=null;$('#sheet').hidden=true;$$('[data-panel]').forEach(b=>b.classList.remove('on'))}
 $$('[data-panel]').forEach(b=>b.onclick=()=>{if(spaceView)closeSpace();openSheet(b.dataset.panel)});$('#spaceBtn').onclick=()=>spaceView?closeSpace():openSpace(colonies.some(c=>c.planet==='mars')&&!colonies.some(c=>c.planet==='moon')?'mars':'moon');$('#sheetX').onclick=closeSheet;
 function renderSheet(full){const B=$('#sheetBody');if(!sheetPanel)return;
-  if(sheetPanel==='nations'){if(full)B.innerHTML=`<div class="seg" id="natSort"><button data-s="pop">People</button><button data-s="tiles">Land</button><button data-s="tech">Progress</button></div><p class="note" id="natCount"></p><ul class="list" id="natList"></ul>`;
+  if(sheetPanel==='nations'){if(full)B.innerHTML=`<div class="seg" id="natSort"><button data-s="pop">People</button><button data-s="tiles">Land</button><button data-s="tech">Progress</button><button data-s="happy">Mood</button></div><p class="note" id="natCount"></p><ul class="list" id="natList"></ul>`;
     $$('#natSort button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===natSort));
-    const sk=n=>natSort==='tech'?n.era*100+(n.techs?n.techs.length:0):n[natSort];const alive=nations.filter(n=>n.alive).sort((a,b)=>sk(b)-sk(a));
+    const sk=n=>natSort==='tech'?n.era*100+(n.techs?n.techs.length:0):natSort==='happy'?-happyOf(n):n[natSort];const alive=nations.filter(n=>n.alive).sort((a,b)=>sk(b)-sk(a));
     $('#natCount').textContent=`${alive.length} living · ${nations.length-alive.length} fallen · ${ships.length} ships at sea`;
     $('#natList').innerHTML=alive.map(n=>`<li><button data-id="${n.id}" class="${n.id===selected?'sel':''}">${flagImg(n,'flag')}
-      <span class="nm">${esc(n.name)} ${n.wars.size?'<span class="sword">⚔</span>':''}<small>${GOVS[n.gov]?GOVS[n.gov].name:ERAS[n.era].name} · ${n.faith>=0?esc(faiths[n.faith].name):'Ancestors'}</small></span><span class="pp">${fmtPop(n.pop)}<br>${n.tiles} lands</span></button></li>`).join('')}
+      <span class="nm">${esc(n.name)} ${n.wars.size?'<span class="sword">⚔</span>':''}<small>${GOVS[n.gov]?GOVS[n.gov].name:ERAS[n.era].name} · ${n.faith>=0?esc(faiths[n.faith].name):'Ancestors'}</small></span><span class="pp">${fmtPop(n.pop)}<br><i class="mood" style="background:${happyColor(happyOf(n))}" title="${happyLabel(happyOf(n))}"></i>${natSort==='happy'?happyLabel(happyOf(n)):n.tiles+' lands'}</span></button></li>`).join('')}
   else if(sheetPanel==='faiths'){if(full)B.innerHTML=`<div class="sec"><button class="btn primary" id="newFaith">Reveal a new faith · ${costOf(40)} belief</button>
       <p class="note">Design it yourself: name, symbol, colour and two tenets. Followers give you belief.</p></div>
       <div class="sec"><h4>Your faiths</h4><div class="flist" id="faithList"></div><p class="note">Tap a faith, then tap a nation to spread it. Faiths also spread on their own between neighbours at peace.</p></div>`;
     $('#faithList').innerHTML=faiths.length?faiths.map((f,i)=>{const c=nations.filter(n=>n.alive&&n.faith===i),pop=c.reduce((s,n)=>s+n.pop,0);
       return `<button class="fcard" data-f="${i}" aria-pressed="${i===selectedFaith}"><span class="fg" style="background:${f.color}">${glyph(f.glyph,'#fff')}</span>
-        <span class="nm">${esc(f.name)}<small>${(f.tenets||[f.tenet]).map(t=>TENETS[t].label).join(' · ')}${f.holy?' · Holy city '+esc(f.holy):''}${f.parent!=null&&faiths[f.parent]?' · branch of '+esc(faiths[f.parent].name):''}</small></span>
+        <span class="nm">${esc(f.name)}<small>${(f.tenets||[f.tenet]).map(t=>TENETS[t].label).join(' · ')}${f.holy?' · Holy city '+esc(f.holy):''}${f.parent!=null&&faiths[f.parent]?' · branch of '+esc(faiths[f.parent].name):''}${typeof coop!=='undefined'&&coop?' · god: '+esc(coopName(f.god|0))+((f.god|0)===coop.pid?' (you)':''):''}</small></span>
         <span class="pp">${c.length} nations<br>${fmtPop(pop)}</span></button>`}).join(''):'<p class="note">None yet. Your first faith starts your flow of belief.</p>'}
   else if(sheetPanel==='wars'){if(full||performance.now()-warsAt>1500){warsAt=performance.now();B.innerHTML=`<div class="seg" id="warSeg"><button data-ws="wars" aria-pressed="${warTab==='wars'}">Wars</button><button data-ws="rel" aria-pressed="${warTab==='rel'}">Relations</button></div>`+(warTab==='wars'?warsHTML():relationsHTML())}}
   else if(sheetPanel==='world'){if(full)B.innerHTML=`<div class="sec"><h4>Climate</h4>
@@ -356,7 +357,7 @@ function doAct(k,p){
   if(k==='space'){return typeof spaceAction==='function'?spaceAction(p.a,p.k):false}
   if(k==='clim'){if(!p.d||!spend(40))return false;shiftClimate(p.d);return true}
   if(k==='found'){const name=String(p.name||'').trim().slice(0,40);if(!name){say('Give your faith a name first.');return -1}if(!spend(40))return -1;
-    faiths.push({name,tenets:(p.tenets||[]).slice(0,2),glyph:p.glyph,color:p.color,founded:year,holy:null});
+    faiths.push({name,tenets:(p.tenets||[]).slice(0,2),glyph:p.glyph,color:p.color,founded:year,holy:null,god:p.pid|0});
     log(`${p.by?p.by+' revealed':'You revealed'} a new faith: ${name}.`,'faith');milestone('faith','A faith revealed',`${name} spreads its first words.`);return faiths.length-1}
   return false}
 function afterFound(idx,name){if(idx<0)return;selectedFaith=idx;curTab='People';buildDock();setTool('faith');say(`Now tap a nation to bring it ${name}. Its capital becomes the holy city.`,true);renderSheet(true);if(innerWidth<700)closeSheet()}

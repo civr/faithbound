@@ -55,6 +55,31 @@ function flagTexture(f){const k=flagKey(f);if(FLAGTEX.has(k))return FLAGTEX.get(
 const flagImg=(n,cls)=>`<img class="${cls||'flag'}" src="${flagURL(ensureFlag(n))}" alt="">`;
 function newFlag(n,why){const old=flagKey(n.flag);n.flag=makeFlag(n,n.gov);if(flagKey(n.flag)!==old){propsDirty=true;if(why&&important(n))log(`${n.name} raised a new flag${why}.`,'life')}}
 
+/* ---------- happiness: how the common people feel. Unhappy peoples riot, rise up and break away ---------- */
+const GOV_HAPPY={tribal:.04,chiefdom:0,kingdom:-.02,theocracy:-.02,republic:.05,empire:-.05,feudal:-.07,merchant:.06,constmon:.05,democracy:.08,communism:-.06,fascism:-.1};
+const HAPPY_TRAIT={just:.06,charming:.04,pious:.02,builder:.04,cruel:-.1,greedy:-.08,reckless:-.03,anointed:.05};
+function happyParts(n){const P=[],add=(l,v)=>{if(Math.abs(v)>=.005)P.push([l,v])};
+  if(n.famine>0)add('Hunger',-.28);if(n.sick)add('Sickness',-.14);
+  if(n.wars.size){let ww=0;for(const b of n.wars){const B=nations[b],w=B&&warData[warKey(n,B)];ww+=.04+(w?Math.min(.12,w.years*.005):0)}add('War weariness',-Math.min(.3,ww))}
+  add('Rule',GOV_HAPPY[n.gov]||0);
+  const r=rulerOf(n);if(r&&!r.machine){let v=0;for(const t of r.traits)v+=HAPPY_TRAIT[t]||0;add('The ruler',v)}
+  if(n.trade&&n.trade.length)add('Trade and plenty',Math.min(.1,.025*n.trade.length));
+  if(n.res&&typeof RKEYS!=='undefined'){let miss=0;for(const k of RKEYS)if(typeof need==='function'&&need(n,k)&&!(n.res.has[k]>0))miss++;if(miss)add('Shortages',-Math.min(.09,.03*miss))}
+  if(n.festival>0)add('Festival',.14);if(n.bless>0)add('Your blessing',.07);if(n.golden>year)add('Golden age',.12);
+  add('Faith in you',((n.devotion??.3)-.2)*.2);
+  const conq=n.cities.filter(c=>c.conq&&year-c.conq<40).length;if(conq)add('Conquered towns',-Math.min(.16,.04*conq));
+  const crowd=Math.max(0,n.pop/Math.max(1,n.cities.length)-(220+n.era*90))/900;if(crowd>0)add('Crowded towns',-Math.min(.1,crowd));
+  if(n.era===5)add('Smoke and mills',-.05);if(n.era>=6)add('Comforts of the age',.04);
+  if(n.discord>0)add('Discord you sowed',-.12);if(n.upheaval!=null&&year-n.upheaval<20)add('Hope after upheaval',.06*(1-(year-n.upheaval)/20));
+  return P}
+const happyTarget=n=>clamp(.64+happyParts(n).reduce((s,p)=>s+p[1],0),0,1);
+const happyOf=n=>n.happy==null?.6:n.happy;
+const happyLabel=v=>v>.78?'Joyful':v>.6?'Content':v>.44?'Grumbling':v>.28?'Angry':'Seething';
+const happyColor=v=>v>.6?'#8fd18a':v>.44?'#e8c060':v>.28?'#e89a50':'#e8645a';
+/* the people rise: riots first, then revolution or towns breaking away */
+function uprising(n){const w=[['riot',1.4],['revolution',n.era>=2?1.3:.2],['civil',n.cities.length>=3?1:0]];let s=rng()*w.reduce((a,b)=>a+b[1],0),k='riot';for(const [id,v] of w){s-=v;if(s<=0){k=id;break}}
+  if(k==='riot')riot(n);else if(k==='revolution'){if(important(n))log(`The angry people of ${n.name} rose against their rulers.`,'war');revolution(n,false)}else{if(important(n))log(`Discontent tore ${n.name} apart: towns broke away.`,'war');rebel(n);n.upheaval=year}
+  n.happy=Math.min(1,happyOf(n)+.12)}
 /* ---------- stability: how firmly the realm holds together ---------- */
 TRAITS.anointed={label:'Anointed',desc:'Chosen by you; the people trust this ruler',stab:1.12,belief:1.2};
 const STAB_TRAIT={just:.08,charming:.05,wise:.03,pious:.03,builder:.02,cruel:-.07,greedy:-.06,reckless:-.04,ambitious:-.02,anointed:.14};
@@ -64,6 +89,7 @@ function stabParts(n){const P=[],add=(l,v)=>{if(Math.abs(v)>=.005)P.push([l,v])}
     if(ageOf(r)<16)add('Child on the throne',-.1);else if(ageOf(r)>72)add('Ageing ruler',-.04);
     const rg=n.reigns&&n.reigns[n.reigns.length-1];if(rg&&['crisis','coup'].includes(rg.how)&&year-rg.from<25)add('Seized power',-.12*(1-(year-rg.from)/25))}
   add('Faith in you',((n.devotion??.3)-.15)*.3);
+  add('Mood of the people',(happyOf(n)-.55)*.5);
   if(n.wars.size)add('At war',-Math.min(.15,.05*n.wars.size));
   if(n.famine>0)add('Famine',-.12);if(n.sick)add(n.sick.name,-.08);if(n.festival>0)add('Festival',.08);if(n.bless>0)add('Your blessing',.05);
   const over=Math.max(0,n.cities.length-(4+n.era))*.02*(n.gov==='empire'||n.gov==='federation'?.5:1);add('Too large to govern',-Math.min(.2,over));
@@ -81,7 +107,9 @@ const stabGrow=n=>(.82+.36*stabOf(n))*(n.golden>year?1.15:1);
 const stabTech=n=>(.78+.44*stabOf(n))*(n.golden>year?1.25:1);
 const stabUnrest=n=>1.7-stabOf(n)*1.4;
 
-function politicsTick(n){ensureFlag(n);if(n.stab==null)n.stab=.6;if(n.discord>0)n.discord--;
+function politicsTick(n){ensureFlag(n);if(n.stab==null)n.stab=.6;if(n.happy==null)n.happy=.6;if(n.discord>0)n.discord--;
+  n.happy+=(happyTarget(n)-n.happy)*.08;n.happy=clamp(n.happy,0,1);
+  if(n.happy<.32&&n.cities.length&&rng()<(.32-n.happy)*.09){uprising(n);return}
   n.stab+=(stabTarget(n)-n.stab)*.06;n.stab=clamp(n.stab,0,1);
   if(n.golden>year&&n.stab<.55){n.golden=0;if(important(n))log(`The golden age of ${n.name} came to an end.`,'life')}
   if(!(n.golden>year)&&n.stab>.8&&n.era>=1&&rng()<.012){n.golden=year+40;n.devotion=clamp((n.devotion??.3)+.05,0,1);log(`A golden age dawns in ${n.name}: art, learning and plenty.`,'era');milestone('golden','A golden age','A nation flourished in peace and plenty.')}

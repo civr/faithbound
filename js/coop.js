@@ -66,7 +66,7 @@ function coopOnMsg(m){if(!coop)return;const t=m.t;
 function coopSnapshot(){const d=buildSave();d.coopPools=coop.pools;return d}
 const coopSum=a=>{if(!a)return 0;let s=0;const st=Math.max(1,(a.length/4000)|0);for(let i=0;i<a.length;i+=st)s=(s*31+((a[i]*4096)|0))|0;return s+a.length};
 function coopLive(full){
-  const d={y:year,sp:speedIdx,cl:climate,dt:dayT,o:b64(owner),bl:belief,pools:coop.pools,
+  const d={y:year,sp:speedIdx,cl:climate,dt:dayT,o:b64(owner),bl:belief,pools:coop.pools,rates:coop.rates||{},
     nat:nations.map(n=>Object.assign({},n,{wars:[...n.wars],nb:[],front:[],_walk:0,_resMod:null,cities:n.cities.map(c=>{const o={};for(const k in c)if(k[0]!=='_')o[k]=c[k];return o})})),
     fa:faiths,lg:logs.slice(0,40),wdat:warData,ru:ruins,ww:worldWars,co:colonies,pt:planets,ms:[...milestones],mi:milestoneInfo,deps:deposits,cv:coves,fl:flags};
   const hs=coopSum(h),ms=coopSum(moistD),ws=coopSum(warmD),rs=coopSum(river);
@@ -77,8 +77,11 @@ function coopLive(full){
   if(full||coop.k%8===0){d.folk=folk;d.folkId=folkId;d.houses=houses}
   if(full){d.an=annals;d.hi=hist;d.sn=snaps}
   return d}
-function coopPump(){if(!coopHosting()||!playing)return;coop.k++;
-  const dy=year-coop.lastY;if(dy>0){for(const p of coop.players)if(p.pid)coop.pools[p.pid]=(coop.pools[p.pid]??COOP_START_BELIEF)+beliefRate*dy;coop.lastY=year}else if(dy<0)coop.lastY=year;
+/* every god's belief comes from the peoples who follow that god's own faiths */
+function coopIncome(pid,pool){let inc=.45;for(const n of nations)if(n.alive&&n.faith>=0&&faiths[n.faith]&&(faiths[n.faith].god|0)===pid)inc+=Math.cbrt(n.pop)*.045*ten(n).belief*(.6+(n.devotion??.3));return inc/(1+Math.max(0,pool-200)/200)}
+function coopFollowers(pid){let k=0,ppl=0;for(const n of nations)if(n.alive&&n.faith>=0&&faiths[n.faith]&&(faiths[n.faith].god|0)===pid){k++;ppl+=n.pop*POPMUL[n.era]}return {k,ppl}}
+function coopPump(){if(!coopHosting()||!playing)return;coop.k++;coop.rates=coop.rates||{};coop.rates[0]=beliefRate;
+  const dy=year-coop.lastY;if(dy>0){for(const p of coop.players)if(p.pid){const pool=coop.pools[p.pid]??COOP_START_BELIEF,r=coopIncome(p.pid,pool);coop.rates[p.pid]=r;coop.pools[p.pid]=pool+r*dy}coop.lastY=year}else if(dy<0)coop.lastY=year;
   if(coop.players.filter(p=>p.pid&&p.on).length===0)return;
   coopSend('live',coopLive(coop.k%40===0))}
 function coopSoon(){if(!coopHosting())return;clearTimeout(coop.soon);coop.soon=setTimeout(()=>{if(coopHosting()&&playing)coopSend('live',coopLive(false))},120)}
@@ -101,7 +104,7 @@ function coopRunCmd(pid,c){if(!playing)return;const name=coopName(pid);
     const res=coopRun(pid,ctx=>{if(tool!==c.tool)setTool(c.tool);if(c.wf>=0&&(c.tool==='war'||c.tool==='ally'))warFrom=c.wf;if(c.sf>=0&&faiths[c.sf])selectedFaith=c.sf;applyTool(c.i,!!c.start)});
     if(res.spent>0){coopSend('fx',{by:pid,tool:c.tool,i:c.i});if(c.start)toast(name,`used ${P.label}${owner[c.i]>=0&&nations[owner[c.i]]?' on '+nations[owner[c.i]].name:''}.`,wx(c.i%W),wz((c.i/W)|0))}
     if(c.start||res.msgs.length)coopSend('ack',{k:'tool',msgs:res.msgs,wf:res.ctx.warFrom,sf:res.ctx.selectedFaith,carry:!!res.ctx.carry,mf:!!res.ctx.migrFrom},pid);coopSoon();return}
-  if(c.k==='act'&&['guide','gov','clim','found','peace','space'].includes(c.a)){const p=Object.assign({},c.p||{});if(c.a==='found')p.by=name;
+  if(c.k==='act'&&['guide','gov','clim','found','peace','space'].includes(c.a)){const p=Object.assign({},c.p||{});if(c.a==='found'){p.by=name;p.pid=pid}
     const res=coopRun(pid,ctx=>{const r=doAct(c.a,p);if(c.a==='found'&&r>=0)selectedFaith=r;return r});
     if(res.spent>0)toast(name,{guide:'guided a nation\'s scholars.',gov:'changed how a nation is ruled.',clim:'changed the climate of the world.',peace:'forced a peace.',space:'worked a wonder on another world.',found:`revealed the faith ${p.name}.`}[c.a]);
     coopSend('ack',{k:c.a,r:res.r,name:p.name,msgs:res.msgs,sf:res.ctx.selectedFaith},pid);coopSoon()}}
@@ -152,7 +155,7 @@ function coopApply(d){
   if(d.ms)milestones=new Set(d.ms);if(d.mi)Object.assign(milestoneInfo,d.mi);if(d.cv)coves=d.cv;if(d.fl)flags=d.fl;
   if(d.deps&&d.deps.length!==deposits.length){deposits=d.deps;indexDeposits()}else if(d.deps)deposits=d.deps;
   if(d.folk){folk=d.folk;folkId=d.folkId;houses=d.houses||houses}if(d.an)annals=d.an;if(d.hi)hist=d.hi;if(d.sn)snaps=d.sn;
-  if(d.pools&&d.pools[coop.pid]!=null)belief=d.pools[coop.pid];
+  if(d.pools&&d.pools[coop.pid]!=null)belief=d.pools[coop.pid];if(d.rates&&d.rates[coop.pid]!=null)beliefRate=d.rates[coop.pid];
   if(selected>=0&&(!nations[selected]||!nations[selected].alive)){selected=-1;inspectTile=-1}
   if(selected>=0&&performance.now()-(coop.lastCard||0)>2000){coop.lastCard=performance.now();renderNationCard()}
   if(typeof spaceView!=='undefined'&&spaceView&&typeof refreshPlanet==='function'&&performance.now()-(coop.lastPlanet||0)>2000){coop.lastPlanet=performance.now();refreshPlanet()}
@@ -177,11 +180,12 @@ function coopPanelHTML(){
     <div class="sec"><span class="lab">Your name as a god</span><input id="coopName" type="text" maxlength="20" value="${nm}" placeholder="Your name"></div>
     <div class="row" style="gap:8px"><button class="btn" data-p="close">Close</button><div class="flex"></div><button class="btn primary" data-coop="host">Invite friends</button></div>
     <div class="sec"><span class="lab">Have a code?</span><div class="row" style="gap:8px"><input id="coopCode" type="text" maxlength="6" placeholder="ABC123" style="text-transform:uppercase;flex:1"><button class="btn" data-coop="join">Join</button></div><p class="note">Joining leaves this world. It stays saved.</p></div>`}
-  const pl=coop.players.map(p=>`<li><i class="dot" style="background:${p.color}"></i><b>${esc(p.name)}</b>${p.host?' <span class="tag">Host</span>':''}${p.pid===coop.pid?' <span class="tag">You</span>':''}${p.on?'':' <small>(away)</small>'}${coopHosting()&&p.pid?`<small style="margin-left:auto">${Math.floor(coop.pools[p.pid]??COOP_START_BELIEF)} belief</small>`:''}</li>`).join('');
+  const pl=coop.players.map(p=>`<li><i class="dot" style="background:${p.color}"></i><b>${esc(p.name)}</b>${p.host?' <span class="tag">Host</span>':''}${p.pid===coop.pid?' <span class="tag">You</span>':''}${p.on?'':' <small>(away)</small>'}${(()=>{const f=coopFollowers(p.pid),fs=faiths.filter(x=>(x.god|0)===p.pid).map(x=>esc(x.name));return `<small style="margin-left:auto;text-align:right">${fs.length?fs.join(', ')+' · '+f.k+' nation'+(f.k===1?'':'s'):'No faith yet'}${coopHosting()&&p.pid?' · '+Math.floor(coop.pools[p.pid]??COOP_START_BELIEF)+' belief':''}</small>`})()}</li>`).join('');
   const chat=coop.chat.slice(-8).map(c=>`<li><b style="color:${coopColor(c.pid)}">${esc(coopName(c.pid))}</b> ${esc(c.m)}</li>`).join('');
   return `<h2>${coopHosting()?'Your shared world':'A shared world'}</h2>
     ${coopHosting()?`<div class="sec"><span class="lab">Invite link</span><div class="row" style="gap:8px"><input type="text" id="coopLinkI" readonly value="${esc(coopLink())}" style="flex:1"><button class="btn primary" data-coop="copy">Copy</button></div><p class="note">Or give them the code <b class="code">${coop.room}</b>. Anyone with it can join while your world is open.</p></div>`
       :`<p class="note">${esc(coop.hostName||'The host')} runs the years and the speed. Your miracles are sent to their world and use your own belief.</p>`}
+    <p class="note">Rival gods: each god earns belief only from the peoples who follow their own faiths. Reveal a faith, spread it, and keep your followers from turning to another god.</p>
     <div class="sec"><span class="lab">Gods in this world</span><ul class="coopl">${pl}</ul></div>
     <div class="sec"><span class="lab">Talk</span><ul class="coopc">${chat||'<li class="note">No words yet.</li>'}</ul><div class="row" style="gap:8px"><input id="coopMsg" type="text" maxlength="200" placeholder="Say something" style="flex:1"><button class="btn" data-coop="say">Send</button></div></div>
     <div class="row" style="gap:8px"><button class="btn danger" data-coop="leave">${coopHosting()?'Close to others':'Leave'}</button><div class="flex"></div><button class="btn primary" data-p="close">Back to the world</button></div>`}
