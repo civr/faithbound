@@ -71,3 +71,13 @@ Restore by extracting that archive back into the volume.
 - `server.js` – accounts and save storage
 
 Run `./build.sh` after editing to refresh `dist/`.
+
+## Run it on your Mac (or any computer) without Docker
+1. Install Node.js 18 or newer: download the LTS version from nodejs.org, or run `brew install node`.
+2. Get the code: `git clone https://github.com/civr/faithbound.git && cd faithbound`
+3. Start it: `./run-local.sh`
+
+Your browser opens at http://localhost:8040. Saves and accounts are kept in the `data` folder next to the script.
+Stop it with Ctrl+C. To update later: `git pull && ./run-local.sh`.
+
+With Docker Desktop installed you can also run `docker compose up -d --build` in the same folder and open http://localhost:8040.
