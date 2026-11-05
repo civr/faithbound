@@ -111,7 +111,8 @@ const needNation=n=>{if(!n){say("Tap inside a nation's borders.");return false}r
 
 /* ---------- powers ---------- */
 function applyTool(i,start){if(viewOnly&&tool!=='inspect'){if(start)say('You are watching a shared world. Nothing here can be changed.');return}if(typeof rewind!=='undefined'&&rewind){if(start)say('You are looking at the past. Press Back to now first.');return}
-  if(i<0)return;const o=owner[i],n=o>=0?nations[o]:null;
+  if(i<0)return;if(typeof coopGuest==='function'&&coopGuest()&&!COOP_LOCAL.has(tool)){coopCmd(i,start);return}
+  const o=owner[i],n=o>=0?nations[o]:null;
   if(tool==='raise'||tool==='lower'){const s=tool==='raise'?1:-1;brush(i,2.6,(j,d)=>{h[j]=clamp(h[j]+s*.022*(1-d/3),0,1)});terrainDirty=true;if(rng()<.3)burst(i,'dust',2,1.5);return}
   if(tool==='smooth'){const nh=[];brush(i,2.6,(j,d)=>{let s=0,c=0;brush(j,1,(k)=>{s+=h[k];c++});nh.push([j,lerp(h[j],s/c,.35*(1-d/3))])});for(const [j,v] of nh)h[j]=v;terrainDirty=true;return}
   if(!start)return;
@@ -230,7 +231,7 @@ $('#nationCard').onclick=e=>{if(e.target.closest('[data-x]')){selected=-1;inspec
   powerOnNation(n,a);renderNationCard()};
 
 /* ---------- side sheet ---------- */
-const SHEETS={nations:'Nations',faiths:'Faiths',world:'World',chronicle:'Chronicle'};
+const SHEETS={nations:'Nations',faiths:'Faiths',wars:'Wars',world:'World',chronicle:'Chronicle'};
 let natSort='pop';
 function openSheet(p){if(sheetPanel===p){closeSheet();return}sheetPanel=p;$('#sheet').hidden=false;$('#sheetTitle').textContent=SHEETS[p];
   $$('[data-panel]').forEach(b=>b.classList.toggle('on',b.dataset.panel===p));renderSheet(true)}
@@ -250,6 +251,7 @@ function renderSheet(full){const B=$('#sheetBody');if(!sheetPanel)return;
       return `<button class="fcard" data-f="${i}" aria-pressed="${i===selectedFaith}"><span class="fg" style="background:${f.color}">${glyph(f.glyph,'#fff')}</span>
         <span class="nm">${esc(f.name)}<small>${(f.tenets||[f.tenet]).map(t=>TENETS[t].label).join(' · ')}${f.holy?' · Holy city '+esc(f.holy):''}${f.parent!=null&&faiths[f.parent]?' · branch of '+esc(faiths[f.parent].name):''}</small></span>
         <span class="pp">${c.length} nations<br>${fmtPop(pop)}</span></button>`}).join(''):'<p class="note">None yet. Your first faith starts your flow of belief.</p>'}
+  else if(sheetPanel==='wars'){if(full||performance.now()-warsAt>1500){warsAt=performance.now();B.innerHTML=warsHTML()}}
   else if(sheetPanel==='world'){if(full)B.innerHTML=`<div class="sec"><h4>Climate</h4>
       <div class="slider"><div class="top"><label for="tempR">Global temperature</label><output id="tempO"></output></div><input type="range" id="tempR" min="0" max="100"></div>
       <div class="slider"><div class="top"><label for="rainR">Rainfall</label><output id="rainO"></output></div><input type="range" id="rainR" min="0" max="100"></div>
@@ -275,7 +277,28 @@ function renderSheet(full){const B=$('#sheetBody');if(!sheetPanel)return;
       return `<div class="${done?'done':''}"><b>${esc(title)}</b>${done&&m?'Year '+m.year:'Not yet'}</div>`}).join('');
     $('#logList').innerHTML=logs.slice(0,80).map(l=>`<li><time>Y${l.year}</time><span class="k-${l.kind}">${esc(l.text)}</span></li>`).join('')}
 }
+/* ---------- every war being fought right now ---------- */
+let warsAt=0;const fmtN=v=>v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e4?Math.round(v/1e3)+'k':Math.round(v).toLocaleString('en-US');
+function activeWars(){const out=[];for(const A of nations){if(!A.alive)continue;for(const bid of A.wars){const B=nations[bid];if(!B||!B.alive||A.id>B.id)continue;
+    const w=warData[warKey(A,B)]||{score:0,years:0},ww=worldWars.find(x=>x.end==null&&((x.a.includes(A.id)&&x.b.includes(B.id))||(x.b.includes(A.id)&&x.a.includes(B.id))));
+    const sieges=[];for(const [X,Y] of [[A,B],[B,A]])for(const c of Y.cities)if(c.siege>0&&c.besiegedBy===X.id)sieges.push({by:X,c});
+    out.push({A,B,w,ww,sieges,heat:w.years+Math.abs(w.score)+sieges.length*5})}}return out.sort((a,b)=>(b.ww?1:0)-(a.ww?1:0)||b.heat-a.heat)}
+function warFront(A,B){const f=A.front.find(i=>owner[i]===A.id||owner[i]===B.id)??B.front[0];if(f!=null)return f;const c=B.cities[0]||A.cities[0];return c?c.y*W+c.x:-1}
+function warsHTML(){const L=activeWars();if(!L.length)return '<p class="note" style="padding:8px 4px">The world is at peace. No war is being fought.</p>';
+  const nm=n=>`<span class="wn"><img src="${flagURL(n.flag)}" alt=""><b style="color:${n.color}">${esc(n.name)}</b></span>`;
+  const wws=worldWars.filter(x=>x.end==null).map(x=>`<div class="wwbar">⚔ The ${ORD[x.n]||(x.n+1)+'th'} World War · since ${x.start} · ${x.a.length+x.b.length} nations</div>`).join('');
+  return `<p class="note" style="margin:2px 0 8px">${L.length} war${L.length>1?'s':''} being fought. The bar shows who is winning.</p>${wws}`+L.map(({A,B,w,ww,sieges})=>{
+    const s=clamp(w.score/24,-1,1),lead=w.score>3?A:w.score<-3?B:null;
+    return `<div class="war"><div class="wh">${nm(A)}<i>vs</i>${nm(B)}</div>
+      <div class="wbar"><span style="width:${(50+s*50).toFixed(1)}%;background:${A.color}"></span><span style="background:${B.color}"></span></div>
+      <div class="wstat"><span>Since year ${w.start??year-w.years} · ${w.years} yr</span><span>${lead?esc(lead.name)+' is winning':'Neither side is winning'}</span></div>
+      <div class="wstat"><span>Land taken: ${w.ta||0} / ${w.tb||0}</span><span>Dead: ${fmtN(w.da||0)} / ${fmtN(w.db||0)}</span></div>
+      ${ww?`<div class="wtag">Part of the ${ORD[ww.n]||''} World War</div>`:''}
+      ${sieges.map(x=>`<div class="wsiege">🏰 ${esc(x.by.name)} besieges ${esc(x.c.name)} · ${Math.round(Math.min(1,x.c.siege)*100)}%</div>`).join('')}
+      <div class="row" style="gap:6px;margin-top:6px"><button class="btn" data-wgo="${A.id}-${B.id}">Show the front</button><div class="flex"></div><button class="btn primary" data-wpeace="${A.id}-${B.id}">Force peace · 15</button></div></div>`}).join('')}
 $('#sheetBody').addEventListener('click',e=>{
+  const wg=e.target.closest('[data-wgo]');if(wg){const [a,b]=wg.dataset.wgo.split('-').map(Number),i=warFront(nations[a],nations[b]);if(i>=0){focusOn(wx(i%W),wz((i/W)|0),Math.min(camDist,16));fx(i,'war')}if(innerWidth<700)closeSheet();return}
+  const wp=e.target.closest('[data-wpeace]');if(wp){const [a,b]=wp.dataset.wpeace.split('-').map(Number),p={a,b};if(typeof coopGuest==='function'&&coopGuest()){coopAct('peace',p);return}if(doAct('peace',p))renderSheet(true);return}
   const ns=e.target.closest('#natSort [data-s]');if(ns){natSort=ns.dataset.s;renderSheet(false);return}
   const nb=e.target.closest('#natList [data-id]');if(nb){selected=+nb.dataset.id;inspectTile=-1;bordersDirty=true;const c=nations[selected].cities[0];if(c)focusOn(wx(c.x),wz(c.y),Math.min(camDistT,16));renderNationCard();renderSheet(false);if(innerWidth<700)closeSheet();return}
   if(e.target.closest('#newFaith')){openFaithMaker();return}
@@ -297,14 +320,24 @@ function renderFaithMaker(){const d=draft,combo={};for(const k of MODKEYS)combo[
   <div class="sec"><span class="lab">Colour</span><div class="row">${FCOL.map(c=>`<button class="swatch" data-fm="color" data-v="${c}" aria-pressed="${c===d.color}" style="background:${c}" aria-label="Colour ${c}"></button>`).join('')}</div></div>
   <div class="sec"><span class="lab">Tenets · pick two</span><div class="tenets">${Object.keys(TENETS).map(k=>`<button data-fm="tenet" data-v="${k}" aria-pressed="${d.tenets.includes(k)}"><b>${TENETS[k].label}</b><small>${TENETS[k].desc}</small></button>`).join('')}</div></div>
   <div class="row"><button class="btn" data-p="close">Cancel</button><div class="flex"></div><button class="btn primary" data-fm="found" ${d.tenets.length?'':'disabled'}>Reveal faith · 40 belief</button></div>`)}
+/* actions that change the world from a dialog; in co-op a guest's choice runs on the host through these */
+function doAct(k,p){
+  if(k==='guide'){const n=nations[p.n];if(!n||!n.alive||!TECH[p.t]||!techAvailable(n,TECH[p.t])||!spend(10))return false;n.research=p.t;n.tech=0;n.guided=true;log(`You guided the scholars of ${n.name} towards ${TECH[n.research].name}.`,'era');return true}
+  if(k==='gov'){const n=nations[p.n];if(!n||!n.alive||!govOptions(n).includes(p.g)||!spend(30))return false;setGov(n,p.g,true);if(n.cities[0])fx(n.cities[0].y*W+n.cities[0].x,'faith');return true}
+  if(k==='peace'){const A=nations[p.a],B=nations[p.b];if(!A||!B||!A.alive||!B.alive||!A.wars.has(B.id)){say('That war is already over.');return false}if(!spend(15))return false;makePeace(A,B,true);delete warData[warKey(A,B)];const c=B.cities[0];if(c)fx(c.y*W+c.x,'bless');return true}
+  if(k==='clim'){if(!p.d||!spend(40))return false;shiftClimate(p.d);return true}
+  if(k==='found'){const name=String(p.name||'').trim().slice(0,40);if(!name){say('Give your faith a name first.');return -1}if(!spend(40))return -1;
+    faiths.push({name,tenets:(p.tenets||[]).slice(0,2),glyph:p.glyph,color:p.color,founded:year,holy:null});
+    log(`${p.by?p.by+' revealed':'You revealed'} a new faith: ${name}.`,'faith');milestone('faith','A faith revealed',`${name} spreads its first words.`);return faiths.length-1}
+  return false}
+function afterFound(idx,name){if(idx<0)return;selectedFaith=idx;curTab='People';buildDock();setTool('faith');say(`Now tap a nation to bring it ${name}. Its capital becomes the holy city.`,true);renderSheet(true);if(innerWidth<700)closeSheet()}
 function faithMakerClick(b){const a=b.dataset.fm,v=b.dataset.v;const nm=$('#fmName');if(nm)draft.name=nm.value;
   if(a==='dice')draft.name=freeFaithName();
   if(a==='glyph')draft.glyph=v;if(a==='color')draft.color=v;
   if(a==='tenet'){const t=draft.tenets;if(t.includes(v))t.splice(t.indexOf(v),1);else{t.push(v);if(t.length>2)t.shift()}}
-  if(a==='found'){const name=draft.name.trim();if(!name){say('Give your faith a name first.');return}if(!spend(40))return;
-    faiths.push({name,tenets:draft.tenets.slice(),glyph:draft.glyph,color:draft.color,founded:year,holy:null});selectedFaith=faiths.length-1;
-    log(`You revealed a new faith: ${name}.`,'faith');milestone('faith','A faith revealed',`${name} spreads its first words.`);closeModal();
-    curTab='People';buildDock();setTool('faith');say(`Now tap a nation to bring it ${name}. Its capital becomes the holy city.`,true);renderSheet(true);if(innerWidth<700)closeSheet();return}
+  if(a==='found'){const name=draft.name.trim();if(!name){say('Give your faith a name first.');return}const p={name,tenets:draft.tenets.slice(),glyph:draft.glyph,color:draft.color};
+    if(typeof coopGuest==='function'&&coopGuest()){coopAct('found',p);closeModal();say('Your faith is being revealed…');return}
+    const idx=doAct('found',p);if(idx<0)return;closeModal();afterFound(idx,name);return}
   renderFaithMaker()}
 
 /* ---------- court: ruler, family, dynasty, governors ---------- */
@@ -360,7 +393,7 @@ applyUI(settings.ui||'parchment');
 function applyLook(k){lookKey=k;LK=LOOKS[k];if(VY)colorTerrain();lastEnv=-1e9;settings.look=k;saveSettings()}
 
 /* ---------- HUD ---------- */
-function updateHUD(){renderGoal();worldPopMul=POPMUL[nations.reduce((m,n)=>n.alive?Math.max(m,n.era):m,0)];if(spaceView&&year%5===0)renderSpacePanel();
+function updateHUD(){renderGoal();{const wc=$('#warCnt');if(wc){let k=0;for(const n of nations)if(n.alive)for(const b of n.wars)if(n.id<b)k++;wc.textContent=k||''}}worldPopMul=POPMUL[nations.reduce((m,n)=>n.alive?Math.max(m,n.era):m,0)];if(spaceView&&year%5===0)renderSpacePanel();
   const al=nations.filter(n=>n.alive),top=al.reduce((m,n)=>Math.max(m,n.era),0);
   $('#yr').textContent=`Year ${year}${settings.seasons!==false?' · '+seasonName():''}`;if(followId!=null)followTick();$('#eraLbl').textContent=ERAS[top].name;
   $('#bel').textContent=unlimited?'∞':Math.floor(belief);$('#belRate').textContent=unlimited?'':`+${beliefRate.toFixed(1)}`;
@@ -574,8 +607,8 @@ function toggleFullscreen(){const d=document.documentElement;
 $('#fsBtn').hidden=!fsOK;$('#fsBtn').onclick=toggleFullscreen;
 ['fullscreenchange','webkitfullscreenchange'].forEach(ev=>document.addEventListener(ev,()=>{$('#fsBtn').setAttribute('aria-pressed',!!fsEl());setTimeout(resize,60)}));
 $('#modalBox').addEventListener('click',e=>{const fm=e.target.closest('[data-fm]');if(fm){faithMakerClick(fm);return}
-  const tn=e.target.closest('.tn.open');if(tn){const n=nations[techFor];if(n&&n.alive&&spend(10)){n.research=tn.dataset.tech;n.tech=0;n.guided=true;log(`You guided the scholars of ${n.name} towards ${TECH[n.research].name}.`,'era');openTech(n)}return}
-  const gv=e.target.closest('[data-gov]');if(gv&&!gv.disabled){const n=nations[govFor];if(n&&n.alive&&spend(30)){setGov(n,gv.dataset.gov,true);fx(n.cities[0].y*W+n.cities[0].x,'faith');closeModal();renderNationCard();updateHUD()}return}
+  const tn=e.target.closest('.tn.open');if(tn){const n=nations[techFor],p={n:techFor,t:tn.dataset.tech};if(typeof coopGuest==='function'&&coopGuest()){coopAct('guide',p);closeModal();return}if(n&&doAct('guide',p))openTech(n);return}
+  const gv=e.target.closest('[data-gov]');if(gv&&!gv.disabled){const p={n:govFor,g:gv.dataset.gov};if(typeof coopGuest==='function'&&coopGuest()){coopAct('gov',p);closeModal();return}if(doAct('gov',p)){closeModal();renderNationCard();updateHUD()}return}
   const b=e.target.closest('[data-p]');if(b){const p=b.dataset.p;if(p==='close'){closeModal();return}
     if(p==='resume')closeModal();
     if(p==='save'){closeModal();saveGame().then(w=>toast(w==='none'?'Could not save':'Game saved',w==='cloud'?'Saved to your account on the server.':w==='local'?(account.user?'Server unreachable; saved in this browser for now.':'Saved in this browser.'):'The browser refused to store it.'))}
@@ -585,7 +618,7 @@ $('#modalBox').addEventListener('click',e=>{const fm=e.target.closest('[data-fm]
     if(p==='back')playing?openPause():closeModal();return}
   const ds=e.target.closest('[data-dis]');if(ds){settings.disasters=ds.dataset.dis;saveSettings();openSettings();return}
   const sc_=e.target.closest('[data-scen]');if(sc_){if(sc_.dataset.scen)startScenario(sc_.dataset.scen);else closeModal();return}
-  const cl=e.target.closest('[data-clim]');if(cl){const d=+cl.dataset.clim;if(d&&spend(40))shiftClimate(d);closeModal();return}
+  const cl=e.target.closest('[data-clim]');if(cl){const d=+cl.dataset.clim;if(d){if(typeof coopGuest==='function'&&coopGuest())coopAct('clim',{d});else doAct('clim',{d})}closeModal();return}
   const ub=e.target.closest('[data-ui]');if(ub){applyUI(ub.dataset.ui);openSettings();return}
   const pw=e.target.closest('[data-pow]');if(pw){settings.power=pw.dataset.pow;saveSettings();resize();openSettings();return}
   const q=e.target.closest('[data-q]');if(q){settings.quality=q.dataset.q;saveSettings();applyGraphics();treesDirty=true;propsDirty=true;openSettings()}
@@ -661,7 +694,7 @@ function frameBody(now){
   if(playing&&worldOpts.calendar){const target=worldOpts.anchorYear+(Date.now()-worldOpts.anchorReal)/1000*pr.yearRate;yrs=Math.max(0,Math.min(target-year-acc,6));
     if(target-year>40&&!catching){catchUp(Math.floor(target-year));}}
   else yrs=paused?0:playing?dt*SPEEDS[speedIdx]*pr.yearRate/2:dt*3;
-  acc+=yrs;let steps=0;while(acc>=1&&steps<6){try{tick()}catch(e){reportErr('year '+year,e);year++}acc-=1;steps++}if(steps===6&&!worldOpts.calendar)acc=0;
+  acc+=yrs;if(typeof coopGuest==='function'&&coopGuest())acc=0;let steps=0;while(acc>=1&&steps<6){try{tick()}catch(e){reportErr('year '+year,e);year++}acc-=1;steps++}if(steps===6&&!worldOpts.calendar)acc=0;
   const shipYrs=yrs>0?Math.max(yrs,dt*.8):0;
   if(playing)keyCam(dt);else camYawT+=dt*.035;
   updateShips(shipYrs,dt,now);

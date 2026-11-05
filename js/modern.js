@@ -14,7 +14,7 @@ let MCTX={lvl:1,cap:false,tall:[]};
 
 /* stack a building out of storeys so window textures keep their scale */
 function storeys(K,x,y,z,w,d,h,rot,col,seg){const n=MCTX.far?1:Math.max(1,Math.round(h/(seg||.28))),sh=h/n;for(let i=0;i<n;i++)add(K,x,y+i*sh,z,w,sh*1.001,d,rot,col)}
-function towerHeight(core,hk){return Math.min(1.55,(.12+core*core*1.15+hk*hk*.45)*(MCTX.cap?1.3:1)*(.6+MCTX.lvl*.065))}
+function towerHeight(core,hk){return Math.min(1.2,(.12+core*core*.9+hk*hk*.38)*(MCTX.cap?1.3:1)*(.6+MCTX.lvl*.065))}
 
 /* modern age: glass and concrete towers downtown, apartment slabs, then villas with pools at the edge */
 function modernBuilding(n,x,y,z,rot,hk,core,fw){const o=hash(hk*131+7),col=MOD_COL[(o*MOD_COL.length)|0],w=Math.min(fw,.14);

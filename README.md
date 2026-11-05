@@ -25,6 +25,13 @@ Settings in `docker-compose.yml`:
 Passwords are stored as salted scrypt hashes. Sessions last 30 days (HttpOnly cookie).
 Each account can keep 30 worlds.
 
+### Play together (co-op)
+Open a world, press **Together** in the top bar and then **Invite friends**. You get a link and a 6-letter code. Friends open the link, pick a name and join.
+- The host's browser runs the world and sets the speed. Guests watch it live, keep their own belief and send their miracles to the host.
+- Everyone sees the other gods' cursors, a chat, and a note when someone works a miracle.
+- Co-op rooms live in the server's memory: they close when the host closes the world or has been away for two minutes. Nothing extra is stored.
+- Behind Nginx Proxy Manager nothing needs changing: the live stream sends `X-Accel-Buffering: no` and a ping every 15 seconds, so the default proxy settings work.
+
 ### Backups
 All data lives in the volume `faithbound-data` (`/data` in the container): `users.json`, `sessions.json` and `saves/<user>/`.
 
