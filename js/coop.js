@@ -72,7 +72,7 @@ function coopOnMsg(m){if(!coop)return;const t=m.t;
 function coopSnapshot(){const d=buildSave();d.coopPools=coop.pools;return d}
 const coopSum=a=>{if(!a)return 0;let s=0;const st=Math.max(1,(a.length/4000)|0);for(let i=0;i<a.length;i+=st)s=(s*31+((a[i]*4096)|0))|0;return s+a.length};
 function coopLive(full){
-  const d={y:year,sp:speedIdx,cl:climate,dt:dayT,o:b64(owner),bl:belief,pools:coop.pools,rates:coop.rates||{},st:coopStandings().map(s=>[s.pid,Math.round(s.share*1000)]),
+  const d={y:year,sp:speedIdx,cl:climate,dt:dayT,o:b64(owner),bl:belief,pools:coop.pools,rates:coop.rates||{},st:coopStandings().map(s=>[s.pid,Math.round(s.share*1000)]),pr:typeof prayers!=='undefined'?prayers:[],av:typeof avatars!=='undefined'?avatars:{},
     nat:nations.map(n=>Object.assign({},n,{wars:[...n.wars],nb:[],front:[],_walk:0,_resMod:null,cities:n.cities.map(c=>{const o={};for(const k in c)if(k[0]!=='_')o[k]=c[k];return o})})),
     fa:faiths,lg:logs.slice(0,40),wdat:warData,ru:ruins,ww:worldWars,co:colonies,pt:planets,ms:[...milestones],mi:milestoneInfo,deps:deposits,cv:coves,fl:flags};
   const hs=coopSum(h),ms=coopSum(moistD),ws=coopSum(warmD),rs=coopSum(river);
@@ -166,7 +166,7 @@ function coopApply(d){
   if(d.ms)milestones=new Set(d.ms);if(d.mi)Object.assign(milestoneInfo,d.mi);if(d.cv)coves=d.cv;if(d.fl)flags=d.fl;
   if(d.deps&&d.deps.length!==deposits.length){deposits=d.deps;indexDeposits()}else if(d.deps)deposits=d.deps;
   if(d.folk){folk=d.folk;folkId=d.folkId;houses=d.houses||houses}if(d.an)annals=d.an;if(d.hi)hist=d.hi;if(d.sn)snaps=d.sn;
-  if(d.st)coop.st=d.st;if(d.pools&&d.pools[coop.pid]!=null)belief=d.pools[coop.pid];if(d.rates&&d.rates[coop.pid]!=null)beliefRate=d.rates[coop.pid];
+  if(d.st)coop.st=d.st;if(d.pr){prayers=d.pr;renderPrayers()}if(d.av){for(const g in d.av){const a=avatars[g];if(a){a.tx=d.av[g].tx;a.tz=d.av[g].tz;if(Math.hypot(a.x-d.av[g].x,a.z-d.av[g].z)>.6){a.x=d.av[g].x;a.z=d.av[g].z}}else avatars[g]=Object.assign({},d.av[g])}}if(d.pools&&d.pools[coop.pid]!=null)belief=d.pools[coop.pid];if(d.rates&&d.rates[coop.pid]!=null)beliefRate=d.rates[coop.pid];
   if(selected>=0&&(!nations[selected]||!nations[selected].alive)){selected=-1;inspectTile=-1}
   if(selected>=0&&performance.now()-(coop.lastCard||0)>2000){coop.lastCard=performance.now();renderNationCard()}
   if(typeof spaceView!=='undefined'&&spaceView&&typeof refreshPlanet==='function'&&performance.now()-(coop.lastPlanet||0)>2000){coop.lastPlanet=performance.now();refreshPlanet()}

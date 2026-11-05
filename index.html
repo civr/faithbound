@@ -382,6 +382,11 @@ body.ui-parchment .tp h1,body.ui-marble .tp h1{color:#f6e2a6}
 #warSeg{margin-bottom:8px}.rlegend{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 8px}.rlegend .rchip{cursor:default}
 .mood{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
 .dipgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.dipb{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:2px;padding:9px 10px}.dipb small{font-size:.74rem;opacity:.75;font-weight:400}@media(max-width:520px){.dipgrid{grid-template-columns:1fr}}
+.prayers{position:fixed;left:16px;top:150px;z-index:12;width:min(300px,calc(100vw - 32px));padding:8px 10px;display:grid;gap:6px;max-height:40vh;overflow:auto}
+.pray{display:flex;gap:8px;align-items:flex-start;text-align:left;background:rgba(0,0,0,.06);border:1px solid var(--line2);border-radius:8px;padding:6px 8px;cursor:pointer;font-size:.82rem;line-height:1.3;color:inherit}
+.pray i{flex:none;width:9px;height:9px;border-radius:50%;margin-top:4px}.pray small{display:block;opacity:.7;font-size:.72rem;margin-top:2px}
+.evopts{display:grid;gap:8px;margin-top:10px}.evopts .btn{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:2px;padding:10px 12px}.evopts small{font-weight:400;opacity:.8;font-size:.78rem}
+@media(max-width:700px){.prayers{top:auto;bottom:190px;max-height:22vh}}
 </style>
 
 <canvas id="gl" aria-label="The world of Faithbound"></canvas>
@@ -389,6 +394,7 @@ body.ui-parchment .tp h1,body.ui-marble .tp h1{color:#f6e2a6}
 
 <div id="hud" class="hidden">
   <div class="glass goal" id="goal" hidden></div>
+  <div class="glass prayers" id="prayers" hidden></div>
   <div class="glass rewind" id="rewindBar" hidden></div>
   <div id="fpsMeter" hidden></div>
   <div class="glass follow" id="follow" hidden></div>
@@ -484,6 +490,7 @@ body.ui-parchment .tp h1,body.ui-marble .tp h1{color:#f6e2a6}
 <script src="js/space.js"></script>
 <script src="js/warfare.js"></script>
 <script src="js/armies.js"></script>
+<script src="js/life.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/history.js"></script>
