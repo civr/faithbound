@@ -19,9 +19,9 @@ function prayerNeed(n){if(n.famine>0)return 'famine';if(n.sick)return 'plague';
   if(climate.rain<.35&&rng()<.3)return 'drought';return null}
 function prayerTick(){prayers=prayers.filter(p=>{const n=nations[p.n];if(!n||!n.alive)return false;
     if(year>p.until){n.devotion=clamp((n.devotion??.3)-.12,0,1);n.happy=clamp((n.happy??.6)-.05,0,1);log(`${n.name} prayed and no god answered. Their faith in you cracks.`,'faith');return false}return true});
-  if(--prayT>0||prayers.length>=4)return;prayT=6+((rng()*10)|0);
+  {const M=mood();if(--prayT>0||prayers.length>=M.prayMax)return;prayT=M.pray[0]+((rng()*(M.pray[1]-M.pray[0]))|0)}
   const al=nations.filter(n=>n.alive&&n.cities.length&&!prayers.some(p=>p.n===n.id));for(let t=0;t<6&&al.length;t++){const n=al[(rng()*al.length)|0],k=prayerNeed(n);if(!k)continue;
-    const c=k==='siege'?n.cities.find(c=>c.siege>.25):n.cities[0];prayers.push({id:++prayId,n:n.id,k,text:PRAYER[k].text(n,c),until:year+14,c:c?[c.x,c.y]:null});
+    const c=k==='siege'?n.cities.find(c=>c.siege>.25):n.cities[0];prayers.push({id:++prayId,n:n.id,k,text:PRAYER[k].text(n,c),until:year+(settings.mood==='turbulent'?14:20),c:c?[c.x,c.y]:null});
     log(`Prayer: ${PRAYER[k].text(n,c)}`,'faith');if(c)toast('A prayer rises',PRAYER[k].text(n,c),wx(c.x),wz(c.y));renderPrayers();break}}
 function answerPrayers(toolId,i){const o=i>=0?owner[i]:-1;let hit=false;
   for(const p of [...prayers]){if(!PRAYER[p.k].tools.includes(toolId))continue;const n=nations[p.n];if(!n)continue;
@@ -30,8 +30,8 @@ function answerPrayers(toolId,i){const o=i>=0?owner[i]:-1;let hit=false;
     log(`You answered the prayer of ${n.name}. They sing your name in every street.`,'faith');toast('Prayer answered',`${n.name} rejoices. Their faith in you soars.`);if(typeof sfx==='function')sfx('chime');hit=true}
   if(hit)renderPrayers()}
 function renderPrayers(){const el=$('#prayers');if(!el)return;if(!prayers.length||!playing){el.hidden=true;return}el.hidden=false;
-  el.innerHTML=`<b class="lab">Prayers</b>`+prayers.map(p=>{const n=nations[p.n];return `<button class="pray" data-pray="${p.id}"><i style="background:${n?n.color:'#999'}"></i><span>${esc(p.text)}<small>${PRAYER[p.k].hint} · ${Math.max(0,p.until-year)} yr left</small></span></button>`}).join('')}
-document.addEventListener('click',e=>{const b=e.target.closest('[data-pray]');if(!b)return;const p=prayers.find(q=>q.id===+b.dataset.pray);if(!p)return;const n=nations[p.n];
+  el.classList.toggle('fold',!!window.prayFold);el.innerHTML=`<button class="prayHead" data-prayfold><b class="lab">Prayers · ${prayers.length}</b><span>${window.prayFold?'Show ▾':'Hide ▴'}</span></button>`+prayers.map(p=>{const n=nations[p.n];return `<button class="pray" data-pray="${p.id}"><i style="background:${n?n.color:'#999'}"></i><span>${esc(p.text)}<small>${PRAYER[p.k].hint} · ${Math.max(0,p.until-year)} yr left</small></span></button>`}).join('')}
+document.addEventListener('click',e=>{if(e.target.closest('[data-prayfold]')){window.prayFold=!window.prayFold;renderPrayers();return}const b=e.target.closest('[data-pray]');if(!b)return;const p=prayers.find(q=>q.id===+b.dataset.pray);if(!p)return;const n=nations[p.n];
   const c=p.c||(n&&n.cities[0]&&[n.cities[0].x,n.cities[0].y]);if(c){focusOn(wx(c[0]),wz(c[1]),Math.min(camDist,14));selected=p.n;renderNationCard()}
   const t=PRAYER[p.k].tools[0],P_=POWERS.find(x=>x.id===t);if(P_){curTab=P_.tab==='*'?curTab:P_.tab;buildDock();setTool(t)}});
 
@@ -46,16 +46,16 @@ const EVENTS=[
   {id:'scholars',ok:n=>n.era>=2,title:n=>`Doubting scholars`,text:n=>`Scholars in ${n.name} question whether the gods exist at all.`,
     opts:[['Strike them dumb','Faith rises, learning suffers',n=>{n.devotion=clamp((n.devotion??.3)+.12,0,1);n.tech=Math.max(0,n.tech*.8)}],['Inspire them','Learning blooms, faith wavers',n=>{n.inspire=(n.inspire||0)+12;n.devotion=clamp((n.devotion??.3)-.1,0,1)}],['Ignore them','Nothing changes',()=>{}]]},
   {id:'temple',ok:n=>n.faith>=0&&n.cities.length>0,title:n=>`A great temple`,text:n=>`The faithful of ${n.name} want to raise a great temple in your honour, if you show you are worthy. (30 belief)`,
-    opts:[['Bless the work','30 belief: a statue and much more faith',n=>{if(!spend(30))return;n.devotion=clamp((n.devotion??.3)+.25,0,1);const c=n.cities[0];if(c)c.statue={faith:n.faith,year};propsDirty=true}],['Refuse','They are disappointed',n=>{n.devotion=clamp((n.devotion??.3)-.05,0,1)}]]},
+    opts:[['Bless the work',`35 belief: a statue and much more faith`,n=>{if(!spend(30))return;n.devotion=clamp((n.devotion??.3)+.25,0,1);const c=n.cities[0];if(c)c.statue={faith:n.faith,year};propsDirty=true}],['Refuse','They are disappointed',n=>{n.devotion=clamp((n.devotion??.3)-.05,0,1)}]]},
   {id:'comet',ok:n=>true,title:n=>`A comet over ${n.name}`,text:n=>`A comet blazes over ${n.name}. The people ask what it means.`,
     opts:[['A sign of good fortune','The people are happier',n=>{n.happy=clamp((n.happy??.6)+.15,0,1)}],['A warning of doom','Fear brings them to the temples',n=>{n.devotion=clamp((n.devotion??.3)+.15,0,1);n.happy=clamp((n.happy??.6)-.1,0,1)}]]},
   {id:'rats',ok:n=>n.cities.length>1&&!n.sick,title:n=>`Rats in the granaries`,text:n=>`Rats swarm the granaries of ${n.name}. Sickness may follow. (15 belief to drive them out)`,
-    opts:[['Drive them out','15 belief: no sickness',n=>{if(!spend(15))return;n.devotion=clamp((n.devotion??.3)+.06,0,1)}],['Let it be','They may fall sick',n=>{if(rng()<.6&&typeof infect==='function'&&typeof DISEASES!=='undefined')infect(n,DISEASES[(rng()*DISEASES.length)|0],null);else n.pop*=.97}]]},
+    opts:[['Drive them out',`15 belief: no sickness`,n=>{if(!spend(15))return;n.devotion=clamp((n.devotion??.3)+.06,0,1)}],['Let it be','They may fall sick',n=>{if(rng()<.6&&typeof infect==='function'&&typeof DISEASES!=='undefined')infect(n,DISEASES[(rng()*DISEASES.length)|0],null);else n.pop*=.97}]]},
   {id:'refugees',ok:n=>n.wars.size>0&&nearFriend(n),title:n=>`Refugees from ${n.name}`,text:n=>`War drives the people of ${n.name} from their homes. ${nearFriend(n).name} could take them in.`,
     opts:[['Open the gates','People move to safety; the hosts grumble',n=>{const B=nearFriend(n);if(!B)return;const m=n.pop*.06;n.pop-=m;B.pop+=m;B.happy=clamp((B.happy??.6)-.06,0,1);n.devotion=clamp((n.devotion??.3)+.08,0,1)}],['Turn them away','Many are lost',n=>{n.pop*=.96;n.happy=clamp((n.happy??.6)-.08,0,1)}]]}];
 function nearFoe(n){for(const b of n.nb||[]){const B=nations[b];if(B&&B.alive&&!n.wars.has(b)&&!allied(n,B))return B}return null}
 function nearFriend(n){for(const b of n.nb||[]){const B=nations[b];if(B&&B.alive&&!n.wars.has(b))return B}return null}
-function eventTick(){if(settings.events===false||eventOpen||!playing||(typeof coopGuest==='function'&&coopGuest()))return;if(--eventT>0)return;eventT=45+((rng()*70)|0);
+function eventTick(){if(settings.events===false||eventOpen||!playing||(typeof coopGuest==='function'&&coopGuest()))return;if(--eventT>0)return;{const M=mood();eventT=M.ev[0]+((rng()*(M.ev[1]-M.ev[0]))|0)}
   if(!$('#modal').hidden)return;const al=nations.filter(n=>n.alive&&n.cities.length);if(!al.length)return;
   for(let t=0;t<8;t++){const n=al[(rng()*al.length)|0],E=EVENTS[(rng()*EVENTS.length)|0];if(!E.ok(n))continue;openEvent(E,n);break}}
 function openEvent(E,n){eventOpen={E,n:n.id,speed:speedIdx};speedIdx=0;updateHUD();$('#modalBox').classList.remove('wide');

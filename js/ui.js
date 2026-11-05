@@ -200,7 +200,7 @@ function applyTool(i,start){if(viewOnly&&tool!=='inspect'){if(start)say('You are
   case 'locusts':if(isWater(i)){say('Tap land.');return}if(!spend(30))return;spawnLocusts(i);break;
   case 'fertile':{if(isWater(i)){say('Tap land.');return}if(!spend(20))return;const r=fertileLand(i);fx(i,'rain');if(!r.n){say(r.cold?'Too cold to bloom here. Warm the climate first.':'This land is already green.');if(!unlimited)belief+=20;return}log('At your touch the dry land turned green.','life');break}
   case 'forest':{if(isWater(i)){say('Tap land.');return}if(!spend(15))return;const k=plantForest(i);if(!k){say('Nothing can grow here.');if(!unlimited)belief+=15;return}fx(i,'bless');log('A new forest sprang up at your word.','life');break}
-  case 'flood':{if(!unlimited&&belief<30){say('Not enough belief. This needs 30.');return}const k=riverFlood(i);if(!k){say('Tap close to a river.');return}spend(30);fx(i,'rain');break}
+  case 'flood':{if(!unlimited&&belief<costOf(30)){say(`Not enough belief. This needs ${costOf(30)}.`);return}const k=riverFlood(i);if(!k){say('Tap close to a river.');return}spend(30);fx(i,'rain');break}
   case 'climate':if(scen()&&scen().id==='climate'){say('In this scenario you cannot cool the world yourself. Guide the nations instead.');return}openModal(`<h2>Climate</h2><p class="note">Change the whole world. A warmer world melts the ice and raises the seas, so low coasts can drown. A colder world grows glaciers and lowers the seas. Each step costs ${costOf(40)} belief.</p>
     <div class="row" style="gap:8px;margin-top:10px"><button class="btn" data-clim="-1">❄ Colder</button><button class="btn primary" data-clim="1">☀ Warmer</button><button class="btn" data-clim="0">Cancel</button></div>`);break;
   case 'anoint':{if(!needNation(n))return;const r=rulerOf(n);if(!r||r.machine){say(`${n.name} has no ruler you can anoint.`);return}if(r.traits.includes('anointed')){say(`${r.name} is already your chosen one.`);return}
@@ -366,7 +366,7 @@ function renderFaithMaker(){const d=draft,combo={};for(const k of MODKEYS)combo[
   <div class="sec"><span class="lab">Symbol</span><div class="glyphs">${Object.keys(GLYPHS).map(k=>`<button data-fm="glyph" data-v="${k}" aria-pressed="${k===d.glyph}" aria-label="${k}">${glyph(k)}</button>`).join('')}</div></div>
   <div class="sec"><span class="lab">Colour</span><div class="row">${FCOL.map(c=>`<button class="swatch" data-fm="color" data-v="${c}" aria-pressed="${c===d.color}" style="background:${c}" aria-label="Colour ${c}"></button>`).join('')}</div></div>
   <div class="sec"><span class="lab">Tenets · pick two</span><div class="tenets">${Object.keys(TENETS).map(k=>`<button data-fm="tenet" data-v="${k}" aria-pressed="${d.tenets.includes(k)}"><b>${TENETS[k].label}</b><small>${TENETS[k].desc}</small></button>`).join('')}</div></div>
-  <div class="row"><button class="btn" data-p="close">Cancel</button><div class="flex"></div><button class="btn primary" data-fm="found" ${d.tenets.length?'':'disabled'}>Reveal faith · 40 belief</button></div>`)}
+  <div class="row"><button class="btn" data-p="close">Cancel</button><div class="flex"></div><button class="btn primary" data-fm="found" ${d.tenets.length?'':'disabled'}>Reveal faith · ${costOf(40)} belief</button></div>`)}
 /* actions that change the world from a dialog; in co-op a guest's choice runs on the host through these */
 function doAct(k,p){spendMul=1;
   if(k==='guide'){const n=nations[p.n];if(!n||!n.alive||!TECH[p.t]||!techAvailable(n,TECH[p.t]))return false;spendMul=devCost(n);if(!spend(10))return false;if((n.devotion??.3)<.2&&rng()<.5){say(`The scholars of ${n.name} do not listen to a god they no longer believe in.`);return true}n.research=p.t;n.tech=0;n.guided=true;log(`You guided the scholars of ${n.name} towards ${TECH[n.research].name}.`,'era');return true}
@@ -381,7 +381,7 @@ function doAct(k,p){spendMul=1;
     else if(p.k==='marriage'){A.ties=A.ties||[];B.ties=B.ties||[];if(!A.ties.includes(B.id))A.ties.push(B.id);if(!B.ties.includes(A.id))B.ties.push(A.id);if(A.rivals)A.rivals[B.id]=Math.max(0,(A.rivals[B.id]||0)-2);if(B.rivals)B.rivals[A.id]=Math.max(0,(B.rivals[A.id]||0)-2);
       log(`The royal houses of ${A.name} and ${B.name} were joined by a marriage you blessed.`,'life')}
     else if(p.k==='tribute'){const pa=mil(A)*A.tiles,pb=mil(B)*B.tiles;if(pa>pb*1.4){const t=B.pop*.04;B.pop-=t;A.pop+=t*.5;A.tech+=Math.max(0,B.tech)*.08;B.tribute={pay:true,until:year+20,to:A.id};A.tribute={pay:false,until:year+20,to:B.id};log(`${B.name} bowed to ${A.name} and pays tribute.`,'war')}
-      else{if(typeof addRival==='function')addRival(A,B,1);log(`${B.name} laughed at the demand of ${A.name}.`,'war');if(rng()<.4)startWar(A,B,null)}}
+      else{if(typeof addRival==='function')addRival(A,B,1);log(`${B.name} laughed at the demand of ${A.name}.`,'war');if(rng()<.4&&warRoom(1))startWar(A,B,null)}}
     else if(p.k==='ally')ally(A,B,true);else if(p.k==='unally')breakAlliance(A,B,true);
     return true}
   if(k==='speed'){const i=p.s|0;if(i<0||i>3)return false;speedIdx=i;updateHUD();return true}
@@ -429,7 +429,7 @@ function openTech(n){techFor=n.id;const cols=[];
       const need=t.req.filter(r=>!(n.techs||[]).includes(r)).map(r=>TECH[r].name);
       const mods=modList(t).map(m=>`${m.label} ${m.pct>0?'+':''}${m.pct}%`).join(' · ');
       return `<button class="tn ${st}" data-tech="${t.id}" ${st==='open'?'':'tabindex="-1"'}>${t.key?`<span class="key">Opens ${ERAS[t.key].name}</span>`:''}<b>${t.name}</b><small>${t.desc}</small>${mods?`<small>${mods}</small>`:''}
-        ${st==='current'?`<div class="prog"><i style="width:${clamp(n.tech/TECHCOST[t.era],0,1)*100}%"></i></div><small>Researching${n.guided?' · guided by you':''}</small>`:st==='open'?'<small style="color:var(--gold)">Tap to research next · 10 belief</small>':st==='locked'&&need.length&&!capped?`<small>Needs ${need.join(', ')}</small>`:''}</button>`}).join('')}${capped?'<p class="note">Beyond the final age of this world.</p>':''}</div>`)}
+        ${st==='current'?`<div class="prog"><i style="width:${clamp(n.tech/TECHCOST[t.era],0,1)*100}%"></i></div><small>Researching${n.guided?' · guided by you':''}</small>`:st==='open'?'<small style="color:var(--gold)">Tap to research next · '+Math.round(costOf(10)*devCost(n))+' belief</small>':st==='locked'&&need.length&&!capped?`<small>Needs ${need.join(', ')}</small>`:''}</button>`}).join('')}${capped?'<p class="note">Beyond the final age of this world.</p>':''}</div>`)}
   openModal(`<h2>${esc(n.name)} · Discoveries</h2><p class="note">${(n.techs||[]).length} of ${TECHS.length} discovered. Nations research on their own; each age needs its key discovery. Pace: ${fmtDuration(ageSeconds())} per age${worldOpts.calendar?' (calendar world)':''}. Final age: ${ERAS[worldOpts.maxEra].name}.</p>
     <div class="ttree">${cols.join('')}</div><div class="row"><div class="flex"></div><button class="btn" data-p="close">Close</button></div>`);
   $('#modalBox').classList.add('wide');
@@ -439,7 +439,7 @@ function openTech(n){techFor=n.id;const cols=[];
 let govFor=-1;
 function openGov(n){govFor=n.id;const opts=govOptions(n);
   const all=Object.keys(GOVS).filter(k=>GOVS[k].max>=n.era||k===n.gov);
-  openModal(`<h2>Government</h2><p class="note">${esc(n.name)} is in the ${ERAS[n.era].name}. Forms of rule unlock as the ages advance; some fall out of use. A change costs 30 belief and causes a little unrest.</p>
+  openModal(`<h2>Government</h2><p class="note">${esc(n.name)} is in the ${ERAS[n.era].name}. Forms of rule unlock as the ages advance; some fall out of use. A change costs ${Math.round(costOf(30)*devCost(n))} belief and causes a little unrest.</p>
   <div class="govs">${all.map(k=>{const g=GOVS[k],ok=opts.includes(k),cur=k===n.gov;const why=!ok&&!cur?(n.era<g.era?`Unlocks in the ${ERAS[g.era].name}`:g.faith?'Needs a faith':`Outdated after the ${ERAS[g.max].name}`):'';
     return `<button data-gov="${k}" ${ok&&!cur?'':'disabled'} aria-pressed="${cur}"><span class="gname">${g.name}${cur?' <span class="tag">Current</span>':''}</span><small>${g.desc}</small><span class="mods">${chipsFor(g)}</span>${why?`<span class="lock">${why}</span>`:''}</button>`}).join('')}</div>
   <div class="row"><div class="flex"></div><button class="btn" data-p="close">Close</button></div>`)}
@@ -625,7 +625,7 @@ $('#worldSliders').addEventListener('input',e=>{const k=e.target.dataset.wo;if(!
 function openSetup(){renderWorldSliders();$('#titleMain').hidden=true;$('#setup').hidden=false;if(!$('#worldName').value)$('#worldName').value=genName(2,3)+(rng()<.5?' Reach':' Realm');
   renderPaceBox('#paceBox');
   $('#maxEra').innerHTML=ERAS.map((e,i)=>`<option value="${i}" ${i===worldOpts.maxEra?'selected':''}>${e.name}${i===7?' (no limit)':''}</option>`).join('');
-  $$('#disSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.dis===(settings.disasters||'normal')));
+  $$('#disSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.dis===(settings.disasters||'normal')));$$('#moodSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mood===(settings.mood||'calm')));
   $$('#sizeSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.size===sizeKey));renderLooks('#looks');renderArchs('#archs');
   $$('#climSeg button').forEach(b=>b.setAttribute('aria-pressed',Math.abs(+b.dataset.c-climate.temp)<.02))}
 $('#sizeSeg').onclick=e=>{const b=e.target.closest('[data-size]');if(!b)return;sizeKey=b.dataset.size;genWorld();updateHUD();openSetup()};
@@ -643,6 +643,7 @@ document.addEventListener('change',e=>{const box=e.target.closest('.pacebox');if
   if(e.target.id==='paceN')worldOpts.customN=clamp(Math.round(+e.target.value||1),1,999);if(e.target.id==='paceU')worldOpts.customUnit=e.target.value;
   if(e.target.id==='paceCal')worldOpts.calendar=e.target.checked;paceChanged();renderPaceBox(host)});
 $('#maxEra').onchange=e=>{worldOpts.maxEra=+e.target.value};
+$('#moodSeg').onclick=e=>{const b=e.target.closest('[data-mood]');if(!b)return;settings.mood=b.dataset.mood;saveSettings();openSetup()};
 $('#disSeg').onclick=e=>{const b=e.target.closest('[data-dis]');if(!b)return;settings.disasters=b.dataset.dis;saveSettings();openSetup()};
 $('#reroll').onclick=()=>{const t=climate.temp;genWorld();climate.temp=t;terrainDirty=true};
 $('#setupBack').onclick=()=>{$('#setup').hidden=true;$('#titleMain').hidden=false};
@@ -678,6 +679,7 @@ $('#modalBox').addEventListener('click',e=>{const fm=e.target.closest('[data-fm]
     if(p==='settings')openSettings();if(p==='help')openHelp();
     if(p==='quit'){saveGame();closeModal();playing=false;closeSheet();$('#hud').classList.add('hidden');$('#title').classList.remove('hidden');$('#setup').hidden=true;$('#titleMain').hidden=false;renderTitle()}
     if(p==='back')playing?openPause():closeModal();return}
+  const dm=e.target.closest('[data-mood]');if(dm){settings.mood=dm.dataset.mood;saveSettings();openSettings();return}
   const ds=e.target.closest('[data-dis]');if(ds){settings.disasters=ds.dataset.dis;saveSettings();openSettings();return}
   const sc_=e.target.closest('[data-scen]');if(sc_){if(sc_.dataset.scen)startScenario(sc_.dataset.scen);else closeModal();return}
   const cl=e.target.closest('[data-clim]');if(cl){const d=+cl.dataset.clim;if(d){if(typeof coopGuest==='function'&&coopGuest())coopAct('clim',{d});else doAct('clim',{d})}closeModal();return}
@@ -717,6 +719,7 @@ function openSettings(){const t=(k,label,v)=>`<label class="tog">${label}<input 
       <p class="note">Peaceful: slow, soft piano over warm strings, always calm. Fairy tale: a waltz with a music box, harp and sparkling bells; darker and faster in war. Anthem: one main theme like a Civilization score; the band grows with every age, war makes it faster and darker. Cinematic: slow organ swells, a ticking pulse and deep drones; it quickens in war and races in a world war. Calm: slow pads and bells. Epic: strings, horns and timpani. Cozy: harp, soft piano and flute. Classic: the old music, a different band for each age.</p>
       ${[['master','Master'],['music','Music'],['sfx','Effects'],['amb','Ambience']].map(([k,l])=>`<label class="slid">${l}<input type="range" min="0" max="1" step="0.05" data-vol="${k}" value="${vols()[k]}"></label>`).join('')}
       <p class="note">Sound starts after your first click. Ambience follows the camera: waves on the coast, birds in the woods, crowds in town.</p></div>
+    <div class="sec"><span class="lab">World mood</span><div class="seg">${['calm','lively','turbulent'].map(q=>`<button data-mood="${q}" aria-pressed="${(settings.mood||'calm')===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div><p class="note">How much happens at once. Calm keeps wars, prayers, plagues and choices rare.</p></div>
     <div class="sec"><span class="lab">Disasters</span><div class="seg">${['off','mild','normal','wild'].map(q=>`<button data-dis="${q}" aria-pressed="${(settings.disasters||'normal')===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div>
     <p class="note">Storms, wildfires, famine, epidemics, earthquakes and eruptions. Your own powers always work.</p></div>
     <div class="sec"><span class="lab">Look</span><div class="looks" id="looks3"></div></div>

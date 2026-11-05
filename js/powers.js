@@ -25,7 +25,7 @@ function heroTag(A){const h=heroOf(A);if(!h||h.died!=null)return '';A.hero.wins+
 function heroTick(n){if(!n.hero)return;const h=per(n.hero.p);
   if(!h||h.died!=null||year>=n.hero.until){if(h&&h.died==null){h.died=year;h.cause=n.hero.wins>2?'old wounds':'old age'}
     log(`${h?h.name:'The hero'} of ${n.name} has died.${n.hero.wins?` Songs will tell of ${n.hero.wins} victories.`:''}`,'life');n.hero=null;return}
-  if(!n.wars.size&&n.aggr>.45&&rng()<.01){const nb=[...n.nb].map(i=>nations[i]).filter(m=>m&&m.alive&&!allied(n,m));if(nb.length){const B=nb[(rng()*nb.length)|0];startWar(n,B,null);log(`${h.name} of ${n.name} longs for glory and leads the army against ${B.name}.`,'war')}}}
+  if(!n.wars.size&&n.aggr>.45&&warRoom()&&rng()<.01*mood().war){const nb=[...n.nb].map(i=>nations[i]).filter(m=>m&&m.alive&&!allied(n,m));if(nb.length){const B=nb[(rng()*nb.length)|0];startWar(n,B,null);log(`${h.name} of ${n.name} longs for glory and leads the army against ${B.name}.`,'war')}}}
 
 /* ---------- migration: pick a people up and set them down elsewhere ---------- */
 let migrFrom=null;
@@ -146,7 +146,7 @@ const eclipseAmt=()=>eclipseT>0?Math.sin(Math.PI*clamp(1-eclipseT/ECL_LEN,0,1))*
 function eclipse(){eclipseT=ECL_LEN;const pray=[],panic=[],war=[];
   for(const n of nations){if(!n.alive)continue;
     if((n.devotion??.3)>.35||n.faith>=0&&rng()<.35){pray.push(n.name);n.devotion=clamp((n.devotion??.3)+.08,0,1);n.stab=Math.min(1,stabOf(n)+.05)}
-    else{n.stab=Math.max(0,stabOf(n)-.12);if(n.aggr>.6&&rng()<.4){const nb=[...n.nb].map(i=>nations[i]).filter(m=>m&&m.alive&&!n.wars.has(m.id)&&!allied(n,m));if(nb.length){const B=nb[(rng()*nb.length)|0];startWar(n,B,null);war.push(`${n.name} attacked ${B.name}`);continue}}
+    else{n.stab=Math.max(0,stabOf(n)-.12);if(n.aggr>.6&&warRoom()&&rng()<.4){const nb=[...n.nb].map(i=>nations[i]).filter(m=>m&&m.alive&&!n.wars.has(m.id)&&!allied(n,m));if(nb.length){const B=nb[(rng()*nb.length)|0];startWar(n,B,null);war.push(`${n.name} attacked ${B.name}`);continue}}
       panic.push(n.name);if(n.cities.length>1&&rng()<.3)riot(n)}}
   log(`The sun went dark at midday.${pray.length?` ${pray.length===1?pray[0]+' prays':pray.length+' nations pray'} for your mercy.`:''}${panic.length?` Panic in ${panic.slice(0,3).join(', ')}${panic.length>3?' and others':''}.`:''}${war.length?' Seeing a sign, '+war.join(' and ')+'.':''}`,'sky');
   milestone('eclipse','The sun went dark','An eclipse shook the world.')}

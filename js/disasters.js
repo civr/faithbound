@@ -2,7 +2,12 @@
 /* Faithbound — disasters: thunderstorms, lightning, hurricanes, blizzards, wildfires, famine, epidemics, earthquakes, tsunamis */
 let storms=[],fires=new Map(),bolts=[],waves=[],scorched=null,colorDirty=false;
 const DIS_LEVEL={off:0,mild:.4,normal:1,wild:2.5};
-const dLevel=()=>{const v=DIS_LEVEL[settings.disasters||'normal'];return v==null?1:v};
+/* world mood: how much happens at once. Calm keeps wars, prayers and dying rare so the world can breathe */
+const MOOD={calm:{war:.3,cap:3,pray:[24,44],prayMax:2,ev:[110,230],dis:.45,riot:.4,ally:.45},lively:{war:.65,cap:6,pray:[12,24],prayMax:3,ev:[65,130],dis:.75,riot:.7,ally:.75},turbulent:{war:1,cap:999,pray:[6,16],prayMax:4,ev:[45,115],dis:1,riot:1,ally:1}};
+const mood=()=>MOOD[settings.mood||'calm']||MOOD.calm;
+function warCount(){let c=0;for(const n of nations)if(n.alive)c+=n.wars.size;return c/2}
+function warRoom(slack){return warCount()<mood().cap+(slack||0)}
+const dLevel=()=>{const v=DIS_LEVEL[settings.disasters||'normal'];return (v==null?1:v)*mood().dis};
 const DIS_ADJ=['Grey','Red','Sweating','Spotted','Burning','Pale','Black','Shaking','Weeping','Bone','Marsh','Winter'];
 const DIS_NOUN=['Fever','Cough','Pox','Flux','Sickness','Rot','Chill','Blight'];
 const diseaseName=()=>`${DIS_ADJ[(rng()*DIS_ADJ.length)|0]} ${DIS_NOUN[(rng()*DIS_NOUN.length)|0]}`;
@@ -132,7 +137,7 @@ function disasterTick(){
     else if(L>0){const p=L*(n.era>=6?.25:1);
       if(n.pop>n.cap*1.02&&rng()<.01*p)startFamine(n,'hunger');else if(climate.temp<.32&&rng()<.008*p)startFamine(n,'cold');else if(dryCapital(n)&&rng()<.03*p)startFamine(n,'drought')}
     if(n.sick){const s=n.sick;s.t--;n.pop*=1-s.sev*.035*medicine(n);
-      for(const b of n.nb){const B=nations[b];if(B&&B.alive&&rng()<.08*s.sev*(n.era>=6?.5:1))infect(B,s,n)}
+      for(const b of n.nb){const B=nations[b];if(B&&B.alive&&rng()<.08*mood().dis*s.sev*(n.era>=6?.5:1))infect(B,s,n)}
       if(s.t<=0){log(`${n.name} recovered from the ${s.name}.`,'life');n.sick=null;n.immune=year+60}}}
   if(L<=0)return;
   const pick=(test,tries)=>{for(let q=0;q<(tries||300);q++){const i=(rng()*N)|0;if(test(i))return i}return -1};

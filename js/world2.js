@@ -31,7 +31,7 @@ function updateSeasons(dt,k){terrU.uHalfH.value=H/2;if(settings.seasons===false)
   if(typeof treeMat!=='undefined')treeMat.color.setRGB(1+s.autumn*.45+s.snow*cold*.08,1-s.autumn*.08+s.snow*cold*.08,1-s.autumn*.5+s.snow*cold*.12)}
 /* a harsh winter can starve the cold north */
 function winterTick(n){if(!n.cities.length||n.famine>0)return;const c=n.cities[0],lat=Math.abs(c.y/(H-1)-.5)*2;if(lat<.45)return;
-  if(rng()<.006*lat*(1.4-climate.temp)){if(important(n))log(`A harsh winter gripped ${n.name}. The stores ran out before spring.`,'doom');startFamine(n,'cold',false)}}
+  if(rng()<.006*dLevel()*lat*(1.4-climate.temp)){if(important(n))log(`A harsh winter gripped ${n.name}. The stores ran out before spring.`,'doom');startFamine(n,'cold',false)}}
 
 /* ---------- rising seas: low towns build dikes, move inland or drown ---------- */
 function seaTick(){if(year%5!==0)return;

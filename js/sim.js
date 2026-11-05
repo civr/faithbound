@@ -153,8 +153,8 @@ function startWar(a,b,kind){
   milestone('war','First war','Blood was spilled between nations.');
   if(kind==='ally')return;
   /* the call to arms: allies of the attacked rush to help, allies of the attacker sometimes follow */
-  for(const id of [...(b.allies||[])]){const C=nations[id];if(!C||!C.alive||C===a||C.wars.has(a.id)||allied(C,a))continue;if(rng()<.75){startWar(C,a,'ally');log(`${C.name} joined the war on the side of its ally ${b.name}.`,'war')}}
-  for(const id of [...(a.allies||[])]){const C=nations[id];if(!C||!C.alive||C===b||C.wars.has(b.id)||allied(C,b))continue;if(rng()<.35){startWar(C,b,'ally');log(`${C.name} marched with its ally ${a.name}.`,'war')}}
+  for(const id of [...(b.allies||[])]){const C=nations[id];if(!C||!C.alive||C===a||C.wars.has(a.id)||allied(C,a))continue;if(rng()<.75*mood().ally&&warRoom(1)){startWar(C,a,'ally');log(`${C.name} joined the war on the side of its ally ${b.name}.`,'war')}}
+  for(const id of [...(a.allies||[])]){const C=nations[id];if(!C||!C.alive||C===b||C.wars.has(b.id)||allied(C,b))continue;if(rng()<.35*mood().ally&&warRoom(1)){startWar(C,b,'ally');log(`${C.name} marched with its ally ${a.name}.`,'war')}}
 }
 /* ---------- wars: campaigns along the front, sieges of towns, and peace terms ---------- */
 let warData={},ruins=[];
@@ -219,7 +219,7 @@ function rebel(n,forced,why){
   R_.known=n.known.slice();R_.known.push(n.id);n.known.push(R_.id);const gv=per(c.governor);if(gv&&gv.died==null&&gv.id!==n.ruler&&!gv.machine){gv.nation=R_.id;R_.house=gv.house;crown(R_,gv,'rebel')}
   if(why){/* a town that grew into a country of its own */
     const msg=why==='colony'?`The colony of ${c.name} declared independence from ${n.name}.`:why==='conquered'?`The people of ${c.name} rose up and threw off the rule of ${n.name}.`:`${c.name} declared itself a free country, no longer ruled by ${n.name}.`;
-    if(rng()<.5){startWar(R_,n,'rebel');log(msg+' War follows.','war')}else{log(msg+` ${n.name} let it go in peace.`,'life')}
+    if(rng()<.5&&warRoom(1)){startWar(R_,n,'rebel');log(msg+' War follows.','war')}else{log(msg+` ${n.name} let it go in peace.`,'life')}
     milestone('indep','A new country','A town broke away and became a nation of its own.');c.unrest=0;return}
   startWar(R_,n,'rebel');log(`${R_.name} broke away from ${n.name}${gv&&R_.ruler===gv.id?' under '+gv.name:''}. Civil war follows.`,'war');milestone('rebel','Civil war','An empire split in two.');
 }
@@ -427,8 +427,8 @@ function tick(){
   }
   warTick();pirateTick();terraformFlush();faithTick();scenarioTick();historyTick();seaTick();spaceTick();longWarTick();worldWarTick();falloutTick();if(year%4===0)consolidate();
   for(const n of nations){if(!n.alive)continue;const t=ten(n);
-    for(const b of n.nb){meet(n,nations[b]);if(n.wars.has(b))continue;const B=nations[b];if(!B.alive)continue;/* crowded realms fight over land; different faiths fight more */const crowd=(n.pop/n.cap>.8?1.8:1)*(B.pop/B.cap>.8?1.3:1);const hw=holyWarFactor(n,B)*grudgeFactor(n,B),cv=covets(n,B);if(!allied(n,B)&&rng()<.0035*n.aggr*t.war*crowd*(n.faith!==B.faith?1.6:.6)*(n.ties.includes(b)?.35:1)*(n.trade.includes(b)?.6:1)*hw*(cv?1.8:1)){startWar(n,B,null);if(hw>1&&rng()<.7)holyWarLog(n,B);else if(cv&&(important(n)||important(B)))log(`${n.name} wants the ${RESOURCES[cv].label.toLowerCase()} of ${B.name}.`,'war')}}
-    if(n.era>=SAIL&&!n.wars.size&&rng()<.0006*n.aggr*t.war){const o=nations.filter(m=>m.alive&&m!==n&&m.era>=SAIL-1&&n.known.includes(m.id)&&!n.ties.includes(m.id));if(o.length)startWar(n,o[(rng()*o.length)|0],null)}
+    for(const b of n.nb){meet(n,nations[b]);if(n.wars.has(b))continue;const B=nations[b];if(!B.alive)continue;/* crowded realms fight over land; different faiths fight more */const crowd=(n.pop/n.cap>.8?1.8:1)*(B.pop/B.cap>.8?1.3:1);const hw=holyWarFactor(n,B)*grudgeFactor(n,B),cv=covets(n,B);if(!allied(n,B)&&warRoom()&&rng()<.0035*mood().war*n.aggr*t.war*crowd*(n.faith!==B.faith?1.6:.6)*(n.ties.includes(b)?.35:1)*(n.trade.includes(b)?.6:1)*hw*(cv?1.8:1)){startWar(n,B,null);if(hw>1&&rng()<.7)holyWarLog(n,B);else if(cv&&(important(n)||important(B)))log(`${n.name} wants the ${RESOURCES[cv].label.toLowerCase()} of ${B.name}.`,'war')}}
+    if(n.era>=SAIL&&!n.wars.size&&warRoom()&&rng()<.0006*mood().war*n.aggr*t.war){const o=nations.filter(m=>m.alive&&m!==n&&m.era>=SAIL-1&&n.known.includes(m.id)&&!n.ties.includes(m.id));if(o.length)startWar(n,o[(rng()*o.length)|0],null)}
     if(n.tiles>N*.07&&n.cities.length>=3&&rng()<.002*(1+n.wars.size)/t.stab/Math.sqrt(paceInfo().techMult))rebel(n);
   }
   if(dLevel()>0)naturalEvents();disasterTick();peopleTick();

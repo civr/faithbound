@@ -382,7 +382,7 @@ body.ui-parchment .tp h1,body.ui-marble .tp h1{color:#f6e2a6}
 #warSeg{margin-bottom:8px}.rlegend{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 8px}.rlegend .rchip{cursor:default}
 .mood{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
 .dipgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.dipb{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:2px;padding:9px 10px}.dipb small{font-size:.74rem;opacity:.75;font-weight:400}@media(max-width:520px){.dipgrid{grid-template-columns:1fr}}
-.prayers{position:fixed;left:16px;top:150px;z-index:12;width:min(300px,calc(100vw - 32px));padding:8px 10px;display:grid;gap:6px;max-height:40vh;overflow:auto}
+.prayers{position:fixed;right:max(16px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 80px);z-index:12;width:min(290px,calc(100vw - 32px));padding:8px 10px;display:grid;gap:6px;max-height:min(46vh,calc(100vh - 330px));overflow:auto}#hud:has(#sheet:not([hidden])) .prayers{display:none}.prayHead{display:flex;align-items:center;justify-content:space-between;background:none;border:0;padding:0;cursor:pointer;color:inherit;font:inherit;text-align:left}.prayHead span{font-size:.72rem;opacity:.7}.prayers.fold .pray{display:none}
 .pray{display:flex;gap:8px;align-items:flex-start;text-align:left;background:rgba(0,0,0,.06);border:1px solid var(--line2);border-radius:8px;padding:6px 8px;cursor:pointer;font-size:.82rem;line-height:1.3;color:inherit}
 .pray i{flex:none;width:9px;height:9px;border-radius:50%;margin-top:4px}.pray small{display:block;opacity:.7;font-size:.72rem;margin-top:2px}
 .evopts{display:grid;gap:8px;margin-top:10px}.evopts .btn{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:2px;padding:10px 12px}.evopts small{font-weight:400;opacity:.8;font-size:.78rem}
@@ -465,6 +465,8 @@ body.ui-parchment .tp h1,body.ui-marble .tp h1{color:#f6e2a6}
     <div class="sec"><span class="lab">Pace of history</span>
       <div id="paceBox"></div></div>
     <div class="sec"><label class="lab" for="maxEra">Final age</label><select id="maxEra"></select><p class="note">Nations never advance past this age. Pick Medieval for a world of castles that stays that way.</p></div>
+    <div class="sec"><span class="lab">World mood</span>
+      <div class="seg" id="moodSeg"><button data-mood="calm">Calm</button><button data-mood="lively">Lively</button><button data-mood="turbulent">Turbulent</button></div><p class="note">How much happens at once. Calm keeps wars, prayers, plagues and choices rare.</p></div>
     <div class="sec"><span class="lab">Disasters</span>
       <div class="seg" id="disSeg"><button data-dis="off">Off</button><button data-dis="mild">Mild</button><button data-dis="normal">Normal</button><button data-dis="wild">Wild</button></div></div>
     <div class="row"><button class="btn" id="setupBack">Back</button><button class="btn" id="reroll">New map</button><div class="flex"></div><button class="btn primary" id="begin">Begin</button></div>
