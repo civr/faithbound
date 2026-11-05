@@ -30,7 +30,7 @@ function strike(S){
   const a=rng()*6.283,d=Math.sqrt(rng())*S.r*.85,x=S.x+Math.cos(a)*d,z=S.z+Math.sin(a)*d,y=surfY(x,z);
   bolts.push({x,z,y,top:y+4.4,t0:performance.now(),seed:rng()*1000});
   const dCam=Math.hypot(x-camT.x,z-camT.z);if(dCam<camDist*1.3)flashT=Math.max(flashT,.14);
-  if(typeof sfx==='function'&&dCam<camDist*2+6)sfx('thunder',{delay:Math.min(2.5,dCam*.12),near:1-smooth(0,camDist*2+6,dCam)});
+  if(typeof sfx==='function'&&dCam<camDist*1.2+4&&Math.random()<.35)sfx('thunder',{delay:.6+Math.min(2.5,dCam*.12),near:1-smooth(0,camDist*1.2+4,dCam)});
   const i=tileAt(x,z);if(i<0)return;
   if(FUEL[biome[i]]&&rng()<.12*(moistAt(i)<.4?1.8:1)*(S.kind==='hurricane'?.3:1))startWildfire(i,false,true);
   const hit=cityAtTile(i);if(hit){hit.n.pop*=.995;if(rng()<.15)log(`Lightning struck ${hit.c.name}.`,'sky')}
