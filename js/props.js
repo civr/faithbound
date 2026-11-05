@@ -120,6 +120,34 @@ function leafTree(seed,kind){const r=mulberry32(seed),pos=[],nor=[],col=[];
     const tone=.72+r()*.18;push(ig,(x,y,z)=>{const ao=(.45+.55*clamp((y-.16)/.26,0,1))*tone;return[ao,ao,ao]},true)}}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));return g}
 
+/* geometry with shared, smooth normals: pos/nor/col arrays filled part by part */
+function softParts(){const pos=[],nor=[],col=[];return{pos,nor,col,
+  add(g,cf){if(g.index&&!g.attributes.normal)g.computeVertexNormals();g=g.index?g.toNonIndexed():g;const a=g.attributes.position.array,n=g.attributes.normal.array;for(let i=0;i<a.length;i+=3){pos.push(a[i],a[i+1],a[i+2]);nor.push(n[i],n[i+1],n[i+2]);const c=cf(a[i],a[i+1],a[i+2]);col.push(c[0],c[1],c[2])}},
+  geo(){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));return g}}}
+/* a round lump of leaves: a sphere pushed in and out, with normals that stay spherical so it shades soft */
+function leafLump(s,sy,x,y,z,det,sd){const ig=new THREE.IcosahedronGeometry(.5,det),P=ig.attributes.position,N=ig.attributes.normal;
+  for(let i=0;i<P.count;i++){const px=P.getX(i),py=P.getY(i),pz=P.getZ(i),l=Math.hypot(px,py,pz)||1;const k=.84+.3*(Math.sin(px*9.1+sd)*Math.cos(pz*8.3-sd)*.5+.5);P.setXYZ(i,px*k,py*k,pz*k);N.setXYZ(i,px/l,py/l,pz/l)}
+  ig.scale(s,s*sy,s);ig.translate(x,y,z);for(let i=0;i<N.count;i++){const nx=N.getX(i)/s,ny=N.getY(i)/(s*sy),nz=N.getZ(i)/s,l=Math.hypot(nx,ny,nz)||1;N.setXYZ(i,nx/l,ny/l,nz/l)}return ig}
+/* a bush: a few soft leaf lumps hugging the ground */
+function bushGeo(seed){const r=mulberry32(seed),S=softParts();const n=3+((r()*2)|0);
+  for(let b=0;b<n;b++){const a=r()*6.283,d=b?.04+r()*.04:0,s=b?.08+r()*.05:.13;const y=.05+(b?r()*.02:.015);
+    S.add(leafLump(s,.78,Math.cos(a)*d,y,Math.sin(a)*d,1,r()*50+b),(x,yy,z)=>{const ao=.5+.5*clamp((yy-.0)/.13,0,1);return[ao,ao,ao]})}
+  return S.geo()}
+/* a palm: a gently bent, ringed trunk and a crown of arching fronds that droop at the tips */
+function palmGeo(seed){const r=mulberry32(seed),S=softParts();
+  const tk=new THREE.CylinderGeometry(.02,.033,.34,7,6);tk.translate(0,.17,0);{const P=tk.attributes.position;for(let i=0;i<P.count;i++){const y=P.getY(i);P.setX(i,P.getX(i)+y*y*.35);const ring=1+.08*Math.max(0,Math.sin(y*90));P.setX(i,(P.getX(i)-y*y*.35)*ring+y*y*.35);P.setZ(i,P.getZ(i)*ring)}}
+  tk.computeVertexNormals();S.add(tk,()=>TRUNK);
+  const top=[.34*.34*.35,.335,0],nf=8;
+  for(let f=0;f<nf;f++){const ang=f/nf*6.283+r()*.3,L=.2+r()*.05,dx=Math.cos(ang),dz=Math.sin(ang),px=-dz,pz=dx,seg=6;const P=[],I=[];
+    for(let k=0;k<=seg;k++){const t=k/seg,w=.034*Math.sin(Math.PI*Math.min(1,t*1.08))+.003,cx=top[0]+dx*t*L,cz=top[2]+dz*t*L,cy=top[1]+.05*Math.sin(Math.PI*t*.6)-.13*t*t;
+      P.push(cx-px*w,cy-w*.45,cz-pz*w, cx,cy,cz, cx+px*w,cy-w*.45,cz+pz*w)}
+    for(let k=0;k<seg;k++){const a=k*3,b=a+3;I.push(a,b,a+1, a+1,b,b+1, a+1,b+1,a+2, a+2,b+1,b+2)}
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setIndex(I);g.computeVertexNormals();
+    if(g.attributes.normal.getY(1)<0){for(let i=0;i<I.length;i+=3){const t=I[i+1];I[i+1]=I[i+2];I[i+2]=t}g.setIndex(I);g.computeVertexNormals()}
+    const tone=.78+r()*.2;S.add(g,(x,y,z)=>{const ao=(.6+.4*clamp(Math.hypot(x-top[0],z)/.2,0,1))*tone;return[ao,ao,ao]})}
+  S.add(leafLump(.05,1,top[0],top[1]-.01,0,1,3),()=>[.55,.55,.55]);
+  return S.geo()}
+
 /* ---------- instanced kits ---------- */
 const KITS={};
 function kit(name,geo,mat,max,shadow){const m=new THREE.InstancedMesh(geo,mat,max);m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -163,8 +191,8 @@ kit('ring',(()=>{const g=new THREE.TorusGeometry(.5,.05,6,24);g.rotateX(Math.PI/
 kit('flame',unitCone(6),MAT.flame,300,false);
 kit('conifer',leafTree(11,'con'),treeMat,32000);
 kit('broad',leafTree(7,'broad'),treeMat,32000);
-kit('palm',merge([{g:tr(unitCyl(5,.35),0,0,0,.035,.34,.035),c:TRUNK},{g:tr(unitCone(7),0,.3,0,.34,-.1,.34),c:LEAF},{g:tr(new THREE.IcosahedronGeometry(.5,0),0,.33,0,.12,.08,.12),c:LEAF}]),treeMat,8000);
-kit('bush',merge([{g:tr(new THREE.IcosahedronGeometry(.5,1),0,.04,0,.14,.1,.14),c:LEAF}]),treeMat,24000);
+kit('palm',palmGeo(5),treeMat,8000);
+kit('bush',bushGeo(3),treeMat,24000);
 kit('rock',(()=>{const g=new THREE.DodecahedronGeometry(.5,0);g.translate(0,.25,0);return g})(),stdMat({roughness:1}),6000);
 kit('fence',unitBox(),MAT.plain,30000,false);kit('lamp',unitBox(),MAT.lamp,4000,false);kit('awning',gableGeo(),MAT.awning,8000);
 kit('plazaStone',unitCyl(24),MAT.plaza,400,false);kit('plazaDirt',unitCyl(18),MAT.dirtPlaza,400,false);kit('pool',unitCyl(16),MAT.water,5000,false);
@@ -781,6 +809,21 @@ function buildExtras(){
 
 /* ---------- fields & roads (merged ground ribbons) ---------- */
 const fieldMat=new THREE.MeshStandardMaterial({map:TX.furrow,vertexColors:true,roughness:1});
+/* photo soil and leafy crops (Poly Haven, CC0) laid over the painted crop rows, close up only */
+const FIELDU={fS:{value:null},fC:{value:null},fN:{value:null},uPh:{value:0}};
+{const g=new THREE.DataTexture(new Uint8Array([128,128,128,255]),1,1,THREE.RGBAFormat);g.needsUpdate=true;const nf=new THREE.DataTexture(new Uint8Array([128,128,255,255]),1,1,THREE.RGBAFormat);nf.needsUpdate=true;
+ FIELDU.fS.value=FIELDU.fC.value=g;FIELDU.fN.value=nf;let left=3;const L=new THREE.TextureLoader();
+ for(const [k,f] of [['fS','f_soil'],['fC','f_crop'],['fN','f_soil_n']])L.load('assets/textures/'+f+'.jpg',t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;FIELDU[k].value=t;if(--left<=0)FIELDU.uPh.value=1},undefined,()=>{left--})}
+fieldMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,FIELDU);
+  sh.vertexShader='varying vec3 vFW;\n'+sh.vertexShader.replace('#include <worldpos_vertex>','#include <worldpos_vertex>\n  vFW=(modelMatrix*vec4(transformed,1.)).xyz;');
+  sh.fragmentShader='uniform sampler2D fS,fC,fN;uniform float uPh;varying vec3 vFW;float fFade,fCrop;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+  fFade=(1.-smoothstep(12.,46.,length(vFW-cameraPosition)))*uPh;fCrop=smoothstep(-.02,.06,diffuseColor.g-diffuseColor.r*.92);
+  if(fFade>.01){vec2 P=vFW.xz*.45;float so=texture2D(fS,P).r*.6+texture2D(fS,P*.31+.31).r*.4,cr=texture2D(fC,P*1.3).r*.65+texture2D(fC,P*.4+.17).r*.35;
+    /* broad patches where the crop grows thicker or thinner, and wetter or drier soil */
+    float pa=texture2D(fC,P*.07+.53).r*.6+texture2D(fS,P*.11+.2).r*.4;
+    float d=mix(so,cr,fCrop*.75)+(pa-.5)*.9;diffuseColor.rgb*=mix(1.,.45+d*1.1,fFade*.95);}
+  diffuseColor.rgb*=.86;`).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+  if(fFade>.01){vec3 nn=texture2D(fN,vFW.xz*.45).xyz*2.-1.;normal=normalize(normal+(viewMatrix*vec4(nn.x,0.,-nn.y,0.)).xyz*.5*fFade*(1.-fCrop*.6));}`)};
 const roadMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95});
 let fieldMesh=null,roadMesh=null;const fieldTiles=new Set();
 const CROPS=[[214,176,70],[196,158,58],[104,150,52],[136,178,64],[132,96,58],[160,150,70],[186,160,48]];
@@ -830,7 +873,7 @@ function rebuildRivers(){const pos=[],uv=[],idx=[];let base=0;
 kit('bridge',unitBox(),MAT.stone,600);
 let cityStreets=[];
 const ROADMATS=[stdMat({map:TX.dirt,roughness:1}),stdMat({map:TX.cobble,roughness:.95}),stdMat({map:TX.asphalt,roughness:.85})];
-[['plaster','b_plaster',.55],['stone','b_stone',.75],['brick','b_brick',.6],['thatch','b_thatch',.7],['thatch2','b_thatch',.7],['tiles','b_tiles',.7],['adobe','b_plaster',.6],['timber','b_timber',.6],['cobble','b_cobble',.7],['plaza','b_plaza',.6],['dirt','b_ground',.6],['soil','b_ground',.5]].forEach(a=>photoLayer(...a));
+[['plaster','b_plaster',.55],['stone','b_stone',.75],['brick','b_brick',.6],['thatch','b_thatch',.7],['thatch2','b_thatch',.7],['tiles','b_tiles',.7],['adobe','b_plaster',.6],['timber','b_timber',.6],['cobble','b_cobble',.7],['plaza','b_plaza',.6],['dirt','b_gravel',.65],['soil','b_ground',.5],['asphalt','b_asphalt',.7]].forEach(a=>photoLayer(...a));
 let roadMeshes=[];const roadCache=new Map();
 /* A* over tiles: slopes, rivers and mountains cost extra, roads already built are cheap to reuse */
 function roadPath(a,b,nid,used){const key=a.x+','+a.y+'>'+b.x+','+b.y+'|'+nid;if(roadCache.has(key)){const p=roadCache.get(key);if(p)for(const j of p)used[j]=1;return p}
@@ -1089,19 +1132,30 @@ function emit(kind,x,y,z,vx,vz){if(parts.length>=MAXP)return;const K=PK[kind];pa
 let clouds=[];
 /* clouds are camera-facing cards, not points: points have a size limit on many graphics cards and pop or turn square */
 const CLOUDMAX=900,cloudGeo=new THREE.InstancedBufferGeometry();cloudGeo.index=new THREE.PlaneGeometry(1,1).index;cloudGeo.setAttribute('position',new THREE.PlaneGeometry(1,1).attributes.position);cloudGeo.setAttribute('uv',new THREE.PlaneGeometry(1,1).attributes.uv);
-cloudGeo.setAttribute('aOff',new THREE.InstancedBufferAttribute(new Float32Array(CLOUDMAX*4),4));cloudGeo.instanceCount=0;
-const cloudU={map:{value:TX.soft},uCol:{value:new THREE.Color(1,1,1)},uSun:{value:new THREE.Color(1,1,1)},uA:{value:.26},uPL:PLU.uPL,uPE:PLU.uPE};
+cloudGeo.setAttribute('aOff',new THREE.InstancedBufferAttribute(new Float32Array(CLOUDMAX*4),4));cloudGeo.setAttribute('aInf',new THREE.InstancedBufferAttribute(new Float32Array(CLOUDMAX*2),2));cloudGeo.instanceCount=0;
+const cloudU={map:{value:TX.soft},uCol:{value:new THREE.Color(1,1,1)},uSun:{value:new THREE.Color(1,1,1)},uSunDir:{value:new THREE.Vector3(0,1,0)},uA:{value:.26},uPL:PLU.uPL,uPE:PLU.uPE};
 const cloudMesh=new THREE.Mesh(cloudGeo,new THREE.ShaderMaterial({uniforms:cloudU,transparent:true,depthWrite:false,
-  vertexShader:`attribute vec4 aOff;varying vec2 vUv;varying float vF;void main(){vUv=uv;vec3 R=vec3(viewMatrix[0][0],viewMatrix[1][0],viewMatrix[2][0]),U=vec3(viewMatrix[0][1],viewMatrix[1][1],viewMatrix[2][1]);
-    vec3 p=aOff.xyz+(R*position.x+U*position.y*.62)*aOff.w;vec4 mv=viewMatrix*vec4(p,1.);vF=smoothstep(2.,9.,-mv.z);gl_Position=projectionMatrix*mv;}`,
-  fragmentShader:TOSCENE+`uniform sampler2D map;uniform vec3 uCol,uSun;uniform float uA;varying vec2 vUv;varying float vF;void main(){float a=texture2D(map,vUv).a;
-    float top=smoothstep(.15,.85,vUv.y);vec3 under=uCol*vec3(.62,.66,.74),lit=uCol*mix(vec3(1.),uSun,.55)*1.06;vec3 col=mix(under,lit,top)+uSun*pow(1.-a,3.)*.25*top;
-    gl_FragColor=vec4(toScene(col),a*uA*vF*(1.15-.25*top));}`}));
+  vertexShader:`attribute vec4 aOff;attribute vec2 aInf;uniform vec3 uSunDir;varying vec2 vUv;varying float vF,vH,vSd;varying vec3 vSun;void main(){vUv=uv;vH=aInf.x;vSd=aInf.y;vec3 R=vec3(viewMatrix[0][0],viewMatrix[1][0],viewMatrix[2][0]),U=vec3(viewMatrix[0][1],viewMatrix[1][1],viewMatrix[2][1]);
+    vSun=normalize(mat3(viewMatrix)*uSunDir);vec3 p=aOff.xyz+(R*position.x+U*position.y*.62)*aOff.w;vec4 mv=viewMatrix*vec4(p,1.);vF=smoothstep(2.,9.,-mv.z);gl_Position=projectionMatrix*mv;}`,
+  /* each puff is drawn as a little sphere lit by the sun, with a ragged edge; puffs low in the cloud are grey, the crowns bright */
+  fragmentShader:TOSCENE+`uniform sampler2D map;uniform vec3 uCol,uSun;uniform float uA;varying vec2 vUv;varying float vF,vH,vSd;varying vec3 vSun;
+    float h2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+    float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h2(i),h2(i+vec2(1,0)),f.x),mix(h2(i+vec2(0,1)),h2(i+1.),f.x),f.y);}
+    void main(){float soft=texture2D(map,vUv).a;vec2 q=vUv*2.-1.;float d2=dot(q,q);
+    float n=vn(vUv*4.+vSd*13.)*.6+vn(vUv*9.-vSd*7.)*.4;float a=clamp(soft*1.35-(1.-soft)*.2-(n-.5)*.55*(1.-soft*.6),0.,1.);
+    vec3 nrm=vec3(q.x,q.y,sqrt(max(0.,1.-d2)));float lam=clamp(dot(nrm,vSun)*.5+.5,0.,1.);
+    float lit=clamp(lam*.75+vH*.55-.12+(n-.5)*.15,0.,1.);
+    vec3 under=uCol*vec3(.58,.62,.7),top=uCol*mix(vec3(1.),uSun,.5)*1.08;vec3 col=mix(under,top,lit);
+    col+=uSun*pow(1.-soft,2.)*max(0.,dot(normalize(q+1e-4),vSun.xy))*.35;
+    gl_FragColor=vec4(toScene(col),a*uA*vF);}`}));
 cloudMesh.frustumCulled=false;cloudMesh.renderOrder=6;scene.add(cloudMesh);
-function updateCloudCards(dt){const a=cloudGeo.attributes.aOff.array;let n=0;for(const c of clouds){c.x+=dt*.25;if(c.x>W*.75)c.x=-W*.75;if(n>=CLOUDMAX)break;a[n*4]=c.x;a[n*4+1]=c.y;a[n*4+2]=c.z;a[n*4+3]=c.s*1.3;n++}
-  cloudGeo.instanceCount=settings.clouds===false?0:n;cloudGeo.attributes.aOff.needsUpdate=true;const cs=1-nightF*.7;cloudU.uCol.value.setRGB(cs,cs,cs*1.02);if(typeof skyU!=='undefined'){const sc=skyU.sunCol.value,mx=Math.max(.001,sc.r,sc.g,sc.b);cloudU.uSun.value.setRGB(sc.r/mx,sc.g/mx,sc.b/mx)}cloudU.uA.value=.2*smooth(18,45,camDist)}
-function seedClouds(){clouds=[];for(let c=0;c<Math.round(W*H/260);c++){const cx=(rng()-.5)*W*1.3,cz=(rng()-.5)*H*1.3,cy=13+rng()*5,n=10+((rng()*8)|0),sw=3+rng()*3;
-  for(let k=0;k<n;k++){const a=rng()*6.283,r=Math.sqrt(rng())*sw;clouds.push({x:cx+Math.cos(a)*r*1.4,y:cy+(rng()-.5)*.6+(1-r/sw)*.5,z:cz+Math.sin(a)*r*.8,s:1.6+rng()*1.8*(1-r/sw*.5)})}}}
+function updateCloudCards(dt){const a=cloudGeo.attributes.aOff.array,inf=cloudGeo.attributes.aInf.array;let n=0;for(const c of clouds){c.x+=dt*.25;if(c.x>W*.75)c.x=-W*.75;if(n>=CLOUDMAX)break;a[n*4]=c.x;a[n*4+1]=c.y;a[n*4+2]=c.z;a[n*4+3]=c.s*1.3;inf[n*2]=c.h??.5;inf[n*2+1]=c.sd??0;n++}
+  cloudGeo.attributes.aInf.needsUpdate=true;if(typeof skyU!=='undefined')cloudU.uSunDir.value.copy(skyU.sunDir.value);
+  cloudGeo.instanceCount=settings.clouds===false?0:n;cloudGeo.attributes.aOff.needsUpdate=true;const cs=1-nightF*.7;cloudU.uCol.value.setRGB(cs,cs,cs*1.02);if(typeof skyU!=='undefined'){const sc=skyU.sunCol.value,mx=Math.max(.001,sc.r,sc.g,sc.b);cloudU.uSun.value.setRGB(sc.r/mx,sc.g/mx,sc.b/mx)}cloudU.uA.value=.3*smooth(18,45,camDist)}
+/* each cloud: a flat grey base and a heaped, sunlit crown in the middle */
+function seedClouds(){clouds=[];const nc=Math.min(Math.round(W*H/260),Math.floor(CLOUDMAX/16));for(let c=0;c<nc;c++){const cx=(rng()-.5)*W*1.3,cz=(rng()-.5)*H*1.3,cy=13+rng()*5,n=11+((rng()*6)|0),sw=2.6+rng()*2.6,tall=.8+rng()*1.2;
+  for(let k=0;k<n;k++){const a=rng()*6.283,r=Math.sqrt(rng())*sw,core=1-r/sw,h=clamp(core*(.4+rng()*.7),0,1);
+    clouds.push({x:cx+Math.cos(a)*r*1.4,y:cy+h*tall,z:cz+Math.sin(a)*r*.8,s:1.5+1.9*(.35+core*.65)*(.7+rng()*.5),h,sd:rng()*10})}}}
 function updateParticles(dt,windT){
   const wind=.12;let n=0,g=0;const pa=pGeo.attributes.position.array,sa=pGeo.attributes.aSize.array,aa=pGeo.attributes.aAlpha.array,ca=pGeo.attributes.aColor.array;
   const ga=gGeo.attributes.position.array,gs=gGeo.attributes.aSize.array,gaa=gGeo.attributes.aAlpha.array,gc=gGeo.attributes.aColor.array,tt=performance.now()/1000;

@@ -22,3 +22,7 @@ The b_ files are greyscale detail layers blended over the painted building textu
 - b_plaza: grassy_cobblestone
 - t_leaf, t_leaf_n: forest_leaves_02 (greyscale detail for tree crowns)
 - t_bark, t_bark_n: bark_brown_02 (greyscale detail for trunks)
+- f_soil, f_soil_n: farm_soil (greyscale detail and normal map for ploughed fields)
+- f_crop: leafy_grass (greyscale detail for growing crops)
+- b_gravel: gravel_road (greyscale detail for dirt lanes)
+- b_asphalt: worn_asphalt (greyscale detail for modern roads)
