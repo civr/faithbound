@@ -136,16 +136,40 @@ function planeDest(a){const others=airports.filter(b=>b!==a);if(others.length)re
   const cs=[];for(const n of nations)if(n.alive)for(const c of n.cities)cs.push(c);const c=cs[(rng()*cs.length)|0];if(!c)return null;return {ax:wx(c.x),az:wz(c.y),bx:wx(c.x)+.1,bz:wz(c.y),y:groundY(wx(c.x),wz(c.y)),far:true}}
 /* ---------- war in the air: biplanes, then fighters and bombers, then drones ---------- */
 const FLY_OLIVE=stdMat({color:colL(0x5a6248),roughness:.6}),FLY_GREY=stdMat({color:colL(0x7a8088),roughness:.45,metalness:.3});
-function makeWarPlane(n,kind){const g=new THREE.Group(),c=flyCol(n.color);g.userData.kind=kind;
-  if(kind==='bi'){partM(g,FLYGEO.fus,c,0,0,0,.1,.016,.016);for(const y of [-.011,.013])partM(g,FLYGEO.box,FLY_OLIVE,.012,y,0,.03,.003,.15);
-    for(const s of [-1,1])partM(g,FLYGEO.box,FLY.dark,.012,0,s*.05,.002,.024,.002);partM(g,FLYGEO.box,FLY_OLIVE,-.048,.002,0,.018,.003,.05);partM(g,FLYGEO.box,c,-.05,.01,0,.016,.016,.002);
-    g.userData.prop=partM(g,FLYGEO.box,FLY.dark,.053,0,0,.002,.034,.004)}
-  else if(kind==='fighter'){partM(g,FLYGEO.fus,FLY_GREY,0,0,0,.13,.014,.014);partM(g,FLYGEO.nose,FLY_GREY,.065,0,0,.03,.012,.012);partM(g,FLYGEO.nose,FLY.glass,.03,.008,0,.03,.008,.008);
-    for(const s of [-1,1]){const w=partM(g,FLYGEO.box,FLY_GREY,-.005,0,s*.032,.045,.002,.06);w.rotation.y=s*.45}partM(g,FLYGEO.box,FLY_GREY,-.058,.012,0,.02,.022,.002);
-    partM(g,FLYGEO.box,c,-.01,.0075,0,.06,.002,.004);partM(g,FLYGEO.fus,FLY.dark,-.068,0,0,.012,.01,.01)}
-  else if(kind==='bomber'){partM(g,FLYGEO.fus,FLY_OLIVE,0,0,0,.2,.022,.022);partM(g,FLYGEO.nose,FLY.glass,.1,0,0,.03,.02,.02);partM(g,FLYGEO.box,FLY_OLIVE,.01,0,0,.05,.004,.26);
-    for(const s of [-.09,-.045,.045,.09])partM(g,FLYGEO.fus,FLY.dark,.03,-.008,s,.04,.012,.012);partM(g,FLYGEO.box,FLY_OLIVE,-.09,.004,0,.026,.003,.09);partM(g,FLYGEO.box,c,-.095,.018,0,.024,.03,.003)}
-  else{partM(g,FLYGEO.box,FLY.white,0,0,0,.05,.01,.012);for(const s of [-1,1])partM(g,FLYGEO.box,FLY.white,-.005,0,s*.03,.02,.003,.05);partM(g,FLYGEO.box,FLY.glow,.026,0,0,.004,.004,.008);partM(g,FLYGEO.box,c,-.02,.006,0,.012,.008,.002)}
+/* war planes: forward is +x, up is +y, the right wing is +z */
+const FLYGEO2={taper:(()=>{const g=new THREE.CylinderGeometry(.32,.5,1,12);g.rotateZ(Math.PI/2);return g})(),
+  wing:(()=>{/* a thin wing: swept leading edge, straight trailing edge */const sh=new THREE.Shape();sh.moveTo(0,0);sh.lineTo(-.35,1);sh.lineTo(-.75,1);sh.lineTo(-1,0);sh.lineTo(0,0);
+    const g=new THREE.ExtrudeGeometry(sh,{depth:.06,bevelEnabled:false});g.rotateX(Math.PI/2);g.translate(.5,.03,0);return g})(),
+  disc:new THREE.CylinderGeometry(.5,.5,1,14)};
+/* the left wing is the right one mirrored, with its triangles turned so it still faces outward */
+FLYGEO2.wingL=(()=>{const g=FLYGEO2.wing.clone();g.scale(1,1,-1);const ng=g.index?g.toNonIndexed():g;for(const k of Object.keys(ng.attributes)){const A=ng.attributes[k],n=A.itemSize,arr=A.array;
+  for(let t=0;t<arr.length;t+=3*n)for(let q=0;q<n;q++){const a=arr[t+n+q];arr[t+n+q]=arr[t+2*n+q];arr[t+2*n+q]=a}}ng.computeVertexNormals();return ng})();
+const WING=s=>s>0?FLYGEO2.wing:FLYGEO2.wingL;
+function roundel(g,c,x,y,z,r){partM(g,FLYGEO2.disc,FLY.white,x,y,z,r*1.5,.002,r*1.5);partM(g,FLYGEO2.disc,c,x,y+.0012,z,r,.002,r)}
+function makeWarPlane(n,kind){const g=new THREE.Group(),c=flyCol(n.color);g.userData.kind=kind;g.userData.props=[];
+  if(kind==='bi'){/* WW1 biplane: two fabric wings with struts, a radial engine and a spinning prop */
+    const cloth=FLY_OLIVE;partM(g,FLYGEO2.taper,cloth,-.01,0,0,.11,.018,.018);partM(g,FLYGEO.cyl,FLY.dark,.048,0,0,.022,.012,.022).rotation.z=Math.PI/2;
+    for(const y of [-.01,.016]){partM(g,FLYGEO.box,cloth,.01,y,0,.03,.003,.16);roundel(g,c,.01,y+.002,.055,.008);roundel(g,c,.01,y+.002,-.055,.008)}
+    for(const z of [-.06,-.025,.025,.06])partM(g,FLYGEO.box,FLY.dark,.01,.003,z,.002,.026,.002);
+    partM(g,FLYGEO.box,cloth,-.06,.003,0,.016,.002,.05);partM(g,FLYGEO.box,c,-.062,.012,0,.016,.018,.002);partM(g,FLYGEO.nose,FLY.dark,.016,.012,0,.012,.008,.01);
+    for(const z of [-.014,.014]){partM(g,FLYGEO.box,FLY.dark,.03,-.016,z,.002,.014,.002);partM(g,FLYGEO.cyl,FLY.dark,.03,-.024,z,.01,.004,.01).rotation.x=Math.PI/2}
+    const pr=partM(g,FLYGEO.box,FLY.dark,.06,0,0,.002,.04,.004);g.userData.props.push(pr)}
+  else if(kind==='fighter'){/* jet fighter: slim body, swept wings, tail fin, bubble canopy and a glowing exhaust */
+    partM(g,FLYGEO2.taper,FLY_GREY,-.01,0,0,.13,.016,.016);partM(g,FLYGEO.cone,FLY_GREY,.075,0,0,.012,.04,.012).rotation.z=-Math.PI/2;
+    partM(g,FLYGEO.nose,FLY.glass,.035,.009,0,.032,.011,.009);
+    for(const s of [-1,1]){partM(g,WING(s),FLY_GREY,.0,0,0,.07,.04,.07);roundel(g,c,-.03,.003,s*.045,.007);
+      partM(g,WING(s),FLY_GREY,-.055,0,0,.03,.03,.028);partM(g,FLYGEO.fus,FLY.dark,-.02,-.006,s*.035,.04,.004,.004)}
+    const fin=partM(g,FLYGEO2.wing,FLY_GREY,-.055,.002,0,.032,.03,.026);fin.rotation.x=-Math.PI/2;partM(g,FLYGEO.box,c,-.07,.022,0,.012,.006,.0025);
+    partM(g,FLYGEO.fus,FLY.glow,-.077,0,0,.006,.011,.011)}
+  else if(kind==='bomber'){/* heavy bomber: long body, straight wings, four engines with props, twin tail */
+    partM(g,FLYGEO2.taper,FLY_OLIVE,-.02,0,0,.21,.026,.026);partM(g,FLYGEO.nose,FLY.glass,.09,0,0,.04,.024,.024);partM(g,FLYGEO.nose,FLY.glass,.04,.013,0,.025,.01,.012);
+    partM(g,FLYGEO.box,FLY_OLIVE,.01,.002,0,.05,.004,.3);roundel(g,c,.01,.005,.11,.01);roundel(g,c,.01,.005,-.11,.01);
+    for(const z of [-.1,-.05,.05,.1]){partM(g,FLYGEO.fus,FLY.dark,.03,-.004,z,.05,.014,.014);const pr=partM(g,FLYGEO.box,FLY.dark,.057,-.004,z,.002,.034,.004);g.userData.props.push(pr)}
+    partM(g,FLYGEO.box,FLY_OLIVE,-.115,.004,0,.026,.003,.1);for(const z of [-.05,.05])partM(g,FLYGEO.box,c,-.118,.016,z,.022,.026,.003)}
+  else{/* future drone: a white flying wing with a glowing engine and a stripe in the nation's colour */
+    partM(g,WING(1),FLY.white,.03,0,0,.08,.08,.09);partM(g,WING(-1),FLY.white,.03,0,0,.08,.08,.09);
+    partM(g,FLYGEO.nose,FLY.white,.0,.004,0,.07,.014,.03);partM(g,FLYGEO.nose,FLY.glass,.012,.009,0,.025,.006,.012);partM(g,FLYGEO.box,c,-.02,.009,0,.04,.002,.006);
+    partM(g,FLYGEO.fus,FLY.glow,-.04,.003,0,.004,.01,.016)}
   g.scale.setScalar(1.7);scene.add(g);return g}
 let warPlanes=[],warPlaneT=0;
 function warTarget(A,B){const f=B.front&&B.front.length?B.front[(rng()*B.front.length)|0]:-1;if(f>=0&&owner[f]===B.id)return f;const sc=B.cities.find(c=>c.siege>0&&c.besiegedBy===A.id)||B.cities[(rng()*B.cities.length)|0];return sc?sc.y*W+sc.x:-1}
@@ -174,7 +198,7 @@ function updateWarPlanes(dt,k){
     const dg=Math.hypot(gx-p.x,gz-p.z);if(p.ph==='out'&&dg<.5){p.ph='strike';p.t=0}if(p.ph==='home'&&dg<.3){disposeGroup(p.g);warPlanes.splice(q,1);continue}
     const A=nations[p.n],B=nations[p.foe];if(p.ph!=='home'&&(!A||!A.alive||!B||!B.alive||!A.wars.has(B.id)))p.ph='home';
     p.g.position.set(p.x,p.y,p.z);p.g.rotation.order='YXZ';p.g.rotation.y=-p.ang;p.g.rotation.z=0;p.g.rotation.x=clamp(-da*1.2,-.7,.7);
-    if(p.g.userData.prop)p.g.userData.prop.rotation.x+=s*60;if(k>0&&p.kind!=='bi'&&rng()<dt*10)emit('trail',p.x-Math.cos(p.ang)*.1,p.y,p.z-Math.sin(p.ang)*.1,0,0)}}
+    if(p.g.userData.props)for(const pr of p.g.userData.props)pr.rotation.x+=s*60;if(k>0&&p.kind!=='bi'&&rng()<dt*10)emit('trail',p.x-Math.cos(p.ang)*.1,p.y,p.z-Math.sin(p.ang)*.1,0,0)}}
 function updateFlights(dt,k){updateWarPlanes(dt,k);
   flyT-=dt*(k>0?1:0);if(k>0&&flyT<=0&&airports.length&&flights.length<12){flyT=2.5+rng()*3;const a=airports[(rng()*airports.length)|0],b=planeDest(a),n=nations[a.nid];
     if(b&&n&&n.alive){const fut=n.era>=7;const f={g:makePlane(n.color,fut),x0:a.ax,z0:a.az,y0:a.y+.02,x1:b.bx,z1:b.bz,y1:(b.y||a.y)+.02,land:!b.far,t:0,alt:1.1+rng()*.5};

@@ -899,15 +899,15 @@ const CLOTH=[
 const limbGeo=(w,l,d)=>{const g=new THREE.BoxGeometry(w,l,d);g.translate(0,-l/2,0);return g};
 const upGeo=g=>{g.computeBoundingBox();g.translate(0,-g.boundingBox.min.y,0);return g};
 const figMat=stdMat({roughness:.8});
-kit('pLeg',limbGeo(1,1,1),figMat,2400,false);kit('pArm',limbGeo(1,1,1),figMat,2400,false);
-kit('pTorso',upGeo(new THREE.CylinderGeometry(.42,.5,1,8)),figMat,1200,false);
-kit('pHead',new THREE.SphereGeometry(.5,10,8),figMat,1200,false);
-kit('pHair',new THREE.SphereGeometry(.5,10,6,0,Math.PI*2,0,Math.PI*.55),figMat,1200,false);
+kit('pLeg',limbGeo(1,1,1),figMat,5200,false);kit('pArm',limbGeo(1,1,1),figMat,5200,false);
+kit('pTorso',upGeo(new THREE.CylinderGeometry(.42,.5,1,8)),figMat,2600,false);
+kit('pHead',new THREE.SphereGeometry(.5,10,8),figMat,2600,false);
+kit('pHair',new THREE.SphereGeometry(.5,10,6,0,Math.PI*2,0,Math.PI*.55),figMat,2600,false);
 kit('pSkirt',(()=>{const g=new THREE.CylinderGeometry(.35,.62,1,10,1,true);g.translate(0,-.5,0);return g})(),stdMat({roughness:.85,side:THREE.DoubleSide}),1200,false);
-kit('pCone',upGeo(new THREE.ConeGeometry(.5,1,10)),figMat,1200,false);kit('pBrim',new THREE.CylinderGeometry(.5,.5,1,12),figMat,1200,false);
+kit('pCone',upGeo(new THREE.ConeGeometry(.5,1,10)),figMat,2600,false);kit('pBrim',new THREE.CylinderGeometry(.5,.5,1,12),figMat,1200,false);
 kit('pTri',upGeo(new THREE.ConeGeometry(.5,1,3)),figMat,600,false);
-kit('pStick',limbGeo(1,1,1),figMat,1200,false);kit('pPack',new THREE.BoxGeometry(1,1,1),figMat,1200,false);
-kit('pShield',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,12);g.rotateZ(Math.PI/2);return g})(),figMat,800,false);
+kit('pStick',limbGeo(1,1,1),figMat,2600,false);kit('pPack',new THREE.BoxGeometry(1,1,1),figMat,2600,false);
+kit('pShield',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,12);g.rotateZ(Math.PI/2);return g})(),figMat,1800,false);
 const FIG_KITS=['pLeg','pArm','pTorso','pHead','pHair','pSkirt','pCone','pBrim','pTri','pStick','pPack','pShield'];
 /* add with heading (ry) then a swing around the local x axis (rx) and a sideways lean (rz) */
 const dummyR=new THREE.Object3D();dummyR.rotation.order='YXZ';
@@ -958,7 +958,8 @@ function updateWalkers(dt,yrs){
     w.x=nx;w.z=nz;w.moving=true;const td=Math.atan2(dx,dz);let dd=td-w.dir;dd=Math.atan2(Math.sin(dd),Math.cos(dd));w.dir+=dd*Math.min(1,dt*10);w.ph+=Math.min(sp,d)*(w.kid?620:480)}
   kitReset(FIG_KITS);
   if(camDist<16){const R2=(camDist*1.2+1.5)**2;
-    for(const w of walkers){const ex=w.x-camT.x,ez=w.z-camT.z;if(ex*ex+ez*ez>R2)continue;if(w.act==='home'&&w.wait>0&&!w.moving)continue;drawFolk(w)}}
+    for(const w of walkers){const ex=w.x-camT.x,ez=w.z-camT.z;if(ex*ex+ez*ez>R2)continue;if(w.act==='home'&&w.wait>0&&!w.moving)continue;drawFolk(w)}
+    if(typeof drawArmyFolk==='function')drawArmyFolk(R2)}
   kitCommit(FIG_KITS);
 }
 function drawFolk(w){
