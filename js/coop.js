@@ -59,7 +59,8 @@ function coopOnMsg(m){if(!coop)return;const t=m.t;
   if(t==='snap'){coopFirstWorld(m.d);return}
   if(t==='live'){if(coop.ready)coopApply(m.d);return}
   if(t==='ack'){coopAck(m.d||{});return}
-  if(t==='fx'){coopShowFx(m.d||{});return}}
+  if(t==='fx'){coopShowFx(m.d||{});return}
+  if(t==='ev'){if(coop.ready)coopReplay(m.d||{});return}}
 
 /* ---------- host: send the world ---------- */
 function coopSnapshot(){const d=buildSave();d.coopPools=coop.pools;return d}
@@ -100,14 +101,20 @@ function coopRunCmd(pid,c){if(!playing)return;const name=coopName(pid);
     const res=coopRun(pid,ctx=>{if(tool!==c.tool)setTool(c.tool);if(c.wf>=0&&(c.tool==='war'||c.tool==='ally'))warFrom=c.wf;if(c.sf>=0&&faiths[c.sf])selectedFaith=c.sf;applyTool(c.i,!!c.start)});
     if(res.spent>0){coopSend('fx',{by:pid,tool:c.tool,i:c.i});if(c.start)toast(name,`used ${P.label}${owner[c.i]>=0&&nations[owner[c.i]]?' on '+nations[owner[c.i]].name:''}.`,wx(c.i%W),wz((c.i/W)|0))}
     if(c.start||res.msgs.length)coopSend('ack',{k:'tool',msgs:res.msgs,wf:res.ctx.warFrom,sf:res.ctx.selectedFaith,carry:!!res.ctx.carry,mf:!!res.ctx.migrFrom},pid);coopSoon();return}
-  if(c.k==='act'&&['guide','gov','clim','found','peace'].includes(c.a)){const p=Object.assign({},c.p||{});if(c.a==='found')p.by=name;
+  if(c.k==='act'&&['guide','gov','clim','found','peace','space'].includes(c.a)){const p=Object.assign({},c.p||{});if(c.a==='found')p.by=name;
     const res=coopRun(pid,ctx=>{const r=doAct(c.a,p);if(c.a==='found'&&r>=0)selectedFaith=r;return r});
-    if(res.spent>0)toast(name,{guide:'guided a nation\'s scholars.',gov:'changed how a nation is ruled.',clim:'changed the climate of the world.',peace:'forced a peace.',found:`revealed the faith ${p.name}.`}[c.a]);
+    if(res.spent>0)toast(name,{guide:'guided a nation\'s scholars.',gov:'changed how a nation is ruled.',clim:'changed the climate of the world.',peace:'forced a peace.',space:'worked a wonder on another world.',found:`revealed the faith ${p.name}.`}[c.a]);
     coopSend('ack',{k:c.a,r:res.r,name:p.name,msgs:res.msgs,sf:res.ctx.selectedFaith},pid);coopSoon()}}
 /* the host's own miracles also show up for the guests */
 {const _apply=applyTool;applyTool=function(i,start){const b0=belief;const r=_apply(i,start);
   if(coopHosting()&&coop.running==null&&start&&tool!=='inspect'&&belief<b0){coopSend('fx',{by:0,tool,i});coopSoon()}return r}}
 
+/* ---------- disasters: when one begins on the host, the guests see it begin too ---------- */
+const COOP_EV={spawnStorm:a=>a,startWildfire:a=>a,spawnLocusts:a=>a,spawnKraken:a=>a,eruptVolcano:a=>a,riverFlood:a=>a,tsunami:a=>[a[0],a[1],a[2]?a[2].id:-1]};
+for(const f in COOP_EV){const orig=window[f];if(typeof orig!=='function')continue;
+  window[f]=function(...a){const r=orig.apply(this,a);if(coopHosting()&&!coop.replay)try{coopSend('ev',{f,a:COOP_EV[f](a)})}catch(e){}return r}}
+function coopReplay(d){const f=window[d.f];if(!COOP_EV[d.f]||typeof f!=='function'||!Array.isArray(d.a))return;const a=d.a.slice();if(d.f==='tsunami')a[2]=nations[a[2]]||null;
+  try{coop.replay=true;f.apply(null,a)}catch(e){console.error('coop ev',e)}finally{coop.replay=false}}
 /* ---------- guest: send taps, take in the world ---------- */
 function coopCmd(i,start){if(!coop.ready)return;const now=performance.now();if(!start&&now-(coop.lastSculpt||0)<100)return;coop.lastSculpt=now;
   coopSend('cmd',{k:'tool',tool,i,start:!!start,wf:warFrom,sf:selectedFaith});
@@ -148,6 +155,7 @@ function coopApply(d){
   if(d.pools&&d.pools[coop.pid]!=null)belief=d.pools[coop.pid];
   if(selected>=0&&(!nations[selected]||!nations[selected].alive)){selected=-1;inspectTile=-1}
   if(selected>=0&&performance.now()-(coop.lastCard||0)>2000){coop.lastCard=performance.now();renderNationCard()}
+  if(typeof spaceView!=='undefined'&&spaceView&&typeof refreshPlanet==='function'&&performance.now()-(coop.lastPlanet||0)>2000){coop.lastPlanet=performance.now();refreshPlanet()}
   if(sheetPanel&&performance.now()-(coop.lastSheet||0)>2500){coop.lastSheet=performance.now();renderSheet(false)}}
 
 /* ---------- cursors: see where the other gods are looking ---------- */

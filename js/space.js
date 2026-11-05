@@ -59,11 +59,13 @@ function renderSpacePanel(){const el=$('#spacePanel');if(!el)return;el.hidden=!s
   <h3>${PLANETS[k].label}</h3><div><div class="row" style="justify-content:space-between"><span class="lab">Terraformed</span><span class="lab">${Math.round(P.terra*100)}%</span></div><div class="prog"><i style="width:${P.terra*100}%;background:#6fc0a0"></i></div></div>
   <p class="note">${cs.length?cs.map(c=>`<b>${esc(c.name)}</b> · ${esc(nations[c.nid]?nations[c.nid].name:'?')}${c.free?' (free)':''} · ${fmtPop(c.pop)}`).join('<br>'):'No one lives here yet. Nations in the Future age with Starships will come.'}</p>
   <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn primary" data-sp="terra">Terraform · 40</button><button class="btn" data-sp="blessc"${cs.length?'':' disabled'}>Bless the colonies · 20</button><button class="btn" data-sp="meteors"${cs.length?'':' disabled'}>Meteor shower · 30</button></div>`}
-document.addEventListener('click',e=>{const b=e.target.closest('[data-sp]');if(!b)return;const a=b.dataset.sp,k=SPACE.cur,P=planets[k];
+document.addEventListener('click',e=>{const b=e.target.closest('[data-sp]');if(!b)return;const a=b.dataset.sp,k=SPACE.cur;
   if(a==='earth'){closeSpace();return}if(a==='moon'||a==='mars'){SPACE.cur=a;refreshPlanet();return}
-  if(a==='terra'){if(P.terra>=1){say('This world is already as alive as Earth.');return}if(!spend(40))return;P.terra=Math.min(1,P.terra+.08);log(`You breathed on ${PLANETS[k].label.replace('The ','the ')}: ice melted and thin air thickened.`,'sky');sfx('bless');refreshPlanet()}
-  if(a==='blessc'){if(!spend(20))return;for(const c of colonies)if(c.planet===k)c.pop*=1.3;log(`You blessed the colonies of ${PLANETS[k].label.replace('The ','the ')}.`,'life');refreshPlanet()}
-  if(a==='meteors'){if(!spend(30))return;const cs=colonies.filter(c=>c.planet===k);const c=cs[(rng()*cs.length)|0];if(c){c.pop*=.4;log(`Meteors struck ${c.name}. The domes cracked and many died.`,'doom')}refreshPlanet()}});
+  if(typeof coopGuest==='function'&&coopGuest()){coopAct('space',{a,k});return}spaceAction(a,k)});
+function spaceAction(a,k){const P=planets[k];if(!P||!PLANETS[k])return false;const ok=b=>{if(spaceView&&typeof refreshPlanet==='function')(spaceView&&refreshPlanet());return b};
+  if(a==='terra'){if(P.terra>=1){say('This world is already as alive as Earth.');return}if(!spend(40))return;P.terra=Math.min(1,P.terra+.08);log(`You breathed on ${PLANETS[k].label.replace('The ','the ')}: ice melted and thin air thickened.`,'sky');sfx('bless');(spaceView&&refreshPlanet())}
+  if(a==='blessc'){if(!spend(20))return;for(const c of colonies)if(c.planet===k)c.pop*=1.3;log(`You blessed the colonies of ${PLANETS[k].label.replace('The ','the ')}.`,'life');(spaceView&&refreshPlanet())}
+  if(a==='meteors'){if(!spend(30))return;const cs=colonies.filter(c=>c.planet===k);const c=cs[(rng()*cs.length)|0];if(c){c.pop*=.4;log(`Meteors struck ${c.name}. The domes cracked and many died.`,'doom')}(spaceView&&refreshPlanet())}return true}
 /* while in space, dragging turns the planet and the wheel zooms */
 {const gl=renderer.domElement;let drag=null;
   gl.addEventListener('pointerdown',e=>{if(!spaceView)return;drag={x:e.clientX,y:e.clientY};e.stopImmediatePropagation()},true);

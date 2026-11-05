@@ -25,6 +25,9 @@ Settings in `docker-compose.yml`:
 Passwords are stored as salted scrypt hashes. Sessions last 30 days (HttpOnly cookie).
 Each account can keep 30 worlds.
 
+### Ready-made image (no build on your server)
+Every push to `main` builds an image on GitHub: `ghcr.io/civr/faithbound:latest`. To use it, put `image: ghcr.io/civr/faithbound:latest` in `docker-compose.yml`, remove the `build: .` line, then run `docker compose pull && docker compose up -d`. If the repository is private, log in once with `docker login ghcr.io` (a GitHub token with `read:packages`).
+
 ### Play together (co-op)
 Open a world, press **Together** in the top bar and then **Invite friends**. You get a link and a 6-letter code. Friends open the link, pick a name and join.
 - The host's browser runs the world and sets the speed. Guests watch it live, keep their own belief and send their miracles to the host.

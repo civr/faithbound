@@ -152,7 +152,28 @@ let REC=null;
 function P(name,cx,cy,cz,rot,dx,dz,dy,sx,sy,sz,hex,extraRot){const c=Math.cos(rot),s=Math.sin(rot);add(name,cx+dx*c+dz*s,cy+dy,cz-dx*s+dz*c,sx,sy,sz,rot+(extraRot||0),hex)}
 const BUILD_KITS=['adobe','adobeCyl','hipTile','domeW','hipThatch','timber','bed','hay','plaster','stone','brick','thatch','tiles','coneThatch','coneTile','pyr','tower','office','glass','dome','box','cyl','ring','flame','fence','lamp','awning','plazaStone','plazaDirt','pool','townTree','boat'];
 kit('puddle',unitCyl(12),new THREE.MeshLambertMaterial({color:new THREE.Color(0x46707c).convertSRGBToLinear()}),6000,false);kit('reed',unitCone(4),stdMat({roughness:1}),12000,false);
-const TREE_KITS=['conifer','broad','palm','bush','rock','tuft','flower','puddle','reed'];
+kit('hedge',unitBox(),stdMat({roughness:1}),20000,false);kit('farmW',unitBox(),MAT.plain,3000);kit('farmR',gableGeo(),MAT.plain,3000);
+const TREE_KITS=['conifer','broad','palm','bush','rock','tuft','flower','puddle','reed','hedge','farmW','farmR'];
+/* the countryside: hedgerows, dry-stone walls or fences round the fields, and a farmstead with a barn here and there */
+function countryside(){const farm=new Set();
+  for(const i of fieldTiles){const o=owner[i],n=o>=0?nations[o]:null;if(!n)continue;const e=n.era,x=i%W,y=(i/W)|0,X0=x-W/2,Z0=y-H/2;
+    if(Math.hypot(X0+.5-camT.x,Z0+.5-camT.z)>camDist*1.5+5)continue;
+    const kind=e<=1?'stone':e>=5?'fence':hash(i*3.3)<.6?'hedge':'stone',col=kind==='hedge'?0x46682e:kind==='stone'?0x9a948a:0xd8cfbc,hh=kind==='hedge'?.03:kind==='stone'?.018:.016,th=kind==='hedge'?.03:kind==='stone'?.02:.004;
+    for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X>=0&&Y>=0&&X<W&&Y<H&&fieldTiles.has(Y*W+X)&&hash(i*7+d)<.55)continue;
+      const horiz=DY[d]!==0,cx=X0+.5+DX[d]*.5,cz=Z0+.5+DY[d]*.5,segs=4;
+      for(let s=0;s<segs;s++){const f=(s+.5)/segs-.5,px=horiz?cx+f:cx,pz=horiz?cz:cz+f,gy=groundY(px,pz);if(gy<waterY+.03)continue;
+        add('hedge',px,gy-.008,pz,horiz?.25:th,hh,horiz?th:.25,0,col)}
+      if(kind==='hedge'&&hash(i*11+d)<.35){const px=cx+(horiz?(hash(i+d)-.5)*.7:0),pz=cz+(horiz?0:(hash(i+d)-.5)*.7);add('broad',px,groundY(px,pz)-.01,pz,.5,.55,.5,hash(i)*6,0x5a7a3a)}}
+    /* a farmstead on open ground beside the field */
+    if(e>=1&&e<=5&&hash(i*17.1)<.18)for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
+      if(fieldTiles.has(j)||occupied.has(j)||farm.has(j)||isWater(j)||owner[j]!==o)continue;farm.add(j);
+      const fx=X-W/2+.5-DX[d]*.25,fz=Y-H/2+.5-DY[d]*.25,gy=groundY(fx,fz),rot=hash(j)*1.57;if(gy<waterY+.04)break;
+      const wall=e<=2?0x9a8468:e<=4?0xf0e8d8:0xb8604a,roof=e<=2?0xc8b070:0x8e3f2c,c=Math.cos(rot),s=Math.sin(rot);
+      add('farmW',fx,gy-.02,fz,.11,.055,.07,rot,wall);add('farmR',fx,gy+.035,fz,.12,.045,.08,rot,roof);/* the farmhouse */
+      const bx=fx+.11*c,bz=fz-.11*s;add('farmW',bx,groundY(bx,bz)-.02,bz,.14,.065,.09,rot+Math.PI/2,e>=3?0x8a3a2a:0x7a6450);add('farmR',bx,groundY(bx,bz)+.045,bz,.15,.055,.1,rot+Math.PI/2,e>=4?0x5a5e66:0xc8b070);/* the barn */
+      if(e>=2){const hx=fx-.07*c+.08*s,hz=fz+.07*s+.08*c;add('tuft',hx,groundY(hx,hz)-.01,hz,.035,.045,.035,0,0xd8c070)}
+      break}}
+  return farm}
 /* marshes: wet, low, flat ground beside rivers, lakes and coasts */
 const MARSH_C=[72,88,52];let MARSH=null,marshVer=-1;
 function marshAt(i){if(!MARSH||MARSH.length!==N||marshVer!==terrVer){MARSH=new Uint8Array(N);marshVer=terrVer;
@@ -812,10 +833,10 @@ function rebuildRoads(){roadBare.clear();grassAt.x=1e9;
 
 /* ---------- forests ---------- */
 function rebuildTrees(){
-  kitReset(TREE_KITS);const dens=settings.quality==='high'?1:settings.quality==='medium'?.65:.4;
+  kitReset(TREE_KITS);const dens=settings.quality==='high'?1:settings.quality==='medium'?.65:.4,farm=countryside();
   /* trees near towns are drawn at a believable size next to the houses */
   const near=new Float32Array(N).fill(1);for(const n of nations)if(n.alive)for(const c of n.cities)for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);near[Y*W+X]=Math.min(near[Y*W+X],.5+smooth(1,3.2,d)*.5)}
-  for(let i=0;i<N;i++){const b=biome[i];if(occupied.has(i)||fieldTiles.has(i)||(scorched&&scorched[i]>0)||fires.has(i))continue;
+  for(let i=0;i<N;i++){const b=biome[i];if(occupied.has(i)||fieldTiles.has(i)||farm.has(i)||(scorched&&scorched[i]>0)||fires.has(i))continue;
     const x0=i%W-W/2,z0=((i/W)|0)-H/2,lat=1-Math.abs(((i/W)|0)/(H-1)-.5)*2;let n=0,type='broad';
     if(marshAt(i)){/* a marsh: pools of standing water, reeds and a few willows */for(let t=0;t<4;t++){const x=x0+.1+hash(i*2.3+t)*.8,z=z0+.1+hash(i*5.1+t)*.8,y=groundY(x,z);if(y<waterY+.01)continue;const s=.12+hash(i+t*9)*.22;add('puddle',x,y-.004,z,s,.006,s*.7,hash(i*t+1)*6)}
       for(let t=0;t<16;t++){const x=x0+hash(i*3.7+t)*.98,z=z0+hash(i*6.3+t*2)*.98,y=groundY(x,z);if(y<waterY+.01)continue;add('reed',x,y-.003,z,.008,.05+hash(i*t+3)*.04,.008,0,hash(i+t)<.5?0x6a7a3a:0x8a7a48)}
