@@ -242,7 +242,7 @@ function renderNationCard(){
     <div><div class="row" style="justify-content:space-between"><span class="lab">${rt?'Researching '+rt.name+(rt.key?' · opens '+ERAS[rt.key].name:''):'All known discoveries made'}</span><span class="lab">${rt?Math.round(pct*100)+'%':''}</span></div><div class="prog"><i style="width:${pct*100}%"></i></div></div>
     <div class="kv"><div><span>People</span><b>${people(n)}</b></div><div><span>Lands</span><b>${n.tiles}</b></div>
     <div><span>Cities</span><b>${n.cities.length}</b></div><div><span>Fleet</span><b>${fleet}</b></div>
-    <div><span>Rule</span><b>${GOVS[n.gov]?GOVS[n.gov].name:'None'}</b></div><div><span>Faith</span><b>${n.faith>=0?esc(faiths[n.faith].name):'Ancestors'}</b></div><div><span>Temper</span><b>${n.aggr>.65?'Warlike':n.aggr>.4?'Wary':'Calm'}</b></div>
+    <div><span>Rule</span><b>${GOVS[n.gov]?GOVS[n.gov].name:'None'}</b></div><div><span>Faith</span><b>${n.faith>=0?esc(faiths[n.faith].name):'Ancestors'}</b></div><div><span>Temper</span><b>${n.aggr>.65?'Warlike':n.aggr>.4?'Wary':'Calm'}</b></div><div><span>Harvest</span><b>${typeof harvestWord==='function'?harvestWord(n.harvest):'—'}</b></div>
     <div><span>Capital</span><b>${n.cities[0]?esc(n.cities[0].name):'None'}</b></div><div><span>Wonder</span><b>${n.wonder?esc(WONDERS[n.wonder].name):'None'}</b></div></div>
     ${wars.length?`<p class="note"><b style="color:#f0a196">Fighting:</b> ${esc(wars.join(', '))}</p>`:''}
     <div title="${esc(stTip)}"><div class="row" style="justify-content:space-between"><span class="lab">Stability · ${stabLabel(st)}</span><span class="lab">${sp.slice(0,2).map(p=>`${esc(p[0])} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join(' · ')}</span></div><div class="prog"><i style="width:${st*100}%;background:${stabColor(st)}"></i></div></div>
@@ -338,6 +338,7 @@ function warsHTML(){const L=activeWars();if(!L.length)return '<p class="note" st
       <div class="wbar"><span style="width:${(50+s*50).toFixed(1)}%;background:${A.color}"></span><span style="background:${B.color}"></span></div>
       <div class="wstat"><span>Since year ${w.start??year-w.years} · ${w.years} yr</span><span>${lead?esc(lead.name)+' is winning':'Neither side is winning'}</span></div>
       <div class="wstat"><span>Land taken: ${w.ta||0} / ${w.tb||0}</span><span>Dead: ${fmtN(w.da||0)} / ${fmtN(w.db||0)}</span></div>
+      ${w.why?`<div class="wtag">Cause: ${esc(w.why)}</div>`:''}
       ${ww?`<div class="wtag">Part of the ${ORD[ww.n]||''} World War</div>`:''}
       ${sieges.map(x=>`<div class="wsiege">🏰 ${esc(x.by.name)} besieges ${esc(x.c.name)} · ${Math.round(Math.min(1,x.c.siege)*100)}%</div>`).join('')}
       <div class="row" style="gap:6px;margin-top:6px"><button class="btn" data-wgo="${A.id}-${B.id}">Show the front</button><div class="flex"></div><button class="btn primary" data-wpeace="${A.id}-${B.id}">Force peace · 15</button></div></div>`}).join('')+endedHTML()}
@@ -791,7 +792,7 @@ function frameBody(now){
   waterU.uTime.value=now/1000;
   placeCamera(dt);updateSky(dt,now);
   if(shakeT>0){shakeT-=dt;const a=shakeT*.03*camDist/10;cam.position.x+=(rng()-.5)*a;cam.position.y+=(rng()-.5)*a}
-  terrU.uTint.value=settings.borders?(.1+.16*smooth(3,14,camDist)):0;
+  terrU.uTint.value=settings.borders?(.025+.22*smooth(9,32,camDist)):0;
   if(contestedList.length&&!paused&&rng()<dt*8){const i=contestedList[(rng()*contestedList.length)|0],x=wx(i%W)+(rng()-.5)*.6,z=wz((i/W)|0)+(rng()-.5)*.6;if(Math.hypot(x-camT.x,z-camT.z)<camDist*1.2+2)emit(rng()<.3?'fire':'dark',x,groundY(x,z)+.03,z)}
   if(borderMesh)borderMat.uniforms.uOp.value=.95*smooth(2.5,10,camDist)+.25*(1-smooth(2.5,10,camDist))*(selected>=0?1:.6);
   if(spaceView){renderSpace(dt);octx.clearRect(0,0,ov.width,ov.height)}else{renderFrame();try{drawOverlay(now)}catch(e){reportErr('overlay',e)}}

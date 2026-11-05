@@ -933,11 +933,15 @@ function updateWalkers(dt,yrs){
         const wasSol=w.sol;w.sol=n.wars.size>0&&n.front&&n.front.length>0&&rng()<.45;if(w.sol)soldierKit(w,n);else if(wasSol)dressFolk(w,n);
         const c=n.cities.includes(w.ci)?w.ci:n.cities[(rng()*n.cities.length)|0];w.ci=c;
         if(w.sol){const f=n.front[(rng()*n.front.length)|0];w.tx=wx(f%W)+(rng()-.5)*.6;w.tz=wz((f/W)|0)+(rng()-.5)*.6;w.act='march'}
-        else{const fp=!w.kid&&n.era>=1&&n.era<6&&rng()<.3?fieldPoint(c):null;
-          if(fp){w.tx=fp[0];w.tz=fp[1];w.act='farm'}else{const p=cityPoint(c,[w.x,w.z],n.festival>0);w.tx=p[0];w.tz=p[1];w.act=rng()<.5?'chat':'idle'}}}
+        else{const sn=typeof seasonName==='function'&&settings.seasons!==false?seasonName():'Summer',night=typeof nightF!=='undefined'&&nightF>.55;
+          if(w.sheaf){w.sheaf=false;w.pack=w._pk||0}
+          if(w.act==='farm'&&sn==='Autumn'&&!w.kid){w._pk=w.pack;w.pack=0xd8b860;w.sheaf=true}
+          const fp=!night&&!w.kid&&n.era>=1&&n.era<6&&rng()<({Spring:.35,Summer:.3,Autumn:.5,Winter:.04}[sn]||.3)?fieldPoint(c):null;
+          if(night&&rng()<.75){const p=cityPoint(c,[w.x,w.z]);w.tx=p[0];w.tz=p[1];w.act='home'}
+          else if(fp){w.tx=fp[0];w.tz=fp[1];w.act='farm'}else{const p=cityPoint(c,[w.x,w.z],n.festival>0);w.tx=p[0];w.tz=p[1];w.act=rng()<.5?'chat':'idle'}}}
       continue}
     const dx=w.tx-w.x,dz=w.tz-w.z,d=Math.hypot(dx,dz),spd=(w.sol?.12:w.kid?.1:.075)*(.8+Math.min(3,yrs/dt||1)*.2),sp=spd*dt;
-    if(d<.012){w.wait=w.act==='farm'?4+rng()*6:w.sol?1+rng()*3:1+rng()*4;w.moving=false;
+    if(d<.012){w.wait=w.act==='home'?8+rng()*10:w.act==='farm'?4+rng()*6:w.sol?1+rng()*3:1+rng()*4;w.moving=false;
       if(w.sol&&n.wars.size&&rng()<.45){const gy=groundY(w.x,w.z),fx=w.x+Math.sin(w.dir)*.02,fz=w.z+Math.cos(w.dir)*.02;
         if(n.era>=4){emit('flash',fx,gy+.022,fz,0,0);for(let q=0;q<3;q++)emit('smoke',fx+(rng()-.5)*.02,gy+.025,fz+(rng()-.5)*.02);if(typeof sfx==='function'&&Math.hypot(w.x-camT.x,w.z-camT.z)<camDist*.6)sfx('cannon',{near:.25})}
         else emit('dust',w.x,gy+.01,w.z);
@@ -947,7 +951,7 @@ function updateWalkers(dt,yrs){
     w.x=nx;w.z=nz;w.moving=true;const td=Math.atan2(dx,dz);let dd=td-w.dir;dd=Math.atan2(Math.sin(dd),Math.cos(dd));w.dir+=dd*Math.min(1,dt*10);w.ph+=Math.min(sp,d)*(w.kid?620:480)}
   kitReset(FIG_KITS);
   if(camDist<16){const R2=(camDist*1.2+1.5)**2;
-    for(const w of walkers){const ex=w.x-camT.x,ez=w.z-camT.z;if(ex*ex+ez*ez>R2)continue;drawFolk(w)}}
+    for(const w of walkers){const ex=w.x-camT.x,ez=w.z-camT.z;if(ex*ex+ez*ez>R2)continue;if(w.act==='home'&&w.wait>0&&!w.moving)continue;drawFolk(w)}}
   kitCommit(FIG_KITS);
 }
 function drawFolk(w){
