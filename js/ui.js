@@ -103,7 +103,10 @@ function say(msg,sticky){clearTimeout(hintTimer);hintEl.className='glass hint al
 function toast(title,text,x,z){const t=document.createElement('div');t.className='glass toast'+(x!=null?' go':'');t.innerHTML=`<b>${esc(title)}</b><span>${esc(text)}</span>`;if(x!=null)t.onclick=()=>{focusOn(x,z,10);t.remove()};$('#toasts').appendChild(t);
   setTimeout(()=>t.remove(),5200);while($('#toasts').children.length>3)$('#toasts').firstChild.remove()}
 function log(text,kind){logs.unshift({year,text,kind});if(typeof onLogSound==='function')onLogSound(kind,text);if(logs.length>120)logs.pop()}
-function spend(c){if(unlimited)return true;if(belief<c){say(`Not enough belief. This needs ${c}, you have ${Math.floor(belief)}.`);return false}belief-=c;return true}
+/* the great powers cost more, so a god has to choose */
+const costOf=c=>c>=40?Math.round(c*1.35/5)*5:c>=25?Math.round(c*1.15/5)*5:c;
+for(const p of POWERS)p.cost=costOf(p.cost);
+function spend(c){c=costOf(c);if(unlimited)return true;if(belief<c){say(`Not enough belief. This needs ${c}, you have ${Math.floor(belief)}.`);return false}belief-=c;return true}
 function fx(i,kind){const x=wx(i%W),z=wz((i/W)|0);effects.push({x,y:surfY(x,z),z,kind,t0:performance.now()})}
 function brush(i,r,fn){const x=i%W,y=(i/W)|0,R_=Math.ceil(r);for(let dy=-R_;dy<=R_;dy++)for(let dx=-R_;dx<=R_;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d<=r)fn(Y*W+X,d)}}
 function burst(i,kind,n,spread){const x=wx(i%W),z=wz((i/W)|0);for(let k=0;k<n;k++){const px=x+(rng()-.5)*spread,pz=z+(rng()-.5)*spread;emit(kind,px,surfY(px,pz)+.03,pz)}}
@@ -170,7 +173,7 @@ function applyTool(i,start){if(viewOnly&&tool!=='inspect'){if(start)say('You are
   case 'fertile':{if(isWater(i)){say('Tap land.');return}if(!spend(20))return;const r=fertileLand(i);fx(i,'rain');if(!r.n){say(r.cold?'Too cold to bloom here. Warm the climate first.':'This land is already green.');if(!unlimited)belief+=20;return}log('At your touch the dry land turned green.','life');break}
   case 'forest':{if(isWater(i)){say('Tap land.');return}if(!spend(15))return;const k=plantForest(i);if(!k){say('Nothing can grow here.');if(!unlimited)belief+=15;return}fx(i,'bless');log('A new forest sprang up at your word.','life');break}
   case 'flood':{if(!unlimited&&belief<30){say('Not enough belief. This needs 30.');return}const k=riverFlood(i);if(!k){say('Tap close to a river.');return}spend(30);fx(i,'rain');break}
-  case 'climate':if(scen()&&scen().id==='climate'){say('In this scenario you cannot cool the world yourself. Guide the nations instead.');return}openModal(`<h2>Climate</h2><p class="note">Change the whole world. A warmer world melts the ice and raises the seas, so low coasts can drown. A colder world grows glaciers and lowers the seas. Each step costs 40 belief.</p>
+  case 'climate':if(scen()&&scen().id==='climate'){say('In this scenario you cannot cool the world yourself. Guide the nations instead.');return}openModal(`<h2>Climate</h2><p class="note">Change the whole world. A warmer world melts the ice and raises the seas, so low coasts can drown. A colder world grows glaciers and lowers the seas. Each step costs ${costOf(40)} belief.</p>
     <div class="row" style="gap:8px;margin-top:10px"><button class="btn" data-clim="-1">❄ Colder</button><button class="btn primary" data-clim="1">☀ Warmer</button><button class="btn" data-clim="0">Cancel</button></div>`);break;
   case 'anoint':{if(!needNation(n))return;const r=rulerOf(n);if(!r||r.machine){say(`${n.name} has no ruler you can anoint.`);return}if(r.traits.includes('anointed')){say(`${r.name} is already your chosen one.`);return}
     if(!spend(30))return;anoint(n);fx(i,'bless');sfx('chime');break}
@@ -231,7 +234,7 @@ $('#nationCard').onclick=e=>{if(e.target.closest('[data-x]')){selected=-1;inspec
   powerOnNation(n,a);renderNationCard()};
 
 /* ---------- side sheet ---------- */
-const SHEETS={nations:'Nations',faiths:'Faiths',wars:'Wars',world:'World',chronicle:'Chronicle'};
+const SHEETS={nations:'Nations',faiths:'Faiths',wars:'Wars and Relations',world:'World',chronicle:'Chronicle'};
 let natSort='pop';
 function openSheet(p){if(sheetPanel===p){closeSheet();return}sheetPanel=p;$('#sheet').hidden=false;$('#sheetTitle').textContent=SHEETS[p];
   $$('[data-panel]').forEach(b=>b.classList.toggle('on',b.dataset.panel===p));renderSheet(true)}
@@ -244,14 +247,14 @@ function renderSheet(full){const B=$('#sheetBody');if(!sheetPanel)return;
     $('#natCount').textContent=`${alive.length} living · ${nations.length-alive.length} fallen · ${ships.length} ships at sea`;
     $('#natList').innerHTML=alive.map(n=>`<li><button data-id="${n.id}" class="${n.id===selected?'sel':''}">${flagImg(n,'flag')}
       <span class="nm">${esc(n.name)} ${n.wars.size?'<span class="sword">⚔</span>':''}<small>${GOVS[n.gov]?GOVS[n.gov].name:ERAS[n.era].name} · ${n.faith>=0?esc(faiths[n.faith].name):'Ancestors'}</small></span><span class="pp">${fmtPop(n.pop)}<br>${n.tiles} lands</span></button></li>`).join('')}
-  else if(sheetPanel==='faiths'){if(full)B.innerHTML=`<div class="sec"><button class="btn primary" id="newFaith">Reveal a new faith · 40 belief</button>
+  else if(sheetPanel==='faiths'){if(full)B.innerHTML=`<div class="sec"><button class="btn primary" id="newFaith">Reveal a new faith · ${costOf(40)} belief</button>
       <p class="note">Design it yourself: name, symbol, colour and two tenets. Followers give you belief.</p></div>
       <div class="sec"><h4>Your faiths</h4><div class="flist" id="faithList"></div><p class="note">Tap a faith, then tap a nation to spread it. Faiths also spread on their own between neighbours at peace.</p></div>`;
     $('#faithList').innerHTML=faiths.length?faiths.map((f,i)=>{const c=nations.filter(n=>n.alive&&n.faith===i),pop=c.reduce((s,n)=>s+n.pop,0);
       return `<button class="fcard" data-f="${i}" aria-pressed="${i===selectedFaith}"><span class="fg" style="background:${f.color}">${glyph(f.glyph,'#fff')}</span>
         <span class="nm">${esc(f.name)}<small>${(f.tenets||[f.tenet]).map(t=>TENETS[t].label).join(' · ')}${f.holy?' · Holy city '+esc(f.holy):''}${f.parent!=null&&faiths[f.parent]?' · branch of '+esc(faiths[f.parent].name):''}</small></span>
         <span class="pp">${c.length} nations<br>${fmtPop(pop)}</span></button>`}).join(''):'<p class="note">None yet. Your first faith starts your flow of belief.</p>'}
-  else if(sheetPanel==='wars'){if(full||performance.now()-warsAt>1500){warsAt=performance.now();B.innerHTML=warsHTML()}}
+  else if(sheetPanel==='wars'){if(full||performance.now()-warsAt>1500){warsAt=performance.now();B.innerHTML=`<div class="seg" id="warSeg"><button data-ws="wars" aria-pressed="${warTab==='wars'}">Wars</button><button data-ws="rel" aria-pressed="${warTab==='rel'}">Relations</button></div>`+(warTab==='wars'?warsHTML():relationsHTML())}}
   else if(sheetPanel==='world'){if(full)B.innerHTML=`<div class="sec"><h4>Climate</h4>
       <div class="slider"><div class="top"><label for="tempR">Global temperature</label><output id="tempO"></output></div><input type="range" id="tempR" min="0" max="100"></div>
       <div class="slider"><div class="top"><label for="rainR">Rainfall</label><output id="rainO"></output></div><input type="range" id="rainR" min="0" max="100"></div>
@@ -278,7 +281,17 @@ function renderSheet(full){const B=$('#sheetBody');if(!sheetPanel)return;
     $('#logList').innerHTML=logs.slice(0,80).map(l=>`<li><time>Y${l.year}</time><span class="k-${l.kind}">${esc(l.text)}</span></li>`).join('')}
 }
 /* ---------- every war being fought right now ---------- */
-let warsAt=0;const fmtN=v=>v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e4?Math.round(v/1e3)+'k':Math.round(v).toLocaleString('en-US');
+let warsAt=0,warTab='wars';
+/* ---------- relations: who is allied, who trades, who hates whom ---------- */
+function relationsHTML(){const al=nations.filter(n=>n.alive).sort((a,b)=>b.pop-a.pop);if(al.length<2)return '<p class="note">There is no one to deal with yet.</p>';
+  const nm=n=>`<span class="wn"><img src="${flagURL(n.flag)}" alt=""><b style="color:${n.color}">${esc(n.name)}</b></span>`,chip=(m,cls,t)=>`<span class="rchip ${cls}" title="${t}" data-rel="${m.id}"><i style="background:${m.color}"></i>${esc(m.name)}</span>`;
+  return `<p class="note" style="margin:2px 0 8px">Tap a name to see it on the map.</p><div class="rlegend"><span class="rchip war">at war</span><span class="rchip ally">allied</span><span class="rchip trade">trade</span><span class="rchip rival">rival</span><span class="rchip kin">same faith</span></div>`+al.map(n=>{
+    const L=[];for(const m of al){if(m===n)continue;
+      if(n.wars.has(m.id))L.push(chip(m,'war','At war'));else if(allied(n,m))L.push(chip(m,'ally','Allies'));
+      if((n.trade||[]).includes(m.id))L.push(chip(m,'trade','Trade partners'));
+      const rv=rivalry(n,m);if(rv>=1&&!n.wars.has(m.id))L.push(chip(m,'rival',`Rivals (${rv.toFixed(1)} of 5)`));
+      if(n.faith>=0&&n.faith===m.faith&&!n.wars.has(m.id))L.push(chip(m,'kin','Same faith'))}
+    return `<div class="war rel"><div class="wh">${nm(n)}<small style="margin-left:auto;opacity:.7">${GOVS[n.gov]?GOVS[n.gov].name:''}</small></div><div class="rlist">${L.join('')||'<span class="note">Keeps to itself.</span>'}</div></div>`}).join('')}const fmtN=v=>v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e4?Math.round(v/1e3)+'k':Math.round(v).toLocaleString('en-US');
 function activeWars(){const out=[];for(const A of nations){if(!A.alive)continue;for(const bid of A.wars){const B=nations[bid];if(!B||!B.alive||A.id>B.id)continue;
     const w=warData[warKey(A,B)]||{score:0,years:0},ww=worldWars.find(x=>x.end==null&&((x.a.includes(A.id)&&x.b.includes(B.id))||(x.b.includes(A.id)&&x.a.includes(B.id))));
     const sieges=[];for(const [X,Y] of [[A,B],[B,A]])for(const c of Y.cities)if(c.siege>0&&c.besiegedBy===X.id)sieges.push({by:X,c});
@@ -297,6 +310,8 @@ function warsHTML(){const L=activeWars();if(!L.length)return '<p class="note" st
       ${sieges.map(x=>`<div class="wsiege">🏰 ${esc(x.by.name)} besieges ${esc(x.c.name)} · ${Math.round(Math.min(1,x.c.siege)*100)}%</div>`).join('')}
       <div class="row" style="gap:6px;margin-top:6px"><button class="btn" data-wgo="${A.id}-${B.id}">Show the front</button><div class="flex"></div><button class="btn primary" data-wpeace="${A.id}-${B.id}">Force peace · 15</button></div></div>`}).join('')}
 $('#sheetBody').addEventListener('click',e=>{
+  const ws=e.target.closest('[data-ws]');if(ws){warTab=ws.dataset.ws;renderSheet(true);return}
+  const rl=e.target.closest('[data-rel]');if(rl){const m=nations[+rl.dataset.rel];if(m&&m.cities[0]){focusOn(wx(m.cities[0].x),wz(m.cities[0].y),Math.min(camDist,22));selected=m.id;renderNationCard()}return}
   const wg=e.target.closest('[data-wgo]');if(wg){const [a,b]=wg.dataset.wgo.split('-').map(Number),i=warFront(nations[a],nations[b]);if(i>=0){focusOn(wx(i%W),wz((i/W)|0),Math.min(camDist,16));fx(i,'war')}if(innerWidth<700)closeSheet();return}
   const wp=e.target.closest('[data-wpeace]');if(wp){const [a,b]=wp.dataset.wpeace.split('-').map(Number),p={a,b};if(typeof coopGuest==='function'&&coopGuest()){coopAct('peace',p);return}if(doAct('peace',p))renderSheet(true);return}
   const ns=e.target.closest('#natSort [data-s]');if(ns){natSort=ns.dataset.s;renderSheet(false);return}
@@ -325,6 +340,7 @@ function doAct(k,p){
   if(k==='guide'){const n=nations[p.n];if(!n||!n.alive||!TECH[p.t]||!techAvailable(n,TECH[p.t])||!spend(10))return false;n.research=p.t;n.tech=0;n.guided=true;log(`You guided the scholars of ${n.name} towards ${TECH[n.research].name}.`,'era');return true}
   if(k==='gov'){const n=nations[p.n];if(!n||!n.alive||!govOptions(n).includes(p.g)||!spend(30))return false;setGov(n,p.g,true);if(n.cities[0])fx(n.cities[0].y*W+n.cities[0].x,'faith');return true}
   if(k==='peace'){const A=nations[p.a],B=nations[p.b];if(!A||!B||!A.alive||!B.alive||!A.wars.has(B.id)){say('That war is already over.');return false}if(!spend(15))return false;makePeace(A,B,true);delete warData[warKey(A,B)];const c=B.cities[0];if(c)fx(c.y*W+c.x,'bless');return true}
+  if(k==='space'){return typeof spaceAction==='function'?spaceAction(p.a,p.k):false}
   if(k==='clim'){if(!p.d||!spend(40))return false;shiftClimate(p.d);return true}
   if(k==='found'){const name=String(p.name||'').trim().slice(0,40);if(!name){say('Give your faith a name first.');return -1}if(!spend(40))return -1;
     faiths.push({name,tenets:(p.tenets||[]).slice(0,2),glyph:p.glyph,color:p.color,founded:year,holy:null});
@@ -588,7 +604,7 @@ $('#begin').onclick=()=>{const t=climate.temp;if(year>30){genWorld();climate.tem
   worldOpts.slot=Date.now().toString(36)+Math.floor(Math.random()*1e6).toString(36);worldOpts.name=($('#worldName').value.trim()||'Unnamed world').slice(0,40);$('#worldName').value='';startPlaying(true);saveGame()};
 function startPlaying(fresh){playing=true;if(fresh||!worldOpts.anchorReal){worldOpts.anchorReal=Date.now();worldOpts.anchorYear=year}$('#title').classList.add('hidden');$('#hud').classList.remove('hidden');speedIdx=1;
   curTab='People';buildDock();setTool('inspect');updateHUD();lastSave=performance.now();
-  if(fresh){toast('Your world begins',`${nations.length} tribes wait for a sign.`);const c=nations[0]&&nations[0].cities[0];if(c)focusOn(wx(c.x),wz(c.y),18)}else toast('Welcome back',`Year ${year}.`)}
+  if(fresh){toast('Your world begins',`${nations.length} tribes wait for a sign.`);maybeGuide();const c=nations[0]&&nations[0].cities[0];if(c)focusOn(wx(c.x),wz(c.y),18)}else toast('Welcome back',`Year ${year}.`)}
 function openModal(html){$('#modalBox').classList.remove('wide');$('#modalBox').innerHTML=html;$('#modal').hidden=false}
 function closeModal(){$('#modal').hidden=true}
 $('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
@@ -733,3 +749,21 @@ setTimeout(()=>{if(/^#view=/.test(location.hash))openSharedFromHash()},300);
 renderer.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();try{if(playing)saveLocal(buildSave())}catch(_){}toast('Graphics were reset','Your browser dropped the 3D view. It will reload in a moment; your world was saved.')});
 renderer.domElement.addEventListener('webglcontextrestored',()=>{if(playing){const d=buildSave();saveLocal(d);(account.user?cloudSave(d):Promise.resolve()).finally(()=>{sessionStorage.setItem('fb.resume','1');location.reload()})}else location.reload()});
 document.addEventListener('pointerdown',e=>{if(e.target.closest('.btn,.ib,button'))setTimeout(()=>sfx('click'),0)},true);
+
+/* ---------- a short guide the first time someone plays ---------- */
+const GUIDE=[
+  {sel:null,t:'Welcome, god',b:'Small tribes are waiting for a sign. You never rule them directly. You bless, punish, teach and guide, and watch what they make of it.'},
+  {sel:null,t:'Look around',b:'Drag to move. Scroll or pinch to zoom. Right-drag or twist with two fingers to turn. Tap a town to see its people.'},
+  {sel:'.status',t:'Belief',b:'Every miracle costs belief. It comes from the people who follow your faiths, so the more faithful they are, the more you can do.'},
+  {sel:'#cards',t:'Your powers',b:'Pick a power below, then tap the map. The tabs sort them: People, Faith, Rule, Strife, Land and Sky.'},
+  {sel:'[data-panel="faiths"]',t:'Start a faith',b:'Open Faiths and reveal a faith of your own. Bring it to a nation and belief starts to flow.'},
+  {sel:'[data-panel="wars"]',t:'Nations and wars',b:'Nations grow, trade, fall out and fight. Wars shows every war being fought, and you can force a peace or start one.'},
+  {sel:'.speed',t:'Time',b:'Pause, play or speed up the ages. Your world is saved by itself. Good luck!'}];
+let guideI=-1;
+function guideShow(){$$('.guide-hi').forEach(e=>e.classList.remove('guide-hi'));const g=GUIDE[guideI];let el=$('#guide');
+  if(!g){if(el)el.remove();try{localStorage.setItem('fb.guided','1')}catch(e){}return}
+  if(!el){el=document.createElement('div');el.id='guide';el.className='glass guide';document.body.appendChild(el)}
+  const tgt=g.sel&&$(g.sel);if(tgt)tgt.classList.add('guide-hi');
+  el.innerHTML=`<small>${guideI+1} / ${GUIDE.length}</small><h3>${g.t}</h3><p>${g.b}</p><div class="row" style="gap:8px"><button class="btn" id="gSkip">Skip</button><div class="flex"></div><button class="btn primary" id="gNext">${guideI===GUIDE.length-1?'Begin':'Next'}</button></div>`;
+  $('#gSkip').onclick=()=>{guideI=GUIDE.length;guideShow()};$('#gNext').onclick=()=>{guideI++;guideShow()}}
+function maybeGuide(){let seen=false;try{seen=localStorage.getItem('fb.guided')==='1'}catch(e){}if(seen||viewOnly||(typeof coopGuest==='function'&&coopGuest()))return;guideI=0;setTimeout(guideShow,900)}

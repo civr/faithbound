@@ -375,6 +375,11 @@ body.ui-parchment .tp h1,body.ui-marble .tp h1{color:#f6e2a6}
 .wbar{display:flex;height:7px;border-radius:4px;overflow:hidden;margin:7px 0 5px;background:rgba(0,0,0,.2)}.wbar span{display:block;height:100%}.wbar span:last-child{flex:1}
 .wstat{display:flex;justify-content:space-between;gap:8px;font-size:.82rem;opacity:.85;margin-top:2px}.wtag{font-size:.75rem;color:#c0473a;margin-top:4px;font-weight:700;letter-spacing:.04em}.wsiege{font-size:.82rem;margin-top:3px}
 .wwbar{background:#7a2316;color:#f5e6c8;border-radius:8px;padding:6px 9px;margin:0 0 8px;font-weight:700;font-size:.85rem}
+.guide{position:fixed;left:50%;bottom:150px;transform:translateX(-50%);z-index:40;width:min(420px,calc(100vw - 32px));padding:14px 16px}.guide h3{margin:2px 0 6px}.guide p{margin:0 0 10px;line-height:1.45}.guide small{opacity:.6}
+.guide-hi{outline:3px solid var(--gold,#d8b04a)!important;outline-offset:3px;border-radius:10px;animation:gpulse 1.4s ease-in-out infinite}@keyframes gpulse{50%{outline-color:transparent}}
+.rlist{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.rchip{display:inline-flex;align-items:center;gap:4px;font-size:.76rem;padding:2px 7px 2px 5px;border-radius:10px;border:1px solid var(--line2);cursor:pointer}.rchip i{width:8px;height:8px;border-radius:50%}
+.rchip.war{background:rgba(168,50,42,.22);border-color:#a8322a}.rchip.ally{background:rgba(70,140,90,.2);border-color:#4a8c5a}.rchip.trade{background:rgba(200,160,60,.18);border-color:#b8902e}.rchip.rival{background:rgba(190,100,40,.16);border-color:#be6428;border-style:dashed}.rchip.kin{background:rgba(110,90,170,.16);border-color:#6e5aaa}
+#warSeg{margin-bottom:8px}.rlegend{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 8px}.rlegend .rchip{cursor:default}
 </style>
 
 <canvas id="gl" aria-label="The world of Faithbound"></canvas>
