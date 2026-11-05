@@ -109,11 +109,7 @@ const LOOKS={
   miniature:{label:'Miniature',desc:'Tilt-shift model village, shallow focus',sat:1.22,exposure:.95,sun:0xfff6e8,sunI:2.6,hemiI:1,fog:.5,lock:.22,
     skyTop:0x67b3ea,skyHor:0xdff1f8,post:{sat:1.3,con:1.1,lift:[0,0,0],gain:[1.03,1.01,.97],vig:.25,tilt:1,bloom:.2,grain:0}},
   storybook:{label:'Storybook',desc:'Ink outlines and soft painted colour bands',sat:1.15,exposure:1.05,sun:0xfff4e0,sunI:2.3,hemiI:1.25,fog:.7,lock:.2,
-    skyTop:0x8cc6ea,skyHor:0xf6ecd8,post:{sat:1.12,con:.96,lift:[.06,.05,.04],gain:[1,.99,.96],vig:.2,line:1,poster:5,bloom:.1,grain:.01}},
-  cinematic:{label:'Cinematic',desc:'Teal and amber grade, deep contrast, film grain',sat:1,exposure:.9,sun:0xffd2a0,sunI:2.8,hemiI:.55,fog:1.3,lock:.12,
-    skyTop:0x3e6f9a,skyHor:0xe7c49a,post:{sat:1.05,con:1.32,lift:[0,.03,.06],gain:[1.12,1,.84],vig:.7,bloom:.5,grain:.06,bars:.09}},
-  atlas:{label:'Atlas',desc:'Hand-inked parchment map of your world',sat:.9,exposure:1.05,sun:0xfff6e6,sunI:2,hemiI:1.3,fog:.25,lock:.21,
-    skyTop:0xe9dcbc,skyHor:0xe9dcbc,post:{sat:0,con:1.1,lift:[0,0,0],gain:[1,1,1],vig:.6,line:1.4,paper:1,bloom:0,grain:0}}};
+    skyTop:0x8cc6ea,skyHor:0xf6ecd8,post:{sat:1.12,con:.96,lift:[.06,.05,.04],gain:[1,.99,.96],vig:.2,line:1,poster:5,bloom:.1,grain:.01}}};
 
 
 /* ---------- tech tree ---------- */

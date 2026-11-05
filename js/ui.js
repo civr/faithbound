@@ -652,7 +652,7 @@ $('#begin').onclick=()=>{const t=climate.temp;if(year>30){genWorld();climate.tem
 function startPlaying(fresh){playing=true;if(fresh||!worldOpts.anchorReal){worldOpts.anchorReal=Date.now();worldOpts.anchorYear=year}$('#title').classList.add('hidden');$('#hud').classList.remove('hidden');speedIdx=1;
   curTab='People';buildDock();setTool('inspect');updateHUD();lastSave=performance.now();
   if(fresh){toast('Your world begins',`${nations.length} tribes wait for a sign.`);maybeGuide();const c=nations[0]&&nations[0].cities[0];if(c)focusOn(wx(c.x),wz(c.y),18)}else toast('Welcome back',`Year ${year}.`)}
-function openModal(html){$('#modalBox').classList.remove('wide');$('#modalBox').innerHTML=html;$('#modal').hidden=false}
+function openModal(html){$('#modalBox').classList.remove('wide','setbox');$('#modalBox').innerHTML=html;$('#modal').hidden=false}
 function closeModal(){$('#modal').hidden=true}
 $('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
 function openPause(){const si=saveInfo();
@@ -705,24 +705,24 @@ function openDiplo(n){diploFor=n.id;const others=nations.filter(m=>m.alive&&m!==
 $('#modalBox').addEventListener('change',e=>{if(e.target.id==='dipTo'){diploTo=+e.target.value;const n=nations[diploFor];if(n)openDiplo(n)}});
 $('#modalBox').addEventListener('click',e=>{const b=e.target.closest('[data-dip]');if(!b||b.disabled)return;const p={a:diploFor,b:diploTo,k:b.dataset.dip};
   if(typeof coopGuest==='function'&&coopGuest()){coopAct('dip',p);closeModal();return}if(doAct('dip',p)){const n=nations[diploFor];if(n)openDiplo(n);renderNationCard()}});
-function openSettings(){const t=(k,label,v)=>`<label class="tog">${label}<input type="checkbox" data-set="${k}" ${v?'checked':''}></label>`;
-  openModal(`<h2>Settings</h2><div class="sec"><span class="lab">Graphics quality</span><div class="seg">${['low','medium','high'].map(q=>`<button data-q="${q}" aria-pressed="${settings.quality===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div>
+function openSettings(){setTimeout(()=>$('#modalBox').classList.add('setbox'),0);const t=(k,label,v)=>`<label class="tog">${label}<input type="checkbox" data-set="${k}" ${v?'checked':''}></label>`;
+  openModal(`<h2>Settings</h2><div class="setcols"><div class="setcol"><div class="sec"><span class="lab">Graphics quality</span><div class="seg">${['low','medium','high'].map(q=>`<button data-q="${q}" aria-pressed="${settings.quality===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div>
     <p class="note">Lower quality draws fewer trees and smaller shadows. Use it on older phones.</p></div>
     <div class="sec"><span class="lab">Interface</span><div class="seg">${UIS.map(([k,l])=>`<button data-ui="${k}" aria-pressed="${(settings.ui||'parchment')===k}">${l}</button>`).join('')}</div></div>
     <div class="sec"><span class="lab">Power</span><div class="seg">${[['saver','Battery saver'],['balanced','Balanced'],['max','Maximum']].map(([k,l])=>`<button data-pow="${k}" aria-pressed="${(settings.power||'balanced')===k}">${l}</button>`).join('')}</div>
     <p class="note">Battery saver runs at 30 frames a second and fewer pixels, so laptops stay cool and quiet. Balanced runs at 60, and at 30 on battery. Maximum has no limit.</p></div>
+    <div class="sec"><span class="lab">World mood</span><div class="seg">${['calm','lively','turbulent'].map(q=>`<button data-mood="${q}" aria-pressed="${(settings.mood||'calm')===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div><p class="note">How much happens at once. Calm keeps wars, prayers, plagues and choices rare.</p></div>
+    <div class="sec"><span class="lab">Disasters</span><div class="seg">${['off','mild','normal','wild'].map(q=>`<button data-dis="${q}" aria-pressed="${(settings.disasters||'normal')===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div>
+    <p class="note">Storms, wildfires, famine, epidemics, earthquakes and eruptions. Your own powers always work.</p></div>
     <div class="sec">${t('shadows','Shadows',settings.shadows)}${t('daynight','Day and night cycle',settings.daynight)}${t('borders','Territory borders',settings.borders)}${t('labels','Nation names',settings.labels)}${t('people','People walking around',settings.people)}${t('clouds','Clouds',settings.clouds!==false)}${t('seasons','Seasons (snow in winter, golden autumns)',settings.seasons!==false)}${t('post','Look effects (outlines, focus blur, grading)',settings.post!==false)}${t('fps','Show frame rate',!!settings.fps)}${t('events','Choice events (peoples ask you to decide)',settings.events!==false)}${t('unlimited','Sandbox: unlimited belief',unlimited)}</div>
-    <div class="sec"><span class="lab">Pop-up messages</span>${MSGKINDS.map(([k,l])=>`<label class="tog">${l}<input type="checkbox" data-msg="${k}" ${(settings.msgs||{})[k]!==false?'checked':''}></label>`).join('')}<label class="tog">Everything else<input type="checkbox" data-msg="other" ${(settings.msgs||{}).other!==false?'checked':''}></label>
-      <p class="note">Everything still goes into the Chronicle. The same message is shown at most once every 20 seconds.</p></div>
-    <div class="sec"><span class="lab">Sound</span>${t('mute','Mute all sound',settings.mute)}
+    </div><div class="setcol"><div class="sec"><span class="lab">Sound</span>${t('mute','Mute all sound',settings.mute)}
       <span class="lab" style="margin-top:8px;display:block">Music</span><div class="seg">${[['peaceful','Peaceful'],['fairytale','Fairy tale'],['anthem','Anthem'],['cinematic','Cinematic'],['calm','Calm'],['epic','Epic'],['cozy','Cozy'],['classic','Classic'],['off','Off']].map(([k,l])=>`<button data-mus="${k}" aria-pressed="${(settings.music||'peaceful')===k}">${l}</button>`).join('')}</div>
       <p class="note">Peaceful: slow, soft piano over warm strings, always calm. Fairy tale: a waltz with a music box, harp and sparkling bells; darker and faster in war. Anthem: one main theme like a Civilization score; the band grows with every age, war makes it faster and darker. Cinematic: slow organ swells, a ticking pulse and deep drones; it quickens in war and races in a world war. Calm: slow pads and bells. Epic: strings, horns and timpani. Cozy: harp, soft piano and flute. Classic: the old music, a different band for each age.</p>
       ${[['master','Master'],['music','Music'],['sfx','Effects'],['amb','Ambience']].map(([k,l])=>`<label class="slid">${l}<input type="range" min="0" max="1" step="0.05" data-vol="${k}" value="${vols()[k]}"></label>`).join('')}
       <p class="note">Sound starts after your first click. Ambience follows the camera: waves on the coast, birds in the woods, crowds in town.</p></div>
-    <div class="sec"><span class="lab">World mood</span><div class="seg">${['calm','lively','turbulent'].map(q=>`<button data-mood="${q}" aria-pressed="${(settings.mood||'calm')===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div><p class="note">How much happens at once. Calm keeps wars, prayers, plagues and choices rare.</p></div>
-    <div class="sec"><span class="lab">Disasters</span><div class="seg">${['off','mild','normal','wild'].map(q=>`<button data-dis="${q}" aria-pressed="${(settings.disasters||'normal')===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div>
-    <p class="note">Storms, wildfires, famine, epidemics, earthquakes and eruptions. Your own powers always work.</p></div>
-    <div class="sec"><span class="lab">Look</span><div class="looks" id="looks3"></div></div>
+    <div class="sec"><span class="lab">Pop-up messages</span>${MSGKINDS.map(([k,l])=>`<label class="tog">${l}<input type="checkbox" data-msg="${k}" ${(settings.msgs||{})[k]!==false?'checked':''}></label>`).join('')}<label class="tog">Everything else<input type="checkbox" data-msg="other" ${(settings.msgs||{}).other!==false?'checked':''}></label>
+      <p class="note">Everything still goes into the Chronicle. The same message is shown at most once every 20 seconds.</p></div>
+    </div></div><div class="sec"><span class="lab">Look</span><div class="looks" id="looks3"></div></div>
     <div class="sec"><span class="lab">Building style</span><div class="looks" id="archs3"></div></div>
     <div class="row"><div class="flex"></div><button class="btn primary" data-p="back">Done</button></div>`);renderLooks('#looks3');renderArchs('#archs3')}
 function openHelp(){openModal(`<h2>How to play</h2><div class="help">
