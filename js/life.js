@@ -127,19 +127,19 @@ function updateLiving(dt,k,now){
   for(const c of tradeTrains){c.t+=dt*.25*spd*c.dir;if(c.t>=c.L){c.t=c.L;c.dir=-1}else if(c.t<=0){c.t=0;c.dir=1}const [x,z,a]=tradeTrainAt(c);if(!near(x,z,1.8))continue;const n=nations[c.a];if(!n)continue;const e=n.era,y=groundY(x,z),r=c.dir>0?a:a+Math.PI,cs=Math.cos(r),sn=Math.sin(r),nc=parseInt(n.color.slice(1),16);
     if(e<=2){for(let q=0;q<3;q++){const bx=x-cs*q*.04,bz=z-sn*q*.04;add('beast',bx,y+.008,bz,.03,.014,.012,-r,0x9a7a50);add('beast',bx,y+.022,bz,.018,.01,.016,-r,q?0xc8b088:nc)}}
     else if(e<=4){add('lcart',x,y+.012,z,.05,.022,.03,-r,0x7a5a3a);add('lcart',x,y+.034,z,.044,.016,.028,-r,0xe8e0c8);for(const s of [-1,1])add('wheel',x-sn*.016*s,y+.01,z+cs*.016*s,.016,.004,.016,-r+Math.PI/2,0x4a3a2a,Math.PI/2);add('beast',x+cs*.05,y+.008,z+sn*.05,.03,.016,.012,-r,0x6a4a30)}
-    else if(e<=6){add('lcart',x,y+.01,z,.06,.026,.028,-r,nc);add('lcart',x+cs*.036,y+.01,z+sn*.036,.022,.022,.026,-r,0xe8e8e8);for(const s of [-1,1])for(const f of [-.02,.03])add('wheel',x+cs*f-sn*.015*s,y+.008,z+sn*f+cs*.015*s,.012,.004,.012,-r+Math.PI/2,0x222222,Math.PI/2)}
+    else if(e<=6){if(e>=5&&typeof drawTrainModel==='function'&&drawTrainModel(c,e,x,y,z,r,nc))continue;add('lcart',x,y+.01,z,.06,.026,.028,-r,nc);add('lcart',x+cs*.036,y+.01,z+sn*.036,.022,.022,.026,-r,0xe8e8e8);for(const s of [-1,1])for(const f of [-.02,.03])add('wheel',x+cs*f-sn*.015*s,y+.008,z+sn*f+cs*.015*s,.012,.004,.012,-r+Math.PI/2,0x222222,Math.PI/2)}
     else{add('lcart',x,y+.03+Math.sin(now/300+c.t)*.004,z,.05,.016,.026,-r,0xf2f4f6);add('lcart',x,y+.026,z,.052,.003,.028,-r,0x9ff4ff)}}
   /* wildHerds wander and graze */
   for(const hd of wildHerds){hd.t+=dt*spd;hd.x+=hd.vx*dt*spd;hd.z+=hd.vz*dt*spd;if(rng()<dt*.2){hd.vx=(rng()-.5)*.03;hd.vz=(rng()-.5)*.03}const ti=tileAt(hd.x,hd.z);if(ti<0||isWater(ti)||occupied.has(ti)){hd.vx*=-1;hd.vz*=-1;hd.x+=hd.vx*.5;hd.z+=hd.vz*.5}
     if(!near(hd.x,hd.z,1.6))continue;const B=BEAST[hd.kind];for(const m of hd.m){const x=hd.x+m.dx,z=hd.z+m.dz,y=groundY(x,z);if(y<waterY+.01)continue;const graze=Math.sin(now/600+m.ph)>.3;
-      add('beast',x,y+B[2]*.5,z,B[1],B[2],B[2]*.7,m.a,B[0]);add('beast',x+Math.cos(m.a)*B[1]*.55,y+B[2]*(graze?.5:1.1),z-Math.sin(m.a)*B[1]*.55,B[2]*.7,B[2]*.7,B[2]*.6,m.a,B[0])}}
+      if(typeof drawWildModel==='function'&&drawWildModel(hd,m,x,y,z,now))continue;add('beast',x,y+B[2]*.5,z,B[1],B[2],B[2]*.7,m.a,B[0]);add('beast',x+Math.cos(m.a)*B[1]*.55,y+B[2]*(graze?.5:1.1),z-Math.sin(m.a)*B[1]*.55,B[2]*.7,B[2]*.7,B[2]*.6,m.a,B[0])}}
   /* birds in a V across the sky */
   for(let q=birdFlocks.length-1;q>=0;q--){const f=birdFlocks[q];f.t+=dt;f.x+=Math.cos(f.a)*dt*.5;f.z+=Math.sin(f.a)*dt*.5;if(f.t>40){birdFlocks.splice(q,1);continue}const cs=Math.cos(f.a),sn=Math.sin(f.a),gy=groundY(f.x,f.z);
     for(let b=0;b<f.n;b++){const s=b%2?1:-1,row=Math.ceil(b/2),x=f.x-cs*row*.06-sn*s*row*.05,z=f.z-sn*row*.06+cs*s*row*.05,flap=Math.sin(now/120+b)*.4;
       add('beast',x,Math.max(gy,waterY)+f.y,z,.008,.002,.03,-f.a,0x2a2a2a,flap)}}
   /* seaWhales surface and blow */
   for(let q=seaWhales.length-1;q>=0;q--){const w=seaWhales[q];w.t+=dt;w.x+=Math.cos(w.a)*dt*.06;w.z+=Math.sin(w.a)*dt*.06;if(w.t>30||!near(w.x,w.z,2)){seaWhales.splice(q,1);continue}
-    const up=Math.max(0,Math.sin(w.t*.6));if(up>.2){add('beast',w.x,waterY-.02+up*.015,w.z,.12,.03,.04,-w.a,0x3a4650);if(up>.9&&rng()<dt*6)emit('spray',w.x,waterY+.04,w.z,0,0)}
+    const up=Math.max(0,Math.sin(w.t*.6));if(typeof drawWhaleModel==='function'&&drawWhaleModel(w,up,now)){if(up>.9&&rng()<dt*6)emit('spray',w.x,waterY+.04,w.z,0,0)}else if(up>.2){add('beast',w.x,waterY-.02+up*.015,w.z,.12,.03,.04,-w.a,0x3a4650);if(up>.9&&rng()<dt*6)emit('spray',w.x,waterY+.04,w.z,0,0)}
     else if(up<.05&&Math.sin(w.t*.6+.3)<0)add('beast',w.x-Math.cos(w.a)*.08,waterY+.01,w.z-Math.sin(w.a)*.08,.02,.02,.06,-w.a,0x3a4650,.6)}
   /* fishing boats off the coasts of older towns */
   for(const n of nations){if(!n.alive||n.era<1||n.era>5)continue;for(const c of n.cities){const cx=wx(c.x),cz=wz(c.y);if(!near(cx,cz,1.3))continue;const cw=typeof coastWater==='function'?coastWater(c):[];if(!cw.length)continue;

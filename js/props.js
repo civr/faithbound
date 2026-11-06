@@ -270,10 +270,11 @@ function countryside(){const farm=new Set();
         add('hedge',px,gy-.008,pz,horiz?.25:th,hh,horiz?th:.25,0,col)}
       if(kind==='hedge'&&hash(i*11+d)<.35){const px=cx+(horiz?(hash(i+d)-.5)*.7:0),pz=cz+(horiz?0:(hash(i+d)-.5)*.7);add('broad',px,groundY(px,pz)-.01,pz,.5,.55,.5,hash(i)*6,0x5a7a3a)}}
     /* a farmstead on open ground beside the field */
-    if(e>=1&&e<=5&&hash(i*17.1)<.18)for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
+    if(e>=1&&e<=6&&hash(i*17.1)<.18)for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
       if(fieldTiles.has(j)||occupied.has(j)||farm.has(j)||isWater(j)||owner[j]!==o)continue;farm.add(j);
       const fx=X-W/2+.5-DX[d]*.25,fz=Y-H/2+.5-DY[d]*.25,gy=groundY(fx,fz),rot=hash(j)*1.57;if(gy<waterY+.04)break;
       const wall=e<=2?0x9a8468:e<=4?0xf0e8d8:0xb8604a,roof=e<=2?0xc8b070:0x8e3f2c,c=Math.cos(rot),s=Math.sin(rot);
+      if(e>=4&&typeof farmModel==='function'&&farmModel(n,i,j,fx,gy,fz,rot,e))break;if(e>=6)break;
       add('farmW',fx,gy-.02,fz,.11,.055,.07,rot,wall);add('farmR',fx,gy+.035,fz,.12,.045,.08,rot,roof);/* the farmhouse */
       const bx=fx+.11*c,bz=fz-.11*s;add('farmW',bx,groundY(bx,bz)-.02,bz,.14,.065,.09,rot+Math.PI/2,e>=3?0x8a3a2a:0x7a6450);add('farmR',bx,groundY(bx,bz)+.045,bz,.15,.055,.1,rot+Math.PI/2,e>=4?0x5a5e66:0xc8b070);/* the barn */
       if(e>=2){const hx=fx-.07*c+.08*s,hz=fz+.07*s+.08*c;add('tuft',hx,groundY(hx,hz)-.01,hz,.035,.045,.035,0,0xd8c070)}
@@ -862,7 +863,7 @@ function cityKey(n,c,ci,e,lvl,gold,cap){const MR=metroRadius(n,c,cap,e),rad=Math
   for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===n.id)oh++}oh=Math.round(oh/4)
   const far=Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
   return [n.id,e,lvl,cap?1:0,gold?1:0,n.festival>0?1:0,c.statue?c.statue.faith:-1,c.siege>.08?1:0,c.riot&&year-c.riot<6?1:0,n.faith,n.wonder,flagKey(n.flag),cultOf(n),settings.arch,terrVer,flatSig.length,oh,far?1:0,Math.round(MR*4),
-    n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),n.techs&&n.techs.includes('starships')?1:0,ci].join('|')}
+    n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),n.techs&&n.techs.includes('starships')?1:0,ci,typeof SBVER!=='undefined'?SBVER:0].join('|')}
 function replayCity(Rc){if(Rc.ft){const fr=FOOTREC;FOOTREC=null;for(const o of Rc.ft)footAdd(o);FOOTREC=fr}for(const name in Rc.k){const K=KITS[name],a=Rc.k[name],cnt=a.length/19,M=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array;
     for(let i=0;i<cnt&&K.k<K.max;i++){M.set(a.subarray(i*19,i*19+16),K.k*16);C.set(a.subarray(i*19+16,i*19+19),K.k*3);K.k++}}
   for(const v of Rc.occ)occupied.add(v);for(const v of Rc.bare)bare.add(v);for(const v of Rc.bg)bgrid.add(v);
@@ -1138,20 +1139,20 @@ function rebuildTrees(){
     const lod=(()=>{const dd=Math.hypot(x0+.5-camT.x,z0+.5-camT.z);return dd>camDist*1.6+6?.3:dd>camDist*1.1+3?.6:1})();n=Math.round(n*dens*lod);
     for(let t=0;t<n;t++){const x=x0+.08+hash(i*3.1+t)*.84,z=z0+.08+hash(i*7.7+t)*.84,y=groundY(x,z);if(y<waterY+.05)continue;
       const s=(.62+hash(i*11.3+t)*.5)*near[i],hv=hash(i*5.9+t);
-      if(type==='rock'||(type==='mount'&&hv<.45)){if(hv<.6)add('rock',x,y-.03,z,.08+hv*.25,.06+hv*.16,.08+hv*.2,hv*6,hv<.3?0x8a8378:0x9a9488);continue}
+      if(type==='rock'||(type==='mount'&&hv<.45)){if(hv<.6)add(natKit('rock',hv),x,y-.03,z,.08+hv*.25,.06+hv*.16,.08+hv*.2,hv*6,hv<.3?0x8a8378:0x9a9488);continue}
       if(type==='mount'){if(y<shapeH(.8))add('conifer',x,y-.01,z,s*.85,s*.95,s*.85,hv*6,0x2f4a30);continue}
       if((type==='mix'||type==='conifer'||type==='jungle')&&hv<.45&&lod>.5)add('bush',x+.04,y-.01,z+.03,s*.9,s*.7,s*.9,hv*6,type==='jungle'?0x3f6a2a:0x45602e);
       let k=type;if(type==='mix')k=hv<.4?'conifer':'broad';if(type==='jungle')k=hv<.35?'palm':'broad';if(type==='acacia')k='broad';
       const col=k==='conifer'?(hv<.5?0x27412a:0x31502f):k==='palm'?0x5d8a3a:type==='jungle'?(hv<.5?0x2f6a32:0x3d7a35):(hv<.25?0x3a6428:hv<.5?0x46702e:hv<.75?0x527a32:0x5e7f30);
-      if(type==='acacia')add('broad',x,y-.01,z,s*1.2,s*.55,s*1.2,hv*6,0x7a8a3c);else add(k,x,y-.01,z,s,s,s,hv*6,col);
+      if(type==='acacia'){const ak=natKit('acacia',hv);if(ak==='broad')add('broad',x,y-.01,z,s*1.2,s*.55,s*1.2,hv*6,0x7a8a3c);else add(ak,x,y-.01,z,s,s,s,hv*6,0x7a8a3c)}else add(k==='broad'?natKit('broad',hv):k,x,y-.01,z,s,s,s,hv*6,col);
       if(hv>.8&&k!=='palm')add('bush',x+.06,y-.01,z+.04,s,s,s,0,0x4f7a36)}}
   /* hedgerows along field edges and orchards near villages */
   if(dens>.4)for(const i of fieldTiles){const X=i%W,Y=(i/W)|0;for(let d=0;d<4;d++){const nx=X+DX[d],ny=Y+DY[d];if(nx<0||ny<0||nx>=W||ny>=H)continue;const j=ny*W+nx;if(fieldTiles.has(j)||hash(i*7+d)<.5)continue;
     for(let q=0;q<9;q++){if(hash(i*17+d*3+q)<.2)continue;const t=(q+.5)/9+(hash(i*5+q)-.5)*.06,ex=wx(X)+(DX[d]?DX[d]*.48:t-.5),ez=wz(Y)+(DY[d]?DY[d]*.48:t-.5),ey=groundY(ex,ez);if(ey<waterY+.04)continue;
-      const hs=hash(i*13+d*5+q),f=near[i];if(hs<.14)add('broad',ex,ey-.01,ez,(.4+hs)*f,(.42+hs)*f,(.4+hs)*f,q,0x4f7a36);else add('bush',ex,ey-.01,ez,(.5+hs*.3)*f,(.45+hs*.4)*f,(.5+hs*.3)*f,q,hs<.6?0x456f32:0x557a3a)}}}
+      const hs=hash(i*13+d*5+q),f=near[i];if(hs<.14)add(natKit('broad',hs),ex,ey-.01,ez,(.4+hs)*f,(.42+hs)*f,(.4+hs)*f,q,0x4f7a36);else add('bush',ex,ey-.01,ez,(.5+hs*.3)*f,(.45+hs*.4)*f,(.5+hs*.3)*f,q,hs<.6?0x456f32:0x557a3a)}}}
   for(const n of nations){if(!n.alive||n.era<2)continue;for(const c of n.cities){for(let q=0;q<2;q++){const a=hash(c.x*31+c.y*7+q)*6.283,X=Math.round(c.x+Math.cos(a)*1.6),Y=Math.round(c.y+Math.sin(a)*1.6);
     if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]!==n.id||occupied.has(j)||fieldTiles.has(j)||biome[j]!==4||hash(j*1.7)>.5)continue;
-    for(let gx=0;gx<4;gx++)for(let gz=0;gz<4;gz++){const ox=wx(X)-.3+gx*.2,oz=wz(Y)-.3+gz*.2,oy=groundY(ox,oz);if(oy>waterY+.04)add('broad',ox,oy-.01,oz,.24,.22,.24,gx+gz,0x5e8f3a)}}}}
+    for(let gx=0;gx<4;gx++)for(let gz=0;gz<4;gz++){const ox=wx(X)-.3+gx*.2,oz=wz(Y)-.3+gz*.2,oy=groundY(ox,oz);if(oy>waterY+.04)add(natKit('broad',(gx*4+gz)/16+.03),ox,oy-.01,oz,.24,.22,.24,gx+gz,0x5e8f3a)}}}}
   kitCommit(TREE_KITS);
 }
 
@@ -1329,7 +1330,7 @@ function updateCaravans(dt,k){
   kitReset(['cart','cartTop','car']);
   for(let q=caravans.length-1;q>=0;q--){const c=caravans[q];c.t+=dt*k*.35/Math.max(1,c.len);if(c.t>=1){caravans.splice(q,1);continue}
     const x=lerp(c.p[0],c.p[2],c.t),z=lerp(c.p[1],c.p[3],c.t),y=groundY(x,z),rot=Math.atan2(c.p[2]-c.p[0],c.p[3]-c.p[1]);
-    if(c.era>=5){const ox=Math.cos(rot)*.035,oz=-Math.sin(rot)*.035;add('car',x+ox,y+.006,z+oz,.028,.02,.05,rot,c.car);add('car',x+ox,y+.024,z+oz,.024,.012,.026,rot,0x9ab0c0);continue}
+    if(c.era>=5){const ox=Math.cos(rot)*.035,oz=-Math.sin(rot)*.035;if(typeof drawCarModel==='function'&&drawCarModel(c,x+ox,y+.002,z+oz,rot))continue;add('car',x+ox,y+.006,z+oz,.028,.02,.05,rot,c.car);add('car',x+ox,y+.024,z+oz,.024,.012,.026,rot,0x9ab0c0);continue}
     add('cart',x,y+.01,z,.035,.022,.06,rot,0x6b4a2e);add('cartTop',x,y+.035,z,.034,.03,.05,rot+Math.PI/2,0xeee6d2);
     add('body',x+Math.sin(rot)*.06,y,z+Math.cos(rot)*.06,.02,.025,.04,rot,0x7a5a3a)}
   kitCommit(['cart','cartTop','car'])}
