@@ -36,7 +36,7 @@ let worldSeed=0,bordersDirty=true,eruptions=[];
 /* rivers: least-cost paths from wet highlands to the sea, carved into the land */
 let rivers=[],river=null;
 function genRivers(){river=new Uint8Array(N);rivers=[];
-  const want=Math.round(({small:6,medium:9,large:13}[sizeKey]||8)*(worldOpts.rivers??1)),src=[];
+  const want=Math.round(({tiny:6,small:9,medium:13,large:18}[sizeKey]||9)*(worldOpts.rivers??1)),src=[];
   for(let q=0;q<4000&&src.length<want*4;q++){const i=(rng()*N)|0;if(h[i]>sea+.16&&h[i]<sea+.42&&baseMoist[i]>.38)src.push(i)}
   const used=[];
   for(const s of src){if(rivers.length>=want)break;const sx=s%W,sy=(s/W)|0;if(used.some(u=>Math.hypot(u%W-sx,((u/W)|0)-sy)<7))continue;
@@ -536,7 +536,7 @@ function loadGame(){let d;try{d=JSON.parse(localStorage.getItem('faithbound.save
 function applySave(d){
 
   for(const s of ships)disposeShip(s);ships=[];for(const r of rockets)scene.remove(r.g);rockets=[];walkers=[];parts=[];eruptions=[];
-  sizeKey=d.sizeKey;W=d.W;H=d.H;N=W*H;worldSeed=d.worldSeed;hseed=(worldSeed%9973)/7;
+  sizeKey=Object.keys(SIZES).find(k=>SIZES[k].W===d.W)||d.sizeKey;W=d.W;H=d.H;N=W*H;worldSeed=d.worldSeed;hseed=(worldSeed%9973)/7;
   h=unb64(d.h,Float32Array);baseMoist=unb64(d.bm,Float32Array);moistD=unb64(d.md,Float32Array);warmD=d.wd?unb64(d.wd,Float32Array):null;owner=unb64(d.owner16||d.owner,Int16Array);
   biome=new Uint8Array(N);hab=new Float32Array(N);resetDisasters();
   worldOpts=Object.assign({pace:'standard',customN:1,customUnit:'weeks',calendar:false,anchorReal:0,anchorYear:0,maxEra:7},d.worldOpts||{});if(!PACES[worldOpts.pace])worldOpts.pace='standard';worldOpts.slot=d.slot||worldOpts.slot||null;worldOpts.name=d.worldName||worldOpts.name||'Unnamed world';if(!PACES[worldOpts.pace])worldOpts.pace='quick';
