@@ -75,3 +75,22 @@ function terrainLodTick(){if(settings.terrainLod===false){if(TLOD.t){TLOD.t.grp.
   if(TLOD.tv!==terrVer){TLOD.tv=terrVer;lodSpheres(TLOD.t);if(TLOD.w)lodSpheres(TLOD.w)}
   lodTick(TLOD.t);if(TLOD.w)lodTick(TLOD.w)}
 {const _rf=renderFrame;renderFrame=function(){try{terrainLodTick()}catch(e){console.warn('terrain lod',e);settings.terrainLod=false}return _rf.apply(this,arguments)}}
+
+/* ---------- send the graphics chip only what changed ----------
+   Moving things (people, animals, vehicles, armies) rewrite their instance lists every frame. Left alone, the browser
+   re-sends each whole buffer up to its maximum size, empty slots included: tens of megabytes a frame, which a laptop
+   chip sharing memory with the processor cannot keep up with. Here each changed buffer is trimmed to the slots in use,
+   and kinds of object with nothing to show are not drawn at all. */
+const UPL={on:true};
+function trimUploads(){if(!UPL.on||typeof KITS==='undefined')return;
+  for(const n in KITS){const m=KITS[n].mesh,c=m.count;m.visible=c>0;if(!c)continue;
+    const a=m.instanceMatrix;if(a.version!==a._lv){a._lv=a.version;if(a.updateRange.count===-1){a.updateRange.offset=0;a.updateRange.count=c*16}}
+    const ic=m.instanceColor;if(ic&&ic.version!==ic._lv){ic._lv=ic.version;if(ic.updateRange.count===-1){ic.updateRange.offset=0;ic.updateRange.count=c*3}}
+    const G=m.geometry.attributes;for(const k in G){const b=G[k];if(!b.isInstancedBufferAttribute||b.version===b._lv)continue;b._lv=b.version;if(b.updateRange.count===-1){b.updateRange.offset=0;b.updateRange.count=c*b.itemSize}}}}
+{const _rf2=renderFrame;renderFrame=function(){try{trimUploads()}catch(e){UPL.on=false}return _rf2.apply(this,arguments)}}
+
+/* ---------- on lighter detail levels, people, animals, carts and caravans move at half rate: they are slow, the eye does not notice, the processor does ---------- */
+const HALF={n:0};
+{const _rf3=renderFrame;renderFrame=function(){HALF.n++;return _rf3.apply(this,arguments)}}
+document.addEventListener('DOMContentLoaded',()=>{for(const f of ['updateWalkers','updateCaravans','updateLife','updateLiving']){const o=window[f];if(typeof o!=='function')continue;let acc=0;
+  window[f]=function(dt){if(perfOn()&&PERF.tier>=2&&(HALF.n&1)&&!(typeof camMoveT!=='undefined'&&performance.now()-camMoveT<200)){acc+=dt||0;return}const a=[...arguments];if(typeof a[0]==='number'){a[0]+=acc;acc=0}return o.apply(this,a)}}});
