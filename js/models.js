@@ -341,7 +341,7 @@ document.addEventListener('DOMContentLoaded',()=>{if(typeof tradeTrainRoutes!=='
   return true}}
 
 /* ---------- far away, a building is drawn as a plain block of its own colour: the detail is invisible there and costs the most ---------- */
-kit('lodBox',(()=>{const g=new THREE.BoxGeometry(1,1,1);g.translate(0,.5,0);return g})(),new THREE.MeshStandardMaterial({roughness:.9}),40000,true);
+kit('lodBox',(()=>{const g=new THREE.BoxGeometry(1,1,1);g.translate(0,.5,0);return g})(),new THREE.MeshStandardMaterial({roughness:.9}),40000,false);
 const LODP={stamp:-1,n:0};const _lodM=new THREE.Matrix4(),_lodC=new THREE.Color();
 const lodDist=()=>(settings.power==='saver'?6.5:settings.power==='max'?13:settings.quality==='low'?6.5:9)*(typeof PERF!=='undefined'&&perfOn()?PERF.lodK:1);
 {const _ck=cullKit;cullKit=function(K,P,margin){if(!K.lodC)return _ck(K,P,margin);
@@ -381,7 +381,7 @@ function loTreeGeo(src,type){src.computeBoundingBox();const b=src.boundingBox,y0
   else{cr=new THREE.IcosahedronGeometry(.5,0);cr.scale(w*.92,h*.62,w*.92);cr.translate(0,y0+h*.66,0)}
   put(cr,[.82,.82,.82]);const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.computeVertexNormals();return g}
 const LOD_KITS=['lodBox'];
-function makeTreeLo(name){const K=KITS[name];if(!K||K.lodP)return;const lo='lo_'+name;kit(lo,loTreeGeo(K.mesh.geometry,TREE_LO[name]),modelTreeMat(),K.max,true);KITS[lo].pn=0;K.lodP=lo;LOD_KITS.push(lo)}
+function makeTreeLo(name){const K=KITS[name];if(!K||K.lodP)return;const lo='lo_'+name;kit(lo,loTreeGeo(K.mesh.geometry,TREE_LO[name]),modelTreeMat(),K.max,false);KITS[lo].pn=0;K.lodP=lo;LOD_KITS.push(lo)}
 for(const n of ['conifer','broad','townTree','palm','bush'])makeTreeLo(n);
 {const _ps=prepStatic;prepStatic=function(name,g){const r=_ps.apply(this,arguments);if(TREE_LO['s_'+name])makeTreeLo('s_'+name);return r}}
 /* trees switch to their simple crowns closer in than buildings do, since a forest is thousands of them */
@@ -458,3 +458,37 @@ function worldSounds(dt){if(!SND.on||typeof camT==='undefined')return;const t=SN
   AUD.howl-=dt;if(AUD.howl<=0){AUD.howl=25+Math.random()*30;if(night>.4&&typeof wildHerds!=='undefined'){const w=wildHerds.find(h=>h._mn==='wolf');const v=w?sndNear(w.x,w.z):0;if(v>.1){tone('sine',420,t,2.4,.05*v,null,{slide:560,a:.6,verb:true});tone('sine',560,t+2.2,1.4,.035*v,null,{slide:380,a:.2,verb:true})}}}
   AUD.whale-=dt;if(AUD.whale<=0){AUD.whale=18+Math.random()*25;if(typeof seaWhales!=='undefined'){const w=seaWhales[0],v=w?sndNear(w.x,w.z):0;if(v>.1)tone('sine',190,t,3.2,.06*v,null,{slide:120,a:.8,verb:true})}}}
 document.addEventListener('DOMContentLoaded',()=>{if(typeof updateAudio!=='function')return;const _ua=updateAudio;updateAudio=function(dt){const r=_ua.apply(this,arguments);try{worldSounds(dt||1/60)}catch(e){}return r}});
+
+/* ---------- forest blocks: far away, a whole wooded tile is drawn as one lumpy canopy instead of dozens of trees ---------- */
+function canopyGeo(cone){const P=[],C=[],put=(g,col)=>{g=g.index?g.toNonIndexed():g;const a=g.attributes.position.array;for(let i=0;i<a.length;i+=3){P.push(a[i],a[i+1],a[i+2]);C.push(...col)}};
+  const spots=[[0,0,1],[.28,.22,.82],[-.27,.25,.86],[.25,-.28,.8],[-.3,-.22,.9],[0,.36,.75],[.36,-.02,.78],[-.36,.04,.84],[.02,-.36,.8]];
+  for(const [x,z,hh] of spots){let g;if(cone){g=new THREE.ConeGeometry(.17,hh,6,1);g.translate(x,hh/2,z)}else{g=new THREE.IcosahedronGeometry(.5,0);g.scale(.42,hh*.62,.42);g.translate(x,hh*.62,z)}put(g,[.8,.8,.8])}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.computeVertexNormals();return g}
+kit('canopyR',canopyGeo(false),modelTreeMat(),12000,false);kit('canopyC',canopyGeo(true),modelTreeMat(),12000,false);
+KITS.canopyR.revLod=KITS.canopyC.revLod=true;TREE_KITS.push('canopyR','canopyC');
+let CANOPY=new Uint8Array(1);
+const CANOPY_SRC=['conifer','broad','palm','s_tree_a','s_tree_b','s_tree_c','s_tree_d','s_bush_a','s_bush_b','s_bush_c'];
+const canopyDist=()=>lodDist()*1.45;
+function buildCanopies(){if(CANOPY.length!==N)CANOPY=new Uint8Array(N);else CANOPY.fill(0);kitReset(['canopyR','canopyC']);if(settings.canopy===false)return kitCommit(['canopyR','canopyC']);
+  const cnt=new Uint16Array(N),con=new Uint16Array(N),top=new Float32Array(N),col=new Float32Array(N*3);
+  for(const n of CANOPY_SRC){const K=KITS[n];if(!K||!K.cs)continue;for(let i=0;i<K.n;i++){const x=K.cs[i*4],y=K.cs[i*4+1],z=K.cs[i*4+2],r=K.cs[i*4+3],t=tileAt(x,z);if(t<0)continue;
+    cnt[t]++;if(n==='conifer')con[t]++;top[t]+=y+r*.7;if(K.mc){col[t*3]+=K.mc[i*3];col[t*3+1]+=K.mc[i*3+1];col[t*3+2]+=K.mc[i*3+2]}else{col[t*3]+=.2;col[t*3+1]+=.3;col[t*3+2]+=.12}}}
+  const c3=new THREE.Color();
+  for(let t=0;t<N;t++){const c=cnt[t];if(c<6)continue;const x=wx(t%W)+.5,z=wz((t/W)|0)+.5,gy=groundY(x,z);if(gy<waterY)continue;const hh=Math.max(.15,top[t]/c-gy),cov=Math.min(1.05,.55+c/40);
+    c3.setRGB(col[t*3]/c,col[t*3+1]/c,col[t*3+2]/c);c3.convertLinearToSRGB();add(con[t]*2>c?'canopyC':'canopyR',x,gy-.01,z,cov,hh,cov,hash(t*3.1)*6.28,c3.getHex());CANOPY[t]=1}
+  kitCommit(['canopyR','canopyC'])}
+{const _rt=rebuildTrees;rebuildTrees=function(){const r=_rt.apply(this,arguments);try{buildCanopies()}catch(e){console.warn('canopy',e)}return r}}
+/* in the cull: trees on a blocked tile vanish beyond the canopy distance, and the canopy itself only shows out there */
+{const _ck3=cullKit;cullKit=function(K,P,margin){
+  if(K.revLod){const D2=canopyDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z,A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
+    for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2];if((x-cx)**2+(y-cy)**2+(z-cz)**2<D2)continue;const r=-(cs[i*4+3]+margin);let ok=true;
+      for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}if(!ok)continue;
+      A.set(M.subarray(i*16,i*16+16),v*16);if(MC)C.set(MC.subarray(i*3,i*3+3),v*3);v++}
+    K.mesh.count=v;K.mesh.instanceMatrix.needsUpdate=true;K.mesh.instanceColor.needsUpdate=true;return}
+  if(K.lodP&&(CANOPY_SRC.includes(K.name||'')||K.name==='bush')){const D2=canopyDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z,cs=K.cs;
+    /* hide the far trees that a canopy stands in for by temporarily pushing them out of every plane test */
+    const keep=K._keep||(K._keep=[]);keep.length=0;for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2];if((x-cx)**2+(y-cy)**2+(z-cz)**2>D2){const t=tileAt(x,z);if(t>=0&&CANOPY[t]){keep.push(i,cs[i*4+3]);cs[i*4+3]=-1e6}}}
+    _ck3(K,P,margin);for(let q=0;q<keep.length;q+=2)cs[keep[q]*4+3]=keep[q+1];return}
+  return _ck3(K,P,margin)}}
+for(const n in KITS)if(!KITS[n].name)KITS[n].name=n;
+{const _pk=prepStatic;prepStatic=function(name){const r=_pk.apply(this,arguments);const K=KITS['s_'+name];if(K)K.name='s_'+name;return r}}
