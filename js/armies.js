@@ -57,7 +57,7 @@ function drawArmies(now){
       for(let t=0;t<3;t++){const an=ang0+(t-1)*.22,x=cx+Math.cos(an)*.75,z=cz+Math.sin(an)*.75,y=groundY(x,z),face=Math.atan2(cz-z,cx-x);if(y<waterY+.02)continue;siegeEngine(e,x,y,z,face,nc)}}
     /* the troops in blocks, with a banner at the front */
     const rows=e>=6?2:4,cols=Math.ceil(men/rows),sp=e>=6?.07:.046;
-    if(e>=6){for(let i=0;i<Math.max(2,Math.round(men/9));i++){const u=(i%3-1)*.09,v=-Math.floor(i/3)*.1,x=a.x+c*v-sn*u,z=a.z+sn*v+c*u,y=groundY(x,z);if(y<waterY+.01)continue;tank(e,x,y,z,f,nc)}}
+    if(e>=6){const big=typeof modelOn==='function'&&modelOn('tank');for(let i=0;i<Math.max(2,Math.round(men/9));i++){const u=(i%3-1)*(big?.15:.09),v=-Math.floor(i/3)*(big?.24:.1),x=a.x+c*v-sn*u,z=a.z+sn*v+c*u,y=groundY(x,z);if(y<waterY+.01)continue;tank(e,x,y,z,f,nc)}}
     a._men=men;a._walk=walk;a._rows=rows;a._cols=cols;a._sp=sp;
     if(!FOLKMODE())for(let i=0;i<men;i++){const u=((i%cols)-(cols-1)/2)*sp,v=-Math.floor(i/cols)*sp-(e>=6?.2:0),x=a.x+c*v-sn*u,z=a.z+sn*v+c*u,y=groundY(x,z);if(y<waterY+.01)continue;
       const bob=walk?Math.abs(Math.sin(now/140+i*.7+a.ph))*.009:0,col=i%3===0?L.cloth:nc;/* tunics in the nation's colour */

@@ -52,7 +52,7 @@ const MODEL_DEFS={
   knightcharacter:{none:1,h:.052,axis:'z',anims:{walk:['Walk',8],idle:['Idle',2]}},
   viking_boat:{len:.42,axis:'x'},sail_ship:{len:.52,axis:'x'},boatwsail:{len:.2,axis:'x'},cruiseship:{len:.85,axis:'x'},
   commercial_airplane:{len:.25,axis:'x'},military_airplane:{len:.16,axis:'x'},smallplane:{len:.13,axis:'x'},
-  tank:{len:.08,axis:'x'},tank2:{len:.08,axis:'x'},tank3:{len:.08,axis:'x'}};
+  tank:{len:.17,axis:'x'},tank2:{len:.17,axis:'x'},tank3:{len:.17,axis:'x'}};
 /* per-model corrections found by looking at them in the game */
 const MODEL_FIX={male_casual:{yaw:-Math.PI/2},male_shirt:{yaw:-Math.PI/2},female_casual:{yaw:-Math.PI/2},female_dress:{yaw:-Math.PI/2},knightcharacter:{yaw:-Math.PI/2},tank:{flip:1},tank2:{flip:1},tank3:{flip:1},commercial_airplane:{yaw:Math.PI/2},military_airplane:{yaw:Math.PI/2},smallplane:{yaw:Math.PI/2}};
 const MODEL_CAP={cow:500,horse:300,sheep:600,pig:300,male_casual:500,male_shirt:500,female_casual:500,female_dress:500,knightcharacter:700,tank:300,tank2:300,tank3:300};
