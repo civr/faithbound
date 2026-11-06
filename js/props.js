@@ -204,11 +204,31 @@ kit('bird',(()=>{const g=new THREE.BufferGeometry();g.setAttribute('position',ne
 kit('body',unitBox(),MAT.plain,900,false);kit('cart',unitBox(),MAT.plain,200);kit('cartTop',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,8,1,false,0,Math.PI);g.rotateZ(Math.PI/2);g.translate(0,.0,0);return g})(),MAT.plain,200);kit('head',new THREE.SphereGeometry(.5,6,4),MAT.plain,900,false);
 function kitReset(names){for(const n of names)KITS[n].k=0}
 function kitCommit(names){if(typeof shadowForce!=='undefined')shadowForce=true;for(const n of names){const K=KITS[n];K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;if(K.mesh.instanceColor)K.mesh.instanceColor.needsUpdate=true}}
-function add(name,x,y,z,sx,sy,sz,rot,hex,tilt){const K=KITS[name];if(K.k>=K.max)return;
+function add(name,x,y,z,sx,sy,sz,rot,hex,tilt){const K=KITS[name];if(K.k>=K.max)return;if(CAPT)CAPT.push(x,z,sx,sz,rot||0);
   dummy.position.set(x,y,z);dummy.rotation.set(tilt||0,rot||0,0);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();
   K.mesh.setMatrixAt(K.k,dummy.matrix);K.mesh.setColorAt(K.k,tmpC.set(hex==null?0xffffff:hex).convertSRGBToLinear());K.k++;
   if(REC){const r=REC.k[name]||(REC.k[name]=[]);const m=dummy.matrix.elements;for(let i=0;i<16;i++)r.push(m[i]);r.push(tmpC.r,tmpC.g,tmpC.b)}}
 let REC=null;
+/* ---------- buildings are solid things: each one's real footprint is measured from what it is built of, and nothing may stand inside another ---------- */
+let CAPT=null,FOOTREC=null;const FOOT=new Map(),FCELL=.25;
+function footOf(a,ox,oz,rot,pad){if(!a.length)return null;const c=Math.cos(rot),s=Math.sin(rot);let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
+  for(let i=0;i<a.length;i+=5){const dx=a[i]-ox,dz=a[i+1]-oz,lx=dx*c-dz*s,lz=dx*s+dz*c,dr=a[i+4]-rot,cd=Math.abs(Math.cos(dr)),sd=Math.abs(Math.sin(dr)),hx=Math.abs(a[i+2])/2,hz=Math.abs(a[i+3])/2;
+    const ex=cd*hx+sd*hz,ez=sd*hx+cd*hz;if(lx-ex<x0)x0=lx-ex;if(lx+ex>x1)x1=lx+ex;if(lz-ez<z0)z0=lz-ez;if(lz+ez>z1)z1=lz+ez}
+  const mx=(x0+x1)/2,mz=(z0+z1)/2,hw=(x1-x0)/2+pad,hd=(z1-z0)/2+pad;return {x:ox+mx*c+mz*s,z:oz-mx*s+mz*c,hw,hd,c,s,r:Math.hypot(hw,hd)}}
+function footEach(o,cb){for(let gx=Math.floor((o.x-o.r)/FCELL);gx<=Math.floor((o.x+o.r)/FCELL);gx++)for(let gz=Math.floor((o.z-o.r)/FCELL);gz<=Math.floor((o.z+o.r)/FCELL);gz++)if(cb(gx+','+gz))return true;return false}
+function footAdd(o){footEach(o,k=>{let L=FOOT.get(k);if(!L)FOOT.set(k,L=[]);L.push(o)});if(FOOTREC)FOOTREC.push(o)}
+/* two footprints overlap unless some edge direction separates them */
+function obbHit(a,b){const dx=b.x-a.x,dz=b.z-a.z;if(dx*dx+dz*dz>(a.r+b.r)**2)return false;
+  for(const [nx,nz] of [[a.c,-a.s],[a.s,a.c],[b.c,-b.s],[b.s,b.c]]){const ra=a.hw*Math.abs(a.c*nx-a.s*nz)+a.hd*Math.abs(a.s*nx+a.c*nz),rb=b.hw*Math.abs(b.c*nx-b.s*nz)+b.hd*Math.abs(b.s*nx+b.c*nz);
+    if(Math.abs(dx*nx+dz*nz)>ra+rb)return false}return true}
+function footHits(o,ign){return footEach(o,k=>{const L=FOOT.get(k);if(L)for(const q of L)if(q.t!==ign&&obbHit(o,q))return true;return false})}
+/* build something as a solid thing: if it would stand inside anything already there, it is taken down again */
+function solid(fn,ox,oz,rot,force,pad,tag){const snap={k:{},rec:REC?{}:null,em:emitters.length,tall:MCTX&&MCTX.tall?MCTX.tall.length:0};
+  for(const nm in KITS)snap.k[nm]=KITS[nm].k;if(REC)for(const nm in REC.k)snap.rec[nm]=REC.k[nm].length;
+  const prev=CAPT;CAPT=[];let cap;try{fn()}finally{cap=CAPT;CAPT=prev}
+  const o=footOf(cap,ox,oz,rot,pad??.002);if(!o)return true;
+  if(!force&&footHits(o,tag==='tower'?'wall':null)){for(const nm in snap.k)KITS[nm].k=snap.k[nm];if(REC)for(const nm in REC.k)REC.k[nm].length=snap.rec[nm]||0;emitters.length=snap.em;if(MCTX&&MCTX.tall)MCTX.tall.length=snap.tall;return false}
+  o.f=!!force;o.t=tag||(force?'big':'house');footAdd(o);if(prev)for(const v of cap)prev.push(v);return true}
 /* place relative to a rotated frame */
 function P(name,cx,cy,cz,rot,dx,dz,dy,sx,sy,sz,hex,extraRot){const c=Math.cos(rot),s=Math.sin(rot);add(name,cx+dx*c+dz*s,cy+dy,cz-dx*s+dz*c,sx,sy,sz,rot+(extraRot||0),hex)}
 const BUILD_KITS=['adobe','adobeCyl','hipTile','domeW','hipThatch','timber','bed','hay','plaster','stone','brick','thatch','tiles','coneThatch','coneTile','pyr','tower','office','glass','dome','box','cyl','ring','flame','fence','lamp','awning','plazaStone','plazaDirt','pool','townTree','boat'];
@@ -359,11 +379,11 @@ function townWall0(n,plan,cx,cz,R,e,far,i0){const stone=e>=3,col=stone?0xcfc8b8:
     if(ti<0||isWater(ti)||owner[ti]!==n.id)continue;const y=groundY(mx,mz);if(y<waterY+.02)continue;
     if(nearGate((t0+t1)/2)){continue}
     const len=Math.hypot(x1-x0,z1-z0)+.004,rot=Math.atan2(-(z1-z0),x1-x0);
-    if(stone){add('stone',mx,y-.03,mz,len,H+.03,.024,rot,col);if(!far)crenel(mx,y+H,mz,len,rot,col)}
-    else{for(let q=0;q<3;q++){const f=(q+.5)/3;add('cyl',x0+(x1-x0)*f,y-.03,z0+(z1-z0)*f,.012,H+.03+hash(k*3+q)*.02,.012,0,col)}}
-    if(k%7===0){add(stone?'tower':'cyl',mx,y-.03,mz,stone?.065:.03,H+.08,stone?.065:.03,0,col);if(stone)add('coneTile',mx,y+H+.05,mz,.08,.07,.08,0,ROOF_SLATE[0])}}
+    solid(()=>{if(stone){add('stone',mx,y-.03,mz,len,H+.03,.024,rot,col);if(!far)crenel(mx,y+H,mz,len,rot,col)}
+    else{for(let q=0;q<3;q++){const f=(q+.5)/3;add('cyl',x0+(x1-x0)*f,y-.03,z0+(z1-z0)*f,.012,H+.03+hash(k*3+q)*.02,.012,0,col)}}},mx,mz,rot,false,-.005,'wall');
+    if(k%7===0)solid(()=>{add(stone?'tower':'cyl',mx,y-.03,mz,stone?.065:.03,H+.08,stone?.065:.03,0,col);if(stone)add('coneTile',mx,y+H+.05,mz,.08,.07,.08,0,ROOF_SLATE[0])},mx,mz,0,false,undefined,'tower')}
   for(const g of gates){const [gx,gz]=pt(g),ti=tileAt(gx,gz);if(ti<0||isWater(ti)||owner[ti]!==n.id)continue;const y=groundY(gx,gz),tx=-Math.sin(g),tz=Math.cos(g),o=.045;
-    for(const sd of [-1,1]){const X=gx+tx*o*sd,Z=gz+tz*o*sd;add(stone?'tower':'cyl',X,y-.03,Z,stone?.06:.035,H+.1,stone?.06:.035,0,col);if(stone)add('coneTile',X,y+H+.07,Z,.075,.07,.075,0,ROOF_SLATE[0])}
+    for(const sd of [-1,1]){const X=gx+tx*o*sd,Z=gz+tz*o*sd;solid(()=>{add(stone?'tower':'cyl',X,y-.03,Z,stone?.06:.035,H+.1,stone?.06:.035,0,col);if(stone)add('coneTile',X,y+H+.07,Z,.075,.07,.075,0,ROOF_SLATE[0])},X,Z,0,false,undefined,'tower')}
     if(stone)add('stone',gx,y+H*.7,gz,.1,H*.45,.03,Math.atan2(-tz,tx),col)}}
 function landmark(n,x,y,z,e){const nc=parseInt(n.color.slice(1),16);if(cultureLandmark(n,x,y,z,e,nc))return;
   if(e===0){add('cyl',x,y-.02,z,.14,.06,.14,0,0x7d6248);add('coneThatch',x,y+.035,z,.2,.13,.2);
@@ -809,7 +829,7 @@ function cityKey(n,c,ci,e,lvl,gold,cap){const MR=metroRadius(n,c,cap,e),rad=Math
   const far=Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
   return [n.id,e,lvl,cap?1:0,gold?1:0,n.festival>0?1:0,c.statue?c.statue.faith:-1,c.siege>.08?1:0,c.riot&&year-c.riot<6?1:0,n.faith,n.wonder,flagKey(n.flag),cultOf(n),settings.arch,terrVer,flatSig.length,oh,far?1:0,Math.round(MR*4),
     n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),n.techs&&n.techs.includes('starships')?1:0,ci].join('|')}
-function replayCity(Rc){for(const name in Rc.k){const K=KITS[name],a=Rc.k[name],cnt=a.length/19,M=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array;
+function replayCity(Rc){if(Rc.ft){const fr=FOOTREC;FOOTREC=null;for(const o of Rc.ft)footAdd(o);FOOTREC=fr}for(const name in Rc.k){const K=KITS[name],a=Rc.k[name],cnt=a.length/19,M=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array;
     for(let i=0;i<cnt&&K.k<K.max;i++){M.set(a.subarray(i*19,i*19+16),K.k*16);C.set(a.subarray(i*19+16,i*19+19),K.k*3);K.k++}}
   for(const v of Rc.occ)occupied.add(v);for(const v of Rc.bare)bare.add(v);for(const v of Rc.bg)bgrid.add(v);
   emitters.push(...Rc.em);herds.push(...Rc.hd);cityStreets.push(...Rc.cs);airports.push(...Rc.ap);spaceports.push(...Rc.sp);
@@ -817,7 +837,7 @@ function replayCity(Rc){for(const name in Rc.k){const K=KITS[name],a=Rc.k[name],
 let RB0=0;
 let sootSig='';
 function rebuildCities(){patchSets();RB0=performance.now();{let s='';for(const n of nations)if(n.alive&&n.era>=5&&n.era<=6)s+=n.id+':'+n.era+':'+n.cities.length+';';if(s!==sootSig){sootSig=s;if(typeof colorDirty!=='undefined')colorDirty=true}}
-  for(const m of townFlags)scene.remove(m);townFlags=[];airports=[];spaceports=[];bgrid.clear();kitReset(BUILD_KITS);occupied.clear();bare.clear();grassAt.x=1e9;emitters=[];herds=[];cityStreets=[];for(const g of windmills)scene.remove(g);windmills=[];
+  for(const m of townFlags)scene.remove(m);townFlags=[];airports=[];spaceports=[];bgrid.clear();FOOT.clear();kitReset(BUILD_KITS);occupied.clear();bare.clear();grassAt.x=1e9;emitters=[];herds=[];cityStreets=[];for(const g of windmills)scene.remove(g);windmills=[];
   const stale=[];
   for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(10,cityLevel(n)+(gold?1.5:0))*2)/2;
     n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);
@@ -829,41 +849,44 @@ function rebuildCities(){patchSets();RB0=performance.now();{let s='';for(const n
   for(const q of stale){if(performance.now()-RB0<14||q.hit.era!==q.e)buildOne(q.n,q.c,q.ci,q.e,q.gold,q.lvl,q.key);else{propsDirty=true;replayCity(q.hit)}}
   buildExtras()}
 function buildOne(n,c,ci,e,gold,lvl,key){const L0={em:emitters.length,hd:herds.length,cs:cityStreets.length,ap:airports.length,sp:spaceports.length,wm:windmills.length,tf:townFlags.length};
-  REC={k:{},occ:[],bare:[],bg:[]};try{buildCity(n,c,ci,e,gold,lvl)}finally{const Rc=REC;REC=null;for(const nm in Rc.k)Rc.k[nm]=new Float32Array(Rc.k[nm]);
+  REC={k:{},occ:[],bare:[],bg:[]};FOOTREC=[];try{buildCity(n,c,ci,e,gold,lvl)}finally{const Rc=REC;REC=null;Rc.ft=FOOTREC;FOOTREC=null;for(const nm in Rc.k)Rc.k[nm]=new Float32Array(Rc.k[nm]);
     Object.assign(Rc,{key,era:e,t:performance.now(),em:emitters.slice(L0.em),hd:herds.slice(L0.hd),cs:cityStreets.slice(L0.cs),ap:airports.slice(L0.ap),sp:spaceports.slice(L0.sp),wm:windmills.slice(L0.wm),tf:townFlags.slice(L0.tf)});CITYCACHE.set(c,Rc)}}
 function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),cap=ci===0;occupied.add(i0);
       const cy=surfY(cx,cz);
       if(e>=1)bareMark(cx,cz,(cap?.3:.15)*.95);cityCenter(n,c,cx,cy,cz,e,cap,i0);
-      const KO=[],lag0=isLagoon(n,c,e);if(cap){if(lag0&&e>=3)lagoonCapital(n,cx,cy,cz,e);else landmark(n,cx,cy,cz,e);KO.push([cx,cz,lag0&&e>=3?.32:e===0?.3:e<=2?.46:e<=4?.7:e===5?.32:.2])}
-      const CO=cap&&e>=3&&e<=4?2.3:1;if(cap&&n.wonder){const wx_=cx+.42*CO,wz_=cz-.3*CO;wonder(n,wx_,surfY(wx_,wz_),wz_,n.wonder);occupied.add(Math.floor(wz_+H/2)*W+Math.floor(wx_+W/2));KO.push([wx_,wz_,.3])}
-      if(n.faith>=0&&(cap||hash(i0*3)<.35)){const tx=cx-.32*CO,tz=cz+.2*CO;sacredSite(faiths[n.faith],n,tx,surfY(tx,tz),tz,e,hash(i0)*3,cap);KO.push([tx,tz,cap?.26:.2])}
+      const KO=[],lag0=isLagoon(n,c,e);if(cap){solid(()=>{if(lag0&&e>=3)lagoonCapital(n,cx,cy,cz,e);else landmark(n,cx,cy,cz,e)},cx,cz,0,true);KO.push([cx,cz,lag0&&e>=3?.32:e===0?.3:e<=2?.46:e<=4?.7:e===5?.32:.2])}
+      const CO=cap&&e>=3&&e<=4?2.3:1;if(cap&&n.wonder){const wx_=cx+.42*CO,wz_=cz-.3*CO;solid(()=>wonder(n,wx_,surfY(wx_,wz_),wz_,n.wonder),wx_,wz_,0,false,undefined,'big');occupied.add(Math.floor(wz_+H/2)*W+Math.floor(wx_+W/2));KO.push([wx_,wz_,.3])}
+      if(n.faith>=0&&(cap||hash(i0*3)<.35)){const tx=cx-.32*CO,tz=cz+.2*CO;solid(()=>sacredSite(faiths[n.faith],n,tx,surfY(tx,tz),tz,e,hash(i0)*3,cap),tx,tz,0,false,undefined,'big');KO.push([tx,tz,cap?.26:.2])}
       if(c.dike)dikeRing(c,cx,cz);
       MCTX={lvl,cap,tall:[],w:.12,cu:cultOf(n),n};const lagoon=isLagoon(n,c,e);MCTX.lagoon=lagoon;const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+lvl*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?3.4:3.2):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
       if(plan.metro)plan.streets.forEach((st,si)=>{if(st.main&&st.base<=plan.pr+.01)reach.set(si,.5)});let k=0,placed=0;c._poi={pts:[],plaza:[cx,cz],r:plan.pr};
       const far=Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.3+2.5;MCTX.far=far;
+      if(e>=2&&e<=4&&!plan.metro&&count>=(cap?14:18)){const ds=[];for(const sl of slots){if(ds.length>=count)break;const t=tileAt(sl.x,sl.z);if(t<0||(owner[t]>=0&&owner[t]!==n.id))continue;ds.push(Math.hypot(sl.x-cx,sl.z-cz))}
+        if(ds.length>=(cap?14:18)){ds.sort((a,b)=>a-b);townWall(n,plan,cx,cz,ds[Math.floor(ds.length*.8)]+.09,e,far,i0)}}
       for(const sl of slots){if(placed>=count)break;k++;MCTX.w=sl.metro?sl.w:.12;if(far&&plan.metro&&sl.core<.3&&hash(k*7.7)<.75)continue;
         if(e>=1){/* two towns that meet never build on the same spot */const bk=Math.round(sl.x*12)+','+Math.round(sl.z*12);if(bgrid.has(bk))continue;bgrid.add(bk)}
         const ti=tileAt(sl.x,sl.z);if(ti<0||(owner[ti]>=0&&owner[ti]!==n.id))continue;
         if(KO.some(q=>Math.hypot(sl.x-q[0],sl.z-q[1])<q[2]+Math.max(sl.w,sl.d)*.6))continue;/* never on top of the temple, the palace or a wonder */
         const hw=sl.w/2,hd=sl.d/2,ca=Math.cos(sl.rot),sa=Math.sin(sl.rot);let mn=1e9,mx=-1e9;
         for(const [a,b] of [[-hw,-hd],[hw,-hd],[-hw,hd],[hw,hd],[0,0]]){const y=groundY(sl.x+a*ca+b*sa,sl.z-a*sa+b*ca);if(y<mn)mn=y;if(y>mx)mx=y}
-        const wet=lagoon&&mn<waterY+.03;if((!wet&&mn<waterY+.03)||(!wet&&mx-mn>.09))continue;placed++;occupied.add(ti);(MCTX.dists||(MCTX.dists=[])).push(Math.hypot(sl.x-cx,sl.z-cz));
-        bareRect(sl.x,sl.z,sl.rot,sl.w*1.15,sl.d*1.2);
-        let y=mx;if(wet){/* a stone footing rising out of the lagoon, green with weed at the waterline */y=Math.max(mx,waterY+.022);add('stone',sl.x,mn-.03,sl.z,sl.w*1.04,y-mn+.03,sl.d*1.04,sl.rot,0xc2b8a4);add('box',sl.x,waterY-.004,sl.z,sl.w*1.05,.01,sl.d*1.05,sl.rot,0x4a5a3a);
+        const wet=lagoon&&mn<waterY+.03;if((!wet&&mn<waterY+.03)||(!wet&&mx-mn>.09))continue;
+        let y=mx;const hk=hash(c.x*31+c.y*17+k*13);
+        const up=solid(()=>{
+        if(wet){/* a stone footing rising out of the lagoon, green with weed at the waterline */y=Math.max(mx,waterY+.022);add('stone',sl.x,mn-.03,sl.z,sl.w*1.04,y-mn+.03,sl.d*1.04,sl.rot,0xc2b8a4);add('box',sl.x,waterY-.004,sl.z,sl.w*1.05,.01,sl.d*1.05,sl.rot,0x4a5a3a);
           if(hash(k*3.3)<.45){const fx=Math.sin(sl.rot),fz=Math.cos(sl.rot),px=sl.x+fx*(sl.d/2+.02),pz=sl.z+fz*(sl.d/2+.02);/* mooring posts and a gondola */
             for(const sd of [-1,1])add('cyl',px+fz*sd*.02,waterY-.02,pz-fx*sd*.02,.004,.06,.004,0,hash(k+sd)<.5?0xc84a3a:0x2a4a7a);
             add('boat',px+fx*.012,waterY+.002,pz+fz*.012,.012,.008,.07,sl.rot+Math.PI/2,0x161616)}}
         else if(mx-mn>.012&&e>=1)add('stone',sl.x,mn-.03,sl.z,sl.w*1.04,mx-mn+.03,sl.d*1.04,sl.rot,0xa8a090);
-        const hk=hash(c.x*31+c.y*17+k*13);
         const fa=hash(i0*2.7)*6.283,inD=Math.abs(((Math.atan2(sl.z-cz,sl.x-cx)-fa+9.42)%6.283)-3.14)<1;/* the mills crowd into one smoky quarter */
         if(e===5&&sl.core<.4&&inD&&hk<.55&&(MCTX.fac|0)<(cap?7:3+lvl)){MCTX.fac=(MCTX.fac|0)+1;factory(sl.x,y,sl.z,sl.rot,true)}else dwelling(n,sl.x,y,sl.z,sl.rot,e,hk,k,sl.core);
         if(!far&&sl.pd>0&&e>=1&&e<=4&&cultOf(n)!=='mideast'&&cultOf(n)!=='africa')yard(sl.x,sl.z,sl.rot,sl.w,sl.d,sl.pd,sl.pw,hk);
         if(!far&&plan.metro&&e>=5&&e<=6&&sl.core<.5&&hk>.35)frontGarden(sl.x,y,sl.z,sl.rot,Math.min(sl.w,.075),Math.min(sl.d,.075),hk);
+        },sl.x,sl.z,sl.rot);
+        if(!up)continue;placed++;occupied.add(ti);(MCTX.dists||(MCTX.dists=[])).push(Math.hypot(sl.x-cx,sl.z-cz));bareRect(sl.x,sl.z,sl.rot,sl.w*1.15,sl.d*1.2);
         if(sl.st>=0)reach.set(sl.st,Math.max(reach.get(sl.st)||0,sl.at+.12));
         c._poi.pts.push([sl.fx,sl.fz]);
         if(!far&&e>=3&&e<=5&&hk<.16)smokeAt(sl.x,y+.13*(1+sl.core*.6),sl.z,false,.25)}
       if(e===7&&!far&&typeof windTurbine==='function'){/* wind turbines on the open ground beyond the town */const R2=(plan.metro||(cap?1.1:.7))+.45;for(let k=0;k<(cap?5:3);k++){const a=hash(i0*3.1+k)*6.283,x=cx+Math.cos(a)*R2,z=cz+Math.sin(a)*R2,t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id)continue;windTurbine(x,groundY(x,z),z,.34,hash(i0)*6.28)}}
-      if(e>=2&&e<=4&&placed>=(cap?14:18)&&!plan.metro)townWall(n,plan,cx,cz,MCTX.dists.sort((a,b)=>a-b)[Math.floor(MCTX.dists.length*.8)]+.09,e,far,i0);
       if(MCTX.fac>0){/* smog: a brown haze hangs over the mill towns */const R_=(plan.metro||(cap?1.1:.7))*1.05+.3;add('smog',cx,cy+.05,cz,R_*2,.3+MCTX.fac*.02,R_*2,0,0x6a5a48);
         const fa=hash(i0*2.7)*6.283;add('smog',cx+Math.cos(fa)*R_*.45,cy+.08,cz+Math.sin(fa)*R_*.45,R_*1.1,.36,R_*1.1,0,0x4a4038)}
       {const fa=hash(i0*11)*6.283,fr=(cap?.3:.15)*.62,fx=cx+Math.cos(fa)*fr,fz=cz+Math.sin(fa)*fr;townFlag(n,fx,groundY(fx,fz),fz,cap,e)}
