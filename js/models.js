@@ -70,7 +70,10 @@ function prepModel(name,gltf){const d=Object.assign({},MODEL_DEFS[name],MODEL_FI
   MDL.ready[name]=true;MDL_VER++;if(typeof propsDirty!=='undefined')propsDirty=true}
 const MODEL_KITS=()=>Object.keys(KITS).filter(n=>KITS[n].m&&n.startsWith('m_')&&!/^m_tank/.test(n));
 (function loadModels(){if(typeof THREE.GLTFLoader!=='function')return;const L=new THREE.GLTFLoader();
-  for(const name of Object.keys(MODEL_DEFS))L.load('assets/models/'+name+'.glb',g=>{try{prepModel(name,g)}catch(e){console.warn('model',name,e)}},undefined,()=>{})})();
+  const ok=(name,g)=>{try{prepModel(name,g)}catch(e){console.warn('model',name,e)}};
+  /* a web host that cannot serve .glb gets the same model packed as base64 in a .json file */
+  const viaJson=name=>fetch('assets/models/'+name+'.json').then(r=>r.ok?r.json():null).then(j=>{if(!j||!j.b64)return;const bin=atob(j.b64),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);L.parse(u.buffer,'',g=>ok(name,g),()=>{})}).catch(()=>{});
+  for(const name of Object.keys(MODEL_DEFS))L.load('assets/models/'+name+'.glb',g=>ok(name,g),undefined,()=>viaJson(name))})();
 const modelOn=name=>settings.models!==false&&!!MDL.ready[name];
 
 /* ---------- animals ---------- */
