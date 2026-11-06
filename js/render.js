@@ -63,10 +63,12 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
 POST.scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),postMat));
 function postActive(){return POST.ok&&settings.post!==false&&!!LK.post}
 let shadowAt=0,shadowSig='';
+/* shadows are drawn again only when the view or the sun has really moved: the camera at most 30 times a second, the slow sun 4 times a second */
+let shadowSun=-1;
 function shadowTick(){if(!renderer.shadowMap.enabled)return;renderer.shadowMap.autoUpdate=false;const now=performance.now(),
-    sig=(camT.x*20|0)+','+(camT.z*20|0)+','+(camDist*10|0)+','+(dayT*400|0),moved=sig!==shadowSig,
-    gap=moved?(settings.power==='saver'?66:16):(playing?250:1500);
-  if(now-shadowAt>gap||shadowForce){shadowAt=now;shadowSig=sig;shadowForce=false;renderer.shadowMap.needsUpdate=true}}
+    sig=(camT.x*20|0)+','+(camT.z*20|0)+','+(camDist*10|0),moved=sig!==shadowSig,sun=(dayT*400|0),sunMoved=sun!==shadowSun,
+    gap=moved?(settings.power==='saver'?66:settings.power==='max'?16:33):sunMoved?(settings.power==='saver'?500:250):(playing?1000:3000);
+  if(now-shadowAt>gap||shadowForce){shadowAt=now;shadowSig=sig;shadowSun=sun;shadowForce=false;renderer.shadowMap.needsUpdate=true}}
 let shadowForce=true;
 function renderFrame(){if(typeof cullTick==='function'&&settings.cull!==false)cullTick();shadowTick();
   if(!postActive()){PLU.uPL.value=0;renderer.render(scene,cam);return}
@@ -97,7 +99,7 @@ const colL=hex=>new THREE.Color(hex).convertSRGBToLinear();
 const BASE=-2.2,HS=6,SEA0=.44,R=3;let terrVer=0;
 
 function applyGraphics(){
-  const sz=settings.quality==='high'?4096:settings.quality==='medium'?2048:1024;
+  const sz=settings.quality==='high'?(settings.power==='max'?4096:2048):settings.quality==='medium'?2048:1024;
   if(sunL.shadow.map){sunL.shadow.map.dispose();sunL.shadow.map=null}
   sunL.shadow.mapSize.set(sz,sz);renderer.shadowMap.enabled=settings.shadows;sunL.castShadow=settings.shadows;
   scene.traverse(o=>{if(o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.needsUpdate=true)}});
@@ -176,7 +178,7 @@ function panBy(dx,dy){
 }
 function zoomBy(f){const L=camLimits();camDistT=clamp(camDistT*f,L.min,L.max)}
 function focusOn(x,z,dist){camT.x=x;camT.z=z;if(dist)camDistT=dist}
-function resize(){const w=innerWidth,hh=innerHeight,dpr=Math.min(settings.power==='saver'?1:settings.power==='max'&&settings.quality==='high'?2:1.5,devicePixelRatio||1);
+function resize(){const w=innerWidth,hh=innerHeight,dpr=Math.min(settings.power==='saver'?1:settings.power==='max'?(settings.quality==='high'?2:1.5):1.25,devicePixelRatio||1);
   renderer.setPixelRatio((settings.quality==='low'?Math.min(1,dpr):dpr)*(typeof dynScale==='number'?dynScale:1));renderer.setSize(w,hh,false);
   ov.width=Math.round(w*Math.min(2,devicePixelRatio||1));ov.height=Math.round(hh*Math.min(2,devicePixelRatio||1));
   cam.aspect=w/hh;cam.fov=w<hh?52:38;cam.updateProjectionMatrix()}

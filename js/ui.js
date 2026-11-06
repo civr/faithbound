@@ -685,7 +685,7 @@ $('#modalBox').addEventListener('click',e=>{const fm=e.target.closest('[data-fm]
   const sc_=e.target.closest('[data-scen]');if(sc_){if(sc_.dataset.scen)startScenario(sc_.dataset.scen);else closeModal();return}
   const cl=e.target.closest('[data-clim]');if(cl){const d=+cl.dataset.clim;if(d){if(typeof coopGuest==='function'&&coopGuest())coopAct('clim',{d});else doAct('clim',{d})}closeModal();return}
   const ub=e.target.closest('[data-ui]');if(ub){applyUI(ub.dataset.ui);openSettings();return}
-  const pw=e.target.closest('[data-pow]');if(pw){settings.power=pw.dataset.pow;saveSettings();resize();openSettings();return}
+  const pw=e.target.closest('[data-pow]');if(pw){settings.power=pw.dataset.pow;saveSettings();applyGraphics();openSettings();return}
   const mu=e.target.closest('[data-mus]');if(mu){settings.music=mu.dataset.mus;saveSettings();SND.bar=0;openSettings();return}
   const q=e.target.closest('[data-q]');if(q){settings.quality=q.dataset.q;saveSettings();applyGraphics();treesDirty=true;propsDirty=true;openSettings()}
   const lb=e.target.closest('[data-look]');if(lb){applyLook(lb.dataset.look);renderLooks('#looks3')}});
@@ -711,7 +711,7 @@ function openSettings(){setTimeout(()=>$('#modalBox').classList.add('setbox'),0)
     <p class="note">Lower quality draws fewer trees and smaller shadows. Use it on older phones.</p></div>
     <div class="sec"><span class="lab">Interface</span><div class="seg">${UIS.map(([k,l])=>`<button data-ui="${k}" aria-pressed="${(settings.ui||'parchment')===k}">${l}</button>`).join('')}</div></div>
     <div class="sec"><span class="lab">Power</span><div class="seg">${[['saver','Battery saver'],['balanced','Balanced'],['max','Maximum']].map(([k,l])=>`<button data-pow="${k}" aria-pressed="${(settings.power||'balanced')===k}">${l}</button>`).join('')}</div>
-    <p class="note">Battery saver runs at 30 frames a second and fewer pixels, so laptops stay cool and quiet. Balanced runs at 60, and at 30 on battery. Maximum has no limit.</p></div>
+    <p class="note">Balanced runs at 60 frames a second while you move the view and 30 when it is still, at a slightly lower resolution on sharp screens. Battery saver halves that again with fewer pixels, so laptops stay cool and quiet. Maximum has no limits and the sharpest shadows.</p></div>
     <div class="sec"><span class="lab">World mood</span><div class="seg">${['calm','lively','turbulent'].map(q=>`<button data-mood="${q}" aria-pressed="${(settings.mood||'calm')===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div><p class="note">How much happens at once. Calm keeps wars, prayers, plagues and choices rare.</p></div>
     <div class="sec"><span class="lab">Disasters</span><div class="seg">${['off','mild','normal','wild'].map(q=>`<button data-dis="${q}" aria-pressed="${(settings.disasters||'normal')===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div>
     <p class="note">Storms, wildfires, famine, epidemics, earthquakes and eruptions. Your own powers always work.</p></div>
@@ -766,8 +766,13 @@ function reportErr(where,e){frameErrs++;const m=(e&&e.message)||String(e);consol
 /* frame cap: keeps laptops cool. Balanced runs at 60 fps, drops to 30 on battery, on menus and when the window is in the background */
 let jobs=[],lastDraw=0,onBattery=false,propCam={x:0,z:0},roadSig='',lastRoads=0,bordersUrgent=false,dynScale=1,frameEMA=16,dynT=0;
 try{if(navigator.getBattery)navigator.getBattery().then(b=>{const u=()=>{onBattery=!b.charging};u();b.addEventListener('chargingchange',u)}).catch(()=>{})}catch(e){}
-function fpsCap(){const p=settings.power||'balanced';if(p==='max')return 0;let f=p==='saver'?30:60;
-  const md=$('#modal');if(onBattery||!playing||(md&&!md.hidden)||(document.hasFocus&&!document.hasFocus()))f=Math.min(f,30);return f}
+let camMoveT=0,camSig=null;
+function fpsCap(){const p=settings.power||'balanced';if(p==='max')return 0;const now=performance.now();
+  /* only movement you could see counts: the camera's slow settling onto the ground does not */
+  if(typeof cam!=='undefined'){const P=cam.position,Q=cam.quaternion,L=camSig||(camSig={x:P.x,y:P.y,z:P.z,qx:Q.x,qy:Q.y,qw:Q.w}),tol=Math.max(.004,(typeof camDist!=='undefined'?camDist:10)*.0012);
+    if(Math.abs(P.x-L.x)+Math.abs(P.y-L.y)+Math.abs(P.z-L.z)>tol||Math.abs(Q.x-L.qx)+Math.abs(Q.y-L.qy)+Math.abs(Q.w-L.qw)>.0008){Object.assign(L,{x:P.x,y:P.y,z:P.z,qx:Q.x,qy:Q.y,qw:Q.w});camMoveT=now}}
+  const moving=now-camMoveT<500;let f=p==='saver'?(moving?30:15):(moving?60:30);
+  const md=$('#modal');if(onBattery||!playing||(md&&!md.hidden)||(document.hasFocus&&!document.hasFocus()))f=Math.min(f,p==='saver'?15:30);return f}
 function frame(now){requestAnimationFrame(frame);const cap=fpsCap();if(cap&&now-lastDraw<1000/cap-2)return;const gap=now-lastDraw;lastDraw=now;
   if(gap<250){frameEMA=frameEMA*.95+gap*.05;dynT+=gap;if(dynT>1500&&(settings.power||'balanced')!=='max'){dynT=0;const want=1000/(cap||60);
     if(frameEMA>want*1.35&&dynScale>.6){dynScale=Math.max(.6,dynScale-.1);resize()}else if(frameEMA<want*1.08&&dynScale<1){dynScale=Math.min(1,dynScale+.05);resize()}}}try{frameBody(now)}catch(e){reportErr('frame',e)}}

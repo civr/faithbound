@@ -199,7 +199,9 @@ kit('plazaStone',unitCyl(24),MAT.plaza,400,false);kit('plazaDirt',unitCyl(18),MA
 kit('townTree',leafTree(23,'broad'),treeMat,16000);
 kit('boat',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,6,1,false,0,Math.PI);g.rotateZ(Math.PI);g.rotateY(Math.PI/2);g.scale(1,.6,1);return g})(),MAT.plain,400);
 kit('tuft',unitCone(4),stdMat({roughness:1}),16000,false);kit('flower',new THREE.SphereGeometry(.5,5,3),MAT.plain,8000,false);
-kit('animal',unitBox(),MAT.plain,1200,false);kit('car',unitBox(),MAT.plain,400,false);
+kit('animal',unitBox(),MAT.plain,1200,false);
+kit('aBody',new THREE.SphereGeometry(.5,10,7),stdMat({roughness:.95}),1400,false);kit('aHead',new THREE.SphereGeometry(.5,8,6),stdMat({roughness:.9}),1400,false);
+kit('aLeg',(()=>{const g=new THREE.CylinderGeometry(.5,.38,1,5);g.translate(0,-.5,0);return g})(),stdMat({roughness:.9}),5600,false);kit('car',unitBox(),MAT.plain,400,false);
 kit('bird',(()=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute([0,0,.3,-1,.25,-.3,0,0,0, 0,0,.3,0,0,0,1,.25,-.3],3));g.computeVertexNormals();return g})(),new THREE.MeshBasicMaterial({color:0x2a2a2a,side:THREE.DoubleSide}),300,false);
 kit('body',unitBox(),MAT.plain,900,false);kit('cart',unitBox(),MAT.plain,200);kit('cartTop',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,8,1,false,0,Math.PI);g.rotateZ(Math.PI/2);g.translate(0,.0,0);return g})(),MAT.plain,200);kit('head',new THREE.SphereGeometry(.5,6,4),MAT.plain,900,false);
 function kitReset(names){for(const n of names)KITS[n].k=0}
@@ -710,15 +712,24 @@ function updateGrass(now){grassU.uTime.value=now/1000;
 let flocks=[];
 function updateLife(dt,now){
   TX.river.offset.y=-now/1000*.35;INWU.uTime.value=now/1000;updateGrass(now);
-  kitReset(['animal','bird']);
-  for(const h of herds){for(let k=0;k<h.n;k++){const s=h.seed*13+k,t=now/1000*.06+hash(s)*20,x=h.x+Math.cos(t+k)*.08*hash(s+1)+(hash(s+2)-.5)*.14,z=h.z+Math.sin(t*.8+k)*.08*hash(s+3)+(hash(s+4)-.5)*.14,y=groundY(x,z),rot=t+k;
-    if(h.kind==='sheep'){add('animal',x,y,z,.026,.02,.038,rot,0xf2efe6);add('animal',x+Math.sin(rot)*.022,y+.012,z+Math.cos(rot)*.022,.012,.012,.014,rot,0x2a2622)}
-    else{const c=hash(s+5)<.5?0x6b4a32:0x2a2622;add('animal',x,y+.004,z,.03,.026,.05,rot,c);add('animal',x+Math.sin(rot)*.028,y+.016,z+Math.cos(rot)*.028,.016,.016,.018,rot,c)}}}
+  kitReset(['animal','bird','aBody','aHead','aLeg']);
+  /* sheep and cattle: a round body, a head that dips to graze, four legs that step as they wander, and a tail */
+  const T=now/1000,R2a=(camDist*1.4+2)**2;
+  for(const h of herds){if((h.x-camT.x)**2+(h.z-camT.z)**2>R2a)continue;for(let k=0;k<h.n;k++){const s=h.seed*13+k,a1=hash(s+1),a3=hash(s+3),t=T*.06+hash(s)*20,
+      x=h.x+Math.cos(t+k)*.08*a1+(hash(s+2)-.5)*.14,z=h.z+Math.sin(t*.8+k)*.08*a3+(hash(s+4)-.5)*.14,y=groundY(x,z);
+    const vx=-Math.sin(t+k)*.08*a1,vz=Math.cos(t*.8+k)*.8*.08*a3,rot=Math.atan2(vx,vz),c=Math.cos(rot),sn=Math.sin(rot),Lp=(lx,lz)=>[x+lx*c+lz*sn,z-lx*sn+lz*c];
+    const sheep=h.kind==='sheep',col=sheep?0xf2efe6:hash(s+5)<.5?0x6b4a32:hash(s+6)<.5?0x2a2622:0xd8cfc0,dark=sheep?0x2a2622:col,
+      L=sheep?.016:.022,bw=sheep?.03:.032,bh=sheep?.026:.03,bl=sheep?.044:.06,graze=Math.sin(T*.35+hash(s+7)*9)>.25,sw=Math.sin(T*6+k*1.7)*.38;
+    addR('aBody',x,y+L+bh*.42,z,bw,bh,bl,rot,0,0,col);
+    for(const [lx,lz,ph] of [[-.4,.32,1],[.4,.32,-1],[-.4,-.32,-1],[.4,-.32,1]]){const [px,pz]=Lp(lx*bw,lz*bl);addR('aLeg',px,y+L+.004,pz,sheep?.006:.008,L+.004,sheep?.006:.008,rot,sw*ph,0,dark)}
+    const hd=graze?[.0,bl*.55,-.004]:[0,bl*.52,bh*.45],[hx,hz]=Lp(hd[0],hd[1]);addR('aHead',hx,y+L+bh*.5+hd[2],hz,sheep?.014:.018,sheep?.014:.017,sheep?.02:.026,rot,graze?.5:-.1,0,dark);
+    if(!sheep){for(const sd of [-1,1]){const [ex,ez]=Lp(sd*.008,bl*.6+(graze?0:.004));addR('aLeg',ex,y+L+bh*.5+hd[2]+.01,ez,.002,.008,.002,rot,0,sd*1.1,0xe8e0d0)}
+      const [tx,tz]=Lp(0,-bl*.5);addR('aLeg',tx,y+L+bh*.7,tz,.002,.022,.002,rot,.25+Math.sin(T*2+k)*.15,0,dark)}}}
   if(!flocks.length&&W){for(let f=0;f<6;f++)flocks.push({x:(rng()-.5)*W*.7,z:(rng()-.5)*H*.7,r:1+rng()*2,sp:.15+rng()*.15,ph:rng()*6})}
   for(const f of flocks){const a=now/1000*f.sp+f.ph,fx=f.x+Math.cos(a)*f.r,fz=f.z+Math.sin(a)*f.r,dir=a+Math.PI/2,y=Math.max(groundY(fx,fz),waterY)+1.1;
     for(let k=0;k<7;k++){const row=Math.ceil(k/2),side=k%2?1:-1,bx=fx-Math.cos(dir)*.0+(-Math.sin(-dir))*0,ox=-row*.07,oz=side*row*.06,c=Math.cos(dir),s=Math.sin(dir);
       const px=fx+ox*c-oz*s,pz=fz+ox*s+oz*c,flap=.6+Math.abs(Math.sin(now/120+k))*.8;add('bird',px,y+Math.sin(now/700+k)*.03,pz,.035,.035*flap,.035,-dir+Math.PI/2)}}
-  kitCommit(['animal','bird'])}
+  kitCommit(['animal','bird','aBody','aHead','aLeg'])}
 const occupied=new Set();
 function cityLevel(n){return clamp(Math.sqrt(n.pop/Math.max(1,n.cities.length))/2.3,1,10)}
 /* ---------- town plans: every town grows its own street network from a centre ---------- */
@@ -1223,8 +1234,8 @@ function updateWalkers(dt,yrs){
           if(night&&rng()<.75){const p=cityPoint(c,[w.x,w.z]);w.tx=p[0];w.tz=p[1];w.act='home'}
           else if(fp){w.tx=fp[0];w.tz=fp[1];w.act='farm'}else{const p=cityPoint(c,[w.x,w.z],n.festival>0);w.tx=p[0];w.tz=p[1];w.act=rng()<.5?'chat':'idle'}}}
       continue}
-    const dx=w.tx-w.x,dz=w.tz-w.z,d=Math.hypot(dx,dz),spd=(w.sol?.12:w.kid?.1:.075)*(.8+Math.min(3,yrs/dt||1)*.2),sp=spd*dt;
-    if(d<.012){w.wait=w.act==='home'?8+rng()*10:w.act==='farm'?4+rng()*6:w.sol?1+rng()*3:1+rng()*4;w.moving=false;
+    const dx=w.tx-w.x,dz=w.tz-w.z,d=Math.hypot(dx,dz),spd=(w.sol?.15:w.kid?.14:.11)*(.85+Math.min(3,yrs/dt||1)*.15),sp=spd*dt;
+    if(d<.012){w.wait=w.act==='home'?8+rng()*10:w.act==='farm'?3+rng()*4:w.sol?.6+rng()*1.6:w.act==='chat'?1+rng()*2.2:.3+rng()*1.4;w.moving=false;
       if(w.sol&&n.wars.size&&rng()<.45){const gy=groundY(w.x,w.z),fx=w.x+Math.sin(w.dir)*.02,fz=w.z+Math.cos(w.dir)*.02;
         if(n.era>=4){emit('flash',fx,gy+.022,fz,0,0);for(let q=0;q<3;q++)emit('smoke',fx+(rng()-.5)*.02,gy+.025,fz+(rng()-.5)*.02);if(typeof sfx==='function'&&Math.hypot(w.x-camT.x,w.z-camT.z)<camDist*.6)sfx('cannon',{near:.25})}
         else emit('dust',w.x,gy+.01,w.z);
@@ -1264,7 +1275,7 @@ function drawFolk(w){
   const sc=w.kid?.68:1,ry=w.dir,c=Math.cos(ry),s=Math.sin(ry),gy=w.y??groundY(w.x,w.z);
   const L=(lx,ly,lz)=>[w.x+lx*c+lz*s,gy+ly,w.z-lx*s+lz*c];
   let leg=0,arm=0,bend=0,armR=0,bob=0,lean=0;
-  if(w.moving){leg=Math.sin(w.ph)*.55;arm=-leg*.8;bob=Math.abs(Math.cos(w.ph))*.0012*sc}
+  if(w.moving){leg=Math.sin(w.ph)*.7;arm=-leg*.9;bob=Math.abs(Math.cos(w.ph))*.0016*sc}
   else if(w.act==='farm'&&w.wait>0){bend=.55;const q=Math.sin(w.t*5);armR=-.9-q*.5;arm=armR}
   else if(w.act==='chat'&&w.wait>0){arm=Math.sin(w.t*2.3)*.12;armR=-.35+Math.sin(w.t*3.1)*.3;lean=Math.sin(w.t*.7)*.05}
   else{arm=Math.sin(w.t*1.3)*.05}
