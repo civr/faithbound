@@ -117,11 +117,18 @@ const FLYGEO={fus:(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,12);g.rotateZ
   cone:(()=>{const g=new THREE.ConeGeometry(.5,1,16);return g})(),cyl:new THREE.CylinderGeometry(.5,.5,1,14)};
 const FLYMAT=new Map();const flyCol=hex=>{if(!FLYMAT.has(hex))FLYMAT.set(hex,stdMat({color:colL(parseInt(hex.slice(1),16))}));return FLYMAT.get(hex)};
 function partM(g,geo,m,x,y,z,sx,sy,sz){const o=new THREE.Mesh(geo,m);o.position.set(x,y,z);o.scale.set(sx,sy,sz);o.castShadow=true;g.add(o);return o}
-function makePlane(color,future){const g=new THREE.Group(),c=flyCol(color),M=future?FLY.white:FLY.white;
-  partM(g,FLYGEO.fus,M,0,0,0,.15,.018,.018);partM(g,FLYGEO.nose,M,.075,0,0,.03,.018,.018);partM(g,FLYGEO.nose,FLY.glass,.078,.004,0,.016,.008,.012);
-  partM(g,FLYGEO.box,M,.005,-.002,0,.035,.003,future?.11:.16);partM(g,FLYGEO.box,c,-.068,.014,0,.026,.026,.003);partM(g,FLYGEO.box,M,-.068,.004,0,.018,.003,.055);
-  for(const s of [-1,1])partM(g,FLYGEO.fus,future?FLY.glow:FLY.dark,.012,-.01,s*.04,.03,.01,.01);
-  partM(g,FLYGEO.box,c,0,.001,0,.12,.004,.0185);g.scale.setScalar(1.6);scene.add(g);return g}
+/* an airliner: a round body that narrows to the tail, swept wings with engines on pylons, a tail fin in the nation's colours and rows of windows */
+function makePlane(color,future){const g=new THREE.Group(),c=flyCol(color),M=FLY.white;
+  partM(g,FLYGEO.fus,M,.005,0,0,.13,.018,.018);partM(g,FLYGEO.nose,M,.07,0,0,.03,.018,.018);partM(g,FLYGEO2.taper,M,-.085,.001,0,.05,.018,.018);
+  partM(g,FLYGEO.nose,FLY.glass,.077,.0045,0,.012,.006,.012);
+  for(const s of [-1,1]){partM(g,FLYGEO.box,FLY.dark,-.005,.0025,s*.0089,.12,.0022,.0006);/* windows */
+    partM(g,WING(s),M,.018,-.005,0,.05,.03,future?.065:.085);/* wings */
+    if(!future){partM(g,FLYGEO.box,M,.024,-.008,s*.034,.012,.005,.002);partM(g,FLYGEO.fus,FLY_GREY,.028,-.0115,s*.034,.026,.0095,.0095);partM(g,FLYGEO.disc,FLY.dark,.041,-.0115,s*.034,.0085,.001,.0085).rotation.z=Math.PI/2}
+    else partM(g,FLYGEO.fus,FLY.glow,.0,-.006,s*.03,.024,.006,.006);
+    partM(g,WING(s),M,-.088,.002,0,.024,.02,.032)}/* tailplane */
+  const fin=partM(g,FLYGEO2.wing,c,-.088,.006,0,.034,.02,.03);fin.rotation.x=-Math.PI/2;
+  partM(g,FLYGEO.box,c,.0,-.004,0,.12,.0015,.0182);/* a stripe along the belly */
+  g.scale.setScalar(1.6);scene.add(g);return g}
 function makeShuttle(big){const g=new THREE.Group();
   if(!big){partM(g,FLYGEO.cyl,FLY.white,0,.11,0,.06,.22,.06);partM(g,FLYGEO.cone,FLY.white,0,.26,0,.06,.08,.06);
     for(let k=0;k<4;k++){const f=partM(g,FLYGEO.box,FLY.dark,Math.cos(k*Math.PI/2)*.035,.03,Math.sin(k*Math.PI/2)*.035,.03,.06,.004);f.rotation.y=-k*Math.PI/2}

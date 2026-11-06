@@ -59,3 +59,14 @@ function warReason(a,b,kind){
   return r}}
 
 {const _t=tick;tick=function(){_t.apply(this,arguments);harvestTick();migrationTick()}}
+
+/* ---------- endless play: after the last discovery, nations keep building great future works ---------- */
+const FUTURE_WORKS=['Ocean arcologies','A fusion grid','Weather mastery','Orbital gardens','Longevity clinics','Deep-sea farms','Carbon scrubbers','Lunar shipyards','Desert greening','Quantum archives','A sky elevator','Coral restoration','Rewilded continents','Asteroid mining','Living cities'];
+const FW_ROMAN=k=>['','II','III','IV','V','VI','VII','VIII','IX','X'][Math.min(9,k)]||String(k+1);
+{const _rs=research;research=function(n,pts){_rs.apply(this,arguments);
+  if(n.research||n.era<ERAS.length-1)return;
+  n.fwT=(n.fwT||0)+pts;const cost=TECHCOST[n.era]*.8;if(n.fwT<cost)return;
+  n.fwT-=cost;n.fw=(n.fw||0)+1;const k=n.fw-1,L=FUTURE_WORKS.length,name=FUTURE_WORKS[k%L]+(k>=L?' '+FW_ROMAN(Math.floor(k/L)):'');
+  n.lastWork=name;n.pop*=1.03;n.happy=clamp((n.happy??.6)+.03,0,1);
+  if(climate.anth>0)climate.anth=Math.max(0,climate.anth-.004);
+  if(n.id===selected||important(n))log(`${n.name} completed ${name}.`,'era')}}

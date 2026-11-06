@@ -285,10 +285,16 @@ function castle(n,x,y,z,e,nc){const S=.42,WH=.15,T=.032,col=0xd4cdbe,roof=e>=4?0
   const sides=[[0,-S,S*2,0],[0,S,S*2,0],[-S,0,S*2,Math.PI/2],[S,0,S*2,Math.PI/2]];
   sides.forEach(([dx,dz,L,r],si)=>{if(si===1){/* the gate side: two halves and a gatehouse */for(const sd of [-1,1])add('stone',x+sd*S*.6,y-.03,z+dz,S*.8,WH+.03,T,0,col),crenel(x+sd*S*.6,y+WH,z+dz,S*.8,0,col);
       for(const sd of [-1,1]){add('tower',x+sd*.07,y-.03,z+dz,.075,WH+.09,.075,0,col);add('coneTile',x+sd*.07,y+WH+.06,z+dz,.09,.07,.09,0,roof)}
-      add('stone',x,y+WH*.55,z+dz,.1,WH*.5,T*1.3,0,col);add('box',x,y-.03,z+dz+.005,.06,WH*.6,.004,0,0x3a2a1e);add('box',x,y-.03,z+dz+S*.25,.07,.008,S*.5,0,0x6a4a30)/* drawbridge */}
-    else{add('stone',x+dx,y-.03,z+dz,r?T:L,WH+.03,r?L:T,0,col);crenel(x+dx,y+WH,z+dz,L,r,col)}});
+      add('stone',x,y+WH*.55,z+dz,.1,WH*.5,T*1.3,0,col);add('box',x,y-.03,z+dz+.005,.06,WH*.6,.004,0,0x1e1812);
+      /* the portcullis: iron bars across the dark gateway */for(let q=0;q<5;q++)add('box',x-.024+q*.012,y-.03,z+dz+.0075,.0018,WH*.58,.0015,0,0x4a4a4a);for(let q=0;q<3;q++)add('box',x,y-.02+q*.025,z+dz+.0078,.055,.0018,.0015,0,0x4a4a4a);add('box',x,y-.03,z+dz+S*.25,.07,.008,S*.5,0,0x6a4a30)/* drawbridge */}
+    else{add('stone',x+dx,y-.03,z+dz,r?T:L,WH+.03,r?L:T,0,col);crenel(x+dx,y+WH,z+dz,L,r,col);
+      /* a corbelled ledge under the battlements, and arrow slits along the wall */
+      add('stone',x+dx,y+WH-.014,z+dz,r?T*1.55:L,.013,r?L:T*1.55,0,0xbab3a3);
+      for(let q=0;q<5;q++){const t=(q+.5)/5-.5,o=(dx||dz)>0?1:-1;add('box',x+dx+(r?o*T*.51:t*L),y+WH*.45,z+dz+(r?t*L:o*T*.51),r?.002:.005,.024,r?.005:.002,0,0x26221e)}}});
   for(const [dx,dz] of [[-1,-1],[1,-1],[-1,1],[1,1],[0,-1],[-1,0],[1,0]]){const X=x+dx*S,Z=z+dz*S,big=dx&&dz;
-    add('tower',X,y-.03,Z,big?.12:.09,WH+(big?.13:.08),big?.12:.09,0,col);add('coneTile',X,y+WH+(big?.1:.05),Z,big?.14:.11,big?.13:.1,big?.14:.11,0,roof);
+    add('tower',X,y-.03,Z,big?.12:.09,WH+(big?.13:.08),big?.12:.09,0,col);
+    {const rr=(big?.12:.09)/2+.0006,th=WH+(big?.13:.08);for(let q=0;q<4;q++){const a=q*1.5708+.785;for(const f of [.4,.78])add('box',X+Math.cos(a)*rr,y-.03+th*f,Z+Math.sin(a)*rr,.005,.022,.005,-a,0x26221e)}
+     add('tower',X,y+WH+(big?.13:.08)-.04,Z,(big?.12:.09)*1.12,.014,(big?.12:.09)*1.12,0,0xbab3a3)}add('coneTile',X,y+WH+(big?.1:.05),Z,big?.14:.11,big?.13:.1,big?.14:.11,0,roof);
     if(big){add('cyl',X,y+WH+.22,Z,.004,.06,.004,0,0x444444);add('box',X+.016,y+WH+.265,Z,.03,.018,.002,0,nc)}}
   /* the keep */const kx=x-.06,kz=z-.08;add('stone',kx,y-.03,kz,.22,.42,.22,0,0xe2dccf);crenel(kx,y+.39,kz-.11,.22,0,0xe2dccf);crenel(kx,y+.39,kz+.11,.22,0,0xe2dccf);crenel(kx-.11,y+.39,kz,.22,Math.PI/2,0xe2dccf);crenel(kx+.11,y+.39,kz,.22,Math.PI/2,0xe2dccf);
   for(const [dx,dz] of [[-1,-1],[1,-1],[-1,1],[1,1]]){add('tower',kx+dx*.11,y+.2,kz+dz*.11,.05,.24,.05,0,0xe2dccf);add('coneTile',kx+dx*.11,y+.44,kz+dz*.11,.065,.08,.065,0,roof)}
@@ -1288,6 +1294,7 @@ function triSail(a,b,c,belly){const p=[],u=[],ix=[],N=5;for(let j=0;j<=N;j++)for
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(u,2));g.setIndex(ix);g.computeVertexNormals();return g}
 function flagTex(color,skull){return canvasTex(64,(x,s)=>{x.fillStyle=color;x.fillRect(0,0,s,s);if(skull){x.fillStyle='#eee';x.beginPath();x.arc(32,26,11,0,7);x.fill();x.fillRect(25,33,14,8);x.fillStyle='#111';x.beginPath();x.arc(27,25,3,0,7);x.arc(37,25,3,0,7);x.fill();
   x.strokeStyle='#eee';x.lineWidth=4;x.beginPath();x.moveTo(14,44);x.lineTo(50,58);x.moveTo(50,44);x.lineTo(14,58);x.stroke()}else{x.fillStyle='rgba(255,255,255,.85)';x.fillRect(0,s*.42,s,s*.16);x.fillRect(s*.3,0,s*.12,s)}})}
+const LIFEBOAT_M=stdMat({color:colL(0xe8742a),roughness:.6});
 function makeShip(era,kind,color,nflag){
   const g=new THREE.Group(),mats=[],nc=colL(parseInt(color.slice(1),16)),pir=kind==='pirate',war=kind==='war'||pir;g.userData.mats=mats;
   const own=m=>{mats.push(m);return m};
@@ -1333,6 +1340,10 @@ function makeShip(era,kind,color,nflag){
     mesh(H.hull,hullMat('iron'),0,0,0);mesh(H.deck,DECKMAT,0,0,0);mesh(H.transom,SM.dark,0,0,0);
     const t=H.topAt(.5);mesh(SG.box,SM.white,-.02,t+.016,0,.2,.032,.06);mesh(SG.box,SM.white,.04,t+.04,0,.07,.02,.05);
     for(let k=0;k<10;k++)for(const sd of [-1,1])mesh(SG.box,SM.dark,-.11+k*.022,t+.018,sd*.0302,.008,.008,.002,false);
+    /* lifeboats on davits, portholes along the hull and the bridge windows */
+    for(let k=0;k<3;k++)for(const sd of [-1,1]){mesh(SG.box,SM.white,-.09+k*.05,t+.038,sd*.032,.026,.008,.009);mesh(SG.box,SM.wood,-.09+k*.05,t+.042,sd*.032,.024,.002,.007,false)}
+    for(let k=0;k<16;k++)for(const sd of [-1,1]){const u=.2+k*.04;mesh(SG.box,SM.dark,(u-.5)*.56,H.topAt(u)-.012,sd*(H.wAt(u)+.0008),.004,.004,.001,false)}
+    for(let k=0;k<4;k++)mesh(SG.box,SM.dark,.076,t+.044,(k-1.5)*.011,.001,.007,.008,false);
     const fm=own(stdMat({color:nc}));for(const fx of [-.05,.03]){mesh(SG.cyl,SM.dark,fx,t+.07,0,.026,.08,.026);mesh(SG.cyl,fm,fx,t+.09,0,.027,.016,.027)}
     for(const mx of [-.2,.2]){mast(mx,H.topAt(.5+mx/.56),.17,.004);line([mx,H.topAt(.5)+.17,0],[0,t+.06,0])}line([-.2,t+.17,0],[-.28,t+.01,0]);line([.2,t+.17,0],[.28,t+.02,0]);
     flag(-.27,t+.06,0,.03)}
@@ -1340,11 +1351,16 @@ function makeShip(era,kind,color,nflag){
       const H=SHIPGEO.cv||(SHIPGEO.cv=hullGeo({L:.95,W:.07,H:.06,D:.035,sheer:.04,stern:.95,bowPow:.45,uvx:3}));mesh(H.hull,hullMat('grey'),0,0,0);mesh(H.transom,SM.grey,0,0,0);
       const t=H.topAt(.5);mesh(SG.box,SHIPDECK2,0,t+.006,.01,.98,.012,.16);mesh(SG.box,SM.white,0,t+.0125,-.03,.9,.001,.004);mesh(SG.box,SM.white,.1,t+.0125,.03,.5,.001,.003).rotation.y=-.12;
       mesh(SG.box,SM.grey,-.05,t+.04,-.06,.12,.06,.03);mesh(SG.box,SM.dark,-.02,t+.07,-.06,.05,.012,.032);mesh(SG.cyl,SM.grey,-.06,t+.1,-.06,.004,.05,.004);mesh(SG.box,SM.dark,-.06,t+.12,-.06,.004,.004,.03);
-      const pm=own(stdMat({color:colL(0x6a7078)}));for(let k=0;k<5;k++){const px=-.3+k*.11,pz=.03+(k%2)*.02;mesh(SG.box,pm,px,t+.017,pz,.06,.008,.008);mesh(SG.box,pm,px+.005,t+.017,pz,.014,.003,.05)}
+      const pm=own(stdMat({color:colL(0x6a7078),metalness:.4,roughness:.5}));for(let k=0;k<6;k++){const px=-.34+k*.1,pz=.035+(k%2)*.025,jy=t+.016;
+        mesh(SG.cyl,pm,px,jy,pz,.006,.06,.006).rotation.z=Math.PI/2;if(typeof WING==='function')for(const s of [-1,1]){mesh(WING(s),pm,px+.004,jy-.002,pz,.034,.03,.026);mesh(WING(s),pm,px-.024,jy-.001,pz,.014,.02,.012)}
+        const fn=mesh(SG.box,pm,px-.026,jy+.008,pz,.012,.012,.0015);mesh(SG.box,SM.glass||SM.dark,px+.018,jy+.004,pz,.012,.004,.004,false)}
+      for(let k=0;k<4;k++)mesh(SG.box,SM.dark,-.035,t+.062,-.06+(k-1.5)*.0001,.001,.008,.028,false);
       flag(-.47,t+.05,0,.03)}
   else if(era===6&&!war&&Math.random()<.4){/* cruise liner: tiers of white decks with rows of windows and a funnel */
       const H=SHIPGEO.cruise||(SHIPGEO.cruise=hullGeo({L:.85,W:.065,H:.05,D:.04,sheer:.08,stern:.9,bowPow:.5,uvx:3}));mesh(H.hull,hullMat('iron'),0,0,0);mesh(H.deck,SHIPDECK2,0,0,0);mesh(H.transom,SM.dark,0,0,0);
       const t=H.topAt(.5);for(let d=0;d<4;d++){const L=.66-d*.1,w=.12-d*.012,y=t+.012+d*.026;mesh(SG.box,SM.white,-.03+d*.01,y,0,L,.026,w);for(const sd of [-1,1])mesh(SG.box,SM.hover,-.03+d*.01,y+.003,sd*(w/2+.0005),L*.96,.008,.001,false)}
+      const lbm=LIFEBOAT_M;for(let k=0;k<9;k++)for(const sd of [-1,1])mesh(SG.box,lbm,-.3+k*.07,t+.046,sd*.062,.04,.012,.012);
+      for(let k=0;k<22;k++)for(const sd of [-1,1]){const u=.12+k*.035;mesh(SG.box,SM.dark,(u-.5)*.85,H.topAt(u)-.018,sd*(H.wAt(u)+.0008),.006,.005,.001,false)}
       const fm=own(stdMat({color:nc}));mesh(SG.cyl,fm,-.18,t+.13,0,.05,.05,.034);mesh(SG.box,SM.hover,-.02,t+.12,0,.2,.006,.06);mesh(SG.box,SM.glow,.12,t+.115,0,.04,.004,.08,false);flag(-.42,t+.04,0,.03)}
   else if(era===6){if(war){/* destroyer: sleek grey hull, gun turrets, bridge and radar mast */
       const H=SHIPGEO.dd||(SHIPGEO.dd=hullGeo({L:.66,W:.042,H:.046,D:.03,sheer:.16,bowRise:.25,stern:.85,bowPow:.55,uvx:3}));mesh(H.hull,hullMat('grey'),0,0,0);mesh(H.deck,SHIPDECK2,0,0,0);mesh(H.transom,SM.grey,0,0,0);
