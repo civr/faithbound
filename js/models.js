@@ -52,14 +52,14 @@ const MODEL_DEFS={
   male_casual:{none:1,h:.05,axis:'z',anims:{walk:['Walk',8],idle:['Idle',2]}},male_shirt:{none:1,h:.05,axis:'z',anims:{walk:['Walk',8],idle:['Idle',2]}},
   female_casual:{none:1,h:.047,axis:'z',anims:{walk:['Walk',8],idle:['Idle',2]}},female_dress:{none:1,h:.047,axis:'z',anims:{walk:['Walk',8],idle:['Idle',2]}},
   knightcharacter:{none:1,h:.052,axis:'z',anims:{walk:['Walk',8],idle:['Idle',2]}},
-  viking_boat:{len:.42,axis:'x'},sail_ship:{len:.52,axis:'x'},boatwsail:{len:.2,axis:'x'},cruiseship:{len:.85,axis:'x'},
+  viking_boat:{len:.42,axis:'x'},liner:{len:.72,axis:'x'},sail_ship:{len:.52,axis:'x'},boatwsail:{len:.2,axis:'x'},cruiseship:{len:.85,axis:'x'},
   commercial_airplane:{len:.6,axis:'x'},military_airplane:{len:.3,axis:'x'},smallplane:{len:.22,axis:'x'},
   tank:{len:.17,axis:'x'},tank2:{len:.17,axis:'x'},tank3:{len:.17,axis:'x'},
   zebra:{len:.068,axis:'z',anims:{walk:['Walk',8],idle:['Idle',2]}},llama:{len:.06,axis:'z',anims:{idle:['Idle',4]}},wolf:{len:.056,axis:'z',anims:{walk:['Walking',8],idle:['Idle',2]}},
   dolphin:{len:.1,axis:'z',anims:{swim:['Swim',6]}},shark:{len:.11,axis:'z',anims:{swim:['Swim',6]}},whale:{len:.3,axis:'z',anims:{swim:['Swim',6]}},manta_ray:{len:.09,axis:'z',anims:{swim:['Swim',6]}},
   fish1:{len:.022,axis:'z',anims:{swim:['Swim',4]}},fish2:{len:.02,axis:'z',anims:{swim:['Swim',4]}},fish3:{len:.02,axis:'z',anims:{swim:['Swim',4]}}};
 /* per-model corrections found by looking at them in the game */
-const MODEL_FIX={wolf:{flip:1},male_casual:{yaw:-Math.PI/2},male_shirt:{yaw:-Math.PI/2},female_casual:{yaw:-Math.PI/2},female_dress:{yaw:-Math.PI/2},knightcharacter:{yaw:-Math.PI/2},tank:{flip:1},tank2:{flip:1},tank3:{flip:1},commercial_airplane:{yaw:Math.PI/2},military_airplane:{yaw:Math.PI/2},smallplane:{yaw:Math.PI/2}};
+const MODEL_FIX={wolf:{flip:1},liner:{flip:1},male_casual:{yaw:-Math.PI/2},male_shirt:{yaw:-Math.PI/2},female_casual:{yaw:-Math.PI/2},female_dress:{yaw:-Math.PI/2},knightcharacter:{yaw:-Math.PI/2},tank:{flip:1},tank2:{flip:1},tank3:{flip:1},commercial_airplane:{yaw:Math.PI/2},military_airplane:{yaw:Math.PI/2},smallplane:{yaw:Math.PI/2}};
 const MODEL_CAP={zebra:300,llama:200,wolf:200,dolphin:60,shark:30,whale:20,manta_ray:30,fish1:300,fish2:300,fish3:300,cow:500,horse:300,sheep:600,pig:300,male_casual:500,male_shirt:500,female_casual:500,female_dress:500,knightcharacter:700,tank:300,tank2:300,tank3:300};
 
 function findClip(anims,want){const w=want.toLowerCase();return anims.find(a=>{const n=a.name.toLowerCase().split('|').pop();return n===w||n.endsWith('_'+w)})||anims.find(a=>a.name.toLowerCase().includes(w))}
@@ -91,6 +91,7 @@ Object.assign(SMODEL,{med_house:{k:'build',unit:1,max:3000},town2s:{k:'build',un
   egypt_temple:{k:'build',unit:1,max:80},japan_temple:{k:'build',unit:1,max:80},maya_temple:{k:'build',unit:1,max:80},pantheon:{k:'build',unit:1,max:80},
   farm_barn:{k:'farm',unit:1,max:1500},farm_bigbarn:{k:'farm',unit:1,max:1000},farm_smallbarn:{k:'farm',unit:1,max:1500},farm_openbarn:{k:'farm',unit:1,max:1000},farm_silo:{k:'farm',unit:1,max:1500},
   farm_silo_house:{k:'farm',unit:1,max:800},farm_windmill:{k:'farm',unit:1,max:800},farm_towerwindmill:{k:'farm',unit:1,max:400},farm_watertower:{k:'farm',unit:1,max:600},farm_well:{k:'farm',unit:1,max:800},farm_chickencoop:{k:'farm',unit:1,max:1200}});
+Object.assign(SMODEL,Object.fromEntries(['ru_wall','ru_broken','ru_double','ru_arch','ru_hole','ru_half','ru_column','ru_colshort','ru_archway','ru_deadtree','ru_deadtree2','ru_bricks'].map(n=>[n,{k:'build',unit:1,max:900}])));
 Object.assign(SMODEL,{c_large:{k:'build',unit:1,max:400},c_round:{k:'build',unit:1,max:400},c_tallwall:{k:'build',unit:1,max:3000},c_gate:{k:'build',unit:1,max:300},c_small:{k:'build',unit:1,max:300},
   mv_house1:{k:'build',unit:1,max:1500,win:['windows']},mv_house2:{k:'build',unit:1,max:1500},mv_house3:{k:'build',unit:1,max:1500},mv_house4:{k:'build',unit:1,max:1500},mv_inn:{k:'build',unit:1,max:600},mv_smith:{k:'build',unit:1,max:600},mv_bell:{k:'build',unit:1,max:200},mv_mill:{k:'build',unit:1,max:200},
   rts_h4:{k:'build',unit:1,max:2000},rts_h5:{k:'build',unit:1,max:2000},rts_h6:{k:'build',unit:1,max:2500},torii:{k:'build',unit:1,max:100},
@@ -205,7 +206,7 @@ function drawHerdModel(h,k,x,y,z,rot,T,graze,moving){const name=h.kind==='sheep'
 
 /* ---------- people ---------- */
 function folkModel(w){if(w.sol)return w.uni<=4?'knightcharacter':(w.seed&1?'male_shirt':'male_casual');if(w.fem)return w.dress&&w.long?'female_dress':(w.seed&2?'female_casual':'female_dress');return w.seed&4?'male_shirt':'male_casual'}
-function drawFolkModel(w,gy){const name=folkModel(w);if(!modelOn(name)||(typeof camDist!=='undefined'&&camDist>15))return false;
+function drawFolkModel(w,gy){const name=folkModel(w);if(!modelOn(name)||(typeof camDist!=='undefined'&&camDist>12))return false;
   const F=MDL.frames[name],moving=w.moving&&F.walk,list=moving?F.walk:F.idle,TAU=6.2832;
   const fi=moving?Math.floor((((w.ph%TAU)+TAU)%TAU)/TAU*list.length):Math.floor((w.t||0)*1.2)%list.length;
   const s=w.kid?.7:1,top=w.dress||w.top,bot=w.dress&&w.long?w.dress:w.bot;
@@ -213,14 +214,22 @@ function drawFolkModel(w,gy){const name=folkModel(w);if(!modelOn(name)||(typeof 
 
 /* ---------- ships: a real hull for galleys, galleons and liners ---------- */
 const SHIP_GEO_CACHE={};
-function shipModelFor(era,kind){if(era<=2)return 'viking_boat';if(era<=4)return 'sail_ship';if(era===6&&kind!=='war'&&Math.random()<.5)return 'cruiseship';return null}
+function shipModelFor(era,kind){if(era<=2)return 'viking_boat';if(era<=4)return 'sail_ship';if(kind==='pirate')return null;
+  if(era<=6&&kind==='war')return modelOn('liner')?'warship':null;if(era===6&&Math.random()<.5)return 'cruiseship';if(era<=6)return 'liner';return null}
+/* a steam warship: the liner's hull and funnels in battleship grey, with gun turrets fore and aft */
+let WARSHIP_GEO=null;
+function warshipGeo(){if(WARSHIP_GEO)return WARSHIP_GEO;const g=MDL.geo.liner.clone(),C=g.attributes.color;
+  for(let i=0;i<C.count;i++){const l=.3*C.getX(i)+.59*C.getY(i)+.11*C.getZ(i),k=.45+.9*Math.min(1,l*1.6);C.setXYZ(i,.085*k,.09*k,.1*k)}C.needsUpdate=true;return WARSHIP_GEO=g}
 function shipGeoVariant(name,sail){const key=name+'|'+sail;if(SHIP_GEO_CACHE[key])return SHIP_GEO_CACHE[key];const g=MDL.geo[name].clone(),C=g.attributes.color,T=g.attributes.aPart,c=new THREE.Color(sail).convertSRGBToLinear();
   if(sail!=null)for(let i=0;i<T.count;i++)if(T.getX(i)>4.5)C.setXYZ(i,c.r,c.g,c.b);C.needsUpdate=true;return SHIP_GEO_CACHE[key]=g}
 const SHIP_MODEL_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.8});
-function modelShip(era,kind,color,nflag){const name=shipModelFor(era,kind);if(!name||!modelOn(name))return null;
+function modelShip(era,kind,color,nflag){let name=shipModelFor(era,kind);if(!name||(name!=='warship'&&!modelOn(name)))return null;const war=name==='warship';if(war)name='liner';
   const g=new THREE.Group(),mats=[];g.userData.mats=mats;const pir=kind==='pirate';
   const sail=pir?0x1a1a1a:kind==='war'?(()=>{const a=new THREE.Color(0xf2ead8),b=new THREE.Color(color);return a.lerp(b,.3).getHex()})():null;
-  const m=new THREE.Mesh(shipGeoVariant(name,sail),SHIP_MODEL_MAT);m.castShadow=true;g.add(m);
+  const m=new THREE.Mesh(war?warshipGeo():shipGeoVariant(name,sail),SHIP_MODEL_MAT);m.castShadow=true;g.add(m);
+  if(war){const geo=MDL.geo.liner;geo.computeBoundingBox();const bb=geo.boundingBox,L=bb.max.x-bb.min.x,dy=bb.max.y*.5;
+    for(const fx of [.36,.27,-.36]){const tx=bb.min.x+L*(.5+fx),tr=new THREE.Mesh(SG.box,SM.dark);tr.scale.set(.055,.022,.04);tr.position.set(tx,dy,0);tr.castShadow=true;g.add(tr);
+      for(const sd of [-.006,.006]){const b=new THREE.Mesh(SG.cyl,SM.dark);b.scale.set(.004,.05,.004);b.rotation.z=Math.PI/2;b.position.set(tx+(fx>0?.035:-.035),dy+.004,sd);g.add(b)}}}
   /* the nation's flag at the stern */
   if(typeof flagTexture==='function'||pir){const geo=MDL.geo[name];geo.computeBoundingBox();const bb=geo.boundingBox,fm=stdMat({map:!pir&&nflag&&typeof flagTexture==='function'?flagTexture(nflag):flagTex(pir?'#111':color,pir),side:THREE.DoubleSide,roughness:.9});mats.push(fm);
     /* a flagpole at the stern, the flag at its top */
@@ -269,7 +278,7 @@ function updateSeaLife(dt,k,now){if(!modelOn('dolphin'))return;seaT-=dt;
       else if(s.kind==='shark')y=waterY-.026;else if(s.kind==='manta_ray')y=waterY-.022+Math.sin(T+m.ph)*.004;else y=waterY-.008;
       addM(kn,x,y,z,1,ry+(s.kind[0]==='f'?Math.sin(T*2+m.ph)*.4:0),null,null,null,null,tilt);WILD_USED.add(kn)}}}
 document.addEventListener('DOMContentLoaded',()=>{if(typeof updateLiving!=='function')return;const _ul=updateLiving;updateLiving=function(dt,k,now){if(settings.models!==false)for(const nm of WILD_ONLY){const F=MDL.frames[nm];if(F)for(const key in F)for(const kn of F[key])if(KITS[kn])KITS[kn].k=0}
-  WILD_USED=new Set();const r=_ul.apply(this,arguments);try{updateSeaLife(dt,k,now);drawTraffic(now,k)}catch(e){console.warn('sea',e)}
+  WILD_USED=new Set();const r=_ul.apply(this,arguments);try{trainStations(dt,k)}catch(e){}try{updateSeaLife(dt,k,now);drawTraffic(now,k)}catch(e){console.warn('sea',e)}
   mcommit([...WILD_USED]);return r}});
 {const _um=updateModern;updateModern=function(){const r=_um.apply(this,arguments);for(const nm of VEH_KITS){const K=KITS[nm];K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;if(K.mesh.instanceColor)K.mesh.instanceColor.needsUpdate=true}return r}}
 
@@ -309,12 +318,13 @@ kit('railS',unitBox(),stdMat({color:0x5a4632,roughness:1}),40000,false);kit('rai
 let railSig='';
 function railPath(c){/* the road route, moved to one side of the road */const P=c.pts,out=[];for(let q=0;q<P.length;q++){const a=P[Math.max(0,q-1)],b=P[Math.min(P.length-1,q+1)],dx=b[0]-a[0],dz=b[1]-a[1],l=Math.hypot(dx,dz)||1;out.push([P[q][0]-dz/l*.1,P[q][1]+dx/l*.1])}
   let L=0;const acc=[0];for(let q=1;q<out.length;q++){L+=Math.hypot(out[q][0]-out[q-1][0],out[q][1]-out[q-1][1]);acc.push(L)}return {pts:out,acc,L}}
+function railBlocked(x,z){const i=tileAt(x,z);return i<0||occupied.has(i)||nearTown(x,z,.55)}
 function nearTown(x,z,R){for(const n of nations)if(n.alive)for(const c of n.cities)if(Math.hypot(wx(c.x)-x,wz(c.y)-z)<R)return true;return false}
 function rebuildRails(){const lines=(typeof tradeTrains!=='undefined'?tradeTrains:[]).filter(c=>{const n=nations[c.a];return n&&n.alive&&n.era>=5&&n.era<=6&&settings.models!==false});
   for(const c of lines)c._rail=railPath(c);
   const sig=lines.map(c=>c.a+':'+c.b+':'+c.pts.length).join('|')+'|'+terrVer;if(sig===railSig)return;railSig=sig;kitReset(['railS','railB']);
   for(const c of lines){const R=c._rail;let px=null,pz=null;
-    for(let t=0;t<=R.L;t+=.034){_tt.pts=R.pts;_tt.acc=R.acc;_tt.t=t;const [x,z,a]=tradeTrainAt(_tt),y=groundY(x,z);if(y<waterY+.01||nearTown(x,z,.55)){px=null;continue}
+    for(let t=0;t<=R.L;t+=.034){_tt.pts=R.pts;_tt.acc=R.acc;_tt.t=t;const [x,z,a]=tradeTrainAt(_tt),y=groundY(x,z);if(y<waterY+.01||railBlocked(x,z)){px=null;continue}
       const cs=Math.cos(a),sn=Math.sin(a);add('railS',x,y-.003,z,.012,.005,.045,-a,0x5a4632);
       if(px!==null)for(const sd of [-1,1]){const ox=-sn*.014*sd,oz=cs*.014*sd;add('railB',(x+px)/2+ox,y+.002,(z+pz)/2+oz,Math.hypot(x-px,z-pz)+.001,.004,.003,-a)}px=x;pz=z}}
   kitCommit(['railS','railB'])}
@@ -324,7 +334,7 @@ document.addEventListener('DOMContentLoaded',()=>{if(typeof tradeTrainRoutes!=='
   const cars=hs?(cargo?['cargo_box','cargo_coal','cargo_box']:['hs_wagon','hs_wagon','hs_wagon']):(cargo?['loco_tender','cargo_coal','cargo_box']:['loco_tender','loco_wagon','loco_wagon']);
   const len=n=>MDL.info[n]&&MDL.info[n].d?MDL.info[n].d.len:.08,T0=c.t/c.L*R.L;_tt.pts=R.pts;_tt.acc=R.acc;let off=0;const L=[front,...cars];
   for(let q=0;q<L.length;q++){const nm=L[q],hl=len(nm)/2;if(q)off+=hl+.004;_tt.t=clamp(T0-c.dir*off,0,R.L);const [px,pz,a]=tradeTrainAt(_tt),rr=c.dir>0?a:a+Math.PI,gy=groundY(px,pz);
-    if(gy>waterY+.01&&!nearTown(px,pz,.5))addV(nm,px,gy+.006,pz,Math.PI/2-rr);off+=hl}
+    if(gy>waterY+.01&&!railBlocked(px,pz))addV(nm,px,gy+.006,pz,Math.PI/2-rr);off+=hl}
   return true}}
 
 /* ---------- far away, a building is drawn as a plain block of its own colour: the detail is invisible there and costs the most ---------- */
@@ -350,9 +360,98 @@ function modelEras(n){
   if(n==='viking_boat')return [0,2];if(n==='sail_ship'||n==='boatwsail')return [2,5];if(n==='cruiseship')return [6,7];if(/plane/.test(n))return [5,7];if(/^tank/.test(n))return [5,6];
   if(/^(egypt|japan|maya|pantheon)/.test(n))return [1,3];if(n==='torii')return [1,4];if(/^c_/.test(n))return [3,4];if(n==='med_house')return [3,6];if(/^mv_/.test(n))return [3,4];if(/^rts_/.test(n))return [2,4];
   if(/^town|^cottage/.test(n))return [4,5];if(/^farm_/.test(n))return [4,6];if(/^(sub_house|flat|shop|hospital|bank|dt_)/.test(n))return [6,6];
-  if(/^(car\d|suv|sports|taxi|cop|bus|schoolbus|loco|hs_|cargo)/.test(n))return [5,6];if(/^fut_|^ship_/.test(n))return [7,7];return [0,7]}
+  if(/^(car\d|suv|sports|taxi|cop|bus|schoolbus|loco|hs_|cargo)/.test(n))return [5,6];if(/^fut_|^ship_/.test(n))return [7,7];if(n==='liner')return [5,6];return [0,7]}
 function ensureModels(){if(!MDL_LOADER||settings.models===false||typeof nations==='undefined')return;const eras=new Set();for(const n of nations)if(n.alive)eras.add(n.era);if(!eras.size)return;
-  for(const name of [...Object.keys(MODEL_DEFS),...Object.keys(SMODEL)]){if(MDL_REQ.has(name))continue;const [a,b]=modelEras(name);let need=false;for(const e of eras)if(e>=a&&e<=b){need=true;break}
+  for(const name of [...Object.keys(MODEL_DEFS),...Object.keys(SMODEL)]){if(MDL_REQ.has(name))continue;if(/^ru_/.test(name)&&!(typeof ruins!=='undefined'&&ruins.length))continue;const [a,b]=modelEras(name);let need=false;for(const e of eras)if(e>=a&&e<=b){need=true;break}
     if(need){MDL_REQ.add(name);MDL_LOADER(name)}}}
 setInterval(ensureModels,2000);
 function onModelsToggle(){SBVER++;MDL_VER++;propsDirty=true;treesDirty=true;railSig='';if(settings.models!==false)ensureModels()}
+
+/* ---------- far-away trees become a handful of triangles: a trunk and a simple crown of the same size and colour ---------- */
+const TREE_LO={conifer:'cone',broad:'round',townTree:'round',palm:'flat',bush:'bush',s_tree_c:'round',s_bush_a:'round',s_bush_b:'round',s_bush_c:'round',s_tree_a:'flat',s_tree_b:'flat',s_tree_d:'flat'};
+function loTreeGeo(src,type){src.computeBoundingBox();const b=src.boundingBox,y0=Math.max(0,b.min.y),h=b.max.y-y0,w=Math.max(b.max.x-b.min.x,b.max.z-b.min.z),P=[],C=[];
+  const put=(g,col)=>{g=g.index?g.toNonIndexed():g;const a=g.attributes.position.array;for(let i=0;i<a.length;i+=3){P.push(a[i],a[i+1],a[i+2]);C.push(...col)}};
+  if(type!=='bush'){const tk=new THREE.CylinderGeometry(w*.04,w*.06,h*(type==='cone'?.3:.55),4,1,true);tk.translate(0,y0+h*(type==='cone'?.15:.275),0);put(tk,TRUNK)}
+  let cr;if(type==='cone'){cr=new THREE.ConeGeometry(w*.48,h*.8,7,1);cr.translate(0,y0+h*.6,0)}
+  else if(type==='flat'){cr=new THREE.IcosahedronGeometry(.5,0);cr.scale(w*.95,h*.32,w*.95);cr.translate(0,y0+h*.82,0)}
+  else if(type==='bush'){cr=new THREE.IcosahedronGeometry(.5,0);cr.scale(w*.95,h*.95,w*.95);cr.translate(0,y0+h*.47,0)}
+  else{cr=new THREE.IcosahedronGeometry(.5,0);cr.scale(w*.92,h*.62,w*.92);cr.translate(0,y0+h*.66,0)}
+  put(cr,[.82,.82,.82]);const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.computeVertexNormals();return g}
+const LOD_KITS=['lodBox'];
+function makeTreeLo(name){const K=KITS[name];if(!K||K.lodP)return;const lo='lo_'+name;kit(lo,loTreeGeo(K.mesh.geometry,TREE_LO[name]),modelTreeMat(),K.max,true);KITS[lo].pn=0;K.lodP=lo;LOD_KITS.push(lo)}
+for(const n of ['conifer','broad','townTree','palm','bush'])makeTreeLo(n);
+{const _ps=prepStatic;prepStatic=function(name,g){const r=_ps.apply(this,arguments);if(TREE_LO['s_'+name])makeTreeLo('s_'+name);return r}}
+/* trees switch to their simple crowns closer in than buildings do, since a forest is thousands of them */
+{const _ck2=cullKit;cullKit=function(K,P,margin){if(!K.lodP)return _ck2(K,P,margin);
+  const LK=KITS[K.lodP];if(LK.stamp!==CULLK.last){LK.stamp=CULLK.last;LK.pn=0}const LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,LD2=(lodDist()*.62)**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
+  const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
+  for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
+    for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}
+    if(!ok)continue;
+    if((x-cx)**2+(y-cy)**2+(z-cz)**2>LD2){if(LK.pn<LK.max){LA.set(M.subarray(i*16,i*16+16),LK.pn*16);if(MC)LC.set(MC.subarray(i*3,i*3+3),LK.pn*3);LK.pn++}continue}
+    A.set(M.subarray(i*16,i*16+16),v*16);if(C&&MC)C.set(MC.subarray(i*3,i*3+3),v*3);v++}
+  K.mesh.count=v;const IM=K.mesh.instanceMatrix;IM.needsUpdate=true;if(IM.updateRange){IM.updateRange.offset=0;IM.updateRange.count=v*16}
+  if(K.mesh.instanceColor){const IC=K.mesh.instanceColor;IC.needsUpdate=true;if(IC.updateRange){IC.updateRange.offset=0;IC.updateRange.count=v*3}}}}
+{const _ct2=cullTick;cullTick=function(){const st=CULLK.last;const r=_ct2.apply(this,arguments);if(CULLK.last!==st)for(const nm of LOD_KITS){if(nm==='lodBox')continue;const LK=KITS[nm];if(LK.stamp!==CULLK.last){LK.stamp=CULLK.last;LK.pn=0}
+  LK.mesh.count=LK.pn;LK.mesh.instanceMatrix.needsUpdate=true;LK.mesh.instanceColor.needsUpdate=true}return r}}
+
+/* ---------- stations: where the railway reaches a town there is a platform and a station hall, and the train waits there before it turns back ---------- */
+kit('stP',unitBox(),MAT.stone,600,false);kit('stB',unitBox(),MAT.brick,600);kit('stR',gableGeo(),MAT.tiles,600);kit('stC',unitBox(),MAT.plain,600);
+function placeStation(R,t,toward,era){_tt.pts=R.pts;_tt.acc=R.acc;_tt.t=t;const [x,z,a]=tradeTrainAt(_tt),c=Math.cos(a),s=Math.sin(a),nx=-s,nz=c;/* the side away from the road */
+  const mid=t-toward*.1;_tt.t=clamp(mid,0,R.L);const [mx,mz]=tradeTrainAt(_tt),y=groundY(mx,mz);if(y<waterY+.02)return;
+  add('stP',mx+nx*.03,y-.006,mz+nz*.03,.24,.012,.03,-a,0xb8b0a0);
+  for(let tries=0;tries<4;tries++){const bt=clamp(mid-toward*tries*.07,0,R.L);_tt.t=bt;const [bx,bz]=tradeTrainAt(_tt),X=bx+nx*.08,Z=bz+nz*.08;if(typeof inBuilding==='function'&&inBuilding(X,Z))continue;const by=groundY(X,Z);
+    if(era>=6){add('stC',X,by-.01,Z,.13,.035,.06,-a,0xd8dde2);add('stC',X,by+.025,Z,.15,.004,.07,-a,0x4a5058);add('stC',mx+nx*.03,y+.035,mz+nz*.03,.2,.003,.035,-a,0x9fb8c8)}
+    else{add('stB',X,by-.01,Z,.12,.045,.055,-a,0xffffff);add('stR',X,by+.035,Z,.13,.03,.065,-a,0x5d6672);add('stC',X,by+.072,Z,.012,.02,.012,-a,0xe8e0d0)/* the clock turret */;
+      for(let q=0;q<4;q++){_tt.t=clamp(mid+(q-1.5)*.055,0,R.L);const [px,pz]=tradeTrainAt(_tt);add('stC',px+nx*.038,y,pz+nz*.038,.003,.032,.003,0,0x3a3a3a)}add('stC',mx+nx*.035,y+.032,mz+nz*.035,.22,.003,.026,-a,0x6a3a2a)}
+    break}}
+{const _rr=rebuildRails;rebuildRails=function(){const before=railSig;_rr.apply(this,arguments);const lines=(typeof tradeTrains!=='undefined'?tradeTrains:[]).filter(c=>c._rail);
+  /* where along each line the open track starts and ends: the stations */
+  for(const c of lines){const R=c._rail;if(R.st)continue;let ra=-1,rb=-1;for(let t=0;t<=R.L;t+=.03){_tt.pts=R.pts;_tt.acc=R.acc;_tt.t=t;const [x,z]=tradeTrainAt(_tt);if(!railBlocked(x,z)&&groundY(x,z)>waterY+.01){if(ra<0)ra=t;rb=t}}R.st=ra>=0&&rb-ra>.6?[ra+.05,rb-.05]:null}
+  if(railSig===before)return;kitReset(['stP','stB','stR','stC']);const done=new Set();
+  for(const c of lines){const R=c._rail;if(!R.st)continue;const e=nations[c.a].era;for(const [t,tw] of [[R.st[0],-1],[R.st[1],1]]){_tt.pts=R.pts;_tt.acc=R.acc;_tt.t=t;const [x,z]=tradeTrainAt(_tt),key=Math.round(x*5)+','+Math.round(z*5);if(done.has(key))continue;done.add(key);placeStation(R,t,tw,e)}}
+  kitCommit(['stP','stB','stR','stC'])}}
+/* the train stops at the platform, waits, whistles and sets off back the way it came */
+const TRAIN_HOLD=new Map();
+function trainStations(dt,k){if(typeof tradeTrains==='undefined')return;for(const c of tradeTrains){const R=c._rail;if(!R||!R.st)continue;const key=c.a+':'+c.b,H=TRAIN_HOLD.get(key)||{w:0,h:0};TRAIN_HOLD.set(key,H);
+  const tA=R.st[0]/R.L*c.L,tB=R.st[1]/R.L*c.L;
+  if(H.w>0){H.w-=dt*(k>0?1:0);c.t=H.h;if(H.w<=0){H.go=1;if(typeof trainSound==='function')trainSound(c,'whistle')}continue}
+  if(c.dir<0&&c.t<=tA){c.t=H.h=tA;H.w=4+hash(c.a+c.b)*3;c.dir=1}else if(c.dir>0&&c.t>=tB){c.t=H.h=tB;H.w=4+hash(c.a*3+c.b)*3;c.dir=-1}
+  else if(c.t<tA-.02)c.t=tA;else if(c.t>tB+.02)c.t=tB}}
+
+/* ---------- ruins: broken walls, a fallen arch, toppled columns, rubble and a dead tree where a town once stood ---------- */
+const RUIN_PIECES=['ru_broken','ru_double','ru_hole','ru_half','ru_broken','ru_column','ru_colshort','ru_bricks','ru_arch','ru_wall','ru_bricks','ru_deadtree','ru_archway','ru_deadtree2'];
+function drawRuinModel(r,cx,cz,age,i0){if(!sOn('ru_broken')||!sOn('ru_column'))return false;const fade=1-age/400,tint=r.nuke?0x6a6660:0xd8d2c8;
+  for(let k=0;k<11;k++){const a=hash(i0*7+k)*6.283,d=.05+hash(i0*3+k)*.3,x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d,y=groundY(x,z);if(y<waterY+.03)continue;
+    const nm=RUIN_PIECES[Math.floor(hash(i0*11+k*3)*RUIN_PIECES.length)],big=hash(i0+k*7);if(!sOn(nm))continue;
+    if(/deadtree/.test(nm)){if(!r.nuke||k%2)addB(nm,x,y-.005,z,.05,.05,a,0x5a4838);continue}
+    if(/column/.test(nm)){addB(nm,x,y-.005,z,.03,.03,a,tint,fade);continue}if(nm==='ru_bricks'){addB(nm,x,y-.004,z,.05,.05,a,tint);continue}
+    addB(nm,x,y-.012,z,.09+big*.06,.03,a,tint,fade*(.8+big*.4))}
+  if(age<25)smokeAt(cx,groundY(cx,cz)+.05,cz,true,.5*(1-age/25));return true}
+
+/* ---------- sounds of the living world near the camera: steam trains puffing and whistling, traffic, church bells, cattle, sheep, wolves and whales ---------- */
+const AUD={chuff:0,horn:0,bell:20,moo:6,baa:9,howl:30,whale:20,traffic:null};
+function sndNear(x,z){if(typeof camT==='undefined')return 0;const d=Math.hypot(x-camT.x,z-camT.z);return Math.max(0,1-d/(1.2+camDist*.35))*Math.max(0,1-camDist/26)}
+function trainSound(c,what){if(!SND.on)return;const [x,z]=tradeTrainAt(c),v=sndNear(x,z);if(v<.05)return;const t=SND.ctx.currentTime,e=nations[c.a]?nations[c.a].era:5;
+  if(what==='whistle'){if(e>=6){tone('sine',660,t,.5,.05*v,null,{verb:true});tone('sine',880,t+.04,.5,.035*v,null,{verb:true})}
+    else{for(const [f,d] of [[740,.9],[932,.9]]){tone('sawtooth',f,t,d,.025*v,null,{lp:1800,a:.06,verb:true});tone('sine',f*2,t,d,.012*v,null,{a:.06})}}}}
+function worldSounds(dt){if(!SND.on||typeof camT==='undefined')return;const t=SND.ctx.currentTime,night=typeof nightF!=='undefined'?nightF:0;
+  /* steam trains puff as they run; high-speed trains hiss past */
+  if(typeof tradeTrains!=='undefined')for(const c of tradeTrains){if(!c._rail)continue;const n=nations[c.a];if(!n)continue;const [x,z]=tradeTrainAt(c),v=sndNear(x,z);if(v<.05)continue;const H=TRAIN_HOLD.get(c.a+':'+c.b);if(H&&H.w>0)continue;
+    AUD.chuff-=dt;if(AUD.chuff<=0){if(n.era===5){AUD.chuff=.32;nburst(SND.noise,t,.14,.05*v,'bandpass',700,null,{q:1.2,a:.005})}else{AUD.chuff=1.6;nburst(SND.noise,t,1.4,.03*v,'bandpass',1400,null,{to:500,q:.6,a:.4})}}break}
+  /* modern streets: a low hum of engines and now and then a horn */
+  let cars=0;for(const nm of ['s_car1','s_car2','s_suv','s_sports1','s_sports2','s_taxi','s_bus'])if(KITS[nm])cars+=KITS[nm].k;
+  const tv=Math.min(1,cars/60)*Math.max(0,1-camDist/18);
+  if(!AUD.traffic&&SND.ctx&&SND.brown){const s=SND.ctx.createBufferSource(),f=SND.ctx.createBiquadFilter(),g=SND.ctx.createGain();s.buffer=SND.brown;s.loop=true;f.type='lowpass';f.frequency.value=260;g.gain.value=0;s.connect(f);f.connect(g);g.connect(SND.bus.amb||SND.bus.sfx);s.start();AUD.traffic=g}
+  if(AUD.traffic)AUD.traffic.gain.setTargetAtTime(.09*tv,t,.8);
+  AUD.horn-=dt;if(AUD.horn<=0){AUD.horn=4+Math.random()*9;if(tv>.2){const f=380+Math.random()*120;tone('square',f,t,.18,.012*tv,null,{lp:1400});if(Math.random()<.5)tone('square',f,t+.25,.12,.01*tv,null,{lp:1400})}}
+  /* the church bell of an old town close by */
+  AUD.bell-=dt;if(AUD.bell<=0){AUD.bell=28+Math.random()*30;let best=0;for(const n of nations){if(!n.alive||n.era<3||n.era>5)continue;for(const c of n.cities)best=Math.max(best,sndNear(wx(c.x),wz(c.y)))}
+    if(best>.1){for(let q=0;q<3;q++)bell(57,t+q*1.6,.05*best)}}
+  /* farm animals and the wild */
+  if(camDist<9){let cow=0,sheep=0;for(const h of herds){const v=sndNear(h.x,h.z);if(h.kind==='sheep')sheep=Math.max(sheep,v);else cow=Math.max(cow,v)}
+    AUD.moo-=dt;if(AUD.moo<=0){AUD.moo=7+Math.random()*12;if(cow>.15){tone('sawtooth',118,t,1.1,.045*cow,null,{slide:92,lp:520,a:.15});tone('sawtooth',236,t,1.1,.012*cow,null,{slide:184,lp:700,a:.15})}}
+    AUD.baa-=dt;if(AUD.baa<=0){AUD.baa=6+Math.random()*10;if(sheep>.15){for(let q=0;q<5;q++)tone('sawtooth',360+(q%2)*24,t+q*.07,.09,.018*sheep,null,{lp:1600})}}}
+  AUD.howl-=dt;if(AUD.howl<=0){AUD.howl=25+Math.random()*30;if(night>.4&&typeof wildHerds!=='undefined'){const w=wildHerds.find(h=>h._mn==='wolf');const v=w?sndNear(w.x,w.z):0;if(v>.1){tone('sine',420,t,2.4,.05*v,null,{slide:560,a:.6,verb:true});tone('sine',560,t+2.2,1.4,.035*v,null,{slide:380,a:.2,verb:true})}}}
+  AUD.whale-=dt;if(AUD.whale<=0){AUD.whale=18+Math.random()*25;if(typeof seaWhales!=='undefined'){const w=seaWhales[0],v=w?sndNear(w.x,w.z):0;if(v>.1)tone('sine',190,t,3.2,.06*v,null,{slide:120,a:.8,verb:true})}}}
+document.addEventListener('DOMContentLoaded',()=>{if(typeof updateAudio!=='function')return;const _ua=updateAudio;updateAudio=function(dt){const r=_ua.apply(this,arguments);try{worldSounds(dt||1/60)}catch(e){}return r}});
