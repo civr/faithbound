@@ -1122,12 +1122,12 @@ function rebuildRoads(){roadBare.clear();grassAt.x=1e9;if(ribcVer!==terrVer){RIB
 
 /* ---------- forests ---------- */
 function rebuildTrees(){
-  kitReset(TREE_KITS);const dens=settings.quality==='high'?1:settings.quality==='medium'?.65:.4,farm=countryside();
+  kitReset(TREE_KITS);const dens=(settings.quality==='high'?1:settings.quality==='medium'?.65:.4)*(typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1),farm=countryside();
   /* trees near towns are drawn at a believable size next to the houses */
   const near=new Float32Array(N).fill(1);for(const n of nations)if(n.alive)for(const c of n.cities)for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);near[Y*W+X]=Math.min(near[Y*W+X],.5+smooth(1,3.2,d)*.5)}
   for(let i=0;i<N;i++){const b=biome[i];if(occupied.has(i)||fieldTiles.has(i)||farm.has(i)||(scorched&&scorched[i]>0)||fires.has(i))continue;
     const x0=i%W-W/2,z0=((i/W)|0)-H/2,lat=1-Math.abs(((i/W)|0)/(H-1)-.5)*2;let n=0,type='broad';
-    if(marshAt(i)){/* a marsh: pools of standing water, reeds and a few willows */for(let t=0;t<4;t++){const x=x0+.1+hash(i*2.3+t)*.8,z=z0+.1+hash(i*5.1+t)*.8,y=groundY(x,z);if(y<waterY+.01)continue;const s=.12+hash(i+t*9)*.22;let lo=y,hi=y;for(let q=0;q<4;q++){const a=q*1.571,g=groundY(x+Math.cos(a)*s*.45,z+Math.sin(a)*s*.32);lo=Math.min(lo,g);hi=Math.max(hi,g)}if(hi-lo>.03)continue;add('puddle',x,lo-.004,z,s,hi-lo+.0055,s*.7,hash(i*t+1)*6)}
+    if(marshAt(i)){/* a marsh: reeds and a few willows */for(let t=0;t<0;t++){const x=x0+.1+hash(i*2.3+t)*.8,z=z0+.1+hash(i*5.1+t)*.8,y=groundY(x,z);if(y<waterY+.01)continue;const s=.12+hash(i+t*9)*.22;let lo=y,hi=y;for(let q=0;q<4;q++){const a=q*1.571,g=groundY(x+Math.cos(a)*s*.45,z+Math.sin(a)*s*.32);lo=Math.min(lo,g);hi=Math.max(hi,g)}if(hi-lo>.03)continue;add('puddle',x,lo-.004,z,s,hi-lo+.0055,s*.7,hash(i*t+1)*6)}
       for(let t=0;t<16;t++){const x=x0+hash(i*3.7+t)*.98,z=z0+hash(i*6.3+t*2)*.98,y=groundY(x,z);if(y<waterY+.01)continue;add('reed',x,y-.003,z,.008,.05+hash(i*t+3)*.04,.008,0,hash(i+t)<.5?0x6a7a3a:0x8a7a48)}
       if(hash(i*4.4)<.5){const x=x0+.5,z=z0+.5,y=groundY(x,z);if(y>waterY+.02)add('broad',x,y-.01,z,.55,.6,.55,hash(i)*6,0x5f7a3a)}continue}
     if(b===5){n=19;type=lat<.45||climate.temp<.4?'conifer':'mix'}else if(b===6){n=10;type='jungle'}else if(b===4){n=hash(i*1.3)<.4?3:0;type='broad'}
