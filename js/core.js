@@ -23,7 +23,7 @@ function makeNoise(seed){
 
 /* ---------- game data ---------- */
 /* larger maps with broader landforms, so towns sit in scale with their islands */
-const SIZES={small:{W:80,H:60,tribes:5,sc:2.6},medium:{W:112,H:84,tribes:7,sc:3},large:{W:144,H:108,tribes:10,sc:3.4}};
+const SIZES={tiny:{W:80,H:60,tribes:5,sc:2.6},small:{W:112,H:84,tribes:7,sc:3},medium:{W:144,H:108,tribes:10,sc:3.4},large:{W:192,H:144,tribes:14,sc:3.8}};
 const DX=[1,-1,0,0],DY=[0,0,1,-1];
 const ERAS=[
   {name:'Stone Age',tech:0,cap:1,mil:1,emit:0,num:'I'},

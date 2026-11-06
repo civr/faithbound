@@ -11,13 +11,23 @@ kit('hover',unitBox(),MAT.glow,700,false);
 BUILD_KITS.push('sky','skyG','gcyl','conc','concCyl','glowB','gdome','wcone');
 const MOD_COL=[0xd8d4cc,0xc9d5df,0xe6e2da,0xb8c4cc,0xd6cbb8,0xaab8c2,0xe2dcd0,0xc89a78,0xb8785a,0xe8d8b8,0xd0b090];
 let MCTX={lvl:1,cap:false,tall:[]};
+/* modern towns keep their culture: wall colours, roofs and the shape of ordinary homes */
+const MOD_CULT={
+  west:{wall:null,pitch:.45,roof:null,tower:null},
+  med:{wall:[0xf2e6cc,0xe8c8a0,0xf0d8b0,0xe0b088,0xf4eee2,0xd89a70],pitch:.75,roof:[0xc0603a,0xb85a36,0xa85030],tower:[0xe6d6bc,0xd8c4a4,0xf0e6d4]},
+  nordic:{wall:[0x2e2e30,0xb04a3a,0xe8e4dc,0xc8a060,0x5a6a5a,0x8aa0b8],pitch:.8,roof:[0x2b2f33,0x34383c],tower:[0xd8dcdc,0x9aa0a4,0x6a6e72]},
+  east:{wall:[0xe8e8e4,0xd0d4d8,0xc8ccd0,0xf2f0ea,0xb8bcc0],pitch:.15,roof:[0x3a3e44,0x4a4e56],tower:[0xd8dcdf,0xc4c8cc,0xe4e6e8]},
+  mideast:{wall:[0xe8d8b8,0xd8c098,0xf0e8d8,0xe0c8a0,0xf2eee6],pitch:0,roof:[0xc8b088],tower:[0xe6d4b0,0xd8c098,0xf0e2c4]},
+  africa:{wall:[0xe8b050,0xd86a4a,0x5aa0c8,0xf0e0c0,0x8ac06a,0xe8e2d4],pitch:.25,roof:[0x8a9098,0x9aa0a8,0xb85a36],tower:[0xe8e0d0,0xd8c8b0,0xc8d0d4]},
+  meso:{wall:[0xf0a8a0,0x9ad0d8,0xf0d070,0xa8d898,0xf0f0e8,0xe8a060],pitch:.3,roof:[0xb85a36,0xc0603a],tower:[0xe8e0d4,0xf0e6d2,0xd8d0c4]}};
+const MC=()=>MOD_CULT[MCTX.cu]||MOD_CULT.west;
 
 /* stack a building out of storeys so window textures keep their scale */
 function storeys(K,x,y,z,w,d,h,rot,col,seg){const n=MCTX.far?1:Math.max(1,Math.round(h/(seg||.28))),sh=h/n;for(let i=0;i<n;i++)add(K,x,y+i*sh,z,w,sh*1.001,d,rot,col)}
 function towerHeight(core,hk){return Math.min(.85,(.1+core*core*core*.7+hk*hk*.25)*(MCTX.cap?1.3:1)*(.6+MCTX.lvl*.065))}
 
 /* modern age: glass and concrete towers downtown, apartment slabs, then villas with pools at the edge */
-function modernBuilding(n,x,y,z,rot,hk,core,fw){const o=hash(hk*131+7),col=MOD_COL[(o*MOD_COL.length)|0],w=Math.min(fw,.14);
+function modernBuilding(n,x,y,z,rot,hk,core,fw){const o=hash(hk*131+7),mc=MC(),col=mc.tower?mc.tower[(o*mc.tower.length)|0]:MOD_COL[(o*MOD_COL.length)|0],w=Math.min(fw,.14);
   if(core>.84&&hk>.3||(core>.76&&hk>.93)){const H=towerHeight(core,hk),glass=o>.45,K=glass?'skyG':'sky',tint=glass?[0xdaf4ff,0xc8e6f2,0xb8d8e6,0xe6f0f0][(o*4)|0]:col;
     add('conc',x,y-.02,z,w*1.3,.06,w*1.15,rot,0x9a9fa4);
     const tiers=H>.7?3:H>.35?2:1,F=[[1],[.7,.3],[.56,.28,.16]][tiers-1],S=[1,.78,.58];let yy=y+.04;
@@ -27,6 +37,8 @@ function modernBuilding(n,x,y,z,rot,hk,core,fw){const o=hash(hk*131+7),col=MOD_C
     else{add('conc',x,yy,z,w*.4,.04,w*.3,rot,0x8a8f94);add('concCyl',x+w*.18,yy,z,.025,.05,.025,0,0x6a5a4a)}
     if(H>.5)MCTX.tall.push([x,z,H,y]);return}
   if(core>.6||(core>.5&&hk>.9)){aptBlock(x,y,z,rot,Math.max(w,.12),hk,core);return}
+  /* ordinary homes are built the local way */
+  if(o<.55&&MCTX.cu&&MCTX.cu!=='west'&&typeof cultureDwelling==='function'&&cultureDwelling(MCTX.cu,n,x,y,z,rot,5,hk,0,core*.5))return;
   if(o<.55){const wc=HOME_WALL[(hash(hk*29)*HOME_WALL.length)|0],rc=o<.3?0xb8553e:o<.42?0x5a6068:0x8a4a3a;
     house(x,y,z,rot,.085,.07,.05+hash(hk*3)*.02,'plaster',wc,'tiles',rc,false,{hk:hash(hk*97+1),annex:o<.2,garden:false,lamp:false,fenceCol:0xe8e2d4});
     if(o>.45)P('conc',x,y-.02,z,rot,.055,0,0,.035,.03,.045,0xd8d4cc);return}
@@ -35,8 +47,8 @@ function modernBuilding(n,x,y,z,rot,hk,core,fw){const o=hash(hk*131+7),col=MOD_C
   P('skyG',x,y-.02,z,rot,0,.031,.012,.06,.035,.002,0xc8eaf6);if(o>.4)P('pool',x,y-.016,z,rot,0,.065,0,.05,.012,.03)}
 
 const APT_WALL=[0xefe4cc,0xe8c6b4,0xd8dcdc,0xf2e6c4,0xc9b49a,0xe6d2b0,0xd4c8bc,0xb8c4c8];
-function aptBlock(x,y,z,rot,w,hk,core){const o=hash(hk*211+9),col=APT_WALL[(o*APT_WALL.length)|0],fl=2+Math.round(core*2.5+hash(hk*5)*1.5),fh=.032,H=fl*fh,pitched=o<.45,
-    rc=o<.25?0xc8604a:o<.35?0xb8553e:0x6a6e74,shape=(hash(hk*17)*3)|0,t=w*.32;
+function aptBlock(x,y,z,rot,w,hk,core){const o=hash(hk*211+9),mc=MC(),col=(mc.wall||APT_WALL)[(o*(mc.wall||APT_WALL).length)|0],fl=2+Math.round(core*2.5+hash(hk*5)*1.5),fh=.032,H=fl*fh,pitched=o<mc.pitch,
+    rc=mc.roof?mc.roof[(hash(hk*3)*mc.roof.length)|0]:o<.25?0xc8604a:o<.35?0xb8553e:0x6a6e74,shape=(hash(hk*17)*3)|0,t=w*.32;
   /* wings: a bar, an L or a U round a courtyard */
   const wings=shape===0?[[0,0,w,w*.55]]:shape===1?[[0,-w*.34,w,t],[-w*.34,w*.1,t,w*.62]]:[[0,-w*.34,w,t],[-w*.34,w*.12,t,w*.56],[w*.34,w*.12,t,w*.56]];
   for(const [dx,dz,ww,dd] of wings){
