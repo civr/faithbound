@@ -219,7 +219,7 @@ const WAVE_TEX=makeWaveTex();
 const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:0});
 const NOISE_GLSL=`varying vec3 vWP;float hn(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hn(i),hn(i+vec2(1,0)),f.x),mix(hn(i+vec2(0,1)),hn(i+vec2(1,1)),f.x),f.y);}`;
-const terrU={uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30},uOwn:{value:null},uWar:{value:null},uMap:{value:new THREE.Vector2(1,1)},uTint:{value:0},uTime:{value:0},uPhoto:{value:0},
+const terrU={uLite:{value:0},uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30},uOwn:{value:null},uWar:{value:null},uMap:{value:new THREE.Vector2(1,1)},uTint:{value:0},uTime:{value:0},uPhoto:{value:0},
   tG:{value:null},tD:{value:null},tS:{value:null},tR:{value:null},tW:{value:null},nG:{value:null},nR:{value:null},
   mG:{value:new THREE.Vector3(.57,.53,.36)},mD:{value:new THREE.Vector3(.5,.41,.35)},mS:{value:new THREE.Vector3(.62,.54,.51)},mR:{value:new THREE.Vector3(.43,.36,.2)},mW:{value:new THREE.Vector3(.53,.53,.58)}};
 /* photo-scanned ground (Poly Haven, CC0): grass, earth, sand, rock and snow, with normal maps for grass and rock */
@@ -230,19 +230,19 @@ const terrU={uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:3
  for(const [k,f] of Object.entries(files))L.load('assets/textures/'+f+'.jpg',t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;terrU[k].value=t;done()},undefined,()=>{done()});}
 terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
-  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;uniform float uPhoto;uniform sampler2D tG,tD,tS,tR,tW,nG,nR;uniform vec3 mG,mD,mS,mR,mW;\n'+NOISE_GLSL)
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uLite;uniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;uniform float uPhoto;uniform sampler2D tG,tD,tS,tR,tW,nG,nR;uniform vec3 mG,mD,mS,mR,mW;\n'+NOISE_GLSL)
    .replace('#include <color_fragment>',`#include <color_fragment>
-    float camD=length(vWP-cameraPosition),dfade=(1.-smoothstep(14.,52.,camD))*uPhoto;
+    float camD=length(vWP-cameraPosition),dfade=(1.-smoothstep(14.,52.,camD))*uPhoto*(1.-uLite);
     /* two scales of the same photo, turned against each other, so the tiling does not show */
     vec2 P1=vWP.xz*.42,P2=mat2(.8,-.6,.6,.8)*vWP.xz*.13+.37;vec4 bumpW=vec4(0.);
     float dn=vn(vWP.xz*11.)*.45+vn(vWP.xz*37.)*.3+vn(vWP.xz*2.7)*.25;diffuseColor.rgb*=.9+dn*.2;
     /* meadows: lush and dry patches, mown strips and fine blades, so grass never reads as flat paint */
     float gr=smoothstep(.0,.06,diffuseColor.g-max(diffuseColor.r,diffuseColor.b)*.92);
-    float p1=vn(vWP.xz*.7),p2=vn(vWP.xz*3.1+7.),p4=vn(vWP.xz*13.+3.);
+    if(uLite<.5){float p1=vn(vWP.xz*.7),p2=vn(vWP.xz*3.1+7.),p4=vn(vWP.xz*13.+3.);
     vec3 lush=diffuseColor.rgb*vec3(.74,.93,.66),dry=diffuseColor.rgb*vec3(1.22,1.12,.78);
     vec3 mead=mix(lush,dry,smoothstep(.4,.8,p1*.6+p2*.4));mead*=.84+.3*p4;
     float bl=vn(vWP.xz*vec2(190.,60.))*.5+vn(vWP.xz*vec2(70.,210.))*.5;mead*=.96+bl*.08*dfade;
-    diffuseColor.rgb=mix(diffuseColor.rgb,mead,gr*.85);
+    diffuseColor.rgb=mix(diffuseColor.rgb,mead,gr*.85);}
     /* steep ground shows bare earth and rock */
     vec3 gn=normalize(cross(dFdx(vWP),dFdy(vWP)));float st=smoothstep(.62,.86,1.-abs(gn.y));
     vec3 rockC=mix(vec3(.075,.065,.05),vec3(.13,.12,.10),vn(vWP.xz*9.+vWP.y*3.));diffuseColor.rgb=mix(diffuseColor.rgb,rockC*(.85+dn*.3),st*.85*step(.01,vWP.y-uWaterY));
@@ -261,7 +261,7 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
       diffuseColor.rgb*=mix(vec3(1.),det,dfade*.92);
       bumpW=vec4(wG+wD*.7+wS*.5,wR,0.,0.)/wsum;}}
     /* sunlight dancing on the shallow seabed */
-    if(vWP.y<uWaterY){float dep=uWaterY-vWP.y;vec2 cp=vWP.xz*2.2;float c1=vn(cp+vec2(uTime*.35,uTime*.2)),c2=vn(cp*1.3-vec2(uTime*.27,-uTime*.31));float ca=pow(1.-abs(c1-c2),7.);
+    if(vWP.y<uWaterY&&uLite<.5){float dep=uWaterY-vWP.y;vec2 cp=vWP.xz*2.2;float c1=vn(cp+vec2(uTime*.35,uTime*.2)),c2=vn(cp*1.3-vec2(uTime*.27,-uTime*.31));float ca=pow(1.-abs(c1-c2),7.);
       diffuseColor.rgb+=vec3(.55,.75,.7)*ca*.35*exp(-dep*2.5)*dfade;}
     /* seasons: golden autumn meadows, snow on cold and high ground in winter */
     diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.28,1.02,.58),uAutumn*gr*.65);
@@ -304,14 +304,14 @@ function buildOcean(){const sh=new THREE.Shape();sh.moveTo(-1500,-1500);sh.lineT
   const hole=new THREE.Path();hole.moveTo(-W/2,-H/2);hole.lineTo(-W/2,H/2);hole.lineTo(W/2,H/2);hole.lineTo(W/2,-H/2);hole.lineTo(-W/2,-H/2);sh.holes.push(hole);
   const g=new THREE.ShapeGeometry(sh);g.rotateX(-Math.PI/2);ocean.geometry.dispose();ocean.geometry=g}
 const waterSideMat=new THREE.MeshStandardMaterial({color:colL(0x1d5f86),transparent:true,opacity:.72,roughness:.2,depthWrite:false});
-const waterU={uTime:{value:0},uDeep:{value:colL(0x0f3f63)},uShallow:{value:colL(0x2f9bb0)},uWave:{value:WAVE_TEX}};
+const waterU={uLite:{value:0},uTime:{value:0},uDeep:{value:colL(0x0f3f63)},uShallow:{value:colL(0x2f9bb0)},uWave:{value:WAVE_TEX}};
 const waterMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.16,metalness:0,transparent:true,envMapIntensity:.85});
 waterMat.onBeforeCompile=sh=>{
   Object.assign(sh.uniforms,waterU);
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float aDepth;attribute float aIce;varying float vDepth;varying float vIce;varying vec3 vWP;uniform float uTime;')
    .replace('#include <beginnormal_vertex>','float wa=position.x*1.7+uTime*1.1,wb=position.z*1.4+uTime*1.35;vec3 objectNormal=normalize(vec3(-cos(wa)*.05,1.,sin(wb)*.045));')
    .replace('#include <begin_vertex>','vec3 transformed=vec3(position);transformed.y+=(sin(wa)*.03+cos(wb)*.026)*(1.-aIce)*clamp(aDepth*2.,0.,1.);vDepth=aDepth;vIce=aIce;vWP=(modelMatrix*vec4(transformed,1.)).xyz;');
-  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uTime;uniform vec3 uDeep;uniform vec3 uShallow;uniform sampler2D uWave;varying float vDepth;varying float vIce;\n'+NOISE_GLSL)
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uLite;uniform float uTime;uniform vec3 uDeep;uniform vec3 uShallow;uniform sampler2D uWave;varying float vDepth;varying float vIce;\n'+NOISE_GLSL)
    .replace('#include <color_fragment>',`#include <color_fragment>
     /* clear at the very edge, then quickly deeper and darker, so lakes and coasts are not milky */
     float dd=clamp(vDepth/.8,0.,1.);vec3 wc=mix(uShallow*.95,uDeep,pow(dd,.5));
@@ -326,7 +326,7 @@ waterMat.onBeforeCompile=sh=>{
     float ic=vIce*(.85+.15*vn(vWP.xz*5.));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.86,.92,.97),ic);diffuseColor.a=max(diffuseColor.a,ic);`)
    .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.55,vIce);')
    .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
-    {vec3 n1=texture2D(uWave,vWP.xz*.32+vec2(uTime*.018,uTime*.011)).xyz*2.-1.,n2=texture2D(uWave,vWP.xz*.81-vec2(uTime*.024,-uTime*.017)).xyz*2.-1.,n3=texture2D(uWave,vWP.xz*2.3+vec2(-uTime*.05,uTime*.04)).xyz*2.-1.;
+    if(uLite<.5){vec3 n1=texture2D(uWave,vWP.xz*.32+vec2(uTime*.018,uTime*.011)).xyz*2.-1.,n2=texture2D(uWave,vWP.xz*.81-vec2(uTime*.024,-uTime*.017)).xyz*2.-1.,n3=texture2D(uWave,vWP.xz*2.3+vec2(-uTime*.05,uTime*.04)).xyz*2.-1.;
      float camD=length(vWP-cameraPosition),k=(1.-vIce)*(.55+.45*(1.-smoothstep(10.,60.,camD)));
      vec3 wn=normalize(vec3((n1.x+n2.x*.7+n3.x*.18)*k*.48,1.,(n1.y+n2.y*.7+n3.y*.18)*k*.48));normal=normalize(mix(normal,(viewMatrix*vec4(wn,0.)).xyz,.85));}`);
 };

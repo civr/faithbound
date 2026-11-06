@@ -18,6 +18,8 @@ function applyTier(t){t=Math.max(0,Math.min(4,t));PERF.tier=t;
     else if(!want&&typeof applyGraphics==='function'&&sunL.shadow.mapSize.x<(settings.quality==='high'?2048:settings.quality==='medium'?2048:1024))applyGraphics()}
   /* forests stop casting shadows from level 2: thousands of trees drawn a second time for the sun */
   if(typeof KITS!=='undefined')for(const n in KITS){const K=KITS[n];if(K.cast0===undefined)K.cast0=K.mesh.castShadow;const tree=(typeof TREE_KITS!=='undefined'&&TREE_KITS.includes(n))||/^lo_/.test(n)||n==='townTree';K.mesh.castShadow=K.cast0&&!(tree&&t>=2)}
+  /* simpler ground and water shading from level 2: no photo detail, meadow patterns, caustics or extra wave layers */
+  if(typeof terrU!=='undefined')terrU.uLite.value=t>=2?1:0;if(typeof waterU!=='undefined')waterU.uLite.value=t>=2?1:0;
   if(typeof CULLK!=='undefined')CULLK.dirty=true;if(typeof treesDirty!=='undefined')treesDirty=true;if(typeof resize==='function')resize();
   if(typeof shadowForce!=='undefined')shadowForce=true}
 /* post effects (outlines, focus blur, colour grading) are full-screen passes: the first thing a laptop chip gives up */
@@ -31,3 +33,45 @@ document.addEventListener('DOMContentLoaded',()=>{if(perfOn())applyTier(PERF.bas
   if(PERF.soft&&!PERF.said&&typeof say==='function'){PERF.said=true;setTimeout(()=>say('Your browser is drawing without the graphics card, so the game runs slowly. Turn on hardware acceleration in the browser settings.'),4000)}});
 function perfNote(){const lv=['full','high','balanced','light','lightest'][PERF.tier];
   return `Detail is now <b>${lv}</b>${PERF.base>=2&&!PERF.soft?' (a laptop graphics chip was found, so the game starts lighter)':''}. ${PERF.soft?'<b>The browser is not using the graphics card: turn on hardware acceleration in its settings.</b> ':''}<span class="dim">${(PERF.gpu||'').replace(/[<>&]/g,'').slice(0,80)}</span>`}
+
+/* ---------- ground and water in chunks: full detail near the camera, coarser further away ----------
+   The chunks share the terrain's own vertices (heights, colours, normals) and only differ in which triangles they draw.
+   Chunk borders always keep every vertex, and coarse cells along a border fan out to them, so neighbours of any
+   detail meet without cracks. Only the nearby chunks cast shadows. */
+function lodIndex(gw,u0,v0,nu,nv,s){const I=[],id=(u,v)=>(v0+v)*gw+(u0+u);
+  if(s===1||nu%s||nv%s){for(let v=0;v<nv;v++)for(let u=0;u<nu;u++){const a=id(u,v),b=id(u+1,v),c=id(u,v+1),d=id(u+1,v+1);I.push(a,c,b,b,c,d)}return I}
+  const cu=nu/s,cv=nv/s,h=s/2;
+  for(let j=0;j<cv;j++)for(let i=0;i<cu;i++){const U=i*s,V=j*s;
+    if(i>0&&j>0&&i<cu-1&&j<cv-1){const a=id(U,V),b=id(U+s,V),c=id(U,V+s),d=id(U+s,V+s);I.push(a,c,b,b,c,d);continue}
+    const ring=[],side=(fine,f)=>{const n=fine?s:1;for(let q=0;q<n;q++)ring.push(f(q*(s/n)))};
+    side(i===0,q=>id(U,V+q));side(j===cv-1,q=>id(U+q,V+s));side(i===cu-1,q=>id(U+s,V+s-q));side(j===0,q=>id(U+s-q,V));
+    const m=id(U+h,V+h);for(let q=0;q<ring.length;q++)I.push(m,ring[q],ring[(q+1)%ring.length])}
+  return I}
+function makeLodGrid(src,gw,gh,C,shadow){const L={src,gw,gh,chunks:[],grp:new THREE.Group(),shadow,ver:-1};const g=src.geometry,P=g.attributes.position.array;
+  for(let v0=0;v0<gh-1;v0+=C)for(let u0=0;u0<gw-1;u0+=C){const nu=Math.min(C,gw-1-u0),nv=Math.min(C,gh-1-v0),ch={u0,v0,nu,nv,m:[],lv:-1,c:new THREE.Vector3()};
+    for(const s of [1,2,4,8]){if(s>1&&(nu%s||nv%s))continue;const geo=new THREE.BufferGeometry();for(const k in g.attributes)geo.setAttribute(k,g.attributes[k]);
+      const I=lodIndex(gw,u0,v0,nu,nv,s);geo.setIndex(new THREE.BufferAttribute(new Uint32Array(I),1));geo.boundingSphere=new THREE.Sphere();
+      const m=new THREE.Mesh(geo,src.material);m.receiveShadow=src.receiveShadow;m.renderOrder=src.renderOrder;m.castShadow=false;m.visible=false;m.userData.step=s;ch.m.push(m);L.grp.add(m)}
+    L.chunks.push(ch)}
+  src.visible=false;scene.add(L.grp);lodSpheres(L);return L}
+function lodSpheres(L){const g=L.src.geometry,P=g.attributes.position.array;
+  for(const ch of L.chunks){let y0=1e9,y1=-1e9;for(let v=0;v<=ch.nv;v+=2)for(let u=0;u<=ch.nu;u+=2){const k=((ch.v0+v)*L.gw+ch.u0+u)*3+1;if(P[k]<y0)y0=P[k];if(P[k]>y1)y1=P[k]}
+    const a=(ch.v0*L.gw+ch.u0)*3,b=((ch.v0+ch.nv)*L.gw+ch.u0+ch.nu)*3,cx=(P[a]+P[b])/2,cz=(P[a+2]+P[b+2])/2,r=Math.hypot(P[b]-P[a],P[b+2]-P[a+2],y1-y0)/2+.3;
+    ch.c.set(cx,(y0+y1)/2,cz);for(const m of ch.m){m.geometry.boundingSphere.center.copy(ch.c);m.geometry.boundingSphere.radius=r}}}
+function lodTick(L){const g=L.src.geometry,m0=L.chunks[0]&&L.chunks[0].m[0];if(!m0)return;
+  /* the terrain may have gained or swapped an attribute (normals are made on the first layout) */
+  if(m0.geometry.attributes.normal!==g.attributes.normal||m0.geometry.attributes.position!==g.attributes.position)for(const ch of L.chunks)for(const m of ch.m)for(const k in g.attributes)m.geometry.setAttribute(k,g.attributes[k]);
+  L.grp.position.copy(L.src.position);
+  const k=typeof PERF!=='undefined'&&perfOn()?Math.max(.55,PERF.lodK):1,T0=9*k,T1=18*k,T2=34*k,cp=cam.position,gy=L.grp.position.y;
+  for(const ch of L.chunks){const d=Math.hypot(ch.c.x-cp.x,ch.c.y+gy-cp.y,ch.c.z-cp.z)-ch.m[0].geometry.boundingSphere.radius*.5;let lv=d<T0?0:d<T1?1:d<T2?2:3;lv=Math.min(lv,ch.m.length-1);
+    if(lv!==ch.lv){if(ch.lv>=0)ch.m[ch.lv].visible=false;ch.m[lv].visible=true;ch.lv=lv}
+    ch.m[lv].castShadow=L.shadow&&lv<=1&&renderer.shadowMap.enabled}}
+const TLOD={t:null,w:null,tv:-1};
+function terrainLodTick(){if(settings.terrainLod===false){if(TLOD.t){TLOD.t.grp.visible=false;TLOD.t.src.visible=true}if(TLOD.w){TLOD.w.grp.visible=false;TLOD.w.src.visible=true}return}
+  if(typeof terrainMesh==='undefined'||!terrainMesh||!terrainMesh.geometry.attributes.position)return;
+  if(!TLOD.t||TLOD.t.src!==terrainMesh){if(TLOD.t){scene.remove(TLOD.t.grp);for(const ch of TLOD.t.chunks)for(const m of ch.m){m.geometry.setIndex(null);m.geometry.dispose()}}TLOD.t=makeLodGrid(terrainMesh,VW,VH,48,true);TLOD.tv=-1}
+  if(waterMesh&&(!TLOD.w||TLOD.w.src!==waterMesh)){if(TLOD.w){scene.remove(TLOD.w.grp);for(const ch of TLOD.w.chunks)for(const m of ch.m){m.geometry.setIndex(null);m.geometry.dispose()}}TLOD.w=makeLodGrid(waterMesh,W*2+1,H*2+1,32,false)}
+  TLOD.t.grp.visible=true;terrainMesh.visible=false;if(TLOD.w){TLOD.w.grp.visible=true;waterMesh.visible=false}
+  if(TLOD.tv!==terrVer){TLOD.tv=terrVer;lodSpheres(TLOD.t);if(TLOD.w)lodSpheres(TLOD.w)}
+  lodTick(TLOD.t);if(TLOD.w)lodTick(TLOD.w)}
+{const _rf=renderFrame;renderFrame=function(){try{terrainLodTick()}catch(e){console.warn('terrain lod',e);settings.terrainLod=false}return _rf.apply(this,arguments)}}
