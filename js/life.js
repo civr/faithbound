@@ -125,6 +125,7 @@ function updateLiving(dt,k,now){
   kitReset(LIFE_KITS);const spd=k>0?1:0;
   /* tradeTrains */
   for(const c of tradeTrains){c.t+=dt*.25*spd*c.dir;if(c.t>=c.L){c.t=c.L;c.dir=-1}else if(c.t<=0){c.t=0;c.dir=1}const [x,z,a]=tradeTrainAt(c);if(!near(x,z,1.8))continue;const n=nations[c.a];if(!n)continue;const e=n.era,y=groundY(x,z),r=c.dir>0?a:a+Math.PI,cs=Math.cos(r),sn=Math.sin(r),nc=parseInt(n.color.slice(1),16);
+    if(e<=4&&typeof drawCaravanModel==='function'&&drawCaravanModel(c,e,x,y,z,r,nc))continue;
     if(e<=2){for(let q=0;q<3;q++){const bx=x-cs*q*.04,bz=z-sn*q*.04;add('beast',bx,y+.008,bz,.03,.014,.012,-r,0x9a7a50);add('beast',bx,y+.022,bz,.018,.01,.016,-r,q?0xc8b088:nc)}}
     else if(e<=4){add('lcart',x,y+.012,z,.05,.022,.03,-r,0x7a5a3a);add('lcart',x,y+.034,z,.044,.016,.028,-r,0xe8e0c8);for(const s of [-1,1])add('wheel',x-sn*.016*s,y+.01,z+cs*.016*s,.016,.004,.016,-r+Math.PI/2,0x4a3a2a,Math.PI/2);add('beast',x+cs*.05,y+.008,z+sn*.05,.03,.016,.012,-r,0x6a4a30)}
     else if(e<=6){if(e>=5&&typeof drawTrainModel==='function'&&drawTrainModel(c,e,x,y,z,r,nc))continue;add('lcart',x,y+.01,z,.06,.026,.028,-r,nc);add('lcart',x+cs*.036,y+.01,z+sn*.036,.022,.022,.026,-r,0xe8e8e8);for(const s of [-1,1])for(const f of [-.02,.03])add('wheel',x+cs*f-sn*.015*s,y+.008,z+sn*f+cs*.015*s,.012,.004,.012,-r+Math.PI/2,0x222222,Math.PI/2)}

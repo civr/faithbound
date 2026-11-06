@@ -6,8 +6,9 @@
 
 const MDL={ready:{},geo:{},frames:{},info:{}};let MDL_VER=0;
 /* which material is which part: 1 top, 2 bottom, 3 skin, 4 hair, 5 sail */
+let PART_EXTRA=null;
 function partOf(name){const n=(name||'').toLowerCase();
-  if(/^leaves|^rock/.test(n))return 6;if(/shirt|jacket|dress|armor|tank ?top|top/.test(n))return 1;if(/pants|sock/.test(n))return 2;if(/skin/.test(n))return 3;if(/hair/.test(n))return 4;if(/fabric|sail/.test(n))return 5;return 0}
+  if(PART_EXTRA&&PART_EXTRA.test(n))return 7;if(/window|glass|interior/.test(n))return 7;if(/^leaves|^rock/.test(n))return 6;if(/shirt|jacket|dress|armor|tank ?top|top/.test(n))return 1;if(/pants|sock/.test(n))return 2;if(/skin/.test(n))return 3;if(/hair/.test(n))return 4;if(/fabric|sail/.test(n))return 5;return 0}
 /* flatten a posed model into one geometry with vertex colours and part tags, in world space */
 const _mv=new THREE.Vector3();
 function flatten(root){const P=[],C=[],T=[];root.updateMatrixWorld(true);
@@ -52,7 +53,7 @@ const MODEL_DEFS={
   female_casual:{none:1,h:.047,axis:'z',anims:{walk:['Walk',8],idle:['Idle',2]}},female_dress:{none:1,h:.047,axis:'z',anims:{walk:['Walk',8],idle:['Idle',2]}},
   knightcharacter:{none:1,h:.052,axis:'z',anims:{walk:['Walk',8],idle:['Idle',2]}},
   viking_boat:{len:.42,axis:'x'},sail_ship:{len:.52,axis:'x'},boatwsail:{len:.2,axis:'x'},cruiseship:{len:.85,axis:'x'},
-  commercial_airplane:{len:.25,axis:'x'},military_airplane:{len:.16,axis:'x'},smallplane:{len:.13,axis:'x'},
+  commercial_airplane:{len:.6,axis:'x'},military_airplane:{len:.3,axis:'x'},smallplane:{len:.22,axis:'x'},
   tank:{len:.17,axis:'x'},tank2:{len:.17,axis:'x'},tank3:{len:.17,axis:'x'},
   zebra:{len:.068,axis:'z',anims:{walk:['Walk',8],idle:['Idle',2]}},llama:{len:.06,axis:'z',anims:{idle:['Idle',4]}},wolf:{len:.056,axis:'z',anims:{walk:['Walking',8],idle:['Idle',2]}},
   dolphin:{len:.1,axis:'z',anims:{swim:['Swim',6]}},shark:{len:.11,axis:'z',anims:{swim:['Swim',6]}},whale:{len:.3,axis:'z',anims:{swim:['Swim',6]}},manta_ray:{len:.09,axis:'z',anims:{swim:['Swim',6]}},
@@ -90,21 +91,42 @@ Object.assign(SMODEL,{med_house:{k:'build',unit:1,max:3000},town2s:{k:'build',un
   egypt_temple:{k:'build',unit:1,max:80},japan_temple:{k:'build',unit:1,max:80},maya_temple:{k:'build',unit:1,max:80},pantheon:{k:'build',unit:1,max:80},
   farm_barn:{k:'farm',unit:1,max:1500},farm_bigbarn:{k:'farm',unit:1,max:1000},farm_smallbarn:{k:'farm',unit:1,max:1500},farm_openbarn:{k:'farm',unit:1,max:1000},farm_silo:{k:'farm',unit:1,max:1500},
   farm_silo_house:{k:'farm',unit:1,max:800},farm_windmill:{k:'farm',unit:1,max:800},farm_towerwindmill:{k:'farm',unit:1,max:400},farm_watertower:{k:'farm',unit:1,max:600},farm_well:{k:'farm',unit:1,max:800},farm_chickencoop:{k:'farm',unit:1,max:1200}});
-let MTREE_MAT=null,SBVER=0;
+Object.assign(SMODEL,{c_large:{k:'build',unit:1,max:400},c_round:{k:'build',unit:1,max:400},c_tallwall:{k:'build',unit:1,max:3000},c_gate:{k:'build',unit:1,max:300},c_small:{k:'build',unit:1,max:300},
+  mv_house1:{k:'build',unit:1,max:1500,win:['windows']},mv_house2:{k:'build',unit:1,max:1500},mv_house3:{k:'build',unit:1,max:1500},mv_house4:{k:'build',unit:1,max:1500},mv_inn:{k:'build',unit:1,max:600},mv_smith:{k:'build',unit:1,max:600},mv_bell:{k:'build',unit:1,max:200},mv_mill:{k:'build',unit:1,max:200},
+  rts_h4:{k:'build',unit:1,max:2000},rts_h5:{k:'build',unit:1,max:2000},rts_h6:{k:'build',unit:1,max:2500},torii:{k:'build',unit:1,max:100},
+  dt_large:{k:'build',unit:1,max:500},dt_medium:{k:'build',unit:1,max:600},dt_small:{k:'build',unit:1,max:800},
+  fut_base:{k:'build',unit:1,max:800},fut_tower:{k:'build',unit:1,max:800},fut_dome:{k:'build',unit:1,max:800},fut_cyl:{k:'build',unit:1,max:1200},fut_long:{k:'build',unit:1,max:800},fut_open:{k:'build',unit:1,max:1200},fut_house:{k:'build',unit:1,max:1500},
+  ship_challenger:{k:'veh',len:.045,max:300},ship_dispatcher:{k:'veh',len:.04,max:300},ship_pancake:{k:'veh',len:.04,max:300},ship_zenith:{k:'veh',len:.045,max:300},
+  deer:{k:'veh',wild:1,len:.052,max:300},stag:{k:'veh',wild:1,len:.06,max:150},fox:{k:'veh',wild:1,len:.034,max:100},donkey:{k:'veh',wild:1,len:.048,max:400}});
+for(const n of ['town2s','town3b','town3s','town4','cottage1'])SMODEL[n].win=['darkgrey'];SMODEL.med_house.win=['darkblue','darkpurple'];
+let MTREE_MAT=null,SBVER=0,MDL_LOADER=null;const MDL_REQ=new Set();
 function modelTreeMat(){if(MTREE_MAT)return MTREE_MAT;const m=treeMat.clone();const base=treeMat.onBeforeCompile;
   m.onBeforeCompile=sh=>{base(sh);sh.vertexShader=sh.vertexShader.replace('#include <color_vertex>',`vColor=color.xyz;
     #ifdef USE_INSTANCING_COLOR
     {float lf=1.-step(.025,abs(color.r-color.b));vColor.xyz*=mix(vec3(1.),instanceColor.xyz,lf);}
     #endif`)};m.customProgramCacheKey=()=>'mtree';return MTREE_MAT=m}
-const SMODEL_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85,metalness:0});
+const SMODEL_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85,metalness:0}),BWIN={uNight:{value:0}};
+/* windows glow after dark: the window parts of most houses light up warm, some stay dark */
+SMODEL_MAT.onBeforeCompile=sh=>{sh.uniforms.uNight=BWIN.uNight;
+  sh.vertexShader='attribute float aPart;varying float vWin;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+    vWin=(aPart>6.5&&aPart<7.5)?1.:0.;
+    #ifdef USE_INSTANCING
+    {vec3 ip=vec3(instanceMatrix[3][0],instanceMatrix[3][1],instanceMatrix[3][2]);vWin*=step(.3,fract(sin(dot(ip.xz,vec2(12.9898,78.233)))*43758.5453));}
+    #endif`);
+  sh.fragmentShader='uniform float uNight;varying float vWin;\n'+sh.fragmentShader.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n totalEmissiveRadiance+=vec3(1.,.72,.38)*vWin*uNight*1.8;')};
+SMODEL_MAT.customProgramCacheKey=()=>'smodel';
+{const _sn=setNight;setNight=function(f){_sn(f);BWIN.uNight.value=f}}
 const VEH_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.5,metalness:.15});const VEH_KITS=[];
-function prepStatic(name,gltf){const d=Object.assign({},SMODEL[name]);gltf.scene.updateMatrixWorld(true);const f=flatten(gltf.scene);
+function prepStatic(name,gltf){const d=Object.assign({},SMODEL[name]);gltf.scene.updateMatrixWorld(true);PART_EXTRA=d.win?new RegExp('^('+d.win.join('|')+')$'):null;let f;try{f=flatten(gltf.scene)}finally{PART_EXTRA=null}
+  /* baked window colours (pale cyan glass) count as windows too */
+  if(d.k==='build')for(let v=0;v<f.T.length;v++){const r=f.C[v*3],g=f.C[v*3+1],b=f.C[v*3+2];if(f.T[v]===0&&b>.45&&g>.4&&r<.7*b)f.T[v]=7}
   /* leaves and rocks become white with a little height shading, so the instance colour paints them */
   if(d.k==='tree'||d.k==='rock'){let y0=1e9,y1=-1e9;for(let i=1;i<f.P.length;i+=3){y0=Math.min(y0,f.P[i]);y1=Math.max(y1,f.P[i])}
     for(let v=0;v<f.T.length;v++)if(f.T[v]===6){const t=(f.P[v*3+1]-y0)/((y1-y0)||1),ao=d.k==='rock'?.82+.18*t:.62+.38*t;f.C[v*3]=f.C[v*3+1]=f.C[v*3+2]=ao}}
   if(d.k==='tree'&&KITS.broad){const g=KITS.broad.mesh.geometry;g.computeBoundingBox();d.h*=g.boundingBox.max.y-Math.max(0,g.boundingBox.min.y)}
   const norm=normalizer(f,Object.assign(d,{axis:d.k==='veh'?'z':'none'},MODEL_FIX[name]||{}));const geo=toGeo(norm(f.P),f);const kn='s_'+name;MDL.info[name]={d};
-  kit(kn,geo,d.k==='tree'||d.k==='rock'?modelTreeMat():d.k==='veh'?VEH_MAT:SMODEL_MAT,d.max||2000,d.k!=='rock');
+  kit(kn,geo,d.k==='tree'||d.k==='rock'?modelTreeMat():d.k==='veh'&&!d.wild?VEH_MAT:SMODEL_MAT,d.max||2000,d.k!=='rock');
+  if(d.k==='build'||d.k==='farm'){const K=KITS[kn];let r=0,g=0,b=0,n=0;for(let i=0;i<f.C.length;i+=3){r+=f.C[i];g+=f.C[i+1];b+=f.C[i+2];n++}K.avg=[r/n,g/n,b/n];K.lodC=true}
   if(d.k==='veh')VEH_KITS.push(kn);else (d.k==='build'?BUILD_KITS:TREE_KITS).push(kn);MDL.ready[name]=true;MDL_VER++;if(d.k==='build')SBVER++;
   if(d.k!=='build'){if(typeof treesDirty!=='undefined')treesDirty=true}if(typeof propsDirty!=='undefined')propsDirty=true}
 const sOn=name=>settings.models!==false&&!!MDL.ready[name];
@@ -116,10 +138,21 @@ function addB(name,x,y,z,w,d,rot,hex,hs){if(!sOn(name))return false;const [a,b,c
 const pickH=(L,h)=>L[Math.floor(((h*9.73)%1)*L.length)];
 const HOUSE_TINT=[0xffffff,0xfff2e4,0xf2f0ff,0xffead8,0xeef6ee,0xfff8f0];
 /* western and northern towns: half-timbered houses in the Middle Ages, tall gabled townhouses in the Age of Sail and the Industrial age, suburbs in the Modern age */
-function modelDwelling(n,x,y,z,rot,e,hk,k,core){if((typeof MCTX!=='undefined'&&MCTX&&MCTX.lagoon)||settings.models===false)return false;const cu=n?cultOf(n):'west';if(cu!=='west'&&cu!=='nordic')return false;
+/* southern and eastern peoples keep most of their own homes; flat-roofed and tiled model houses mix in among them */
+function otherDwelling(cu,x,y,z,rot,e,hk,k,core){const r=hash(hk*17.3+k*.61),yy=y-.012;
+  if(cu==='med'&&e>=2&&e<=4){if(r<.22)return addB('rts_h4',x,yy,z,.1,.09,rot,0xfff4e8);if(r<.4)return addB('rts_h6',x,yy,z,.1,.09,rot,0xfff8f0)}
+  if(cu==='mideast'&&e>=2&&e<=4&&r<.32)return addB('rts_h6',x,yy,z,.1,.09,rot,0xf4e4c4);
+  if(cu==='africa'&&e>=3&&e<=4&&r<.22)return addB('rts_h6',x,yy,z,.1,.09,rot,0xe8c4a0);
+  if((cu==='nordic'||cu==='east')&&e>=2&&e<=3&&r<.2)return addB('rts_h5',x,yy,z,.1,.09,rot,0xffffff);
+  return false}
+function modelDwelling(n,x,y,z,rot,e,hk,k,core){if((typeof MCTX!=='undefined'&&MCTX&&MCTX.lagoon)||settings.models===false)return false;const cu=n?cultOf(n):'west';if(cu!=='west'&&cu!=='nordic')return otherDwelling(cu,x,y,z,rot,e,hk,k,core);
   const w=Math.max(.09,Math.min(.15,(MCTX&&MCTX.w)||.12)),r=hash(hk*13.7+k*.37),tint=pickH(HOUSE_TINT,r*3.1),yy=y-.012;
-  if(e===3)return r<.45&&addB('med_house',x,yy,z,.1,.09,rot,tint);
-  if(e===4){if(core>.3)return addB(pickH(['town3s','town2s','town3s'],r),x,yy,z,.11,.09,rot,tint);return r<.55&&addB('med_house',x,yy,z,.1,.09,rot,tint)}
+  /* a medieval town: houses of plaster and timber, an inn and a smithy near the market, a bell tower at its heart, a mill on the edge */
+  const village=()=>{if(core>.86&&r<.07&&sOn('mv_bell'))return addB('mv_bell',x,yy,z,.08,.08,rot,tint);if(core<.18&&r<.05&&sOn('mv_mill'))return addB('mv_mill',x,yy,z,.12,.12,rot,tint);
+    if(core>.45&&r<.16)return addB(r<.08?'mv_inn':'mv_smith',x,yy,z,.12,.1,rot,tint);if(r<.3)return addB('med_house',x,yy,z,.1,.09,rot,tint);
+    return r<.72&&addB(pickH(['mv_house1','mv_house2','mv_house3','mv_house4'],r),x,yy,z,.1,.09,rot,tint)};
+  if(e===3)return village();
+  if(e===4){if(core>.3)return addB(pickH(['town3s','town2s','town3s'],r),x,yy,z,.11,.09,rot,tint);return village()}
   if(e===5){const L=core>.62?['town4','town3b','town2s','town4']:core>.25?['town2s','town3s','town3b']:['cottage1','town2s','town3s','cottage1'];return addB(pickH(L,r),x,yy,z,w,w*.85,rot,tint)}
   if(e===6){if(core<.42)return addB(pickH(['sub_house1','sub_house2','sub_house3','sub_house4','sub_house5'],r),x,yy,z,w*.95,w*.85,rot,tint);
     if(core<.62&&r<.45)return addB(pickH(['flat1','flat2','shop','flat1'],r),x,yy,z,w*.85,w*.8,rot,tint);return false}
@@ -129,7 +162,23 @@ function modelDwelling(n,x,y,z,rot,e,hk,k,core){if((typeof MCTX!=='undefined'&&M
 function modelLandmark(n,x,y,z,e,nc){const cu=cultOf(n);let m=null,w=.42;
   if(cu==='meso'&&e>=1&&e<=3){m='maya_temple';w=.44}else if(cu==='mideast'&&e>=1&&e<=2){m='egypt_temple';w=.4}else if(cu==='east'&&e>=1&&e<=2){m='japan_temple';w=.38}else if(cu==='med'&&e>=2&&e<=3){m='pantheon';w=.4}
   return !!m&&addB(m,x,y-.03,z,w,w,0,m==='maya_temple'?0xc8b49a:m==='egypt_temple'?0xe0d0b8:0xf0ece4)}
-{const _cl=cultureLandmark;cultureLandmark=function(n,x,y,z,e,nc){return modelLandmark(n,x,y,z,e,nc)||_cl.apply(this,arguments)}}
+{const _cl=cultureLandmark;cultureLandmark=function(n,x,y,z,e,nc){const r=modelLandmark(n,x,y,z,e,nc)||_cl.apply(this,arguments);
+  if(r&&cultOf(n)==='east'&&e>=1&&e<=4)addB('torii',x,y-.02,z+(e>=3?.66:.32),.13,.03,0,0xffffff);return r}}
+/* a western castle of real towers: curtain walls with battlements, round corner towers, a gatehouse arch, a square keep and a slender spire */
+function modelCastle(n,x,y,z,e,nc){if(!['c_large','c_tallwall','c_gate','c_small','c_round'].every(sOn))return false;const S=.42,WH=.16,T=.05;
+  add('moat',x,y-.012,z,S*2.9,.02,S*2.9,0);add('plazaStone',x,y-.03,z,S*1.8,.035,S*1.8,0);
+  for(const [dx,dz,r] of [[0,S,0],[0,-S,0],[S,0,Math.PI/2],[-S,0,Math.PI/2]]){const L=2*S-.12,ns=Math.max(3,Math.round(L/.11)),sl=L/ns;
+    for(let q=0;q<ns;q++){const t=-L/2+sl*(q+.5),gate=dz>0&&q===(ns>>1);add(gate?'s_c_gate':'s_c_tallwall',x+dx+(r?0:t),y-.03,z+dz+(r?t:0),sl,gate?WH*1.15:WH,T,r,0xd2cdc2)}}
+  for(const [dx,dz] of [[-1,-1],[1,-1],[-1,1],[1,1]]){const kn=dx===dz?'c_round':'c_large';add('s_'+kn,x+dx*S,y-.03,z+dz*S,.13,kn==='c_round'?.38:.27,.13,0,0xd2cdc2)}
+  add('s_c_small',x-.02,y-.03,z-.06,.22,e>=4?.4:.34,.22,0,0xd2cdc2);add('s_c_round',x+.15,y-.03,z-.16,.09,.46,.09,0,0xd2cdc2);
+  if(sOn('mv_house1'))addB('mv_inn',x-.18,y-.02,z+.18,.16,.12,0);
+  add('cyl',x-.02,y+.36,z-.06,.005,.12,.005,0,0x5a4632);add('box',x,y+.45,z-.06,.04,.024,.003,0,nc);return true}
+{const _ca=castle;castle=function(n,x,y,z,e,nc){if(cultOf(n)==='west'&&settings.models!==false&&modelCastle(n,x,y,z,e,nc))return;return _ca.apply(this,arguments)}}
+/* future towns: white domes, ring habitats and long halls between the glass towers, tinted towards the people's colour */
+function modelFuture(n,x,y,z,rot,hk,core,fw){if(core>.84||!sOn('fut_house'))return false;const r=hash(hk*29.1+3),w=Math.min(fw||.12,.13),c=new THREE.Color(0xffffff).lerp(new THREE.Color(n.color),.14).getHex(),yy=y-.014;
+  if(core<.45)return addB(pickH(['fut_house','fut_cyl','fut_open','fut_dome','fut_house'],r),x,yy,z,w*.9,w*.9,rot,c);
+  if(r<.55)return addB(pickH(['fut_long','fut_base','fut_tower','fut_dome'],r),x,yy,z,w,w*.9,rot,c);return false}
+{const _fb=futureBuilding;futureBuilding=function(n,x,y,z,rot,hk,core,fw){if(settings.models!==false&&modelFuture(n,x,y,z,rot,hk,core,fw))return;return _fb.apply(this,arguments)}}
 /* a farmstead of real barns: a red barn in the Age of Sail, silos and a wind pump in the Industrial age, big barns and grain silos in the Modern age */
 function farmModel(n,i,j,fx,gy,fz,rot,e){if(!sOn('farm_barn')||!sOn('farm_silo'))return false;const cu=cultOf(n),western=cu==='west'||cu==='nordic';if(!western&&e<6)return false;
   const c=Math.cos(rot),s=Math.sin(rot),h=hash(j*3.7);
@@ -146,8 +195,7 @@ const MODEL_KITS=()=>Object.keys(KITS).filter(n=>KITS[n].m&&n.startsWith('m_')&&
   const viaJson=name=>fetch('assets/models/'+name+'.json').then(r=>r.ok?r.json():null).then(j=>{if(!j||!j.b64)return;const bin=atob(j.b64),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);L.parse(u.buffer,'',g=>ok(name,g),()=>{})}).catch(()=>{});
   const okS=(name,g)=>{try{prepStatic(name,g)}catch(e){console.warn('model',name,e)}};
   const load=(name,fn)=>L.load('assets/models/'+name+'.glb',g=>fn(name,g),undefined,()=>fetch('assets/models/'+name+'.json').then(r=>r.ok?r.json():null).then(j=>{if(!j||!j.b64)return;const bin=atob(j.b64),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);L.parse(u.buffer,'',g=>fn(name,g),()=>{})}).catch(()=>{}));
-  for(const name of Object.keys(MODEL_DEFS))load(name,ok);
-  for(const name of Object.keys(SMODEL))load(name,okS)})();
+  MDL_LOADER=name=>load(name,SMODEL[name]?okS:ok);setTimeout(()=>{try{ensureModels()}catch(e){}},0)})();
 const modelOn=name=>settings.models!==false&&!!MDL.ready[name];
 
 /* ---------- animals ---------- */
@@ -157,7 +205,7 @@ function drawHerdModel(h,k,x,y,z,rot,T,graze,moving){const name=h.kind==='sheep'
 
 /* ---------- people ---------- */
 function folkModel(w){if(w.sol)return w.uni<=4?'knightcharacter':(w.seed&1?'male_shirt':'male_casual');if(w.fem)return w.dress&&w.long?'female_dress':(w.seed&2?'female_casual':'female_dress');return w.seed&4?'male_shirt':'male_casual'}
-function drawFolkModel(w,gy){const name=folkModel(w);if(!modelOn(name)||(typeof camDist!=='undefined'&&camDist>9))return false;
+function drawFolkModel(w,gy){const name=folkModel(w);if(!modelOn(name)||(typeof camDist!=='undefined'&&camDist>15))return false;
   const F=MDL.frames[name],moving=w.moving&&F.walk,list=moving?F.walk:F.idle,TAU=6.2832;
   const fi=moving?Math.floor((((w.ph%TAU)+TAU)%TAU)/TAU*list.length):Math.floor((w.t||0)*1.2)%list.length;
   const s=w.kid?.7:1,top=w.dress||w.top,bot=w.dress&&w.long?w.dress:w.bot;
@@ -190,8 +238,13 @@ function modelPlane(name,scale){if(!modelOn(name))return null;const g=new THREE.
 /* ---------- wild animals: zebras on the savanna, wolves in the forests, wild horses on the plains, llamas where camels would roam ---------- */
 const WILD_MODEL={zebra:'zebra',cattle:'cow',sheep:'sheep',camel:'llama',reindeer:'horse'},WILD_ONLY=['zebra','llama','wolf','dolphin','shark','whale','manta_ray','fish1','fish2','fish3'];
 let WILD_USED=new Set();
-function wildModelOf(hd){if(hd.kind==='deer'){const i=tileAt(hd.x,hd.z);return i>=0&&biome[i]===5?'wolf':'horse'}return WILD_MODEL[hd.kind]||null}
-function drawWildModel(hd,m,x,y,z,now){const name=hd._mn!==undefined?hd._mn:(hd._mn=wildModelOf(hd));if(!name||!modelOn(name))return false;const F=MDL.frames[name],mv=Math.hypot(hd.vx,hd.vz)>.009&&F.walk!==F.idle;
+function wildModelOf(hd){const h=hash(hd.x*7.1+hd.z*3.3);if(hd.kind==='deer'){const i=tileAt(hd.x,hd.z),forest=i>=0&&biome[i]===5;if(forest&&h<.25)return 'wolf';if(forest&&h<.36)return 'fox';return h<.8?'deer':'horse'}
+  if(hd.kind==='reindeer')return 'deer';return WILD_MODEL[hd.kind]||null}
+const WILD_STATIC={deer:1,stag:1,fox:1,donkey:1};
+function drawWildModel(hd,m,x,y,z,now){const name=hd._mn!==undefined?hd._mn:(hd._mn=wildModelOf(hd));if(!name)return false;
+  if(WILD_STATIC[name]){const k=hd.m.indexOf(m),nm=name==='deer'&&k===0?'stag':name;if(name==='fox'&&k>1)return true;if(!sOn(nm))return false;
+    const mv=Math.hypot(hd.vx,hd.vz)>.009,bob=mv?Math.abs(Math.sin(now/140+m.ph))*.003:0;add('s_'+nm,x,y+bob,z,1,1,1,mv?Math.atan2(hd.vx,hd.vz):m.a,hd.kind==='reindeer'?0xd8d0c8:null);return true}
+  if(!modelOn(name))return false;const F=MDL.frames[name],mv=Math.hypot(hd.vx,hd.vz)>.009&&F.walk!==F.idle;
   const list=mv?F.walk:F.idle,fi=Math.floor(now/1000*(mv?7:1.5)+m.ph*3)%list.length,kn=list[(fi+list.length)%list.length];addM(kn,x,y,z,1,mv?Math.atan2(hd.vx,hd.vz):m.a);WILD_USED.add(kn);return true}
 function drawWhaleModel(w,up,now){if(!modelOn('whale'))return false;const F=MDL.frames.whale.swim,kn=F[Math.floor(now/260)%F.length];
   addM(kn,w.x,waterY-.05+up*.04,w.z,1,Math.atan2(Math.cos(w.a),Math.sin(w.a)),null,null,null,null,-Math.cos(w.t*.6)*.12);WILD_USED.add(kn);return true}
@@ -217,8 +270,16 @@ function updateSeaLife(dt,k,now){if(!modelOn('dolphin'))return;seaT-=dt;
       addM(kn,x,y,z,1,ry+(s.kind[0]==='f'?Math.sin(T*2+m.ph)*.4:0),null,null,null,null,tilt);WILD_USED.add(kn)}}}
 document.addEventListener('DOMContentLoaded',()=>{if(typeof updateLiving!=='function')return;const _ul=updateLiving;updateLiving=function(dt,k,now){if(settings.models!==false)for(const nm of WILD_ONLY){const F=MDL.frames[nm];if(F)for(const key in F)for(const kn of F[key])if(KITS[kn])KITS[kn].k=0}
   WILD_USED=new Set();const r=_ul.apply(this,arguments);try{updateSeaLife(dt,k,now);drawTraffic(now,k)}catch(e){console.warn('sea',e)}
-  mcommit([...WILD_USED]);for(const nm of VEH_KITS){const K=KITS[nm];K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;if(K.mesh.instanceColor)K.mesh.instanceColor.needsUpdate=true}return r}});
+  mcommit([...WILD_USED]);return r}});
+{const _um=updateModern;updateModern=function(){const r=_um.apply(this,arguments);for(const nm of VEH_KITS){const K=KITS[nm];K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;if(K.mesh.instanceColor)K.mesh.instanceColor.needsUpdate=true}return r}}
 
+/* ---------- caravans: pack donkeys in the old ages, a donkey pulling a covered cart later ---------- */
+function drawCaravanModel(c,e,x,y,z,r,nc){if(!sOn('donkey'))return false;const cs=Math.cos(r),sn=Math.sin(r),ry=Math.PI/2-r;
+  if(e<=2){for(let q=0;q<3;q++){const bx=x-cs*q*.05,bz=z-sn*q*.05,by=groundY(bx,bz);add('s_donkey',bx,by,bz,1,1,1,ry);add('lcart',bx,by+.03,bz,.018,.012,.022,-r,q?0xc8b088:nc)}return true}
+  add('lcart',x,y+.012,z,.05,.022,.03,-r,0x7a5a3a);add('lcart',x,y+.034,z,.044,.016,.028,-r,0xe8e0c8);for(const s of [-1,1])add('wheel',x-sn*.016*s,y+.01,z+cs*.016*s,.016,.004,.016,-r+Math.PI/2,0x4a3a2a,Math.PI/2);
+  const dx=x+cs*.06,dz=z+sn*.06;add('s_donkey',dx,groundY(dx,dz),dz,1,1,1,ry);return true}
+/* hover traffic of the Future age: small sleek craft instead of glowing bars */
+function drawHoverModel(x,y,z,hr,i,h1){const nm=['ship_challenger','ship_dispatcher','ship_zenith','ship_pancake'][(h1*4)|0];if(!sOn(nm))return false;add('s_'+nm,x,y,z,1,1,1,hr+Math.PI/2,i%3?0xe8f8ff:0xfff0d8);return true}
 /* ---------- cars, buses and trains ---------- */
 const CAR_SET=['car1','car2','suv','sports1','sports2','taxi','car1','car2'],WHITE_CAR={suv:1,sports2:1,cop:0};
 function addV(name,x,y,z,rot,hex){if(!sOn(name))return false;add('s_'+name,x,y,z,1,1,1,rot,hex==null?0xffffff:hex);return true}
@@ -242,3 +303,56 @@ function drawTraffic(now,k){if(!sOn('car1')||typeof cityStreets==='undefined')re
       let lo=0;while(lo<st._acc.length-2&&st._acc[lo+1]<t)lo++;const a=p[lo],b=p[lo+1],sl=st._acc[lo+1]-st._acc[lo]||1,f=(t-st._acc[lo])/sl,dx=(b[0]-a[0])/sl,dz=(b[1]-a[1])/sl;
       const fx=dx*dir,fz=dz*dir,lane=st.w*.24,x=a[0]+(b[0]-a[0])*f-fz*lane,z=a[1]+(b[1]-a[1])*f+fx*lane,name=hash(st._seed*3+q)<.08?'bus':carFor(hash(st._seed*5+q*1.3));
       if(addV(name,x,groundY(x,z)+.002,z,Math.atan2(fx,fz),WHITE_CAR[name]?[0xc0392b,0x2e6fb0,0xe8e2d4,0x2a2a2a,0xe0b030,0x3f8f4a][(hash(st._seed+q)*6)|0]:null))n++}}}
+
+/* ---------- railways: a line of sleepers and two steel rails beside the road between towns; trains run on it and slip out of sight at the stations ---------- */
+kit('railS',unitBox(),stdMat({color:0x5a4632,roughness:1}),40000,false);kit('railB',unitBox(),stdMat({color:0x8a8d91,roughness:.4,metalness:.6}),60000,false);
+let railSig='';
+function railPath(c){/* the road route, moved to one side of the road */const P=c.pts,out=[];for(let q=0;q<P.length;q++){const a=P[Math.max(0,q-1)],b=P[Math.min(P.length-1,q+1)],dx=b[0]-a[0],dz=b[1]-a[1],l=Math.hypot(dx,dz)||1;out.push([P[q][0]-dz/l*.1,P[q][1]+dx/l*.1])}
+  let L=0;const acc=[0];for(let q=1;q<out.length;q++){L+=Math.hypot(out[q][0]-out[q-1][0],out[q][1]-out[q-1][1]);acc.push(L)}return {pts:out,acc,L}}
+function nearTown(x,z,R){for(const n of nations)if(n.alive)for(const c of n.cities)if(Math.hypot(wx(c.x)-x,wz(c.y)-z)<R)return true;return false}
+function rebuildRails(){const lines=(typeof tradeTrains!=='undefined'?tradeTrains:[]).filter(c=>{const n=nations[c.a];return n&&n.alive&&n.era>=5&&n.era<=6&&settings.models!==false});
+  for(const c of lines)c._rail=railPath(c);
+  const sig=lines.map(c=>c.a+':'+c.b+':'+c.pts.length).join('|')+'|'+terrVer;if(sig===railSig)return;railSig=sig;kitReset(['railS','railB']);
+  for(const c of lines){const R=c._rail;let px=null,pz=null;
+    for(let t=0;t<=R.L;t+=.034){_tt.pts=R.pts;_tt.acc=R.acc;_tt.t=t;const [x,z,a]=tradeTrainAt(_tt),y=groundY(x,z);if(y<waterY+.01||nearTown(x,z,.55)){px=null;continue}
+      const cs=Math.cos(a),sn=Math.sin(a);add('railS',x,y-.003,z,.012,.005,.045,-a,0x5a4632);
+      if(px!==null)for(const sd of [-1,1]){const ox=-sn*.014*sd,oz=cs*.014*sd;add('railB',(x+px)/2+ox,y+.002,(z+pz)/2+oz,Math.hypot(x-px,z-pz)+.001,.004,.003,-a)}px=x;pz=z}}
+  kitCommit(['railS','railB'])}
+document.addEventListener('DOMContentLoaded',()=>{if(typeof tradeTrainRoutes!=='function')return;const _tr=tradeTrainRoutes;tradeTrainRoutes=function(){const r=_tr.apply(this,arguments);try{rebuildRails()}catch(e){console.warn('rails',e)}return r}});
+/* trains follow the rails, and are hidden while they stand in a station inside a town or cross open water */
+{const _dt=drawTrainModel;drawTrainModel=function(c,e,x,y,z,r,nc){if(!c._rail)return _dt.apply(this,arguments);const R=c._rail,hs=e>=6,cargo=hash(c.a*7.7+c.b*3.1)<.35,front=hs?(cargo?'cargo_front':'hs_front'):'loco_front';if(!sOn(front))return false;
+  const cars=hs?(cargo?['cargo_box','cargo_coal','cargo_box']:['hs_wagon','hs_wagon','hs_wagon']):(cargo?['loco_tender','cargo_coal','cargo_box']:['loco_tender','loco_wagon','loco_wagon']);
+  const len=n=>MDL.info[n]&&MDL.info[n].d?MDL.info[n].d.len:.08,T0=c.t/c.L*R.L;_tt.pts=R.pts;_tt.acc=R.acc;let off=0;const L=[front,...cars];
+  for(let q=0;q<L.length;q++){const nm=L[q],hl=len(nm)/2;if(q)off+=hl+.004;_tt.t=clamp(T0-c.dir*off,0,R.L);const [px,pz,a]=tradeTrainAt(_tt),rr=c.dir>0?a:a+Math.PI,gy=groundY(px,pz);
+    if(gy>waterY+.01&&!nearTown(px,pz,.5))addV(nm,px,gy+.006,pz,Math.PI/2-rr);off+=hl}
+  return true}}
+
+/* ---------- far away, a building is drawn as a plain block of its own colour: the detail is invisible there and costs the most ---------- */
+kit('lodBox',(()=>{const g=new THREE.BoxGeometry(1,1,1);g.translate(0,.5,0);return g})(),new THREE.MeshStandardMaterial({roughness:.9}),40000,true);
+const LODP={stamp:-1,n:0};const _lodM=new THREE.Matrix4(),_lodC=new THREE.Color();
+const lodDist=()=>settings.power==='saver'?6.5:settings.power==='max'?13:settings.quality==='low'?6.5:9;
+{const _ck=cullKit;cullKit=function(K,P,margin){if(!K.lodC)return _ck(K,P,margin);
+  if(LODP.stamp!==CULLK.last){LODP.stamp=CULLK.last;LODP.n=0}const LK=KITS.lodBox,LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,avg=K.avg,LD2=lodDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
+  const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
+  for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
+    for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}
+    if(!ok)continue;
+    if((x-cx)**2+(y-cy)**2+(z-cz)**2>LD2){if(LODP.n<LK.max){LA.set(M.subarray(i*16,i*16+16),LODP.n*16);const o=LODP.n*3;LC[o]=avg[0]*(MC?MC[i*3]:1);LC[o+1]=avg[1]*(MC?MC[i*3+1]:1);LC[o+2]=avg[2]*(MC?MC[i*3+2]:1);LODP.n++}continue}
+    A.set(M.subarray(i*16,i*16+16),v*16);if(C&&MC)C.set(MC.subarray(i*3,i*3+3),v*3);v++}
+  K.mesh.count=v;const IM=K.mesh.instanceMatrix;IM.needsUpdate=true;if(IM.updateRange){IM.updateRange.offset=0;IM.updateRange.count=v*16}
+  if(K.mesh.instanceColor){const IC=K.mesh.instanceColor;IC.needsUpdate=true;if(IC.updateRange){IC.updateRange.offset=0;IC.updateRange.count=v*3}}}}
+{const _ct=cullTick;cullTick=function(){const st=CULLK.last;const r=_ct.apply(this,arguments);if(CULLK.last!==st){const LK=KITS.lodBox;if(LODP.stamp!==CULLK.last){LODP.n=0;LODP.stamp=CULLK.last}
+  LK.mesh.count=LODP.n;LK.mesh.instanceMatrix.needsUpdate=true;LK.mesh.instanceColor.needsUpdate=true}return r}}
+
+/* ---------- models load as the world needs them: a Stone Age world never downloads cars or space domes ---------- */
+function modelEras(n){
+  if(/^(cow|horse|sheep|pig|male_|female_|knight|tree_|bush_|rock_|zebra|llama|wolf|dolphin|shark|whale|manta|fish|deer|stag|fox|donkey)/.test(n))return [0,7];
+  if(n==='viking_boat')return [0,2];if(n==='sail_ship'||n==='boatwsail')return [2,5];if(n==='cruiseship')return [6,7];if(/plane/.test(n))return [5,7];if(/^tank/.test(n))return [5,6];
+  if(/^(egypt|japan|maya|pantheon)/.test(n))return [1,3];if(n==='torii')return [1,4];if(/^c_/.test(n))return [3,4];if(n==='med_house')return [3,6];if(/^mv_/.test(n))return [3,4];if(/^rts_/.test(n))return [2,4];
+  if(/^town|^cottage/.test(n))return [4,5];if(/^farm_/.test(n))return [4,6];if(/^(sub_house|flat|shop|hospital|bank|dt_)/.test(n))return [6,6];
+  if(/^(car\d|suv|sports|taxi|cop|bus|schoolbus|loco|hs_|cargo)/.test(n))return [5,6];if(/^fut_|^ship_/.test(n))return [7,7];return [0,7]}
+function ensureModels(){if(!MDL_LOADER||settings.models===false||typeof nations==='undefined')return;const eras=new Set();for(const n of nations)if(n.alive)eras.add(n.era);if(!eras.size)return;
+  for(const name of [...Object.keys(MODEL_DEFS),...Object.keys(SMODEL)]){if(MDL_REQ.has(name))continue;const [a,b]=modelEras(name);let need=false;for(const e of eras)if(e>=a&&e<=b){need=true;break}
+    if(need){MDL_REQ.add(name);MDL_LOADER(name)}}}
+setInterval(ensureModels,2000);
+function onModelsToggle(){SBVER++;MDL_VER++;propsDirty=true;treesDirty=true;railSig='';if(settings.models!==false)ensureModels()}

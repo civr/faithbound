@@ -256,7 +256,7 @@ function updateHover(now){kitReset(['hover']);const t=now/1000;
   for(const n of nations){if(!n.alive||n.era<7)continue;for(const c of n.cities){const cx=wx(c.x),cz=wz(c.y);if(Math.hypot(cx-camT.x,cz-camT.z)>camDist*2.2+1)continue;
     const cy=groundY(cx,cz),cnt=c===n.cities[0]?26:12,R=c===n.cities[0]?.55:.3;
     for(let i=0;i<cnt;i++){const h1=hash(c.x*31+c.y*7+i),r=.1+h1*R,sp=(.25+hash(i*3.1)*.4)*(i%2?1:-1),a=t*sp/r*.3+h1*6.28,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;
-      add('hover',x,cy+.15+hash(i*7.7)*.55,z,.022,.006,.01,-a+(sp>0?-Math.PI/2:Math.PI/2),i%3?0x9ff4ff:0xffd890)}}}
+      const hy=cy+.15+hash(i*7.7)*.55,hr=-a+(sp>0?-Math.PI/2:Math.PI/2);if(typeof drawHoverModel==='function'&&drawHoverModel(x,hy,z,hr,i,h1))continue;add('hover',x,hy,z,.022,.006,.01,hr,i%3?0x9ff4ff:0xffd890)}}}
   kitCommit(['hover'])}
 function updateModern(dt,k,now){updateFlights(dt,k);updateHover(now)}
 

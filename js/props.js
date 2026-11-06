@@ -863,7 +863,7 @@ function cityKey(n,c,ci,e,lvl,gold,cap){const MR=metroRadius(n,c,cap,e),rad=Math
   for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===n.id)oh++}oh=Math.round(oh/4)
   const far=Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
   return [n.id,e,lvl,cap?1:0,gold?1:0,n.festival>0?1:0,c.statue?c.statue.faith:-1,c.siege>.08?1:0,c.riot&&year-c.riot<6?1:0,n.faith,n.wonder,flagKey(n.flag),cultOf(n),settings.arch,terrVer,flatSig.length,oh,far?1:0,Math.round(MR*4),
-    n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),n.techs&&n.techs.includes('starships')?1:0,ci,typeof SBVER!=='undefined'?SBVER:0].join('|')}
+    n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),n.techs&&n.techs.includes('starships')?1:0,ci,typeof SBVER!=='undefined'&&settings.models!==false?SBVER:-1].join('|')}
 function replayCity(Rc){if(Rc.ft){const fr=FOOTREC;FOOTREC=null;for(const o of Rc.ft)footAdd(o);FOOTREC=fr}for(const name in Rc.k){const K=KITS[name],a=Rc.k[name],cnt=a.length/19,M=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array;
     for(let i=0;i<cnt&&K.k<K.max;i++){M.set(a.subarray(i*19,i*19+16),K.k*16);C.set(a.subarray(i*19+16,i*19+19),K.k*3);K.k++}}
   for(const v of Rc.occ)occupied.add(v);for(const v of Rc.bare)bare.add(v);for(const v of Rc.bg)bgrid.add(v);
@@ -1332,7 +1332,7 @@ function updateCaravans(dt,k){
     const x=lerp(c.p[0],c.p[2],c.t),z=lerp(c.p[1],c.p[3],c.t),y=groundY(x,z),rot=Math.atan2(c.p[2]-c.p[0],c.p[3]-c.p[1]);
     if(c.era>=5){const ox=Math.cos(rot)*.035,oz=-Math.sin(rot)*.035;if(typeof drawCarModel==='function'&&drawCarModel(c,x+ox,y+.002,z+oz,rot))continue;add('car',x+ox,y+.006,z+oz,.028,.02,.05,rot,c.car);add('car',x+ox,y+.024,z+oz,.024,.012,.026,rot,0x9ab0c0);continue}
     add('cart',x,y+.01,z,.035,.022,.06,rot,0x6b4a2e);add('cartTop',x,y+.035,z,.034,.03,.05,rot+Math.PI/2,0xeee6d2);
-    add('body',x+Math.sin(rot)*.06,y,z+Math.cos(rot)*.06,.02,.025,.04,rot,0x7a5a3a)}
+    if(!(typeof addV==='function'&&addV('donkey',x+Math.sin(rot)*.06,y,z+Math.cos(rot)*.06,rot)))add('body',x+Math.sin(rot)*.06,y,z+Math.cos(rot)*.06,.02,.025,.04,rot,0x7a5a3a)}
   kitCommit(['cart','cartTop','car'])}
 
 /* ---------- particles: smoke, fire, foam, clouds ---------- */
