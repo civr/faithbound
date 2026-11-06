@@ -643,7 +643,7 @@ function cityCenter(n,c,cx,cy,cz,e,cap,i0){
     P('awning',sx,cy+.035,sz,rt,0,0,0,.042,.014,.03,AWN[(hash(i0*7+k)*AWN.length)|0])}}
   if(e>=4&&e<=5)for(let k=0;k<6;k++){const a=k/6*6.283+.3,lx=cx+Math.cos(a)*(r+.02),lz=cz+Math.sin(a)*(r+.02);add('cyl',lx,cy,lz,.004,.075,.004,0,0x2e2e2e);add('lamp',lx,cy+.072,lz,.012,.014,.012)}
   if(e>=1&&e<=5&&herds.length<120){for(let h=0;h<1+(hash(i0*5)<.5?1:0);h++){const a=hash(i0*11+h)*6.283,d=.55+hash(i0*13+h)*.4,hx=cx+Math.cos(a)*d,hz=cz+Math.sin(a)*d,ti=Math.floor(hz+H/2)*W+Math.floor(hx+W/2);
-    if(ti>=0&&ti<N&&owner[ti]===n.id&&(biome[ti]===4||biome[ti]===8)&&groundY(hx,hz)>waterY+.05)herds.push({x:hx,z:hz,kind:hash(i0+h*3)<.55?'sheep':'cow',n:3+((hash(i0*17+h)*4)|0),seed:i0*7+h})}}}
+    if(ti>=0&&ti<N&&owner[ti]===n.id&&(biome[ti]===4||biome[ti]===8)&&groundY(hx,hz)>waterY+.05)herds.push({x:hx,z:hz,kind:(q=>q<.45?'sheep':q<.78?'cow':q<.9?'pig':'horse')(hash(i0+h*3)),n:3+((hash(i0*17+h)*4)|0),seed:i0*7+h})}}}
 function harbour(c,cx,cz,e,i0){let d=-1;for(let q=0;q<4;q++){const X=c.x+DX[q],Y=c.y+DY[q];if(X<0||Y<0||X>=W||Y>=H)continue;if(isWater(Y*W+X)){d=q;break}}if(d<0)return;
   const len=e>=SAIL?.55:.32,px=cx+DX[d]*.45,pz=cz+DY[d]*.45,ax=DX[d]?len:.06,az=DY[d]?len:.06;
   add('box',px,waterY-.04,pz,ax,.06,az,0,e>=6?0x9a9a96:0x6b5038);
@@ -712,7 +712,7 @@ function updateGrass(now){grassU.uTime.value=now/1000;
 let flocks=[];
 function updateLife(dt,now){
   TX.river.offset.y=-now/1000*.35;INWU.uTime.value=now/1000;updateGrass(now);
-  kitReset(['animal','bird','aBody','aHead','aLeg']);
+  if(typeof MODEL_KITS==='function'&&updateLife.v!==MDL_VER){updateLife.v=MDL_VER;updateLife.ak=MODEL_KITS().filter(n=>/^m_(cow|horse|sheep|pig)_/.test(n))}kitReset(['animal','bird','aBody','aHead','aLeg',...(updateLife.ak||[])]);
   /* sheep and cattle: a round body, a head that dips to graze, four legs that step as they wander, and a tail */
   const T=now/1000,R2a=(camDist*1.4+2)**2;
   for(const h of herds){if((h.x-camT.x)**2+(h.z-camT.z)**2>R2a)continue;for(let k=0;k<h.n;k++){const s=h.seed*13+k,a1=hash(s+1),a3=hash(s+3),t=T*.06+hash(s)*20,
@@ -720,6 +720,7 @@ function updateLife(dt,now){
     const vx=-Math.sin(t+k)*.08*a1,vz=Math.cos(t*.8+k)*.8*.08*a3,rot=Math.atan2(vx,vz),c=Math.cos(rot),sn=Math.sin(rot),Lp=(lx,lz)=>[x+lx*c+lz*sn,z-lx*sn+lz*c];
     const sheep=h.kind==='sheep',col=sheep?0xf2efe6:hash(s+5)<.5?0x6b4a32:hash(s+6)<.5?0x2a2622:0xd8cfc0,dark=sheep?0x2a2622:col,
       L=sheep?.016:.022,bw=sheep?.03:.032,bh=sheep?.026:.03,bl=sheep?.044:.06,graze=Math.sin(T*.35+hash(s+7)*9)>.25,sw=Math.sin(T*6+k*1.7)*.38;
+    if(typeof drawHerdModel==='function'&&drawHerdModel(h,k,x,y,z,rot,T,graze,h.kind==='cow'||h.kind==='horse'))continue;
     addR('aBody',x,y+L+bh*.42,z,bw,bh,bl,rot,0,0,col);
     for(const [lx,lz,ph] of [[-.4,.32,1],[.4,.32,-1],[-.4,-.32,-1],[.4,-.32,1]]){const [px,pz]=Lp(lx*bw,lz*bl);addR('aLeg',px,y+L+.004,pz,sheep?.006:.008,L+.004,sheep?.006:.008,rot,sw*ph,0,dark)}
     const hd=graze?[.0,bl*.55,-.004]:[0,bl*.52,bh*.45],[hx,hz]=Lp(hd[0],hd[1]);addR('aHead',hx,y+L+bh*.5+hd[2],hz,sheep?.014:.018,sheep?.014:.017,sheep?.02:.026,rot,graze?.5:-.1,0,dark);
@@ -729,7 +730,7 @@ function updateLife(dt,now){
   for(const f of flocks){const a=now/1000*f.sp+f.ph,fx=f.x+Math.cos(a)*f.r,fz=f.z+Math.sin(a)*f.r,dir=a+Math.PI/2,y=Math.max(groundY(fx,fz),waterY)+1.1;
     for(let k=0;k<7;k++){const row=Math.ceil(k/2),side=k%2?1:-1,bx=fx-Math.cos(dir)*.0+(-Math.sin(-dir))*0,ox=-row*.07,oz=side*row*.06,c=Math.cos(dir),s=Math.sin(dir);
       const px=fx+ox*c-oz*s,pz=fz+ox*s+oz*c,flap=.6+Math.abs(Math.sin(now/120+k))*.8;add('bird',px,y+Math.sin(now/700+k)*.03,pz,.035,.035*flap,.035,-dir+Math.PI/2)}}
-  kitCommit(['animal','bird','aBody','aHead','aLeg'])}
+  kitCommit(['animal','bird','aBody','aHead','aLeg']);if(updateLife.ak&&updateLife.ak.length)mcommit(updateLife.ak)}
 const occupied=new Set();
 function cityLevel(n){return clamp(Math.sqrt(n.pop/Math.max(1,n.cities.length))/2.3,1,10)}
 /* ---------- town plans: every town grows its own street network from a centre ---------- */
@@ -758,7 +759,7 @@ function townPlan(n,c,cap,e){
   const mark=(x,z,r)=>{const k=gk(x,z);if(!grid.has(k))grid.set(k,[]);grid.get(k).push([x,z,r])};
   if(band===0){/* a loose camp: huts gather in little clusters around the fire */
     const huts=[[cx+.09,cz]];for(let k=0;k<70;k++){const b=huts[(R_()*huts.length)|0],a=R_()*6.283,d=.085+R_()*.05,x=b[0]+Math.cos(a)*d,z=b[1]+Math.sin(a)*d;
-      if(Math.hypot(x-cx,z-cz)<.07||bad(x,z)||!free(x,z,.04))continue;mark(x,z,.04);huts.push([x,z]);slots.push({x,z,rot:R_()*6.283,w:.1,d:.1,core:0,st:-1,at:0,fx:x,fz:z,dd:Math.hypot(x-cx,z-cz)+R_()*.15})}
+      if(Math.hypot(x-cx,z-cz)<.07||bad(x,z)||!free(x,z,.04))continue;mark(x,z,.04);huts.push([x,z]);{const hr=R_()*6.283;slots.push({x,z,rot:hr,w:.1,d:.1,core:0,st:-1,at:0,fx:x+Math.sin(hr)*.075,fz:z+Math.cos(hr)*.075,dd:Math.hypot(x-cx,z-cz)+R_()*.15})}}
     slots.sort((a,b)=>a.dd-b.dd);return c._plan={key,streets,slots,pr}}
   if(mb)return c._plan=organicMetro(c,cap,e,mb,key,R_,cx,cz,pr,bad,free,mark);
   const straight=band>=2?.65:1,len=(cap?2.1:1.4)*(e>=3&&e<=4?(cap?1.15:.85):1)*(band>=2?1.25:1)*(band===3?1.4:1)*Math.sqrt(clamp(W/112,.6,1.4));
@@ -1244,15 +1245,16 @@ function updateWalkers(dt,yrs){
     /* people walk round houses, gardens and walls instead of through them */
     if(inBuilding(nx,nz)&&!inBuilding(w.x,w.z)){let ok=false;const a0=Math.atan2(dz,dx),st=Math.min(sp,d);
       for(const da of [.7,-.7,1.4,-1.4,2.1,-2.1]){const ax=w.x+Math.cos(a0+da)*st,az=w.z+Math.sin(a0+da)*st;if(!inBuilding(ax,az)&&groundY(ax,az)>=waterY+.01){nx=ax;nz=az;ok=true;break}}
-      if(!ok){w.wait=.4+rng();w.tx=w.x;w.tz=w.z;continue}}
+      if(!ok){if(d<.09&&(w.act==='home'||inBuilding(w.tx,w.tz))){w.x=w.tx;w.z=w.tz;w.moving=false;w.wait=w.act==='home'?6+rng()*8:.5;continue}
+        const c2=w.ci&&n.cities.includes(w.ci)?w.ci:n.cities[0];const p2=c2?cityPoint(c2,[w.x,w.z]):null;if(p2&&!inBuilding(p2[0],p2[1])){w.tx=p2[0];w.tz=p2[1]}else{w.tx=w.x;w.tz=w.z;w.wait=.3+rng()*.5}continue}}
     if(groundY(nx,nz)<waterY+.01){w.wait=.3;w.tx=w.x;w.tz=w.z;continue}
     w.x=nx;w.z=nz;w.moving=true;const td=Math.atan2(dx,dz);let dd=td-w.dir;dd=Math.atan2(Math.sin(dd),Math.cos(dd));w.dir+=dd*Math.min(1,dt*10);w.ph+=Math.min(sp,d)*(w.kid?620:480)}
-  kitReset(FIG_KITS);
+  if(typeof MODEL_KITS==='function'&&updateWalkers.v!==MDL_VER){updateWalkers.v=MDL_VER;updateWalkers.pk=MODEL_KITS().filter(n=>/^m_(male|female|knight)/.test(n))}kitReset(FIG_KITS);if(updateWalkers.pk)kitReset(updateWalkers.pk);
   if(camDist<16)updateGondolas(dt,(camDist*1.2+1.5)**2);
   if(camDist<16){const R2=(camDist*1.2+1.5)**2;
     for(const w of walkers){const ex=w.x-camT.x,ez=w.z-camT.z;if(ex*ex+ez*ez>R2)continue;if(w.act==='home'&&w.wait>0&&!w.moving)continue;drawFolk(w)}
     if(typeof drawArmyFolk==='function')drawArmyFolk(R2)}
-  kitCommit(FIG_KITS);
+  kitCommit(FIG_KITS);if(updateWalkers.pk&&updateWalkers.pk.length)mcommit(updateWalkers.pk);
 }
 /* is this point inside a house, its garden or a wall? */
 function inBuilding(x,z){const L=FOOT.get(Math.floor(x/FCELL)+','+Math.floor(z/FCELL));if(!L)return false;
@@ -1273,6 +1275,7 @@ function updateGondolas(dt,R2){
     addR('pStick',sx+Math.cos(h)*.008,wy+.04,sz-Math.sin(h)*.008,.0012,.06,.0012,h,.35+Math.sin(w.t*1.6)*.15,0,0x6a4a2a)}}
 function drawFolk(w){
   const sc=w.kid?.68:1,ry=w.dir,c=Math.cos(ry),s=Math.sin(ry),gy=w.y??groundY(w.x,w.z);
+  if(typeof drawFolkModel==='function'&&drawFolkModel(w,gy))return;
   const L=(lx,ly,lz)=>[w.x+lx*c+lz*s,gy+ly,w.z-lx*s+lz*c];
   let leg=0,arm=0,bend=0,armR=0,bob=0,lean=0;
   if(w.moving){leg=Math.sin(w.ph)*.7;arm=-leg*.9;bob=Math.abs(Math.cos(w.ph))*.0016*sc}

@@ -86,7 +86,8 @@ function siegeEngine(e,x,y,z,f,nc){const V=vehicle(x,y,z,f),wood=0x7a5634,dark=0
     const steel=e===5?0x3a3c3a:0x2a2a28;for(const sd of [-1,1])V.wheel(0,.012,sd*.02,.012,.004,dark);
     V.box(-.03,.006,0,.06,.006,.012,0x5a4030,.12);V.tube(-.006,.014,0,.0045,.07,.18,steel);V.box(.006,.016,0,.014,.012,.03,e===5?0x4a4c40:0x5a4030)}
   else tank(e,x,y,z,f,nc)}
-function tank(e,x,y,z,f,nc){const V=vehicle(x,y,z,f);
+function tank(e,x,y,z,f,nc){if(e>=5&&e<=6&&typeof modelOn==='function'){const tn=['tank','tank2','tank3'][(Math.abs(Math.round(nc))%3)];if(modelOn(tn)){if(!ARMY_KITS.includes('m_'+tn))ARMY_KITS.push('m_'+tn);addM('m_'+tn,x,y,z,1,-f,null,null,null,null);return}}
+  const V=vehicle(x,y,z,f);
   if(e>=7){/* hover tank: sleek white hull floating on a blue glow */const fy=.012+Math.sin(performance.now()/400+x*7)*.003;
     V.box(0,fy-.006,0,.06,.002,.03,0x9ff4ff);V.box(0,fy+.004,0,.072,.012,.036,0xe8ecef);V.box(.03,fy+.004,0,.016,.008,.032,0xd4dadf,-.35);
     V.box(-.004,fy+.016,0,.032,.01,.026,0xf2f4f6);for(const sd of [-1,1])V.tube(.008,fy+.017,sd*.006,.002,.05,.02,0x9ff4ff);V.box(-.004,fy+.022,0,.01,.002,.012,nc);return}
