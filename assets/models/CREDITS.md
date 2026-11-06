@@ -31,3 +31,5 @@ From the Quaternius stage mirror (USD, converted with a small usd2glb script; al
 - Ultimate Space Kit: fut_base, fut_tower, fut_dome, fut_cyl, fut_long, fut_open, fut_house
 - Ultimate Space Ships: ship_challenger, ship_dispatcher, ship_pancake, ship_zenith
 Modular Medieval Buildings (Jul 2017): c_large, c_round, c_tallwall, c_gate, c_small (castle pieces)
+- Ultimate Modular Ruins (Quaternius, CC0): ru_* ruin pieces
+- Kenney Watercraft Kit (CC0), via britzl/sample-kenney-watercraft: liner (also used as the grey warship)

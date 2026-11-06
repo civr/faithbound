@@ -969,7 +969,7 @@ function buildExtras(){
       {const sx=px+DX[wd]*.3,sz=pz+DY[wd]*.3,g=makeShip(SAIL,'pirate','#121212');g.position.set(sx,waterY,sz);g.rotation.y=DX[wd]?0:Math.PI/2;scene.add(g);coveShips.push(g)}
       for(const sd of [-1,1]){const bx=px+DY[wd]*.09*sd,bz=pz+DX[wd]*.09*sd;add('boat',bx,waterY+.012,bz,.12,.05,.04,DX[wd]?0:Math.PI/2,0x2a2420);add('cyl',bx,waterY+.012,bz,.004,.11,.004,0,0x2a2420);add('awning',bx,waterY+.05,bz,.004,.06,.05,DX[wd]?Math.PI/2:0,0x151515)}}}
   /* ruins of sacked towns: broken walls and charred beams, slowly grown over */
-  for(const r of ruins){const age=year-r.year;if(age>260)continue;const i0=r.y*W+r.x;if(occupied.has(i0))continue;const cx=wx(r.x),cz=wz(r.y);
+  for(const r of ruins){const age=year-r.year;if(age>260)continue;const i0=r.y*W+r.x;if(occupied.has(i0))continue;const cx=wx(r.x),cz=wz(r.y);if(typeof drawRuinModel==='function'&&drawRuinModel(r,cx,cz,age,i0))continue;
     for(let k=0;k<14;k++){const a=hash(i0*7+k)*6.283,d=.05+hash(i0*3+k)*.3,x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d,y=groundY(x,z);if(y<waterY+.03)continue;
       const hgt=(.012+hash(i0+k*5)*.04)*(1-age/400);add('stone',x,y-.01,z,.07+hash(k+i0)*.05,hgt,.012,a,0x8a8478);
       if(k%3===0)add('box',x+.02,y,z+.01,.06,.008,.008,a+1,0x2a2420)}
