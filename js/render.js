@@ -68,7 +68,7 @@ function shadowTick(){if(!renderer.shadowMap.enabled)return;renderer.shadowMap.a
     gap=moved?(settings.power==='saver'?66:16):(playing?250:1500);
   if(now-shadowAt>gap||shadowForce){shadowAt=now;shadowSig=sig;shadowForce=false;renderer.shadowMap.needsUpdate=true}}
 let shadowForce=true;
-function renderFrame(){shadowTick();
+function renderFrame(){if(typeof cullTick==='function'&&settings.cull!==false)cullTick();shadowTick();
   if(!postActive()){PLU.uPL.value=0;renderer.render(scene,cam);return}
   renderer.getDrawingBufferSize(POST.size);const w=POST.size.x,h=POST.size.y;
   if(!POST.rt||POST.rt.width!==w||POST.rt.height!==h){if(POST.rt){POST.rt.depthTexture.dispose();POST.rt.dispose()}

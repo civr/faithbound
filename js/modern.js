@@ -63,36 +63,54 @@ function aptBlock(x,y,z,rot,w,hk,core){const o=hash(hk*211+9),mc=MC(),col=(mc.wa
 const WOOD=0xc8925a,WOOD2=0xb07a46,GLEAF=[0x4f8a3a,0x6aa84a,0x5a9a40,0x7ab858],SOLAR=0x24344e;
 function windTurbine(x,y,z,h,face){add('concCyl',x,y-.02,z,h*.03,h,h*.03,0,0xf4f4f2);add('conc',x,y+h-.02,z,h*.06,h*.05,h*.12,face,0xf4f4f2);
   for(let k=0;k<3;k++)add('conc',x+Math.sin(face)*h*.07,y+h,z+Math.cos(face)*h*.07,h*.012,h*.48,h*.03,face,0xf8f8f6,k*2.094+hash(x*9+z)*2)}
-function futureBuilding(n,x,y,z,rot,hk,core,fw){const o=hash(hk*173+3),w=Math.min(fw,.13),c=Math.cos(rot),s=Math.sin(rot);
+/* the future still looks like home: each culture keeps its colours, its materials and a crown on its towers */
+const FUT_CULT={
+  west:{wall:0xf4f1ea,trim:0xf2efe8,wood:0xc8925a,wood2:0xb07a46,glass:0xd8eef0},
+  med:{wall:0xf4e6ce,trim:0xeedcc0,wood:0xc8784c,wood2:0xb8683e,glass:0xd6ecee,roof:0xc0603a,crown:'pergola'},
+  nordic:{wall:0x34383a,trim:0xe8e6e0,wood:0x9a7650,wood2:0x7a5a3a,glass:0xd0e4ea,roof:0x2b2f33,steep:1,crown:'spire'},
+  east:{wall:0xf2f2ee,trim:0xe6e6e2,wood:0x3a3a3e,wood2:0x4a4a50,glass:0xdcecf0,roof:0x3a3e44,crown:'pagoda'},
+  mideast:{wall:0xecdcbc,trim:0xe0ccaa,wood:0xc8a878,wood2:0xb89868,glass:0xe6f0f0,roof:0xd8c4a0,crown:'dome'},
+  africa:{wall:0xe6c49c,trim:0xdab48a,wood:0x8a5a3a,wood2:0x7a4a2e,glass:0xd8ecec,roof:0xb87a4a,crown:'cone'},
+  meso:{wall:0xf2e4d4,trim:0xf0a8a0,wood:0xd89048,wood2:0xc87a3a,glass:0xd4eef0,roof:0xc0603a,crown:'steps'}};
+let FU=FUT_CULT.west;
+const FUT_WALLS={med:[0xf4e0c0,0xeccaa0,0xf2e8d8,0xe8b890],nordic:[0x34383a,0x8a3a30,0x2a3a34,0xe8e6e0],east:[0xf2f2ee,0xe4e6e8,0xd8dadc],mideast:[0xe4c896,0xecd8b0,0xd8b880,0xf0e4cc],africa:[0xd8a070,0xc88a5a,0xe8c090,0xb87850],meso:[0xf0a8a0,0x9ad0d8,0xf0d070,0xa8d898,0xf2ece2]};
+function futureCrown(x,y,z,w,rot,o){const k=FU.crown;if(!k||MCTX.far)return;
+  if(k==='pagoda'){for(let q=0;q<2;q++)add('hipTile',x,y+q*.03,z,w*(1.2-q*.35),.026,w*(1.2-q*.35),rot,FU.roof)}
+  else if(k==='dome'){add('domeW',x,y,z,w*.6,w*.5,w*.6,0,o<.5?0xd4af37:0x3a7aa8);add('cyl',x,y+w*.5,z,.003,.03,.003,0,0xd4af37)}
+  else if(k==='spire'){add('pyr',x,y,z,w*.7,w*1.2,w*.7,rot,FU.roof)}
+  else if(k==='cone'){for(const sd of [-1,0,1])add('coneTile',x+Math.cos(rot)*w*.3*sd,y,z-Math.sin(rot)*w*.3*sd,w*.22,w*.5,w*.22,0,FU.wall)}
+  else if(k==='steps'){add('conc',x,y,z,w*.7,.014,w*.7,rot,FU.trim);add('conc',x,y+.014,z,w*.45,.014,w*.45,rot,FU.trim);add('conc',x,y+.028,z,w*.22,.012,w*.22,rot,FU.trim)}
+  else if(k==='pergola'){for(let q=0;q<4;q++)add('box',x,y+.012,z,w*.8,.003,.004,rot+q*.0,FU.wood);add('bloom',x,y,z,w*.5,w*.2,w*.5,0,0x6aa04a)}}
+function futureBuilding(n,x,y,z,rot,hk,core,fw){{const B=FUT_CULT[MCTX.cu]||FUT_CULT.west,ws=FUT_WALLS[MCTX.cu];FU=ws?Object.assign({},B,{wall:ws[(hash(hk*41)*ws.length)|0]}):B}const o=hash(hk*173+3),w=Math.min(fw,.13),c=Math.cos(rot),s=Math.sin(rot);
   if(core>.84&&hk>.3||(core>.76&&hk>.93)){const H=towerHeight(core,hk)*1.05;let yy=y-.02;
     if(o<.5){/* a vertical forest: every floor a balcony of trees */const fl=Math.max(6,Math.round(H/.045)),fh=H/fl;
-      for(let f=0;f<fl;f++){add('skyG',x,yy,z,w*.78,fh,w*.78,rot,0xd8eef0);add('conc',x,yy+fh-.005,z,w*.98,.007,w*.98,rot,0xf2efe8);
+      for(let f=0;f<fl;f++){add('skyG',x,yy,z,w*.78,fh,w*.78,rot,FU.glass);add('conc',x,yy+fh-.005,z,w*.98,.007,w*.98,rot,FU.trim);
         if(!MCTX.far)for(let q=0;q<2;q++){const a=(f+q*2)%4,ox=(a&1?1:-1)*w*.38,oz=(a&2?1:-1)*w*.38;add('bloom',x+ox*c+oz*s,yy+fh,z-ox*s+oz*c,w*.34,w*.24,w*.34,0,GLEAF[(f+q)%4])}
         yy+=fh}
-      add('conc',x,yy,z,w*.9,.01,w*.9,rot,0xf2efe8);add('bloom',x,yy+.008,z,w*.7,w*.32,w*.7,0,GLEAF[1])}
+      add('conc',x,yy,z,w*.9,.01,w*.9,rot,FU.trim);add('bloom',x,yy+.008,z,w*.7,w*.32,w*.7,0,GLEAF[1])}
     else if(o<.8){/* timber and glass stepping back, a garden on every step, sun panels on top */const F=[.5,.32,.18],S=[1,.76,.54];
-      for(let t=0;t<3;t++){const th=H*F[t],ww=w*S[t];storeys('skyG',x,yy,z,ww*.9,ww*.84,th,rot,0xcfe8e6,.2);
-        P('plaster',x,yy,z,rot,ww*.43,0,0,ww*.08,th,ww*.88,WOOD);P('plaster',x,yy,z,rot,-ww*.43,0,0,ww*.08,th,ww*.88,WOOD2);
-        yy+=th;add('conc',x,yy,z,ww*1.02,.008,ww*.96,rot,0xf2efe8);add('box',x,yy+.006,z,ww*.98,.008,ww*.92,rot,0x5f9a45);
+      for(let t=0;t<3;t++){const th=H*F[t],ww=w*S[t];storeys('skyG',x,yy,z,ww*.9,ww*.84,th,rot,FU.glass,.2);
+        P('plaster',x,yy,z,rot,ww*.43,0,0,ww*.08,th,ww*.88,FU.wood);P('plaster',x,yy,z,rot,-ww*.43,0,0,ww*.08,th,ww*.88,FU.wood2);
+        yy+=th;add('conc',x,yy,z,ww*1.02,.008,ww*.96,rot,FU.trim);add('box',x,yy+.006,z,ww*.98,.008,ww*.92,rot,0x5f9a45);
         if(!MCTX.far&&t<2)for(let q=0;q<4;q++){const ox=(q&1?1:-1)*ww*.4,oz=(q&2?1:-1)*ww*.38;add('bloom',x+ox*c+oz*s,yy+.012,z-ox*s+oz*c,ww*.18,ww*.14,ww*.18,0,GLEAF[q])}}
       add('box',x,yy+.014,z,w*.36,.004,w*.3,rot,SOLAR,-.3)}
     else{/* two slim towers clad in wood, joined by a garden bridge */for(const sd of [-1,1]){const X=x+c*w*.32*sd,Z=z-s*w*.32*sd,hh=H*(sd>0?1:.82);
-        storeys('skyG',X,y-.02,Z,w*.46,w*.5,hh,rot,0xd4ecea,.2);P('plaster',X,y-.02,Z,rot,0,w*.26,0,w*.48,hh,.008,WOOD);add('bloom',X,y-.02+hh,Z,w*.4,w*.2,w*.4,0,GLEAF[0])}
-      const by=y+H*.55;add('conc',x,by,z,w*.3,.01,w*.2,rot+Math.PI/2,0xf2efe8);add('bloom',x,by+.01,z,w*.24,w*.1,w*.16,rot,GLEAF[2])}
-    MCTX.tall.push([x,z,H,y]);return}
+        storeys('skyG',X,y-.02,Z,w*.46,w*.5,hh,rot,FU.glass,.2);P('plaster',X,y-.02,Z,rot,0,w*.26,0,w*.48,hh,.008,FU.wood);add('bloom',X,y-.02+hh,Z,w*.4,w*.2,w*.4,0,GLEAF[0])}
+      const by=y+H*.55;add('conc',x,by,z,w*.3,.01,w*.2,rot+Math.PI/2,FU.trim);add('bloom',x,by+.01,z,w*.24,w*.1,w*.16,rot,GLEAF[2])}
+    futureCrown(x,y-.02+H*(o<.8?1.01:1),z,w,rot,o);MCTX.tall.push([x,z,H,y]);return}
   if(core>.6||(core>.5&&hk>.9)){/* green terraces: white floors stepping back, wooden screens, a planted edge on every level */
     const fl=2+Math.round(core*3+hash(hk*5)*1.5),fh=.034,W_=Math.max(w,.12),D=W_*.8;let yy=y-.02;
-    for(let f=0;f<fl;f++){const bk=f*.012,dd=D-bk*1.5;P('conc',x,yy,z,rot,0,-bk,0,W_,fh*.9,dd,0xf4f1ea);P('skyG',x,yy+fh*.15,z,rot,0,dd/2-bk+.001,0,W_*.9,fh*.55,.004,0xbfe4ea);
-      if(!MCTX.far){P('box',x,yy+fh*.9,z,rot,0,dd/2-bk-.004,0,W_,.012,.014,0x5f9a45);if(f%2===0)P('plaster',x,yy,z,rot,W_*.44,-bk,0,.012,fh*.9,dd,WOOD)}
+    for(let f=0;f<fl;f++){const bk=f*.012,dd=D-bk*1.5;P('conc',x,yy,z,rot,0,-bk,0,W_,fh*.9,dd,FU.wall);P('skyG',x,yy+fh*.15,z,rot,0,dd/2-bk+.001,0,W_*.9,fh*.55,.004,FU.glass);
+      if(!MCTX.far){P('box',x,yy+fh*.9,z,rot,0,dd/2-bk-.004,0,W_,.012,.014,0x5f9a45);if(f%2===0)P('plaster',x,yy,z,rot,W_*.44,-bk,0,.012,fh*.9,dd,FU.wood)}
       yy+=fh}
     P('box',x,yy+.004,z,rot,0,-fl*.012,0,W_*.6,.004,D*.4,SOLAR,-.25);if(!MCTX.far)P('bloom',x,yy,z,rot,-W_*.3,-fl*.012,0,.03,.022,.03,GLEAF[3]);return}
   futureHome(x,y,z,rot,o)}
 /* future homes: white and timber, roofs of grass or sun panels, a garden and a fruit tree */
 function futureHome(x,y,z,rot,o){const v=(o*3)|0;
-  if(v===0){P('plaster',x,y-.02,z,rot,0,0,0,.085,.045,.065,0xf4f1ea);P('plaster',x,y-.02,z,rot,.03,0,0,.026,.046,.066,WOOD);P('tiles',x,y+.025,z,rot,0,0,0,.095,.034,.075,o<.15?0x6a9a48:SOLAR)}
-  else if(v===1){P('conc',x,y-.02,z,rot,0,0,0,.08,.04,.06,0xf4f1ea);P('plaster',x,y-.02,z,rot,0,.031,.006,.07,.03,.003,WOOD);P('skyG',x,y-.016,z,rot,-.02,.0315,0,.03,.03,.002,0xbfe4ea);
-    P('conc',x,y+.02,z,rot,.015,-.005,0,.05,.028,.045,0xece8de);P('box',x,y+.02,z,rot,-.025,0,0,.03,.006,.05,0x5f9a45);P('box',x,y+.049,z,rot,.015,-.005,0,.045,.004,.04,SOLAR,-.25)}
-  else{/* an earth house under a grassy mound with a round glass front */P('bloom',x,y-.03,z,rot,0,-.01,0,.1,.07,.08,0x6aa04a);P('skyG',x,y-.02,z,rot,0,.03,0,.04,.03,.003,0xbfe4ea);P('plaster',x,y-.02,z,rot,0,.031,0,.048,.034,.002,WOOD)}
+  if(v===0){P('plaster',x,y-.02,z,rot,0,0,0,.085,.045,.065,FU.wall);P('plaster',x,y-.02,z,rot,.03,0,0,.026,.046,.066,FU.wood);P('tiles',x,y+.025,z,rot,0,0,0,.095,FU.steep?.05:.034,.075,o<.15?0x6a9a48:FU.roof||SOLAR)}
+  else if(v===1){P('conc',x,y-.02,z,rot,0,0,0,.08,.04,.06,FU.wall);P('plaster',x,y-.02,z,rot,0,.031,.006,.07,.03,.003,FU.wood);P('skyG',x,y-.016,z,rot,-.02,.0315,0,.03,.03,.002,FU.glass);
+    P('conc',x,y+.02,z,rot,.015,-.005,0,.05,.028,.045,FU.trim);P('box',x,y+.02,z,rot,-.025,0,0,.03,.006,.05,0x5f9a45);P('box',x,y+.049,z,rot,.015,-.005,0,.045,.004,.04,SOLAR,-.25)}
+  else{/* an earth house under a grassy mound with a round glass front */P('bloom',x,y-.03,z,rot,0,-.01,0,.1,.07,.08,0x6aa04a);P('skyG',x,y-.02,z,rot,0,.03,0,.04,.03,.003,FU.glass);P('plaster',x,y-.02,z,rot,0,.031,0,.048,.034,.002,FU.wood)}
   P('box',x,y-.02,z,rot,0,.005,0,.12,.004,.1,0x6aa050);if(o>.3)P('townTree',x,y,z,rot,.055,-.03,0,.17,.19,.17,0x4f8a3a);if(o>.7)P('bloom',x,y-.012,z,rot,-.05,.035,0,.02,.018,.02,[0xe8506a,0xf2c040,0xb070d0][(o*30|0)%3])}
 
 /* ---------- airports and spaceports, sited on flat open ground outside the capital ---------- */

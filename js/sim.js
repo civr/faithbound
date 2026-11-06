@@ -301,10 +301,10 @@ function seaPath(starts,goal){
   const prev=new Int32Array(N).fill(-2),q=[];for(const s of starts){prev[s]=-1;q.push(s)}let head=0;
   while(head<q.length&&head<8000){const j=q[head++],x=j%W,y=(j/W)|0;const t=goal(x,y);
     if(t>=0){const path=[];let k=j;while(k!==-1){path.push(k);k=prev[k]}path.reverse();return{path,target:t}}
-    for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(prev[k]===-2&&isWater(k)){prev[k]=j;q.push(k)}}}
+    for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(prev[k]===-2&&isWater(k)&&!occupied.has(k)){prev[k]=j;q.push(k)}}}
   return null}
 /* a sailing route: the tile path pulled tight into straight legs over open water, then rounded at the corners */
-function clearSea(x0,z0,x1,z1){const d=Math.hypot(x1-x0,z1-z0),n=Math.ceil(d/.12);for(let k=1;k<n;k++){const t=k/n,i=tileAt(lerp(x0,x1,t),lerp(z0,z1,t));if(i<0||!isWater(i))return false}return true}
+function clearSea(x0,z0,x1,z1){const d=Math.hypot(x1-x0,z1-z0),n=Math.ceil(d/.12);for(let k=1;k<n;k++){const t=k/n,i=tileAt(lerp(x0,x1,t),lerp(z0,z1,t));if(i<0||!isWater(i)||occupied.has(i))return false}return true}
 function shipRoute(path){const P=path.map(t=>[wx(t%W),wz((t/W)|0)]),out=[P[0]];let i=0;
   while(i<P.length-1){let j=Math.min(P.length-1,i+60);while(j>i+1&&!clearSea(P[i][0],P[i][1],P[j][0],P[j][1]))j--;out.push(P[j]);i=j}
   let r=out;for(let it=0;it<3;it++){if(r.length<3)break;const q=[r[0]];for(let k=0;k<r.length-1;k++){const a=r[k],b=r[k+1];
