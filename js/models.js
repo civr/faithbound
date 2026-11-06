@@ -379,14 +379,19 @@ function loTreeGeo(src,type){src.computeBoundingBox();const b=src.boundingBox,y0
   else if(type==='flat'){cr=new THREE.IcosahedronGeometry(.5,0);cr.scale(w*.95,h*.32,w*.95);cr.translate(0,y0+h*.82,0)}
   else if(type==='bush'){cr=new THREE.IcosahedronGeometry(.5,0);cr.scale(w*.95,h*.95,w*.95);cr.translate(0,y0+h*.47,0)}
   else{cr=new THREE.IcosahedronGeometry(.5,0);cr.scale(w*.92,h*.62,w*.92);cr.translate(0,y0+h*.66,0)}
-  put(cr,[.82,.82,.82]);const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.computeVertexNormals();return g}
+  const n0=P.length;put(cr,[.82,.82,.82]);const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.computeVertexNormals();
+  /* the crown is shaded as one soft round mass: normals point out from its centre, so it never shows sharp shards */
+  cr.computeBoundingBox();const cb=cr.boundingBox,cc=new THREE.Vector3(),sz=new THREE.Vector3();cb.getCenter(cc);cb.getSize(sz);const N=g.attributes.normal.array;
+  for(let i=n0;i<P.length;i+=3){let nx=(P[i]-cc.x)/Math.max(.01,sz.x*sz.x),ny=(P[i+1]-cc.y)/Math.max(.01,sz.y*sz.y)+(type==='cone'?.6/Math.max(.01,sz.y):0),nz=(P[i+2]-cc.z)/Math.max(.01,sz.z*sz.z);const l=Math.hypot(nx,ny,nz)||1;N[i]=nx/l;N[i+1]=ny/l;N[i+2]=nz/l}
+  return g}
 const LOD_KITS=['lodBox'];
+const treeLodDist=()=>Math.max(7,lodDist()*.75);
 function makeTreeLo(name){const K=KITS[name];if(!K||K.lodP)return;const lo='lo_'+name;kit(lo,loTreeGeo(K.mesh.geometry,TREE_LO[name]),modelTreeMat(),K.max,false);KITS[lo].pn=0;K.lodP=lo;LOD_KITS.push(lo)}
 for(const n of ['conifer','broad','townTree','palm','bush'])makeTreeLo(n);
 {const _ps=prepStatic;prepStatic=function(name,g){const r=_ps.apply(this,arguments);if(TREE_LO['s_'+name])makeTreeLo('s_'+name);return r}}
 /* trees switch to their simple crowns closer in than buildings do, since a forest is thousands of them */
 {const _ck2=cullKit;cullKit=function(K,P,margin){if(!K.lodP)return _ck2(K,P,margin);
-  const LK=KITS[K.lodP];if(LK.stamp!==CULLK.last){LK.stamp=CULLK.last;LK.pn=0}const LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,LD2=(lodDist()*.62)**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
+  const LK=KITS[K.lodP];if(LK.stamp!==CULLK.last){LK.stamp=CULLK.last;LK.pn=0}const LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,LD2=treeLodDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
   const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
   for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
     for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}
@@ -462,13 +467,14 @@ document.addEventListener('DOMContentLoaded',()=>{if(typeof updateAudio!=='funct
 /* ---------- forest blocks: far away, a whole wooded tile is drawn as one lumpy canopy instead of dozens of trees ---------- */
 function canopyGeo(cone){const P=[],C=[],put=(g,col)=>{g=g.index?g.toNonIndexed():g;const a=g.attributes.position.array;for(let i=0;i<a.length;i+=3){P.push(a[i],a[i+1],a[i+2]);C.push(...col)}};
   const spots=[[0,0,1],[.28,.22,.82],[-.27,.25,.86],[.25,-.28,.8],[-.3,-.22,.9],[0,.36,.75],[.36,-.02,.78],[-.36,.04,.84],[.02,-.36,.8]];
-  for(const [x,z,hh] of spots){let g;if(cone){g=new THREE.ConeGeometry(.17,hh,6,1);g.translate(x,hh/2,z)}else{g=new THREE.IcosahedronGeometry(.5,0);g.scale(.42,hh*.62,.42);g.translate(x,hh*.62,z)}put(g,[.8,.8,.8])}
-  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.computeVertexNormals();return g}
+  const NR=[];for(const [x,z,hh] of spots){let g;const n0=P.length;if(cone){g=new THREE.ConeGeometry(.17,hh,6,1);g.translate(x,hh/2,z)}else{g=new THREE.IcosahedronGeometry(.5,1);g.scale(.42,hh*.62,.42);g.translate(x,hh*.62,z)}put(g,[.8,.8,.8]);
+    const cy=cone?hh*.35:hh*.62,sx=cone?.17:.21,sy=cone?hh*.7:hh*.31;for(let i=n0;i<P.length;i+=3){let nx=(P[i]-x)/(sx*sx),ny=(P[i+1]-cy)/(sy*sy)+(cone?.8/sy:0),nz=(P[i+2]-z)/(sx*sx);const l=Math.hypot(nx,ny,nz)||1;NR.push(nx/l,ny/l,nz/l)}}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(NR,3));return g}
 kit('canopyR',canopyGeo(false),modelTreeMat(),12000,false);kit('canopyC',canopyGeo(true),modelTreeMat(),12000,false);
 KITS.canopyR.revLod=KITS.canopyC.revLod=true;TREE_KITS.push('canopyR','canopyC');
 let CANOPY=new Uint8Array(1);
 const CANOPY_SRC=['conifer','broad','palm','s_tree_a','s_tree_b','s_tree_c','s_tree_d','s_bush_a','s_bush_b','s_bush_c'];
-const canopyDist=()=>lodDist()*1.45;
+const canopyDist=()=>Math.max(13,lodDist()*1.45);
 function buildCanopies(){if(CANOPY.length!==N)CANOPY=new Uint8Array(N);else CANOPY.fill(0);kitReset(['canopyR','canopyC']);if(settings.canopy===false)return kitCommit(['canopyR','canopyC']);
   const cnt=new Uint16Array(N),con=new Uint16Array(N),top=new Float32Array(N),col=new Float32Array(N*3);
   for(const n of CANOPY_SRC){const K=KITS[n];if(!K||!K.cs)continue;for(let i=0;i<K.n;i++){const x=K.cs[i*4],y=K.cs[i*4+1],z=K.cs[i*4+2],r=K.cs[i*4+3],t=tileAt(x,z);if(t<0)continue;
