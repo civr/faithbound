@@ -21,3 +21,13 @@ Converted from FBX to glTF binary with FBX2glTF; static vehicles had their anima
 - Train Pack (Apr 2019): loco_front, loco_tender, loco_wagon, hs_front, hs_wagon, cargo_front, cargo_box, cargo_coal
 
 Models that came without colours had them restored from their material names; all were simplified with meshoptimizer for the game.
+
+From the Quaternius stage mirror (USD, converted with a small usd2glb script; all CC0):
+- Ultimate Animated Animals: deer, stag, fox, donkey
+- Medieval Village: mv_house1-4, mv_inn, mv_smith, mv_bell, mv_mill
+- Ultimate Fantasy RTS: rts_h4, rts_h5, rts_h6
+- Downtown City Mega Kit: dt_large, dt_medium, dt_small (texture colours averaged per material)
+- Sushi Restaurant Kit: torii (palette texture sampled per vertex)
+- Ultimate Space Kit: fut_base, fut_tower, fut_dome, fut_cyl, fut_long, fut_open, fut_house
+- Ultimate Space Ships: ship_challenger, ship_dispatcher, ship_pancake, ship_zenith
+Modular Medieval Buildings (Jul 2017): c_large, c_round, c_tallwall, c_gate, c_small (castle pieces)
