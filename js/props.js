@@ -203,7 +203,29 @@ kit('animal',unitBox(),MAT.plain,1200,false);kit('car',unitBox(),MAT.plain,400,f
 kit('bird',(()=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute([0,0,.3,-1,.25,-.3,0,0,0, 0,0,.3,0,0,0,1,.25,-.3],3));g.computeVertexNormals();return g})(),new THREE.MeshBasicMaterial({color:0x2a2a2a,side:THREE.DoubleSide}),300,false);
 kit('body',unitBox(),MAT.plain,900,false);kit('cart',unitBox(),MAT.plain,200);kit('cartTop',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,8,1,false,0,Math.PI);g.rotateZ(Math.PI/2);g.translate(0,.0,0);return g})(),MAT.plain,200);kit('head',new THREE.SphereGeometry(.5,6,4),MAT.plain,900,false);
 function kitReset(names){for(const n of names)KITS[n].k=0}
-function kitCommit(names){if(typeof shadowForce!=='undefined')shadowForce=true;for(const n of names){const K=KITS[n];K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;if(K.mesh.instanceColor)K.mesh.instanceColor.needsUpdate=true}}
+/* ---------- only what the camera can see is drawn: buildings, trees and props outside the view cost nothing ---------- */
+const CULLK={dirty:true,last:0,sig:'',fr:new THREE.Frustum(),pm:new THREE.Matrix4()};
+const cullable=n=>n==='bridge'||BUILD_KITS.includes(n)||TREE_KITS.includes(n);
+function cullStore(K){const n=K.k,A=K.mesh.instanceMatrix.array;K.mm=A.slice(0,n*16);K.mc=K.mesh.instanceColor?K.mesh.instanceColor.array.slice(0,n*3):null;K.n=n;
+  const g=K.mesh.geometry;if(!g.boundingSphere)g.computeBoundingSphere();const bc=g.boundingSphere.center,br=g.boundingSphere.radius,M=K.mm,cs=K.cs=new Float32Array(n*4);
+  for(let i=0;i<n;i++){const o=i*16;cs[i*4]=M[o]*bc.x+M[o+4]*bc.y+M[o+8]*bc.z+M[o+12];cs[i*4+1]=M[o+1]*bc.x+M[o+5]*bc.y+M[o+9]*bc.z+M[o+13];cs[i*4+2]=M[o+2]*bc.x+M[o+6]*bc.y+M[o+10]*bc.z+M[o+14];
+    cs[i*4+3]=br*Math.max(Math.hypot(M[o],M[o+1],M[o+2]),Math.hypot(M[o+4],M[o+5],M[o+6]),Math.hypot(M[o+8],M[o+9],M[o+10]))}
+  K.culled=true;CULLK.dirty=true}
+function cullKit(K,P,margin){const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
+  for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
+    for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}
+    if(!ok)continue;A.set(M.subarray(i*16,i*16+16),v*16);if(C&&MC)C.set(MC.subarray(i*3,i*3+3),v*3);v++}
+  K.mesh.count=v;const IM=K.mesh.instanceMatrix;IM.needsUpdate=true;if(IM.updateRange){IM.updateRange.offset=0;IM.updateRange.count=v*16}
+  if(K.mesh.instanceColor){const IC=K.mesh.instanceColor;IC.needsUpdate=true;if(IC.updateRange){IC.updateRange.offset=0;IC.updateRange.count=v*3}}}
+/* re-cull when the camera has moved or turned, at most a dozen times a second while it moves */
+function cullTick(){if(typeof cam==='undefined')return;const now=performance.now();
+  const sig=cam.position.x.toFixed(2)+','+cam.position.y.toFixed(2)+','+cam.position.z.toFixed(2)+','+cam.quaternion.x.toFixed(3)+','+cam.quaternion.y.toFixed(3)+','+cam.quaternion.w.toFixed(3);
+  if(!CULLK.dirty&&(sig===CULLK.sig||now-CULLK.last<80))return;CULLK.sig=sig;CULLK.last=now;CULLK.dirty=false;
+  cam.updateMatrixWorld();CULLK.pm.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse);CULLK.fr.setFromProjectionMatrix(CULLK.pm);
+  const P=CULLK.fr.planes,margin=.6+(typeof camDist!=='undefined'?camDist:10)*.12;
+  for(const nm in KITS){const K=KITS[nm];if(K.culled&&K.n)cullKit(K,P,margin);else if(K.culled){K.mesh.count=0}}
+  if(typeof shadowForce!=='undefined')shadowForce=true}
+function kitCommit(names){if(typeof shadowForce!=='undefined')shadowForce=true;for(const n of names){const K=KITS[n];if(cullable(n)){cullStore(K);continue}K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;if(K.mesh.instanceColor)K.mesh.instanceColor.needsUpdate=true}}
 function add(name,x,y,z,sx,sy,sz,rot,hex,tilt){const K=KITS[name];if(K.k>=K.max)return;if(CAPT)CAPT.push(x,z,sx,sz,rot||0);
   dummy.position.set(x,y,z);dummy.rotation.set(tilt||0,rot||0,0);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();
   K.mesh.setMatrixAt(K.k,dummy.matrix);K.mesh.setColorAt(K.k,tmpC.set(hex==null?0xffffff:hex).convertSRGBToLinear());K.k++;
@@ -523,7 +545,7 @@ function cultureDwelling(cu,n,x,y,z,rot,e,hk,k,core){const o=hash(hk*97+1),pick=
 /* the heart of a lagoon capital: a pink and white palace with an arcade, a tall brick bell tower and a basilica of five domes */
 function lagoonCapital(n,x,y,z,e){const nc=parseInt(n.color.slice(1),16);
   add('plazaStone',x,y-.03,z,.6,.035,.6,0);
-  const px=x+.1,pz=z-.12;add('plaster',px,y-.02,pz,.3,.11,.12,0,0xf0d8d0);add('stone',px,y-.02,pz,.31,.035,.125,0,0xece6da);
+  const px=x+.1,pz=z-.12;add('adobe',px,y-.02,pz,.3,.11,.12,0,0xf0d8d0);add('stone',px,y-.02,pz,.31,.035,.125,0,0xece6da);
   for(let q=0;q<9;q++)add('box',px-.13+q*.0325,y-.02,pz+.061,.018,.03,.002,0,0x3a2e28);/* the arcade */
   for(let q=0;q<7;q++)add('box',px-.12+q*.04,y+.05,pz+.061,.014,.022,.002,0,0x26221e);
   CRENEL_FORK=true;crenel(px,y+.09,pz+.06,.3,0,0xf2ece4);crenel(px,y+.09,pz-.06,.3,0,0xf2ece4);CRENEL_FORK=false;
@@ -706,7 +728,7 @@ function metroRadius(n,c,cap,e){if(e<5||!n)return 0;const m=clamp(Math.sqrt(n.po
   const ws=clamp(W/112,.6,1.4);return (e===5?lerp(.4,cap?1.8:1.1,m):lerp(.6,cap?3.4:2,m))*ws}
 function isLagoon(n,c,e){if(e<2||e>5||!n)return false;if(c._lagT===terrVer)return c._lag;let w=0;
   for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j)&&waterY-groundY(wx(X),wz(Y))<.95)w++}
-  const lucky=hash(c.x*7.3+c.y*13.1)<(cultOf(n)==='med'?.7:.12);c._lagT=terrVer;return c._lag=w>=2&&w<=17&&lucky}
+  const lucky=hash(c.x*7.3+c.y*13.1)<(cultOf(n)==='med'?.85:.22);c._lagT=terrVer;return c._lag=w>=2&&w<=17&&lucky}
 function townPlan(n,c,cap,e){
   const MR=metroRadius(n,c,cap,e),mb=MR>.75?Math.round(MR*4)/4:0;
   const band=e===0?0:e<5?1:e<6?2:3,key=band+'|'+flatSig.length+'|'+(cap?1:0)+'|'+mb+'|'+(isLagoon(n,c,e)?1:0);if(c._plan&&c._plan.key===key)return c._plan;
@@ -847,6 +869,8 @@ function rebuildCities(){patchSets();RB0=performance.now();{let s='';for(const n
       const d=Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z);stale.push({n,c,ci,e,gold,lvl,key,hit,pr:(hit.era!==e?0:1e4)+(hit.key.split('|')[1]!==key.split('|')[1]?0:5e3)+Math.min(4e3,d*20)-Math.min(3e3,(performance.now()-(hit.t||0))/100)})})}
   stale.sort((a,b)=>a.pr-b.pr);
   for(const q of stale){if(performance.now()-RB0<14||q.hit.era!==q.e)buildOne(q.n,q.c,q.ci,q.e,q.gold,q.lvl,q.key);else{propsDirty=true;replayCity(q.hit)}}
+  /* anyone a new house went up around steps back out into the street */
+  for(const w of walkers)if(inBuilding(w.x,w.z)&&w.ci){const p=cityPoint(w.ci);w.x=w.tx=p[0];w.z=w.tz=p[1];w.moving=false}
   buildExtras()}
 function buildOne(n,c,ci,e,gold,lvl,key){const L0={em:emitters.length,hd:herds.length,cs:cityStreets.length,ap:airports.length,sp:spaceports.length,wm:windmills.length,tf:townFlags.length};
   REC={k:{},occ:[],bare:[],bg:[]};FOOTREC=[];try{buildCity(n,c,ci,e,gold,lvl)}finally{const Rc=REC;REC=null;Rc.ft=FOOTREC;FOOTREC=null;for(const nm in Rc.k)Rc.k[nm]=new Float32Array(Rc.k[nm]);
@@ -861,8 +885,10 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       MCTX={lvl,cap,tall:[],w:.12,cu:cultOf(n),n};const lagoon=isLagoon(n,c,e);MCTX.lagoon=lagoon;const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+lvl*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?3.4:3.2):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
       if(plan.metro)plan.streets.forEach((st,si)=>{if(st.main&&st.base<=plan.pr+.01)reach.set(si,.5)});let k=0,placed=0;c._poi={pts:[],plaza:[cx,cz],r:plan.pr};
       const far=Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.3+2.5;MCTX.far=far;
-      if(e>=2&&e<=4&&!plan.metro&&count>=(cap?14:18)){const ds=[];for(const sl of slots){if(ds.length>=count)break;const t=tileAt(sl.x,sl.z);if(t<0||(owner[t]>=0&&owner[t]!==n.id))continue;ds.push(Math.hypot(sl.x-cx,sl.z-cz))}
+      if(e>=2&&e<=4&&!plan.metro&&!lagoon&&count>=(cap?14:18)){const ds=[];for(const sl of slots){if(ds.length>=count)break;const t=tileAt(sl.x,sl.z);if(t<0||(owner[t]>=0&&owner[t]!==n.id))continue;ds.push(Math.hypot(sl.x-cx,sl.z-cz))}
         if(ds.length>=(cap?14:18)){ds.sort((a,b)=>a-b);townWall(n,plan,cx,cz,ds[Math.floor(ds.length*.8)]+.09,e,far,i0)}}
+      if(e>=1)solid(()=>harbour(c,cx,cz,e,i0),cx,cz,0,true,undefined,'big');
+      c._canals=[];
       for(const sl of slots){if(placed>=count)break;k++;MCTX.w=sl.metro?sl.w:.12;if(far&&plan.metro&&sl.core<.3&&hash(k*7.7)<.75)continue;
         if(e>=1){/* two towns that meet never build on the same spot */const bk=Math.round(sl.x*12)+','+Math.round(sl.z*12);if(bgrid.has(bk))continue;bgrid.add(bk)}
         const ti=tileAt(sl.x,sl.z);if(ti<0||(owner[ti]>=0&&owner[ti]!==n.id))continue;
@@ -884,7 +910,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         },sl.x,sl.z,sl.rot);
         if(!up)continue;placed++;occupied.add(ti);(MCTX.dists||(MCTX.dists=[])).push(Math.hypot(sl.x-cx,sl.z-cz));bareRect(sl.x,sl.z,sl.rot,sl.w*1.15,sl.d*1.2);
         if(sl.st>=0)reach.set(sl.st,Math.max(reach.get(sl.st)||0,sl.at+.12));
-        c._poi.pts.push([sl.fx,sl.fz]);
+        if(!lagoon||groundY(sl.fx,sl.fz)>waterY+.02)c._poi.pts.push([sl.fx,sl.fz]);
         if(!far&&e>=3&&e<=5&&hk<.16)smokeAt(sl.x,y+.13*(1+sl.core*.6),sl.z,false,.25)}
       if(e===7&&!far&&typeof windTurbine==='function'){/* wind turbines on the open ground beyond the town */const R2=(plan.metro||(cap?1.1:.7))+.45;for(let k=0;k<(cap?5:3);k++){const a=hash(i0*3.1+k)*6.283,x=cx+Math.cos(a)*R2,z=cz+Math.sin(a)*R2,t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id)continue;windTurbine(x,groundY(x,z),z,.34,hash(i0)*6.28)}}
       if(MCTX.fac>0){/* smog: a brown haze hangs over the mill towns */const R_=(plan.metro||(cap?1.1:.7))*1.05+.3;add('smog',cx,cy+.05,cz,R_*2,.3+MCTX.fac*.02,R_*2,0,0x6a5a48);
@@ -906,13 +932,12 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
           add('cyl',x,y,z,.009,cap?.09:.065,.009,0,0xf2ede0);add('domeW',x,y+(cap?.09:.065),z,.014,.012,.014,0,0xe0b440)}}
       if(e>=6)modernExtras(n,c,cx,cz,cap,e,plan.pr);
       if(!far)streetLife(n,c,plan,e,cx,cy,cz,cap,i0,reach);
-      if(e>=1)harbour(c,cx,cz,e,i0);
       if(e>=1){const t=e<4?0:e<6?1:2;
         plan.streets.forEach((st,si)=>{const lim=reach.get(si);if(!lim)return;const pts=[];
           const sw=st.main?(e<3?.04:e<5?.05:.066):(e<3?.028:e<5?.034:.044),flush=()=>{if(pts.length>1)cityStreets.push({pts:chaikin2(pts.slice(),2),w:sw,t});pts.length=0};let wetRun=0;
           for(const q of st.pts){if(q[2]>lim)break;
-            if(lagoon&&groundY(q[0],q[1])<waterY+.03){flush();/* a canal: every so often a humped stone bridge crosses it */
-              wetRun++;continue}
+            if(lagoon&&groundY(q[0],q[1])<waterY-.01){flush();/* a canal: every so often a humped stone bridge crosses it */
+              wetRun++;if(lagoon){const cr=c._canals,last=cr[cr.length-1];if(wetRun===1||!last)cr.push([[q[0],q[1]]]);else last.push([q[0],q[1]])}continue}
             wetRun=0;pts.push([q[0],q[1]])}
           flush()})}
     }}
@@ -1147,8 +1172,9 @@ kit('pSkirt',(()=>{const g=new THREE.CylinderGeometry(.35,.62,1,10,1,true);g.tra
 kit('pCone',upGeo(new THREE.ConeGeometry(.5,1,10)),figMat,2600,false);kit('pBrim',new THREE.CylinderGeometry(.5,.5,1,12),figMat,1200,false);
 kit('pTri',upGeo(new THREE.ConeGeometry(.5,1,3)),figMat,600,false);
 kit('pStick',limbGeo(1,1,1),figMat,2600,false);kit('pPack',new THREE.BoxGeometry(1,1,1),figMat,2600,false);
+kit('pGondola',unitBox(),figMat,400,false);
 kit('pShield',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,12);g.rotateZ(Math.PI/2);return g})(),figMat,1800,false);
-const FIG_KITS=['pLeg','pArm','pShin','pShoe','pHand','pTorso','pHead','pHair','pSkirt','pCone','pBrim','pTri','pStick','pPack','pShield'];
+const FIG_KITS=['pGondola','pLeg','pArm','pShin','pShoe','pHand','pTorso','pHead','pHair','pSkirt','pCone','pBrim','pTri','pStick','pPack','pShield'];
 /* add with heading (ry) then a swing around the local x axis (rx) and a sideways lean (rz) */
 const dummyR=new THREE.Object3D();dummyR.rotation.order='YXZ';
 function addR(name,x,y,z,sx,sy,sz,ry,rx,rz,hex){const K=KITS[name];if(K.k>=K.max)return;
@@ -1203,17 +1229,39 @@ function updateWalkers(dt,yrs){
         if(n.era>=4){emit('flash',fx,gy+.022,fz,0,0);for(let q=0;q<3;q++)emit('smoke',fx+(rng()-.5)*.02,gy+.025,fz+(rng()-.5)*.02);if(typeof sfx==='function'&&Math.hypot(w.x-camT.x,w.z-camT.z)<camDist*.6)sfx('cannon',{near:.25})}
         else emit('dust',w.x,gy+.01,w.z);
         if(rng()<.25){emit('dust',w.x,gy+.01,w.z);walkers.splice(k,1);n._walk--;continue}}continue}
-    const nx=w.x+dx/d*Math.min(sp,d),nz=w.z+dz/d*Math.min(sp,d);
+    let nx=w.x+dx/d*Math.min(sp,d),nz=w.z+dz/d*Math.min(sp,d);
+    /* people walk round houses, gardens and walls instead of through them */
+    if(inBuilding(nx,nz)&&!inBuilding(w.x,w.z)){let ok=false;const a0=Math.atan2(dz,dx),st=Math.min(sp,d);
+      for(const da of [.7,-.7,1.4,-1.4,2.1,-2.1]){const ax=w.x+Math.cos(a0+da)*st,az=w.z+Math.sin(a0+da)*st;if(!inBuilding(ax,az)&&groundY(ax,az)>=waterY+.01){nx=ax;nz=az;ok=true;break}}
+      if(!ok){w.wait=.4+rng();w.tx=w.x;w.tz=w.z;continue}}
     if(groundY(nx,nz)<waterY+.01){w.wait=.3;w.tx=w.x;w.tz=w.z;continue}
     w.x=nx;w.z=nz;w.moving=true;const td=Math.atan2(dx,dz);let dd=td-w.dir;dd=Math.atan2(Math.sin(dd),Math.cos(dd));w.dir+=dd*Math.min(1,dt*10);w.ph+=Math.min(sp,d)*(w.kid?620:480)}
   kitReset(FIG_KITS);
+  if(camDist<16)updateGondolas(dt,(camDist*1.2+1.5)**2);
   if(camDist<16){const R2=(camDist*1.2+1.5)**2;
     for(const w of walkers){const ex=w.x-camT.x,ez=w.z-camT.z;if(ex*ex+ez*ez>R2)continue;if(w.act==='home'&&w.wait>0&&!w.moving)continue;drawFolk(w)}
     if(typeof drawArmyFolk==='function')drawArmyFolk(R2)}
   kitCommit(FIG_KITS);
 }
+/* is this point inside a house, its garden or a wall? */
+function inBuilding(x,z){const L=FOOT.get(Math.floor(x/FCELL)+','+Math.floor(z/FCELL));if(!L)return false;
+  for(const q of L){if(q.t!=='house'&&q.t!=='wall'&&q.t!=='tower')continue;const dx=x-q.x,dz=z-q.z,lx=dx*q.c-dz*q.s,lz=dx*q.s+dz*q.c;if(Math.abs(lx)<q.hw&&Math.abs(lz)<q.hd)return true}return false}
+/* gondolas glide up and down the canals of lagoon towns, a gondolier at the stern */
+let gondolas=[];
+function updateGondolas(dt,R2){
+  for(let i=gondolas.length-1;i>=0;i--){const g=gondolas[i];if(!g.c._canals||!g.c._canals[g.r]||g.c._canals[g.r].length<2||(wx(g.c.x)-camT.x)**2+(wz(g.c.y)-camT.z)**2>R2*1.6)gondolas.splice(i,1)}
+  for(const n of nations){if(!n.alive)continue;for(const c of n.cities){if(!c._canals||!c._canals.length)continue;const ex=wx(c.x)-camT.x,ez=wz(c.y)-camT.z;if(ex*ex+ez*ez>R2)continue;
+    const runs=c._canals.map((r,i)=>[r,i]).filter(([r])=>r.length>=2);const have=gondolas.filter(g=>g.c===c).length;
+    for(let q=have;q<Math.min(6,runs.length*2);q++){const [r,ri]=runs[q%runs.length];const w={x:0,z:0,dir:0,t:rng()*10,ph:0,act:'idle',moving:false,seed:(rng()*1e9)|0};dressFolk(w,n);w.kid=false;w.dress=0;w.hat='straw';w.hatCol=0x1a1a1a;w.top=0xf2f2f2;w.bot=0x1a1a1a;
+      gondolas.push({c,r:ri,s:rng()*(r.length-1),v:(rng()<.5?1:-1)*(.35+rng()*.3),w})}}}
+  const wy=waterY+.004;
+  for(const g of gondolas){const r=g.c._canals[g.r];g.s+=g.v*dt;if(g.s<=0){g.s=0;g.v=Math.abs(g.v)}if(g.s>=r.length-1){g.s=r.length-1.001;g.v=-Math.abs(g.v)}
+    const i=Math.floor(g.s),f=g.s-i,a=r[i],b=r[Math.min(r.length-1,i+1)],x=a[0]+(b[0]-a[0])*f,z=a[1]+(b[1]-a[1])*f,h=Math.atan2(b[0]-a[0],b[1]-a[1])+(g.v<0?Math.PI:0);
+    addR('pGondola',x,wy,z,.014,.008,.075,h,0,0,0x141414);addR('pGondola',x+Math.sin(h)*.036,wy+.006,z+Math.cos(h)*.036,.004,.012,.006,h,-.4,0,0x141414);
+    const sx=x-Math.sin(h)*.028,sz=z-Math.cos(h)*.028,w=g.w;w.x=sx;w.z=sz;w.y=wy+.008;w.dir=h;w.t+=dt;drawFolk(w);
+    addR('pStick',sx+Math.cos(h)*.008,wy+.04,sz-Math.sin(h)*.008,.0012,.06,.0012,h,.35+Math.sin(w.t*1.6)*.15,0,0x6a4a2a)}}
 function drawFolk(w){
-  const sc=w.kid?.68:1,ry=w.dir,c=Math.cos(ry),s=Math.sin(ry),gy=groundY(w.x,w.z);
+  const sc=w.kid?.68:1,ry=w.dir,c=Math.cos(ry),s=Math.sin(ry),gy=w.y??groundY(w.x,w.z);
   const L=(lx,ly,lz)=>[w.x+lx*c+lz*s,gy+ly,w.z-lx*s+lz*c];
   let leg=0,arm=0,bend=0,armR=0,bob=0,lean=0;
   if(w.moving){leg=Math.sin(w.ph)*.55;arm=-leg*.8;bob=Math.abs(Math.cos(w.ph))*.0012*sc}
