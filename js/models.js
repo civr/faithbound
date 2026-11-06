@@ -128,8 +128,11 @@ function prepStatic(name,gltf){const d=Object.assign({},SMODEL[name]);gltf.scene
   const norm=normalizer(f,Object.assign(d,{axis:d.k==='veh'?'z':'none'},MODEL_FIX[name]||{}));const geo=toGeo(norm(f.P),f);const kn='s_'+name;MDL.info[name]={d};
   kit(kn,geo,d.k==='tree'||d.k==='rock'?modelTreeMat():d.k==='veh'&&!d.wild?VEH_MAT:SMODEL_MAT,d.max||2000,d.k!=='rock');
   if(d.k==='build'||d.k==='farm'){const K=KITS[kn];let r=0,g=0,b=0,n=0;for(let i=0;i<f.C.length;i+=3){r+=f.C[i];g+=f.C[i+1];b+=f.C[i+2];n++}K.avg=[r/n,g/n,b/n];K.lodC=true}
-  if(d.k==='veh')VEH_KITS.push(kn);else (d.k==='build'?BUILD_KITS:TREE_KITS).push(kn);MDL.ready[name]=true;MDL_VER++;if(d.k==='build')SBVER++;
-  if(d.k!=='build'){if(typeof treesDirty!=='undefined')treesDirty=true}if(typeof propsDirty!=='undefined')propsDirty=true}
+  if(d.k==='veh')VEH_KITS.push(kn);else (d.k==='build'?BUILD_KITS:TREE_KITS).push(kn);MDL.ready[name]=true;MDL_VER++;modelSettle(d.k)}
+/* models arrive in bursts: the towns are rebuilt and the new shaders compiled once, a moment after the last one, instead of after every model */
+let SETTLE_T=0,SETTLE_B=false,SETTLE_TR=false;
+function modelSettle(k){if(k==='build')SETTLE_B=true;else SETTLE_TR=true;clearTimeout(SETTLE_T);SETTLE_T=setTimeout(()=>{if(SETTLE_B)SBVER++;if(SETTLE_TR&&typeof treesDirty!=='undefined')treesDirty=true;SETTLE_B=SETTLE_TR=false;if(typeof propsDirty!=='undefined')propsDirty=true;setTimeout(prewarmShaders,1500)},1200)}
+function prewarmShaders(){try{if(typeof renderer!=='undefined'&&typeof cam!=='undefined'){if(typeof applyTier==='function'&&perfOn())applyTier(PERF.tier);renderer.compile(scene,cam)}}catch(e){}}
 const sOn=name=>settings.models!==false&&!!MDL.ready[name];
 /* which kit draws a tree of this kind: the model when it has loaded, the old shape otherwise */
 const NAT_SETS={broad:['bush_a','bush_b','tree_c','bush_c'],acacia:['tree_a','tree_b','tree_d'],rock:['rock_a','rock_b','rock_c']};
@@ -206,7 +209,7 @@ function drawHerdModel(h,k,x,y,z,rot,T,graze,moving){const name=h.kind==='sheep'
 
 /* ---------- people ---------- */
 function folkModel(w){if(w.sol)return w.uni<=4?'knightcharacter':(w.seed&1?'male_shirt':'male_casual');if(w.fem)return w.dress&&w.long?'female_dress':(w.seed&2?'female_casual':'female_dress');return w.seed&4?'male_shirt':'male_casual'}
-function drawFolkModel(w,gy){const name=folkModel(w);if(!modelOn(name)||(typeof camDist!=='undefined'&&camDist>12))return false;
+function drawFolkModel(w,gy){const name=folkModel(w);if(!modelOn(name)||(typeof camDist!=='undefined'&&camDist>(typeof PERF!=='undefined'?PERF.folkD:12)))return false;
   const F=MDL.frames[name],moving=w.moving&&F.walk,list=moving?F.walk:F.idle,TAU=6.2832;
   const fi=moving?Math.floor((((w.ph%TAU)+TAU)%TAU)/TAU*list.length):Math.floor((w.t||0)*1.2)%list.length;
   const s=w.kid?.7:1,top=w.dress||w.top,bot=w.dress&&w.long?w.dress:w.bot;
@@ -340,7 +343,7 @@ document.addEventListener('DOMContentLoaded',()=>{if(typeof tradeTrainRoutes!=='
 /* ---------- far away, a building is drawn as a plain block of its own colour: the detail is invisible there and costs the most ---------- */
 kit('lodBox',(()=>{const g=new THREE.BoxGeometry(1,1,1);g.translate(0,.5,0);return g})(),new THREE.MeshStandardMaterial({roughness:.9}),40000,true);
 const LODP={stamp:-1,n:0};const _lodM=new THREE.Matrix4(),_lodC=new THREE.Color();
-const lodDist=()=>settings.power==='saver'?6.5:settings.power==='max'?13:settings.quality==='low'?6.5:9;
+const lodDist=()=>(settings.power==='saver'?6.5:settings.power==='max'?13:settings.quality==='low'?6.5:9)*(typeof PERF!=='undefined'&&perfOn()?PERF.lodK:1);
 {const _ck=cullKit;cullKit=function(K,P,margin){if(!K.lodC)return _ck(K,P,margin);
   if(LODP.stamp!==CULLK.last){LODP.stamp=CULLK.last;LODP.n=0}const LK=KITS.lodBox,LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,avg=K.avg,LD2=lodDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
   const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
