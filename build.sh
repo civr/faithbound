@@ -9,7 +9,7 @@ rm -rf dist && mkdir -p dist/js
   sed '1,/<\/style>/d' index.html
   printf '</body>\n</html>\n'; } > dist/index.html
 cp three.min.js favicon.svg favicon.png favicon.ico dist/ && cp js/*.js dist/js/
-mkdir -p dist/assets && cp -R assets/textures dist/assets/
+mkdir -p dist/assets && cp -R assets/textures dist/assets/ && cp -R assets/models dist/assets/
 # cache-busting: every build gets its own script URLs, so browsers never run stale code
 V=$(date +%s)
 # (written to a temp file instead of sed -i, so this works with both GNU sed on Linux and BSD sed on macOS)
