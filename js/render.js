@@ -255,7 +255,7 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
   sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uHam;uniform float uLite;uniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;uniform float uPhoto;uniform sampler2D tG,tD,tS,tR,tW,nG,nR;uniform vec3 mG,mD,mS,mR,mW;\n'+NOISE_GLSL)
    .replace('#include <color_fragment>',`#include <color_fragment>
-    float camD=length(vWP-cameraPosition),dfade=(1.-smoothstep(14.+uHam*26.,52.+uHam*68.,camD))*uPhoto*(1.-uLite);
+    float camD=length(vWP-cameraPosition),dfade=(1.-smoothstep(14.+uHam*16.,52.+uHam*30.,camD))*uPhoto*(1.-uLite);
     /* two scales of the same photo, turned against each other, so the tiling does not show */
     vec2 P1=vWP.xz*.42,P2=mat2(.8,-.6,.6,.8)*vWP.xz*.13+.37;vec4 bumpW=vec4(0.);
     float dn=vn(vWP.xz*11.)*.45+vn(vWP.xz*37.)*.3+vn(vWP.xz*2.7)*.25;diffuseColor.rgb*=.9+dn*.2;
@@ -268,8 +268,8 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
     diffuseColor.rgb=mix(diffuseColor.rgb,mead,gr*.85);}
     /* the painted countryside: grass in irregular darker clumps and tussocks, so a meadow reads as real turf from any height */
     if(uHam>0.){float hq1=vn(vWP.xz*1.45+vec2(3.1)),hq2=vn(vWP.xz*4.7+vec2(1.7)),hq3=vn(vWP.xz*17.),hq4=vn(vWP.xz*.38);
-      float clump=smoothstep(.48,.74,hq1*.55+hq2*.45);diffuseColor.rgb*=mix(1.,.68,clump*gr*uHam);
-      diffuseColor.rgb*=1.+(hq3-.5)*.34*gr*uHam;float hq5=vn(vWP.xz*41.+vec2(7.));diffuseColor.rgb*=1.+(hq5-.5)*.2*gr*uHam*(1.-smoothstep(4.,18.,camD));diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.12,1.06,.86),smoothstep(.55,.85,hq4)*gr*.5*uHam);}
+      float clump=smoothstep(.4,.8,hq1*.55+hq2*.45);diffuseColor.rgb*=mix(1.,.8,clump*gr*uHam);
+      diffuseColor.rgb*=1.+(hq3-.5)*.14*gr*uHam;diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.12,1.06,.86),smoothstep(.55,.85,hq4)*gr*.5*uHam);}
     /* steep ground shows bare earth and rock */
     vec3 gn=normalize(cross(dFdx(vWP),dFdy(vWP)));float st=smoothstep(.62,.86,1.-abs(gn.y));
     vec3 rockC=mix(vec3(.075,.065,.05),vec3(.13,.12,.10),vn(vWP.xz*9.+vWP.y*3.));diffuseColor.rgb=mix(diffuseColor.rgb,rockC*(.85+dn*.3),st*.85*step(.01,vWP.y-uWaterY));
@@ -284,7 +284,7 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
       vec3 an=abs(gn)+1e-3;an/=an.x+an.y+an.z;vec3 rk=(texture2D(tR,vWP.zy*.35).rgb*an.x+texture2D(tR,vWP.xy*.35).rgb*an.z+texture2D(tR,P1*.8).rgb*an.y)/mR;
       vec3 sn=texture2D(tW,P1).rgb/mW;
       float wG=gr*above,wR=st*above,wS=sandy*(1.-wR),wD=soil*(1.-wR),wW=snowy;float wsum=wG+wR+wS+wD+wW+1e-3;
-      vec3 det=(g*wG+rk*wR+sa*wS+so*wD+sn*wW)/wsum;det=mix(vec3(1.),det,min(1.,wsum));det=mix(vec3(1.),det,1.+uHam*.55);det=clamp(det,.3,1.9);
+      vec3 det=(g*wG+rk*wR+sa*wS+so*wD+sn*wW)/wsum;det=mix(vec3(1.),det,min(1.,wsum));det=mix(vec3(1.),det,1.+uHam*.15);det=clamp(det,.4,1.7);
       diffuseColor.rgb*=mix(vec3(1.),det,dfade*.92);
       bumpW=vec4(wG+wD*.7+wS*.5,wR,0.,0.)/wsum;}}
     /* sunlight dancing on the shallow seabed */
