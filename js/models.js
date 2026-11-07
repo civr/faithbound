@@ -200,11 +200,12 @@ function modelLandmark(n,x,y,z,e,nc){const cu=cultOf(n);let m=null,w=.42;
   if(r&&cultOf(n)==='east'&&e>=1&&e<=4)addB('torii',x,y-.02,z+(e>=3?.66:.32),.13,.03,0,0xffffff);return r}}
 /* a western castle of real towers: curtain walls with battlements, round corner towers, a gatehouse arch, a square keep and a slender spire */
 function modelCastle(n,x,y,z,e,nc){if(!['c_large','c_tallwall','c_gate','c_small','c_round'].every(sOn))return false;const S=.42,WH=.16,T=.05;
-  add('moat',x,y-.012,z,S*2.9,.02,S*2.9,0);add('plazaStone',x,y-.03,z,S*1.8,.035,S*1.8,0);
+  const SC=LK.pixel?0x9a9080:0xd2cdc2;/* weathered grey-brown stone in the painted look, and no moat */
+  if(!LK.pixel)add('moat',x,y-.012,z,S*2.9,.02,S*2.9,0);add('plazaStone',x,y-.03,z,S*1.8,.035,S*1.8,0);
   for(const [dx,dz,r] of [[0,S,0],[0,-S,0],[S,0,Math.PI/2],[-S,0,Math.PI/2]]){const L=2*S-.12,ns=Math.max(3,Math.round(L/.11)),sl=L/ns;
-    for(let q=0;q<ns;q++){const t=-L/2+sl*(q+.5),gate=dz>0&&q===(ns>>1);add(gate?'s_c_gate':'s_c_tallwall',x+dx+(r?0:t),y-.03,z+dz+(r?t:0),sl,gate?WH*1.15:WH,T,r,0xd2cdc2)}}
-  for(const [dx,dz] of [[-1,-1],[1,-1],[-1,1],[1,1]]){const kn=dx===dz?'c_round':'c_large';add('s_'+kn,x+dx*S,y-.03,z+dz*S,.13,kn==='c_round'?.38:.27,.13,0,0xd2cdc2)}
-  add('s_c_small',x-.02,y-.03,z-.06,.22,e>=4?.4:.34,.22,0,0xd2cdc2);add('s_c_round',x+.15,y-.03,z-.16,.09,.46,.09,0,0xd2cdc2);
+    for(let q=0;q<ns;q++){const t=-L/2+sl*(q+.5),gate=dz>0&&q===(ns>>1);add(gate?'s_c_gate':'s_c_tallwall',x+dx+(r?0:t),y-.03,z+dz+(r?t:0),sl,gate?WH*1.15:WH,T,r,SC)}}
+  for(const [dx,dz] of [[-1,-1],[1,-1],[-1,1],[1,1]]){const kn=dx===dz?'c_round':'c_large';add('s_'+kn,x+dx*S,y-.03,z+dz*S,.13,kn==='c_round'?.38:.27,.13,0,SC)}
+  add('s_c_small',x-.02,y-.03,z-.06,.22,e>=4?.4:.34,.22,0,SC);add('s_c_round',x+.15,y-.03,z-.16,.09,.46,.09,0,SC);
   if(sOn('mv_house1'))addB('mv_inn',x-.18,y-.02,z+.18,.16,.12,0);
   add('cyl',x-.02,y+.36,z-.06,.005,.12,.005,0,0x5a4632);add('box',x,y+.45,z-.06,.04,.024,.003,0,nc);return true}
 {const _ca=castle;castle=function(n,x,y,z,e,nc){if(cultOf(n)==='west'&&settings.models!==false&&modelCastle(n,x,y,z,e,nc))return;return _ca.apply(this,arguments)}}
