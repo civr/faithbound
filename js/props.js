@@ -419,7 +419,7 @@ function castle(n,x,y,z,e,nc){const ST=CASTLE_STYLE[cultOf(n)]||CASTLE_STYLE.wes
   CRENEL_FORK=false}
 /* a town wall: stone in the middle ages, a palisade before, with towers and gates where the main streets leave */
 function townWall(n,plan,cx,cz,R,e,far,i0){if(R<.3)return;CRENEL_FORK=cultOf(n)==='med';try{townWall0(n,plan,cx,cz,R,e,far,i0)}finally{CRENEL_FORK=false}}
-function townWall0(n,plan,cx,cz,R,e,far,i0){const stone=e>=3,col=stone?0xcfc8b8:0x6e5236,H=stone?.09:.07,L=.075,K=Math.max(16,Math.ceil(6.283*R/L)),ph=hash(i0*4.4)*6.283,gates=[];
+function townWall0(n,plan,cx,cz,R,e,far,i0){const stone=e>=3,col=stone?(LK.pixel?0x8e8576:0xcfc8b8):0x6e5236,H=stone?(LK.pixel?.062:.09):.07,TR=LK.pixel?0x5a4c3e:ROOF_SLATE[0],L=.075,K=Math.max(16,Math.ceil(6.283*R/L)),ph=hash(i0*4.4)*6.283,gates=[];
   for(const st of plan.streets){if(!st.main)continue;for(const q of st.pts){const d=Math.hypot(q[0]-cx,q[1]-cz);if(d>=R){gates.push(Math.atan2(q[1]-cz,q[0]-cx));break}}}
   const rad=t=>R*(1+.07*Math.sin(3*t+ph)+.04*Math.sin(5*t+ph*1.7)),pt=t=>[cx+Math.cos(t)*rad(t),cz+Math.sin(t)*rad(t)];
   const nearGate=t=>gates.some(g=>Math.abs(((t-g+9.42)%6.283)-3.14)<.055/R+.02);
@@ -429,9 +429,9 @@ function townWall0(n,plan,cx,cz,R,e,far,i0){const stone=e>=3,col=stone?0xcfc8b8:
     const len=Math.hypot(x1-x0,z1-z0)+.004,rot=Math.atan2(-(z1-z0),x1-x0);
     solid(()=>{if(stone){add('stone',mx,y-.03,mz,len,H+.03,.024,rot,col);if(!far)crenel(mx,y+H,mz,len,rot,col)}
     else{for(let q=0;q<3;q++){const f=(q+.5)/3;add('cyl',x0+(x1-x0)*f,y-.03,z0+(z1-z0)*f,.012,H+.03+hash(k*3+q)*.02,.012,0,col)}}},mx,mz,rot,false,-.005,'wall');
-    if(k%7===0)solid(()=>{add(stone?'tower':'cyl',mx,y-.03,mz,stone?.065:.03,H+.08,stone?.065:.03,0,col);if(stone)add('coneTile',mx,y+H+.05,mz,.08,.07,.08,0,ROOF_SLATE[0])},mx,mz,0,false,undefined,'tower')}
+    if(k%7===0)solid(()=>{add(stone?'tower':'cyl',mx,y-.03,mz,stone?.065:.03,H+.08,stone?.065:.03,0,col);if(stone)add('coneTile',mx,y+H+.05,mz,.08,.07,.08,0,TR)},mx,mz,0,false,undefined,'tower')}
   for(const g of gates){const [gx,gz]=pt(g),ti=tileAt(gx,gz);if(ti<0||isWater(ti)||owner[ti]!==n.id)continue;const y=groundY(gx,gz),tx=-Math.sin(g),tz=Math.cos(g),o=.045;
-    for(const sd of [-1,1]){const X=gx+tx*o*sd,Z=gz+tz*o*sd;solid(()=>{add(stone?'tower':'cyl',X,y-.03,Z,stone?.06:.035,H+.1,stone?.06:.035,0,col);if(stone)add('coneTile',X,y+H+.07,Z,.075,.07,.075,0,ROOF_SLATE[0])},X,Z,0,false,undefined,'tower')}
+    for(const sd of [-1,1]){const X=gx+tx*o*sd,Z=gz+tz*o*sd;solid(()=>{add(stone?'tower':'cyl',X,y-.03,Z,stone?.06:.035,H+.1,stone?.06:.035,0,col);if(stone)add('coneTile',X,y+H+.07,Z,.075,.07,.075,0,TR)},X,Z,0,false,undefined,'tower')}
     if(stone)add('stone',gx,y+H*.7,gz,.1,H*.45,.03,Math.atan2(-tz,tx),col)}}
 function landmark(n,x,y,z,e){const nc=parseInt(n.color.slice(1),16);if(cultureLandmark(n,x,y,z,e,nc))return;
   if(e===0){add('cyl',x,y-.02,z,.14,.06,.14,0,0x7d6248);add('coneThatch',x,y+.035,z,.2,.13,.2);
@@ -509,11 +509,27 @@ function cottage(x,y,z,rot,w,d,hh,hk){const o=hash(hk*53+3);
   if(o>=.58)framing(x,y,z,rot,w,d,hh,1);facade(x,y,z,rot,w,d,hh,hk,1);
   if(hash(hk*17)<.45)chimney(x,y+hh*.5,z,rot,w,d,y+hh+rh*.85,hk,hash(hk*19)<.5)}
 /* the plot behind a house: wattle fence, dug beds, and a haystack, woodpile, shed or fruit tree */
+function townInfill(n,plan,cx,cz,HP,i0,KO){const ds=HP.map(h=>Math.hypot(h[0]-cx,h[1]-cz)).sort((a,b)=>a-b),RT=ds[Math.floor(ds.length*.85)]+.06,st=.085;
+  const SP=[];for(const s of plan.streets)for(const q of s.pts)SP.push(q);
+  for(let gx=-RT;gx<=RT;gx+=st)for(let gz=-RT;gz<=RT;gz+=st){const hv=hash(i0*7.7+gx*131.3+gz*71.9),x=cx+gx+(hash(hv*9.1)-.5)*.05,z=cz+gz+(hash(hv*5.3)-.5)*.05,d=Math.hypot(x-cx,z-cz);
+    if(d>RT||d<plan.pr+.08||hv<.5)continue;const t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id||fieldTiles.has(t))continue;const y=groundY(x,z);if(y<waterY+.03)continue;
+    let ok=true;for(const h of HP)if(Math.hypot(h[0]-x,h[1]-z)<h[2]+.05){ok=false;break}if(!ok)continue;
+    for(const q of SP)if(Math.hypot(q[0]-x,q[1]-z)<.055){ok=false;break}if(!ok)continue;
+    if(KO&&KO.some(q=>Math.hypot(x-q[0],z-q[1])<q[2]+.05))continue;
+    const r=hash(hv*3.7);
+    if(r<.32)greenAdd(natKit('broad',hv),x,y-.01,z,.28+hv*.1,.27+hv*.1,.28+hv*.1,hv*6,hv<.5?0x4e6a32:0x5a7236);/* fruit tree */
+    else if(r<.8){for(let q=0;q<2;q++){const a=hv*6+q*2.1,bx=x+Math.cos(a)*.02,bz=z+Math.sin(a)*.02;greenAdd('bush',bx,groundY(bx,bz)-.01,bz,.22+q*.04,.19+q*.04,.22+q*.04,a,q%2?0x44622e:0x50703a)}}
+    else if(r<.94){const rot=hash(hv*2.2)*3.14;add('bed',x,y-.004,z,.07,.008,.05,rot,0xe0d0c0);bareRect(x,z,rot,.075,.055)}
+    else{add('hay',x,y,z,.04,.045,.04,0,0xe8d8a8)}}}
 function yard(x,z,rot,w,d,pd,pw,hk){const c=Math.cos(rot),s=Math.sin(rot);
   const L=(name,lx,lz,dy,sx,sy,sz,col,er)=>{const X=x+lx*c+lz*s,Z=z-lx*s+lz*c,Y=groundY(X,Z);if(Y<waterY+.02)return;add(name,X,Y+dy,Z,sx,sy,sz,rot+(er||0),col);if(name==='bed'||name==='timber'||name==='hay')bareRect(X,Z,rot+(er||0),sx,sz)};
   const z0=-d/2-.008,z1=z0-pd,zc=(z0+z1)/2,fc=0x7d6c55;
   L('fence',-pw/2,zc,0,.004,.013,pd,fc);L('fence',pw/2,zc,0,.004,.013,pd,fc);L('fence',0,z1,0,pw,.013,.004,fc);
   for(let q=0;q<=Math.round(pd/.04);q++){const zz=z0-q*pd/Math.round(pd/.04);L('fence',-pw/2,zz,0,.006,.018,.006,0x5e4f3c);L('fence',pw/2,zz,0,.006,.018,.006,0x5e4f3c)}
+  /* the painted look: gardens end in a low hedge, and some have a fruit tree */
+  if(LK.pixel){const G=(k,lx,lz,dy,sx,sy,sz,col,er)=>{const X=x+lx*c+lz*s,Z=z-lx*s+lz*c,Y=groundY(X,Z);if(Y<waterY+.02)return;greenAdd(k,X,Y+dy,Z,sx,sy,sz,rot+(er||0),col)};
+    const nh=Math.max(2,Math.round(pw/.035));for(let q=0;q<nh;q++){const hv=hash(hk*17+q*3.1);if(hv<.25)continue;G('bush',-pw/2+pw*(q+.5)/nh,z1-.006,-.008,.2+hv*.06,.16+hv*.05,.2+hv*.06,0x44622e,hv*6)}
+    if(hash(hk*53+2)<.3){const fx=(hash(hk*5)<.5?-1:1)*pw*.3;G(natKit('broad',hash(hk*3)),fx,z1+pd*.3,-.01,.3,.29,.3,0x4e6a32,hash(hk)*6)}}
   const h2=hash(hk*91+7),nb=1+((h2*3)|0),bw=pw*.8/nb;
   for(let b=0;b<nb;b++){const bx=-pw*.4+bw*(b+.5),bl=pd*(.45+hash(hk*13+b)*.25);L('bed',bx,z1+.012+bl/2,-.004,bw*.82,.008,bl,[0xffffff,0xe0d0c0,0xd8e0c8][b%3])}
   const ex=hash(hk*29+1),zx=z0-pd*.22,xx=(hash(hk*7)<.5?-1:1)*pw*.28;
@@ -813,7 +829,7 @@ function townPlan(n,c,cap,e){
         /* villages: detached cottages on long plots with gaps of meadow; town cores: houses shoulder to shoulder */
         const w=hs[0]*(.85+R_()*.35),d=hs[1]*(.85+R_()*.3),off=sw+d/2+(rural?.02+R_()*.04:.008+R_()*.012),nx=-Math.sin(h)*side,nz=Math.cos(h)*side,x=p1[0]+nx*off,z=p1[1]+nz*off;
         const rr=rural?Math.max(w,d,.1)*.7:Math.max(w,d,.1)*.66+.003;if(bad(x,z)||!free(x,z,rr))continue;
-        let pd=band===1?(rural?.11+R_()*.15:.05+R_()*.04):0;const pw=w*(1.05+R_()*.45),bx=x+nx*(d/2+pd/2),bz=z+nz*(d/2+pd/2);
+        let pd=band===1?(rural?.11+R_()*.15:LK.pixel?.05+R_()*.04:.05+R_()*.04):0;const pw=w*(1.05+R_()*.45),bx=x+nx*(d/2+pd/2),bz=z+nz*(d/2+pd/2);
         if(pd>0&&(bad(bx,bz)||!free(bx,bz,pd*.42)))pd=0;
         mark(x,z,rr);if(pd>0){mark(bx,bz,pd*.45);mark(x+nx*(d/2+pd*.9),z+nz*(d/2+pd*.9),pw*.4)}
         slots.push({x,z,rot:Math.atan2(-nx,-nz),w,d,pd,pw,core,st:si,at:p1[2],fx:p1[0],fz:p1[1],dd:dd+R_()*.25})}}});
@@ -894,7 +910,12 @@ function replayCity(Rc){if(Rc.ft){const fr=FOOTREC;FOOTREC=null;for(const o of R
   for(const g of Rc.wm){scene.add(g);windmills.push(g)}for(const m of Rc.tf){scene.add(m);townFlags.push(m)}}
 let RB0=0;
 let sootSig='';
-function rebuildCities(){patchSets();RB0=performance.now();{let s='';for(const n of nations)if(n.alive&&n.era>=5&&n.era<=6)s+=n.id+':'+n.era+':'+n.cities.length+';';if(s!==sootSig){sootSig=s;if(typeof colorDirty!=='undefined')colorDirty=true}}
+/* trees and shrubs that belong to towns (orchards, garden hedges, fruit trees). They go in with the world's trees, which are drawn after the towns,
+   so the towns hand them over here instead of drawing them themselves */
+let TOWN_GREEN=[],TGSIG='',CUR_GREEN=null;
+const greenAdd=(k,x,y,z,sx,sy,sz,r,col)=>{if(CUR_GREEN)CUR_GREEN.push([k,x,y,z,sx,sy,sz,r,col])};
+function rebuildCities(){patchSets();RB0=performance.now();try{rebuildCities0()}finally{CUR_GREEN=null;TOWN_GREEN=[];for(const n of nations)if(n.alive)for(const c of n.cities)if(c._green)for(const g of c._green)TOWN_GREEN.push(g);const sig=TOWN_GREEN.length+':'+(TOWN_GREEN[0]?TOWN_GREEN[0][1].toFixed(2):'');if(sig!==TGSIG){TGSIG=sig;treesDirty=true;if(typeof jobs!=='undefined')jobs.push(()=>{if(treesDirty){rebuildTrees();if(typeof lastTrees!=='undefined')lastTrees=performance.now();treesDirty=false}})}}}
+function rebuildCities0(){{let s='';for(const n of nations)if(n.alive&&n.era>=5&&n.era<=6)s+=n.id+':'+n.era+':'+n.cities.length+';';if(s!==sootSig){sootSig=s;if(typeof colorDirty!=='undefined')colorDirty=true}}
   for(const m of townFlags)scene.remove(m);townFlags=[];airports=[];spaceports=[];bgrid.clear();FOOT.clear();kitReset(BUILD_KITS);occupied.clear();bare.clear();grassAt.x=1e9;emitters=[];herds=[];cityStreets=[];for(const g of windmills)scene.remove(g);windmills=[];
   const stale=[];
   for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(10,cityLevel(n)+(gold?1.5:0))*2)/2;
@@ -919,7 +940,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       if(n.faith>=0&&(cap||hash(i0*3)<.35)){const tx=cx-.32*CO,tz=cz+.2*CO;solid(()=>sacredSite(faiths[n.faith],n,tx,surfY(tx,tz),tz,e,hash(i0)*3,cap),tx,tz,0,false,undefined,'big');KO.push([tx,tz,cap?.26:.2])}
       if(c.dike)dikeRing(c,cx,cz);
       MCTX={lvl,cap,tall:[],w:.12,cu:cultOf(n),n};const lagoon=isLagoon(n,c,e);MCTX.lagoon=lagoon;const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+lvl*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?3.4:3.2):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
-      if(plan.metro)plan.streets.forEach((st,si)=>{if(st.main&&st.base<=plan.pr+.01)reach.set(si,.5)});let k=0,placed=0;c._poi={pts:[],plaza:[cx,cz],r:plan.pr};
+      if(plan.metro)plan.streets.forEach((st,si)=>{if(st.main&&st.base<=plan.pr+.01)reach.set(si,.5)});let k=0,placed=0;const HP=[];CUR_GREEN=c._green=[];c._poi={pts:[],plaza:[cx,cz],r:plan.pr};
       const far=Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.3+2.5;MCTX.far=far;
       if(e>=2&&e<=4&&!plan.metro&&!lagoon&&count>=(cap?14:18)){const ds=[];for(const sl of slots){if(ds.length>=count)break;const t=tileAt(sl.x,sl.z);if(t<0||(owner[t]>=0&&owner[t]!==n.id))continue;ds.push(Math.hypot(sl.x-cx,sl.z-cz))}
         if(ds.length>=(cap?14:18)){ds.sort((a,b)=>a-b);townWall(n,plan,cx,cz,ds[Math.floor(ds.length*.8)]+.09,e,far,i0)}}
@@ -944,10 +965,12 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         if(!far&&sl.pd>0&&e>=1&&e<=4&&cultOf(n)!=='mideast'&&cultOf(n)!=='africa')yard(sl.x,sl.z,sl.rot,sl.w,sl.d,sl.pd,sl.pw,hk);
         if(!far&&plan.metro&&e>=5&&e<=6&&sl.core<.5&&hk>.35)frontGarden(sl.x,y,sl.z,sl.rot,Math.min(sl.w,.075),Math.min(sl.d,.075),hk);
         },sl.x,sl.z,sl.rot);
-        if(!up)continue;placed++;occupied.add(ti);(MCTX.dists||(MCTX.dists=[])).push(Math.hypot(sl.x-cx,sl.z-cz));bareRect(sl.x,sl.z,sl.rot,sl.w*1.15,sl.d*1.2);
+        if(!up)continue;placed++;HP.push([sl.x,sl.z,Math.max(sl.w,sl.d)*.62+(sl.pd||0)*.9]);occupied.add(ti);(MCTX.dists||(MCTX.dists=[])).push(Math.hypot(sl.x-cx,sl.z-cz));bareRect(sl.x,sl.z,sl.rot,sl.w*1.15,sl.d*1.2);
         if(sl.st>=0)reach.set(sl.st,Math.max(reach.get(sl.st)||0,sl.at+.12));
         if(!lagoon||groundY(sl.fx,sl.fz)>waterY+.02)c._poi.pts.push([sl.fx,sl.fz]);
         if(!far&&e>=3&&e<=5&&hk<.16)smokeAt(sl.x,y+.13*(1+sl.core*.6),sl.z,false,.25)}
+      /* the painted look: the green between the lanes fills with orchards, garden shrubs, vegetable plots and haystacks, as in an old village */
+      if(LK.pixel&&!far&&e>=1&&e<=4&&!plan.metro&&!lagoon&&HP.length>4)townInfill(n,plan,cx,cz,HP,i0,KO);
       if(e===7&&!far&&typeof windTurbine==='function'){/* wind turbines on the open ground beyond the town */const R2=(plan.metro||(cap?1.1:.7))+.45;for(let k=0;k<(cap?5:3);k++){const a=hash(i0*3.1+k)*6.283,x=cx+Math.cos(a)*R2,z=cz+Math.sin(a)*R2,t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id)continue;windTurbine(x,groundY(x,z),z,.34,hash(i0)*6.28)}}
       if(MCTX.fac>0){/* smog: a brown haze hangs over the mill towns */const R_=(plan.metro||(cap?1.1:.7))*1.05+.3;add('smog',cx,cy+.05,cz,R_*2,.3+MCTX.fac*.02,R_*2,0,0x6a5a48);
         const fa=hash(i0*2.7)*6.283;add('smog',cx+Math.cos(fa)*R_*.45,cy+.08,cz+Math.sin(fa)*R_*.45,R_*1.1,.36,R_*1.1,0,0x4a4038)}
@@ -1187,7 +1210,7 @@ function treeWant(i){const b=biome[i],g=groveN(i%W,(i/W)|0),lone=hash(i*1.3);
 let TGS=1;
 function rebuildTrees(){
   {let tot=0;for(let i=0;i<N;i++)if(!isWater(i))tot+=treeWant(i);TGS=Math.min(1,62000/Math.max(1,tot))}
-  kitReset(TREE_KITS);const dens=(settings.quality==='high'?1:settings.quality==='medium'?.65:.4)*(typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1),farm=countryside();
+  kitReset(TREE_KITS);for(const g of TOWN_GREEN)add(g[0],g[1],g[2],g[3],g[4],g[5],g[6],g[7],g[8]);const dens=(settings.quality==='high'?1:settings.quality==='medium'?.65:.4)*(typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1),farm=countryside();
   /* trees near towns are drawn at a believable size next to the houses */
   const near=new Float32Array(N).fill(1);for(const n of nations)if(n.alive)for(const c of n.cities)for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);near[Y*W+X]=Math.min(near[Y*W+X],.5+smooth(1,3.2,d)*.5)}
   for(let i=0;i<N;i++){const b=biome[i];if(occupied.has(i)||fieldTiles.has(i)||farm.has(i)||(scorched&&scorched[i]>0)||fires.has(i))continue;
