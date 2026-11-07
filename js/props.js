@@ -261,7 +261,7 @@ kit('puddle',unitCyl(14),inlandWaterMat(false),6000,false);kit('reed',unitCone(4
 kit('hedge',unitBox(),stdMat({roughness:1}),20000,false);kit('farmW',unitBox(),MAT.plain,3000);kit('farmR',gableGeo(),MAT.plain,3000);
 /* painted looks: leaves turn a deeper, olive woodland green (bright lime crowns read as plastic in a painted scene) */
 {const _tb=treeMat.onBeforeCompile;treeMat.onBeforeCompile=sh=>{_tb(sh);sh.fragmentShader=sh.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
-  if(uEarth>0.){vec3 c=diffuseColor.rgb;float gl=smoothstep(.0,.04,c.g-max(c.r,c.b));diffuseColor.rgb=mix(c,c*vec3(.64,.74,.54),gl*uEarth);}`)}}
+  if(uEarth>0.){vec3 c=diffuseColor.rgb;float gl=smoothstep(.0,.04,c.g-max(c.r,c.b));diffuseColor.rgb=mix(c,c*vec3(.56,.66,.47),gl*uEarth);}`)}}
 const TREE_KITS=['conifer','broad','palm','bush','rock','tuft','flower','puddle','reed','hedge','farmW','farmR'];
 /* the countryside: hedgerows, dry-stone walls or fences round the fields, and a farmstead with a barn here and there */
 function countryside(){const farm=new Set();

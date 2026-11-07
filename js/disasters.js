@@ -23,7 +23,7 @@ function cityAtTile(i){const x=i%W,y=(i/W)|0;for(const n of nations){if(!n.alive
 /* ---------- storms ---------- */
 const STORM_NAME={thunder:'Thunderstorm',hurricane:'Hurricane',blizzard:'Blizzard'};
 function spawnStorm(kind,x,z,god){
-  if(storms.length>=(god?10:5)||(!god&&kind==='hurricane'&&storms.some(s=>s.kind==='hurricane')))return null;
+  if(storms.filter(s=>s.kind!=='shower').length>=(god?10:5)||(!god&&kind==='hurricane'&&storms.some(s=>s.kind==='hurricane')))return null;
   const S={kind,x,z,seed:rng()*1000,t:0,life:kind==='hurricane'?45:kind==='blizzard'?32:24,r:kind==='hurricane'?5.5:kind==='blizzard'?4.5:3,vx:0,vz:0,bolt:1,landfall:false};
   const sp=kind==='hurricane'?.45:.3;
   if(kind==='hurricane'){const d=Math.hypot(x,z)||1;S.vx=-x/d*sp+(rng()-.5)*.2;S.vz=-z/d*sp+(rng()-.5)*.2}else{const a=rng()*6.28;S.vx=Math.cos(a)*sp;S.vz=Math.sin(a)*sp}
@@ -51,19 +51,33 @@ function updateStorms(dt,k){
       if(hit.length){log(`The hurricane made landfall in ${hit.map(n=>n.name).join(' and ')}.`,'doom');toast('Landfall',`The hurricane hits ${hit[0].name}.`,S.x,S.z);milestone('hurricane','Eye of the storm','A hurricane reached land.')}}}
     const fade=Math.min(1,S.t/2.5)*Math.min(1,Math.max(0,S.life-S.t)/4);S.fade=fade;
     const dCam=Math.hypot(S.x-camT.x,S.z-camT.z);
-    weatherDim=Math.max(weatherDim,(1-smooth(S.r*.8,S.r*2.4,dCam))*fade*(S.kind==='hurricane'?1:S.kind==='blizzard'?.7:.8));
-    if(k>0&&dCam<camDist*1.4+S.r){const rate=(S.kind==='hurricane'?140:S.kind==='blizzard'?70:90)*dt*fade;
+    weatherDim=Math.max(weatherDim,(1-smooth(S.r*.8,S.r*2.4,dCam))*fade*(S.kind==='hurricane'?1:S.kind==='blizzard'?.7:S.kind==='shower'?.5:.8));
+    if(k>0&&dCam<camDist*1.4+S.r){const rate=(S.kind==='hurricane'?140:S.kind==='blizzard'?70:S.kind==='shower'?55:90)*dt*fade;
       for(let e=0;e<rate;e++){const a=rng()*6.283,d=Math.sqrt(rng())*S.r,x=S.x+Math.cos(a)*d,z=S.z+Math.sin(a)*d;
-        emit(S.kind==='blizzard'?'snow':'rain',x,surfY(x,z)+3.4,z,S.vx*.6+(S.kind==='hurricane'?-Math.sin(a)*1.2:0),S.vz*.6+(S.kind==='hurricane'?Math.cos(a)*1.2:0))}}
-    if(k>0&&S.kind!=='blizzard'){S.bolt-=dt*k;if(S.bolt<=0){S.bolt=(S.kind==='hurricane'?.5:.7)+rng()*1.4;if(fade>.3)strike(S)}}
+        emit(S.kind==='blizzard'||S.snow?'snow':'rain',x,surfY(x,z)+(S.kind==='shower'?2.6:3.4),z,S.vx*.6+(S.kind==='hurricane'?-Math.sin(a)*1.2:0),S.vz*.6+(S.kind==='hurricane'?Math.cos(a)*1.2:0))}}
+    if(k>0&&S.kind!=='blizzard'&&S.kind!=='shower'){S.bolt-=dt*k;if(S.bolt<=0){S.bolt=(S.kind==='hurricane'?.5:.7)+rng()*1.4;if(fade>.3)strike(S)}}
     if(k>0){const hit=nationsInRadius(S.x,S.z,S.r);
       for(const n of hit){if(S.kind==='hurricane'&&onLand){n.pop*=1-.006*dt*k;if(!n.famine&&rng()<.02*dt*k)startFamine(n,'storm')}
         if(S.kind==='blizzard'){n.pop*=1-(n.era>=6?.0008:.003)*dt*k;if(!n.famine&&n.era<5&&rng()<.012*dt*k)startFamine(n,'cold')}}
       if(S.kind==='hurricane')for(const s of ships)if(!s.sink&&Math.hypot(s.x-S.x,s.z-S.z)<S.r*.8&&rng()<.35*dt*k){s.sink=.01;log(`The hurricane sank a ${s.owner<0?"pirate ship":"ship of "+nations[s.owner].name}.`,'doom')}
       for(const [i] of fires){const x=wx(i%W),z=wz((i/W)|0);if(S.kind!=='blizzard'&&Math.hypot(x-S.x,z-S.z)<S.r&&rng()<dt*k*.8)endFire(i)}
       if(S.kind!=='blizzard')brushWorld(S.x,S.z,S.r,(j,f)=>{moistD[j]=Math.min(.5,moistD[j]+.004*dt*k*f)})}
-    if(S.t>S.life||Math.abs(S.x)>W*.75||Math.abs(S.z)>H*.75){storms.splice(q,1);if(S.kind!=='thunder')log(`The ${STORM_NAME[S.kind].toLowerCase()} has passed.`,'sky')}}
+    if(S.t>S.life||Math.abs(S.x)>W*.75||Math.abs(S.z)>H*.75){storms.splice(q,1);if(S.kind!=='thunder'&&S.kind!=='shower')log(`The ${STORM_NAME[S.kind].toLowerCase()} has passed.`,'sky')}}
 }
+/* ---------- everyday weather ----------
+   Grey days come and go, and showers drift across the land (snow over cold ground). They do no harm; they just make the sky
+   change. Wetter worlds see more of them. Showers start near where you are looking, so you actually see them. */
+const WXD={over:0,target:0,next:0,t:0};
+function everydayWeather(dt,k){if(!dt||settings.weather===false||typeof camT==='undefined')return;WXD.t+=dt*Math.max(k,.2);
+  if(WXD.t>WXD.next){WXD.next=WXD.t+25+rng()*45;const wet=climate.rain??.5;WXD.target=rng()<.3+wet*.35?.45+rng()*.55:rng()*.2;
+    if(!WXD.wind||rng()<.3){const a=rng()*6.283;WXD.wind=[Math.cos(a)*.22,Math.sin(a)*.22]}}
+  WXD.over+=(WXD.target-WXD.over)*Math.min(1,dt*.06);
+  const showers=storms.filter(s=>s.kind==='shower').length;
+  if(k>0&&showers<3&&WXD.over>.4&&rng()<dt*k*.06*WXD.over){const a=rng()*6.283,d=camDist*.3+rng()*Math.min(30,camDist*.9),x=clamp(camT.x+Math.cos(a)*d,-W/2,W/2),z=clamp(camT.z+Math.sin(a)*d,-H/2,H/2),t=tileAt(x,z);
+    const cold=t>=0&&([2,9,10,12].includes(biome[t])||(typeof seasonName==='function'&&/winter/i.test(seasonName())&&climate.temp<.55&&Math.abs(z)>H*.2));
+    storms.push({kind:'shower',x,z,seed:rng()*1000,t:0,life:20+rng()*16,r:2+rng()*1.8,vx:WXD.wind[0],vz:WXD.wind[1],bolt:1e9,landfall:false,snow:cold})}
+  weatherDim=Math.max(weatherDim,WXD.over*.3)}
+{const _us=updateStorms;updateStorms=function(dt,k){_us(dt,k);try{everydayWeather(dt,k)}catch(e){}}}
 function brushWorld(x,z,r,fn){const i=tileAt(x,z);if(i<0)return;brush(i,r,(j,d)=>fn(j,1-d/(r+.5)))}
 
 /* ---------- wildfires ---------- */
@@ -154,7 +168,7 @@ function updateDisasters(dt,k){updateStorms(dt,k);updateFires(dt,k);updateWaves(
 /* ---------- drawing ---------- */
 function stormPuffs(pa,sa,aa,ca,n,now){
   for(const S of storms){const cnt=S.kind==='hurricane'?70:34,base=Math.max(waterY,groundY(S.x,S.z))+3.9,f=S.fade||0;
-    const col=S.kind==='blizzard'?.78:S.kind==='hurricane'?.46:.34;
+    const col=S.kind==='blizzard'||S.snow?.78:S.kind==='hurricane'?.46:S.kind==='shower'?.56:.34;
     for(let q=0;q<cnt&&n<MAXP;q++){const r1=hash(S.seed+q*1.7),r2=hash(S.seed+q*3.1),r3=hash(S.seed+q*5.3);let a,d;
       if(S.kind==='hurricane'){const arm=q%3;d=(q/cnt)*S.r;a=arm*2.094+d*.9+S.t*.7;if(q<4){d=.6+r1*.3}}else{a=r1*6.283+S.t*.05;d=Math.sqrt(r2)*S.r*.85}
       pa[n*3]=S.x+Math.cos(a)*d;pa[n*3+1]=base+r3*.9;pa[n*3+2]=S.z+Math.sin(a)*d;sa[n]=(2+r3*1.8)*(S.kind==='hurricane'?1.1:1);aa[n]=.62*f;

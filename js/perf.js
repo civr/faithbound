@@ -23,8 +23,8 @@ function applyTier(t){t=Math.max(0,Math.min(4,t));PERF.tier=t;
   if(typeof CULLK!=='undefined')CULLK.dirty=true;if(typeof treesDirty!=='undefined')treesDirty=true;if(typeof resize==='function')resize();
   if(typeof shadowForce!=='undefined')shadowForce=true}
 /* post effects (outlines, focus blur, colour grading) are full-screen passes: the first thing a laptop chip gives up */
-{const _pa=postActive;postActive=function(){return _pa()&&!(perfOn()&&PERF.tier>=(typeof pixN!=='undefined'&&pixN>1?3:1))}}
-/* (a pixel look draws the scene at a fraction of the screen's pixels, so its effects stay affordable a few levels longer) */
+{const _pa=postActive;postActive=function(){return _pa()&&!(perfOn()&&PERF.tier>=(LK.soft?3:1))}}
+/* (the painted look draws at a reduced resolution, so its effects stay affordable a few levels longer) */
 /* watch the frame rate */
 setInterval(()=>{if(!perfOn()||typeof frameEMA==='undefined'||typeof playing==='undefined'||!playing||document.hidden)return;
   const cap=typeof fpsCap==='function'?fpsCap():60,want=1000/(cap||60),r=frameEMA/want,now=performance.now();if(now<PERF.cool)return;
@@ -58,13 +58,13 @@ function makeLodGrid(src,gw,gh,C,shadow){const L={src,gw,gh,chunks:[],grp:new TH
 function lodSpheres(L){const g=L.src.geometry,P=g.attributes.position.array;
   for(const ch of L.chunks){let y0=1e9,y1=-1e9;for(let v=0;v<=ch.nv;v+=2)for(let u=0;u<=ch.nu;u+=2){const k=((ch.v0+v)*L.gw+ch.u0+u)*3+1;if(P[k]<y0)y0=P[k];if(P[k]>y1)y1=P[k]}
     const a=(ch.v0*L.gw+ch.u0)*3,b=((ch.v0+ch.nv)*L.gw+ch.u0+ch.nu)*3,cx=(P[a]+P[b])/2,cz=(P[a+2]+P[b+2])/2,r=Math.hypot(P[b]-P[a],P[b+2]-P[a+2],y1-y0)/2+.3;
-    ch.c.set(cx,(y0+y1)/2,cz);for(const m of ch.m){m.geometry.boundingSphere.center.copy(ch.c);m.geometry.boundingSphere.radius=r}}}
+    ch.c.set(cx,(y0+y1)/2,cz);ch.coast=typeof waterY!=='undefined'&&y0<waterY+.1&&y1>waterY-.4;for(const m of ch.m){m.geometry.boundingSphere.center.copy(ch.c);m.geometry.boundingSphere.radius=r}}}
 function lodTick(L){const g=L.src.geometry,m0=L.chunks[0]&&L.chunks[0].m[0];if(!m0)return;
   /* the terrain may have gained or swapped an attribute (normals are made on the first layout) */
   if(m0.geometry.attributes.normal!==g.attributes.normal||m0.geometry.attributes.position!==g.attributes.position)for(const ch of L.chunks)for(const m of ch.m)for(const k in g.attributes)m.geometry.setAttribute(k,g.attributes[k]);
   L.grp.position.copy(L.src.position);
   const k=typeof PERF!=='undefined'&&perfOn()?Math.max(.55,PERF.lodK):1,T0=9*k,T1=18*k,T2=34*k,cp=cam.position,gy=L.grp.position.y;
-  for(const ch of L.chunks){const d=Math.hypot(ch.c.x-cp.x,ch.c.y+gy-cp.y,ch.c.z-cp.z)-ch.m[0].geometry.boundingSphere.radius*.5;let lv=d<T0?0:d<T1?1:d<T2?2:3;lv=Math.min(lv,ch.m.length-1);
+  for(const ch of L.chunks){const d=Math.hypot(ch.c.x-cp.x,ch.c.y+gy-cp.y,ch.c.z-cp.z)-ch.m[0].geometry.boundingSphere.radius*.5;let lv=d<T0?0:d<T1?1:d<T2?2:3;if(ch.coast&&L.shadow)lv=Math.min(lv,1);lv=Math.min(lv,ch.m.length-1);/* coasts keep their detail: coarse triangles there pop the beach in and out */
     if(lv!==ch.lv){if(ch.lv>=0)ch.m[ch.lv].visible=false;ch.m[lv].visible=true;ch.lv=lv}
     ch.m[lv].castShadow=L.shadow&&lv<=1&&renderer.shadowMap.enabled}}
 const TLOD={t:null,w:null,tv:-1};

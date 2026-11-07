@@ -99,8 +99,8 @@ const SPEEDS=[0,2,6,20];
    line (ink outlines), poster (toon light bands), paper (parchment atlas), bloom, grain */
 /* one look only: the painted pixel countryside */
 const LOOKS={
-  hamlet:{label:'Hamlet',desc:'Painted pixel countryside: chunky pixels up close, a tilt-shift diorama from afar',pixel:1,sat:1.04,exposure:.9,tint:[66,92,46,.12],sun:0xfff0d6,sunI:2.1,hemiI:.85,fog:.8,lock:-1,
-    skyTop:0x9cc2dc,skyHor:0xe2ead8,post:{sat:.86,con:1.08,lift:[.014,.016,.006],gain:[1.03,1.01,.92],vig:.2,tilt:.9,tiltFar:1,ao:1,mist:.25,bloom:.06,grain:0}}};
+  hamlet:{label:'Hamlet',desc:'Painted countryside, soft and natural, a tilt-shift diorama from afar',pixel:1,soft:.72,sat:.92,exposure:.86,tint:[70,84,52,.16],sun:0xfff0dc,sunI:1.9,hemiI:.8,fog:.9,lock:-1,
+    skyTop:0x8fb0cc,skyHor:0xd6dfe0,post:{sat:.8,con:1.05,lift:[.01,.012,.012],gain:[1,.99,.95],vig:.22,tilt:.9,tiltFar:1,ao:0,mist:.3,bloom:.04,grain:0}}};
 
 
 /* ---------- tech tree ---------- */
