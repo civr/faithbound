@@ -473,6 +473,7 @@ function temple(f,x,y,z,e,rot){const fc=parseInt(f.color.slice(1),16);
 /* the face of a house: door, framed windows with painted shutters, flower boxes, and windows on the sides */
 const SHUTTER=[0x3f6b4a,0x34557a,0x7a3b2c,0x5a4a3a,0x2f4f4f,0x8a6a2a];
 const DOORS=[0x3b2a1e,0x5a3a22,0x2f4f4f,0x6a2a22,0x34557a,0x4a3a2a];
+let ROWHOUSE=false;/* row houses share their side walls: no windows there */
 function facade(x,y,z,rot,w,d,hh,hk,floors,plain){const q=plain?0:hash(hk*71+5),sc=SHUTTER[(q*SHUTTER.length)|0],fr=plain?0xd8cfbc:0xe8dfcc,dz=d/2+.0012,glass=0x202c38,sill=0xd8d2c4;
   /* a stone footing round the house */
   P('stone',x,y-.02,z,rot,0,0,0,w+.005,.027,d+.005,0xa8a094);
@@ -489,7 +490,7 @@ function facade(x,y,z,rot,w,d,hh,hk,floors,plain){const q=plain?0:hash(hk*71+5),
       win(rot,wxp,dz,wy,!plain);
       if(q>.25){for(const sd of [-1,1])P('box',x,y,z,rot,wxp+sd*(gw*.5+.0055),dz+.0004,wy-.002,gw*.5,gh+.004,.002,sc)}
       if(f===0&&hash(hk*13+k)<.45){P('box',x,y,z,rot,wxp,dz+.004,wy-.008,.019,.0045,.006,0x6a4a30);P('box',x,y,z,rot,wxp,dz+.004,wy-.0035,.017,.0035,.005,[0xd8504a,0xe8d84a,0xf2f2f2,0x9a6ad0][(hash(hk+k*3)*4)|0])}}
-    for(const sd of [-1,1])if(hash(hk*5+f+sd)<.7)win(rot+Math.PI/2,0,sd*(w/2+.0012),wy,!plain)}}
+    if(!ROWHOUSE)for(const sd of [-1,1])if(hash(hk*5+f+sd)<.7)win(rot+Math.PI/2,0,sd*(w/2+.0012),wy,!plain)}}
 /* the underside of the roof: a dark band where it overhangs the walls, so the roof reads as a solid slab with eaves */
 function eaves(x,y,z,rot,w,d){P('box',x,y-.005,z,rot,0,0,0,w,.006,d,0x2e2620)}
 const shadeHex=(h,f)=>((Math.min(255,((h>>16)&255)*f)|0)<<16)|((Math.min(255,((h>>8)&255)*f)|0)<<8)|(Math.min(255,(h&255)*f)|0);
@@ -511,12 +512,33 @@ function cottage(x,y,z,rot,w,d,hh,hk){const o=hash(hk*53+3);
 /* the plot behind a house: wattle fence, dug beds, and a haystack, woodpile, shed or fruit tree */
 /* a house in a terraced row: it fills its plot exactly, wall to wall with its neighbours, its ridge along the lane so the roofs run on as one line.
    Heights, plaster and roof colours vary from house to house, as in an old street that grew one house at a time */
-function terraceHouse(n,sl,y,e,hk){const med=cultOf(n)==='med',hh=.06+hash(hk*7.1)*.045+(sl.core>.6?.02:0);
+function terraceHouse(n,sl,y,e,hk){ROWHOUSE=true;try{terraceHouse0(n,sl,y,e,hk)}finally{ROWHOUSE=false}}
+function terraceHouse0(n,sl,y,e,hk){const cu=cultOf(n),x=sl.x,z=sl.z,rot=sl.rot,w=sl.w*1.01,d=sl.d,pick=(a,k)=>a[(hash(hk*k)*a.length)|0];
+  const flat=(wall,wc,hh,cap,capC)=>{add(wall,x,y-.02,z,w,hh+.02,d,rot,wc);add('box',x,y+hh,z,w*1.02,cap,d*1.02,rot,capC)};
+  if(e>=7){/* the future: smooth white blocks joined in a curve, a band of glass on every floor */
+    const hh=.09+hash(hk*7.1)*.08;flat('plaster',pick([0xf4f6f8,0xeef2f4,0xe6ecf0],3.3),hh,.008,0xdfe6ea);
+    for(let f=0;f<Math.floor(hh/.04);f++)add('glass',x,y+.02+f*.04,z,w*1.005,.014,d*1.005,rot,0x9fc4d8);return}
+  if(e===6){/* modern townhouses and small blocks of flats: flat roofs, rows of windows */
+    const hh=.07+hash(hk*7.1)*.09+(sl.core>.6?.04:0),fl=Math.max(2,Math.round(hh/.035));flat(hash(hk*6.6)<.3?'brick':'plaster',pick([0xe8e4dc,0xd8d4cc,0xcfc8bc,0xe0d8c8,0xbfc4c8],3.3),hh,.01,0x5a5c60);
+    facade(x,y,z,rot,w,d,hh,hk,fl,true);return}
+  if(e===5){/* industrial terraces: red brick, slate roofs, a chimney stack on every house */
+    house(x,y,z,rot,w,d,.075+hash(hk*7.1)*.02,'brick',pick([0xffffff,0xf0e0d8,0xe8d8d0],3.3),'tiles',pick(ROOF_SLATE,2.2),true,{hk:hk*.44});return}
+  const hh=.06+hash(hk*7.1)*.045+(sl.core>.6?.02:0);
+  if(cu==='mideast'||cu==='africa'){/* mud-brick houses joined wall to wall, flat roofs with a parapet; now and then a little dome or a roof shelter */
+    const wc=pick(cu==='africa'?[0xc89a6a,0xb88a5a,0xd0a878,0xbc9060]:[0xe0cca8,0xd8c098,0xe8d8b8,0xcdb48c,0xc8ae86,0xece0c8],3.3),h2=hh*(.8+hash(hk*4.4)*.55);
+    add('adobe',x,y-.02,z,w,h2+.02,d,rot,wc);add('adobe',x,y+h2,z,w*1.02,.012,d*1.02,rot,wc);
+    if(hash(hk*5.1)<.18)add('domeW',x,y+h2+.008,z,w*.5,w*.3,w*.5,0,0xeee8dc);else if(hash(hk*5.1)<.35)add('box',x,y+h2+.012,z,w*.4,.025,d*.4,rot,0x8a6a48);
+    facade(x,y,z,rot,w,d,h2,hk,1,true);return}
+  if(cu==='meso'){flat('stone',pick([0xd8ccb4,0xcfc2a8,0xe0d4bc],3.3),hh*.8,.012,0xb8a88c);facade(x,y,z,rot,w,d,hh*.8,hk,1,true);return}
+  if(cu==='east'){/* wooden townhouses with deep dark tile roofs, ridges along the street */
+    house(x,y,z,rot,w,d,hh*.85,'plaster',pick([0xd8c4a4,0xccb490,0xe0ceb0],3.3),'tiles',pick([0x5a5e66,0x646870,0x52565e],2.2),false,{hk:hk*.44});return}
+  if(cu==='nordic'){house(x,y,z,rot,w,d,hh,'timber',pick([0x8a6040,0x7a5236,0x9a704c,0x6e4a30],3.3),hash(hk*5.7)<.6?'thatch':'tiles',hash(hk*5.7)<.6?0xffffff:0x4a4a42,hash(hk*8.8)<.4,{hk:hk*.44});return}
+  /* the west and the Mediterranean: plaster and timber-framed fronts, thatch, tile or slate; Mediterranean in warm stucco and red tile */
+  const med=cu==='med',hh2=e<=1?hh*.85:hh;
   const walls=med?[0xe8dcc4,0xdcc8a8,0xeee4d0,0xd8c09c]:[0xe6dcc8,0xd8ccb4,0xcfc2a6,0xe0d4bc,0xbfae92],wc=walls[(hash(hk*3.3)*walls.length)|0];
-  const thatch=!med&&e<=3&&hash(hk*5.7)<.45,roof=thatch?'thatch':'tiles',rc=thatch?0xffffff:med?ROOF_RED[(hash(hk*2.2)*ROOF_RED.length)|0]:(hash(hk*9.9)<.5?ROOF_RED[(hash(hk)*ROOF_RED.length)|0]:ROOF_SLATE[(hash(hk*4)*ROOF_SLATE.length)|0]);
+  const thatch=!med&&(e<=3)&&hash(hk*5.7)<(e<=2?.8:.45),roof=thatch?'thatch':'tiles',rc=thatch?0xffffff:med?ROOF_RED[(hash(hk*2.2)*ROOF_RED.length)|0]:(hash(hk*9.9)<.5?ROOF_RED[(hash(hk)*ROOF_RED.length)|0]:ROOF_SLATE[(hash(hk*4)*ROOF_SLATE.length)|0]);
   const wall=hash(hk*6.6)<.18?'stone':'plaster';
-  /* the plot's width runs along the lane: give the builder the frontage as width so the ridge follows the street */
-  house(sl.x,y,sl.z,sl.rot,sl.w*1.01,sl.d,hh,wall,wc,roof,rc,hash(hk*8.8)<.4,{hk:hk*.44})}
+  house(x,y,z,rot,w,d,hh2,wall,wc,roof,rc,e>=3&&hash(hk*8.8)<.4,{hk:hk*.44})}
 function townInfill(n,plan,cx,cz,HP,i0,KO){const ds=HP.map(h=>Math.hypot(h[0]-cx,h[1]-cz)).sort((a,b)=>a-b),RT=ds[Math.floor(ds.length*.85)]+.06,st=.085;
   const SP=[];for(const s of plan.streets)for(const q of s.pts)SP.push(q);
   for(let gx=-RT;gx<=RT;gx+=st)for(let gz=-RT;gz<=RT;gz+=st){const hv=hash(i0*7.7+gx*131.3+gz*71.9),x=cx+gx+(hash(hv*9.1)-.5)*.05,z=cz+gz+(hash(hv*5.3)-.5)*.05,d=Math.hypot(x-cx,z-cz);
@@ -833,13 +855,13 @@ function townPlan(n,c,cap,e){
     if(bad(x,z)||!free(x,z,Math.max(hs[0],.1)*.66))continue;mark(x,z,Math.max(hs[0],.1)*.66);slots.push({x,z,rot:Math.atan2(-Math.cos(a),-Math.sin(a)),w:hs[0],d:hs[1],core:1,st:-1,at:0,fx:cx+Math.cos(a)*pr*.8,fz:cz+Math.sin(a)*pr*.8,dd:pr*.5})}
   for(const st of streets)for(const q of st.pts)mark(q[0],q[1],st.main?.035:.025);
   streets.forEach((st,si)=>{const sw=st.main?.035:.025;
-    const fine=band===1&&dens>.25;const PT=fine?st.pts.flatMap((q,i)=>i?[[ (q[0]+st.pts[i-1][0])/2,(q[1]+st.pts[i-1][1])/2,(q[2]+st.pts[i-1][2])/2],q]:[q]):st.pts;
+    const fine=band>=1&&dens>.25;const PT=fine?(()=>{const o=[];st.pts.forEach((q,i)=>{if(!i){o.push(q);return}const a=st.pts[i-1];for(let k=1;k<=6;k++){const t=k/6;o.push([a[0]+(q[0]-a[0])*t,a[1]+(q[1]-a[1])*t,a[2]+(q[2]-a[2])*t])}});return o})():st.pts;
     for(let i=1;i<PT.length;i++){const p0=PT[i-1],p1=PT[i],h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0]);
       for(const side of [1,-1]){const dd=st.base+p1[2],core=clamp(1-dd/((cap?1.1:.6)*(1+dens*.8)),0,1),rural=band===1&&core<(e>=3&&e<=4?.28:.6)*(1-dens*.8);
-        if(R_()<(rural?.3*(1-dens*.6):band>=2?.28:e>=3?.05*(1-dens):.12))continue;
+        if(R_()<(rural?.3*(1-dens*.6):band>=2?.28*(1-dens*.85):e>=3?.05*(1-dens):.12*(1-dens*.8)))continue;
         /* villages: detached cottages on long plots with gaps of meadow; town cores: houses shoulder to shoulder */
         /* the heart of a big town: terraced rows, each house wall to wall with the next and its front on the lane, no gaps and no gardens */
-        const terr=band===1&&dens>.25&&core>.3-dens*.22&&!rural;
+        const terr=band>=1&&dens>.25&&core>.3-dens*.22&&!rural;
         let w=hs[0]*(.85+R_()*.35),d=hs[1]*(.85+R_()*.3),off=sw+d/2+(rural?.02+R_()*.04:.008+R_()*.012);
         if(terr){w=hs[0]*(.92+(w/hs[0]-.85)*.3);d=hs[1]*(1.05+(d/hs[1]-.85)*.4);off=sw+w*.5+.004}
         const nx=-Math.sin(h)*side,nz=Math.cos(h)*side,x=p1[0]+nx*off,z=p1[1]+nz*off;
@@ -875,20 +897,22 @@ function organicMetro(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[]
       if(s>=2){const q=near(x,z,parent);if(q){d+=Math.hypot(q[0]-x,q[1]-z);pts.push([q[0],q[1],d]);hit=true;break}}}
     return {pts,hit}};
   const gen=streets.map((s,i)=>i);for(let g=0;g<2;g++){const next=[];
-    for(const si of gen){const st=streets[si];for(let i=3;i<st.pts.length-2;i+=4+((R_()*4)|0)){if(R_()>(g?.45:.8))continue;const p0=st.pts[i],p1=st.pts[i+1],side=R_()<.5?1:-1,h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0])+side*(Math.PI/2+(R_()-.5)*.25);
+    for(const si of gen){const st=streets[si];const rowE=e===5||e===6;for(let i=3;i<st.pts.length-2;i+=(rowE?3:4)+((R_()*(rowE?3:4))|0)){if(R_()>(g?(rowE?.65:.45):(rowE?.92:.8)))continue;const p0=st.pts[i],p1=st.pts[i+1],side=R_()<.5?1:-1,h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0])+side*(Math.PI/2+(R_()-.5)*.25);
       if(Math.hypot(p0[0]-cx,p0[1]-cz)>MR*1.02)continue;const r=lane(p0[0],p0[1],h,.25+R_()*(g?.4:.6),si);
       if(r.pts.length<4||(!r.hit&&R_()<.65))continue;/* a few quiet cul-de-sacs are fine, not a maze of them */
       const s={pts:r.pts,main:false,base:0},k=streets.length;streets.push(s);addS(s,k);next.push(k)}}
     gen.length=0;gen.push(...next)}
   for(const st of streets)for(const q of st.pts)mark(q[0],q[1],st.main?.04:.03);
   /* plots along every street */
-  streets.forEach((st,si)=>{const sw=st.main?.04:.03;
-    for(let i=1;i<st.pts.length;i++){const p0=st.pts[i-1],p1=st.pts[i],h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0]),dist=Math.hypot(p1[0]-cx,p1[1]-cz);if(dist<pr+.05)continue;
-      const core=clamp(1-dist/MR,0,1),kind=core>.84?2:core>.55?1:0;
-      for(const side of [1,-1]){if(R_()<(kind===2?.25:kind===1?.18:.32))continue;
-        const w=kind===2?.15:kind===1?.12+R_()*.03:.07+R_()*.015,d=kind===2?.13:kind===1?.1:.062,rr=Math.hypot(w,d)*.5+.004,off=sw+rr+(kind===0?.012+R_()*.02:.006),nx=-Math.sin(h)*side,nz=Math.cos(h)*side,x=p1[0]+nx*off,z=p1[1]+nz*off;
+  /* industrial cities: whole quarters of brick terraces; modern cities: joined townhouses and flats in the middle ring. The towers and the villa suburbs stay as they are */
+  streets.forEach((st,si)=>{const sw=st.main?.04:.03,fineP=e===5||e===6,PT=fineP?(()=>{const o=[];st.pts.forEach((q,i)=>{if(!i){o.push(q);return}const a=st.pts[i-1];for(let k=1;k<=6;k++){const t=k/6;o.push([a[0]+(q[0]-a[0])*t,a[1]+(q[1]-a[1])*t,a[2]+(q[2]-a[2])*t])}});return o})():st.pts;
+    for(let i=1;i<PT.length;i++){const p0=PT[i-1],p1=PT[i],h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0]),dist=Math.hypot(p1[0]-cx,p1[1]-cz);if(dist<pr+.05)continue;
+      const core=clamp(1-dist/MR,0,1),kind=core>.84?2:core>.55?1:0,row=(e===5&&kind<2)||(e===6&&kind===1);
+      for(const side of [1,-1]){if(R_()<(row?.05:kind===2?.25:kind===1?.18:.32))continue;
+        let w=kind===2?.15:kind===1?.12+R_()*.03:.07+R_()*.015,d=kind===2?.13:kind===1?.1:.062;if(row){w=e===5?.085+R_()*.012:.1+R_()*.02;d=e===5?.075:.09}
+        const rr=row?w*.5+.001:Math.hypot(w,d)*.5+.004,off=row?sw+rr+.004:sw+rr+(kind===0?.012+R_()*.02:.006),nx=-Math.sin(h)*side,nz=Math.cos(h)*side,x=p1[0]+nx*off,z=p1[1]+nz*off;
         if(bad(x,z)||!free(x,z,rr))continue;mark(x,z,rr);
-        slots.push({x,z,rot:Math.atan2(-nx,-nz),w,d,pd:0,pw:0,core,st:si,at:p1[2],fx:p1[0],fz:p1[1],dd:dist+R_()*.15,metro:1})}}});
+        slots.push({x,z,rot:Math.atan2(-nx,-nz),w,d,pd:0,pw:0,core,st:si,at:p1[2],fx:p1[0],fz:p1[1],dd:dist+R_()*(row?.03:.15),metro:1,terr:row})}}});
   slots.sort((a,b)=>a.dd-b.dd);return {key,streets,slots,pr,metro:MR}}
 /* a metropolis: a street grid of blocks out to a ragged edge; towers crowd the middle, flats and villas spread outward */
 function metroPlan(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[],slots=[],ang=R_()*Math.PI/2,ca=Math.cos(ang),sa=Math.sin(ang),B=e>=6?.38:.34,ph=R_()*6.28;
@@ -977,11 +1001,11 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         else if(mx-mn>.012&&e>=1)add('stone',sl.x,mn-.03,sl.z,sl.w*1.04,mx-mn+.03,sl.d*1.04,sl.rot,0xa8a090);
         const fa=hash(i0*2.7)*6.283,inD=Math.abs(((Math.atan2(sl.z-cz,sl.x-cx)-fa+9.42)%6.283)-3.14)<1;/* the mills crowd into one smoky quarter */
         if(e===5&&sl.core<.4&&inD&&hk<.55&&(MCTX.fac|0)<(cap?7:3+lvl)){MCTX.fac=(MCTX.fac|0)+1;factory(sl.x,y,sl.z,sl.rot,true)}
-        else if(sl.terr&&e>=2&&e<=4&&['west','med'].includes(cultOf(n)))terraceHouse(n,sl,y,e,hk);
+        else if(sl.terr&&e>=1&&!wet)terraceHouse(n,sl,y,e,hk);
         else dwelling(n,sl.x,y,sl.z,sl.rot,e,hk,k,sl.core);
         if(!far&&sl.pd>0&&e>=1&&e<=4&&cultOf(n)!=='mideast'&&cultOf(n)!=='africa')yard(sl.x,sl.z,sl.rot,sl.w,sl.d,sl.pd,sl.pw,hk);
         if(!far&&plan.metro&&e>=5&&e<=6&&sl.core<.5&&hk>.35)frontGarden(sl.x,y,sl.z,sl.rot,Math.min(sl.w,.075),Math.min(sl.d,.075),hk);
-        },sl.x,sl.z,sl.rot);
+        },sl.x,sl.z,sl.rot,false,sl.terr?-.016:undefined);
         if(!up)continue;placed++;HP.push([sl.x,sl.z,Math.max(sl.w,sl.d)*.62+(sl.pd||0)*.9]);occupied.add(ti);(MCTX.dists||(MCTX.dists=[])).push(Math.hypot(sl.x-cx,sl.z-cz));bareRect(sl.x,sl.z,sl.rot,sl.w*1.15,sl.d*1.2);
         if(sl.st>=0)reach.set(sl.st,Math.max(reach.get(sl.st)||0,sl.at+.12));
         if(!lagoon||groundY(sl.fx,sl.fz)>waterY+.02)c._poi.pts.push([sl.fx,sl.fz]);
