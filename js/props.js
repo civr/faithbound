@@ -197,8 +197,8 @@ function hamTree(seed,tall){const r=mulberry32(seed),pos=[],nor=[],col=[];
   const push=(g,cf)=>{g=g.index?g.toNonIndexed():g;const a=g.attributes.position.array,n=g.attributes.normal.array;for(let i=0;i<a.length;i+=3){pos.push(a[i],a[i+1],a[i+2]);nor.push(n[i],n[i+1],n[i+2]);const c=cf(a[i],a[i+1],a[i+2]);col.push(c[0],c[1],c[2])}};
   const th=tall?.34:.28,trunk=new THREE.CylinderGeometry(.014,.026,th,6);trunk.translate(0,th/2,0);push(trunk,()=>[.22,.15,.09]);
   for(const s of [-1,1]){const br=new THREE.CylinderGeometry(.006,.011,.12,4);br.rotateZ(s*.7);br.translate(s*.04,th*.78,0);push(br,()=>[.22,.15,.09])}
-  const cy=th+(tall?.14:.1),R=tall?.17:.2,n=11+((r()*4)|0),sd=r()*100;
-  for(let b=0;b<n;b++){const ig=new THREE.IcosahedronGeometry(.5,1),P=ig.attributes.position,N=ig.attributes.normal;
+  const cy=th+(tall?.14:.1),R=tall?.17:.2,n=9+((r()*3)|0),sd=r()*100;/* low-poly clumps (about 250 triangles a tree), so many more trees can stay real before they turn into simple stand-ins */
+  for(let b=0;b<n;b++){const ig=new THREE.IcosahedronGeometry(.5,0),P=ig.attributes.position,N=ig.attributes.normal;
     const a=r()*6.283,el=(r()-.35)*1.6,d=b===0?0:R*(.45+r()*.5),s=b===0?R*.95:R*(.42+r()*.3);
     const ox=Math.cos(a)*Math.cos(el)*d,oy=Math.sin(el)*d*(tall?1.5:1)+(b===0?0:.01),oz=Math.sin(a)*Math.cos(el)*d;
     for(let i=0;i<P.count;i++){const x=P.getX(i),y=P.getY(i),z=P.getZ(i),k=.86+.26*(Math.sin(x*11.1+sd+b)*Math.cos(z*9.3-sd)*.5+.5);

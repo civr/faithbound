@@ -419,13 +419,16 @@ function loTreeGeo(src,type){src.computeBoundingBox();const b=src.boundingBox,y0
   else if(type==='flat'){cr=new THREE.IcosahedronGeometry(.5,0);cr.scale(w*.95,h*.32,w*.95);cr.translate(0,y0+h*.82,0)}
   else if(type==='bush'){cr=new THREE.IcosahedronGeometry(.5,0);cr.scale(w*.95,h*.95,w*.95);cr.translate(0,y0+h*.47,0)}
   else{cr=new THREE.IcosahedronGeometry(.5,0);cr.scale(w*.92,h*.62,w*.92);cr.translate(0,y0+h*.66,0)}
-  const n0=P.length;put(cr,[.82,.82,.82]);const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.computeVertexNormals();
+  const n0=P.length;put(cr,[.82,.82,.82]);
+  /* the crown is darker underneath and lighter on top, like the full trees, so the swap between them does not flash */
+  {let lo=1e9,hi=-1e9;for(let i=n0;i<P.length;i+=3){lo=Math.min(lo,P[i+1]);hi=Math.max(hi,P[i+1])}for(let i=n0;i<P.length;i+=3){const f=(P[i+1]-lo)/Math.max(1e-4,hi-lo),v=LK.pixel?.4+.42*f:.82;C[i]=C[i+1]=C[i+2]=v}}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.computeVertexNormals();
   /* the crown is shaded as one soft round mass: normals point out from its centre, so it never shows sharp shards */
   cr.computeBoundingBox();const cb=cr.boundingBox,cc=new THREE.Vector3(),sz=new THREE.Vector3();cb.getCenter(cc);cb.getSize(sz);const N=g.attributes.normal.array;
   for(let i=n0;i<P.length;i+=3){let nx=(P[i]-cc.x)/Math.max(.01,sz.x*sz.x),ny=(P[i+1]-cc.y)/Math.max(.01,sz.y*sz.y)+(type==='cone'?.6/Math.max(.01,sz.y):0),nz=(P[i+2]-cc.z)/Math.max(.01,sz.z*sz.z);const l=Math.hypot(nx,ny,nz)||1;N[i]=nx/l;N[i+1]=ny/l;N[i+2]=nz/l}
   return g}
 const LOD_KITS=['lodBox'];
-const treeLodDist=()=>Math.max(7,lodDist()*.75);
+const treeLodDist=()=>Math.max(7,lodDist()*.75*(LK.pixel?1.45:1));
 function makeTreeLo(name){const K=KITS[name];if(!K||K.lodP)return;const lo='lo_'+name;kit(lo,loTreeGeo(K.mesh.geometry,TREE_LO[name]),modelTreeMat(),K.max,false);KITS[lo].pn=0;K.lodP=lo;LOD_KITS.push(lo)}
 TREE_LO.hamA=TREE_LO.hamB='round';for(const n of ['hamA','hamB','conifer','broad','townTree','palm','bush'])makeTreeLo(n);
 {const _ps=prepStatic;prepStatic=function(name,g){const r=_ps.apply(this,arguments);if(TREE_LO['s_'+name])makeTreeLo('s_'+name);return r}}
