@@ -283,7 +283,7 @@ const TREE_KITS=['hamA','hamB','conifer','broad','palm','bush','rock','tuft','fl
 function countryside(){const farm=new Set();
   for(const i of fieldTiles){const o=owner[i],n=o>=0?nations[o]:null;if(!n)continue;const e=n.era,x=i%W,y=(i/W)|0,X0=x-W/2,Z0=y-H/2;
     if(Math.hypot(X0+.5-camT.x,Z0+.5-camT.z)>camDist*1.5+5)continue;
-    const px_=!!LK.pixel,kind=e<=1?'stone':e>=5?'fence':hash(i*3.3)<(px_?.8:.6)?'hedge':'stone',col=kind==='hedge'?(px_?0x34502a:0x46682e):kind==='stone'?0x9a948a:0xd8cfbc,hh=kind==='hedge'?(px_?.022:.03):kind==='stone'?.018:.016,th=kind==='hedge'?(px_?.05:.03):kind==='stone'?.02:.004;
+    const px_=!!LK.pixel,kind=e<=1?'stone':e>=5?'fence':hash(i*3.3)<(px_?.8:.6)?'hedge':'stone',col=kind==='hedge'?(px_?0x34502a:0x46682e):kind==='stone'?(px_?0x7f7a6e:0x9a948a):(px_?0x6e5840:0xd8cfbc),hh=kind==='hedge'?(px_?.022:.03):kind==='stone'?.018:.016,th=kind==='hedge'?(px_?.05:.03):kind==='stone'?.02:.004;
     for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X>=0&&Y>=0&&X<W&&Y<H&&fieldTiles.has(Y*W+X)&&hash(i*7+d)<.55)continue;
       const horiz=DY[d]!==0,cx=X0+.5+DX[d]*.5,cz=Z0+.5+DY[d]*.5,segs=4;
       for(let s=0;s<segs;s++){const f=(s+.5)/segs-.5,px=horiz?cx+f:cx,pz=horiz?cz:cz+f,gy=groundY(px,pz);if(gy<waterY+.03)continue;
@@ -1027,7 +1027,10 @@ fieldMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,FIELDU);
       /* stalks streak along the rows, ears catch the light in specks; soil breaks into clods */
       float st=wn(vec2(R.x*4.,R.y*90.)),sp=wn(R*vec2(38.,70.)),ear=step(.78,wh(floor(R*vec2(30.,60.)))),cl=wn(vFW.xz*55.)*.55+wn(vFW.xz*150.)*.45;
       float ripe=smoothstep(.04,.14,diffuseColor.r-diffuseColor.b*1.2)*smoothstep(.1,.25,dot(diffuseColor.rgb,vec3(.3,.59,.11)));
-      float det=mix(.55+cl*.9,.62+st*.5+(sp-.5)*.35+ear*.22,ripe);diffuseColor.rgb*=mix(1.,det,cf*.9);}}
+      float det=mix(.78+cl*.44,.8+st*.28+(sp-.5)*.16+ear*.08,ripe);diffuseColor.rgb*=mix(1.,det,cf*.8);}}
+  #ifdef USE_MAP
+  if(uHam>0.){vec4 fm=texture2D(map,vUv);diffuseColor.rgb*=mix(1.,(.72+fm.r*.28)/max(fm.r,.2),.55*uHam);}
+  #endif
   diffuseColor.rgb*=.86;`).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
   if(fFade>.01){vec3 nn=texture2D(fN,vFW.xz*.45).xyz*2.-1.;normal=normalize(normal+(viewMatrix*vec4(nn.x,0.,-nn.y,0.)).xyz*.5*fFade*(1.-fCrop*.6));}`)};
 const roadMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95});
@@ -1058,6 +1061,13 @@ function rebuildFields(){
           const p00=pt(a0,b0),p10=pt(a1,b0),p01=pt(a0,b1),p11=pt(a1,b1),L=strips*1.2;
           vtx(p00[0],p00[1],0,b0*3,cc);vtx(p01[0],p01[1],0,b1*3,cc);vtx(p11[0],p11[1],L/strips,b1*3,cc);
           vtx(p00[0],p00[1],0,b0*3,cc);vtx(p11[0],p11[1],L/strips,b1*3,cc);vtx(p10[0],p10[1],L/strips,b0*3,cc)}}}}
+  /* the painted look: where a field meets meadow, its outer edge fades into the grass instead of stopping on a hard line */
+  if(LK.pixel){const gc=((LK.ground||{})[4]||[78,104,48]).map(v=>LIN[v|0]*.95);
+    const isF=(X,Z)=>X>=0&&Z>=0&&X<W&&Z<H&&fieldTiles.has(Z*W+X);
+    for(let v=0;v<pos.length/3;v++){const gx=pos[v*3]+W/2,gz=pos[v*3+2]+H/2,tx=Math.floor(gx+1e-4),tz=Math.floor(gz+1e-4),fx=gx-tx,fz=gz-tz;
+      const xs=fx<.02?[tx-1,tx]:fx>.98?[tx,tx+1]:[tx],zs=fz<.02?[tz-1,tz]:fz>.98?[tz,tz+1]:[tz];let e=0;
+      for(const X of xs)for(const Z of zs)if(!isF(X,Z))e=1;
+      if(e){for(let k=0;k<3;k++)col[v*3+k]=col[v*3+k]*.45+gc[k]*.55}}}
   if(!fieldMesh){fieldMesh=new THREE.Mesh(new THREE.BufferGeometry(),fieldMat);fieldMesh.receiveShadow=true;fieldMesh.frustumCulled=false;scene.add(fieldMesh)}
   const g=freshGeo(fieldMesh);g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.deleteAttribute('normal');g.computeVertexNormals();g.computeBoundingSphere();
 }

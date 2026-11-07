@@ -140,10 +140,10 @@ float fbN(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(fbH(
         float straw=fbN(rp)*.55+fbN(rp*vec2(.5,2.3)+vec2(3.1))*.45,ridge=fbN(vec2(rp.x*.04,rp.y*.6))*.5;
         float stoneM=(1.-roof)*smoothstep(.22,.08,sat)*smoothstep(.06,.14,l);
         vec2 bp=vec2(sp.x*95.,sp.y*140.);bp.x+=step(1.,mod(floor(bp.y),2.))*.5;vec2 bf=fract(bp);float joint=smoothstep(.0,.08,bf.x)*smoothstep(1.,.92,bf.x)*smoothstep(.0,.12,bf.y)*smoothstep(1.,.88,bf.y);
-        float stone=(.72+.28*joint)*(.86+.28*fbH(floor(bp)));
-        float woodM=(1.-roof)*smoothstep(.25,.45,sat)*smoothstep(.2,.08,l)*(c.r>c.b?1.:0.);float grain=.85+.3*fbN(vec2(sp.x*30.,sp.y*600.));
-        float plast=.93+.14*fbN(tp*260.)+.06*fbN(tp*900.);
-        float m=mix(plast,straw*.62+.62+ridge*.2,roof);m=mix(m,stone,stoneM);m=mix(m,grain,woodM*(1.-roof));
+        float stone=(.84+.16*joint)*(.92+.16*fbN(floor(bp)*.7));
+        float woodM=(1.-roof)*smoothstep(.25,.45,sat)*smoothstep(.2,.08,l)*(c.r>c.b?1.:0.);float grain=.92+.16*fbN(vec2(sp.x*30.,sp.y*600.));
+        float plast=.96+.08*fbN(tp*180.);
+        float m=mix(plast,straw*.3+.82+ridge*.1,roof);m=mix(m,stone,stoneM);m=mix(m,grain,woodM*(1.-roof));
         diffuseColor.rgb*=mix(1.,m,tf*uEarth);}}`).replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n totalEmissiveRadiance+=vec3(1.,.72,.38)*vWin*uNight*1.8;')};
 SMODEL_MAT.customProgramCacheKey=()=>'smodel';
 {const _sn=setNight;setNight=function(f){_sn(f);BWIN.uNight.value=f}}
