@@ -189,7 +189,7 @@ function focusOn(x,z,dist){camT.x=x;camT.z=z;if(dist)camDistT=dist}
 /* pixel looks: the scene is drawn at a lower resolution and the browser scales it up with hard edges. Like a sprite game, the pixels grow as
    the camera comes closer (whole device pixels each, so every pixel is the same size); far out it is close to full detail. It is also much cheaper to draw. */
 let pixN=0,pixWant=0,pixSince=0;
-function pixTarget(){if(!LK.pixel||settings.pixel===false)return 0;const dev=devicePixelRatio||1,css=clamp(17/Math.max(1,camDist),1,4.5);
+function pixTarget(){if(!LK.pixel)return 0;const dev=devicePixelRatio||1,css=clamp(17/Math.max(1,camDist),1,4.5);
   let n=Math.max(1,Math.round(css*dev*(settings.power==='saver'?1.3:1)));const ds=typeof dynScale==='number'?dynScale:1;if(ds<.99)n=Math.ceil(n/ds);return n}
 function pixTick(){const t=pixTarget(),now=performance.now();if(t===pixN){pixWant=t;return}
   if(t!==pixWant){pixWant=t;pixSince=now;return}if(now-pixSince>220||!pixN||!t)resize()}
