@@ -12,11 +12,11 @@ const TOSCENE=`uniform float uPL,uPE;vec3 toScene(vec3 c){if(uPL<.5)return c;c=c
 const POST={rt:null,size:new THREE.Vector2(),scene:new THREE.Scene(),cam:new THREE.OrthographicCamera(-1,1,1,-1,0,1),ok:true};
 const postU={tCol:{value:null},tDep:{value:null},uRes:{value:new THREE.Vector2(1,1)},uNear:{value:.02},uFar:{value:900},uExp:{value:1},uTime:{value:0},
   uSat:{value:1},uCon:{value:1},uLift:{value:new THREE.Vector3()},uGain:{value:new THREE.Vector3(1,1,1)},uVig:{value:0},uTilt:{value:0},uLine:{value:0},
-  uPoster:{value:0},uPaper:{value:0},uBloom:{value:0},uGrain:{value:0},uBars:{value:0},uPx:{value:1},
+  uPoster:{value:0},uPaper:{value:0},uBloom:{value:0},uGrain:{value:0},uBars:{value:0},uPx:{value:1},uNoAA:{value:0},
   uAO:{value:0},uP00:{value:1},uP11:{value:1},uCamW:{value:new THREE.Matrix4()},uWaterY:{value:0},uMist:{value:0},uMistCol:{value:new THREE.Color()}};
 const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrite:false,
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
-  fragmentShader:`precision highp float;varying vec2 vUv;uniform sampler2D tCol,tDep;uniform vec2 uRes;uniform float uNear,uFar,uExp,uTime,uSat,uCon,uVig,uTilt,uLine,uPoster,uPaper,uBloom,uGrain,uBars,uPx,uAO,uP00,uP11,uWaterY,uMist;uniform vec3 uLift,uGain,uMistCol;uniform mat4 uCamW;
+  fragmentShader:`precision highp float;varying vec2 vUv;uniform sampler2D tCol,tDep;uniform vec2 uRes;uniform float uNoAA,uNear,uFar,uExp,uTime,uSat,uCon,uVig,uTilt,uLine,uPoster,uPaper,uBloom,uGrain,uBars,uPx,uAO,uP00,uP11,uWaterY,uMist;uniform vec3 uLift,uGain,uMistCol;uniform mat4 uCamW;
   float lin(float d){float z=d*2.-1.;return 2.*uNear*uFar/(uFar+uNear-z*(uFar-uNear));}
   float dep(vec2 uv){return lin(texture2D(tDep,uv).x);}
   vec3 aces(vec3 c){c*=uExp*.6;return clamp((c*(2.51*c+.03))/(c*(2.43*c+.59)+.14),0.,1.);}
@@ -31,7 +31,7 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
     vec2 dir=normalize(vec2(-(ln-ls),(le-lw))+1e-5)*px;return (fetch(uv+dir*.5)+fetch(uv-dir*.5)+c*2.)*.25;}
   /* world position of a pixel, rebuilt from the depth buffer */
   vec3 wpos(vec2 uv,float d){vec3 v=vec3((uv.x*2.-1.)*d/uP00,(uv.y*2.-1.)*d/uP11,-d);return (uCamW*vec4(v,1.)).xyz;}
-  void main(){vec2 uv=vUv,px=1./uRes;vec3 c=fxaa(uv);
+  void main(){vec2 uv=vUv,px=1./uRes;vec3 c=uNoAA>.5?fetch(uv):fxaa(uv);
     float d0=dep(uv);bool sky0=texture2D(tDep,uv).x>.9999;
     /* ambient occlusion: darken creases, the feet of walls and the gaps between houses and trees */
     if(uAO>0.&&!sky0){float occ=0.;float rad=clamp(.09*uRes.y*uP11*.5/d0,2.,40.);float rot=0.;
@@ -70,7 +70,15 @@ function shadowTick(){if(!renderer.shadowMap.enabled)return;renderer.shadowMap.a
     gap=moved?(settings.power==='saver'?66:settings.power==='max'?16:33):sunMoved?(settings.power==='saver'?500:250):(playing?1000:3000);
   if(now-shadowAt>gap||shadowForce){shadowAt=now;shadowSig=sig;shadowSun=sun;shadowForce=false;renderer.shadowMap.needsUpdate=true}}
 let shadowForce=true;
-function renderFrame(){if(typeof cullTick==='function'&&settings.cull!==false)cullTick();shadowTick();
+/* pixel looks: the camera moves in whole screen pixels, so buildings and trees keep their pixels while you pan instead of shimmering */
+const PXS={r:new THREE.Vector3(),u:new THREE.Vector3(),d:new THREE.Vector3()};
+function pixSnap(on){if(!on){if(PXS.on){cam.position.sub(PXS.d);cam.updateMatrixWorld();PXS.on=false}return}
+  const hpx=renderer.domElement.height||1,ws=2*camDist*Math.tan(cam.fov*Math.PI/360)/hpx;cam.updateMatrixWorld();
+  PXS.r.setFromMatrixColumn(cam.matrixWorld,0);PXS.u.setFromMatrixColumn(cam.matrixWorld,1);
+  const a=cam.position.dot(PXS.r),b=cam.position.dot(PXS.u),da=Math.round(a/ws)*ws-a,db=Math.round(b/ws)*ws-b;
+  PXS.d.copy(PXS.r).multiplyScalar(da).addScaledVector(PXS.u,db);cam.position.add(PXS.d);cam.updateMatrixWorld();PXS.on=true}
+function renderFrame(){pixSnap(pixN>1);try{renderFrame0()}finally{pixSnap(false)}}
+function renderFrame0(){if(typeof cullTick==='function'&&settings.cull!==false)cullTick();shadowTick();pixTick();
   if(!postActive()){PLU.uPL.value=0;renderer.render(scene,cam);return}
   renderer.getDrawingBufferSize(POST.size);const w=POST.size.x,h=POST.size.y;
   if(!POST.rt||POST.rt.width!==w||POST.rt.height!==h){if(POST.rt){POST.rt.depthTexture.dispose();POST.rt.dispose()}
@@ -83,7 +91,7 @@ function renderFrame(){if(typeof cullTick==='function'&&settings.cull!==false)cu
   postU.uAO.value=settings.quality==='low'?0:(P.ao??0);postU.uP00.value=cam.projectionMatrix.elements[0];postU.uP11.value=cam.projectionMatrix.elements[5];postU.uCamW.value.copy(cam.matrixWorld);
   postU.uWaterY.value=waterY;postU.uMist.value=(P.mist??.5)*(1-.7*smooth(.02,.3,Math.sin(dayT*6.283)-.1)+.2*(typeof weatherDim!=='undefined'?weatherDim:0));postU.uMistCol.value.copy(scene.fog.color);
   postU.uSat.value=P.sat;postU.uCon.value=P.con;postU.uLift.value.fromArray(P.lift||[0,0,0]);postU.uGain.value.fromArray(P.gain||[1,1,1]);postU.uVig.value=P.vig||0;
-  postU.uTilt.value=(P.tilt||0)*(1-smooth(20,60,camDist));postU.uLine.value=P.line||0;postU.uPoster.value=P.poster||0;postU.uPaper.value=P.paper||0;postU.uBloom.value=POST.flt?(P.bloom||0):0;postU.uGrain.value=P.grain||0;postU.uBars.value=P.bars||0;
+  postU.uTilt.value=(P.tilt||0)*(P.tiltFar?smooth(9,34,camDist):1-smooth(20,60,camDist));postU.uNoAA.value=pixN?1:0;postU.uLine.value=P.line||0;postU.uPoster.value=P.poster||0;postU.uPaper.value=P.paper||0;postU.uBloom.value=POST.flt?(P.bloom||0):0;postU.uGrain.value=P.grain||0;postU.uBars.value=P.bars||0;
   PLU.uPL.value=1;PLU.uPE.value=postU.uExp.value;renderer.setRenderTarget(POST.rt);renderer.render(scene,cam);renderer.setRenderTarget(null);
   try{renderer.render(POST.scene,POST.cam)}catch(e){POST.ok=false;throw e}}
 renderer.toneMappingExposure=1;
@@ -178,8 +186,16 @@ function panBy(dx,dy){
 }
 function zoomBy(f){const L=camLimits();camDistT=clamp(camDistT*f,L.min,L.max)}
 function focusOn(x,z,dist){camT.x=x;camT.z=z;if(dist)camDistT=dist}
+/* pixel looks: the scene is drawn at a lower resolution and the browser scales it up with hard edges. Like a sprite game, the pixels grow as
+   the camera comes closer (whole device pixels each, so every pixel is the same size); far out it is close to full detail. It is also much cheaper to draw. */
+let pixN=0,pixWant=0,pixSince=0;
+function pixTarget(){if(!LK.pixel||settings.pixel===false)return 0;const dev=devicePixelRatio||1,css=clamp(17/Math.max(1,camDist),1,4.5);
+  let n=Math.max(1,Math.round(css*dev*(settings.power==='saver'?1.3:1)));const ds=typeof dynScale==='number'?dynScale:1;if(ds<.99)n=Math.ceil(n/ds);return n}
+function pixTick(){const t=pixTarget(),now=performance.now();if(t===pixN){pixWant=t;return}
+  if(t!==pixWant){pixWant=t;pixSince=now;return}if(now-pixSince>220||!pixN||!t)resize()}
 function resize(){const w=innerWidth,hh=innerHeight,dpr=Math.min(settings.power==='saver'?1:settings.power==='max'?(settings.quality==='high'?2:1.5):1.25,devicePixelRatio||1);
-  renderer.setPixelRatio((settings.quality==='low'?Math.min(1,dpr):dpr)*(typeof dynScale==='number'?dynScale:1));renderer.setSize(w,hh,false);
+  pixN=pixTarget();pixWant=pixN;gl.style.imageRendering=pixN?'pixelated':'';
+  renderer.setPixelRatio(pixN?(devicePixelRatio||1)/pixN:(settings.quality==='low'?Math.min(1,dpr):dpr)*(typeof dynScale==='number'?dynScale:1));renderer.setSize(w,hh,false);
   ov.width=Math.round(w*Math.min(2,devicePixelRatio||1));ov.height=Math.round(hh*Math.min(2,devicePixelRatio||1));
   cam.aspect=w/hh;cam.fov=w<hh?52:38;cam.updateProjectionMatrix()}
 

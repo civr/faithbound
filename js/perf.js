@@ -23,7 +23,8 @@ function applyTier(t){t=Math.max(0,Math.min(4,t));PERF.tier=t;
   if(typeof CULLK!=='undefined')CULLK.dirty=true;if(typeof treesDirty!=='undefined')treesDirty=true;if(typeof resize==='function')resize();
   if(typeof shadowForce!=='undefined')shadowForce=true}
 /* post effects (outlines, focus blur, colour grading) are full-screen passes: the first thing a laptop chip gives up */
-{const _pa=postActive;postActive=function(){return _pa()&&!(perfOn()&&PERF.tier>=1)}}
+{const _pa=postActive;postActive=function(){return _pa()&&!(perfOn()&&PERF.tier>=(typeof pixN!=='undefined'&&pixN>1?3:1))}}
+/* (a pixel look draws the scene at a fraction of the screen's pixels, so its effects stay affordable a few levels longer) */
 /* watch the frame rate */
 setInterval(()=>{if(!perfOn()||typeof frameEMA==='undefined'||typeof playing==='undefined'||!playing||document.hidden)return;
   const cap=typeof fpsCap==='function'?fpsCap():60,want=1000/(cap||60),r=frameEMA/want,now=performance.now();if(now<PERF.cool)return;

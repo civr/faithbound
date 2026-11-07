@@ -153,7 +153,8 @@ const KITS={};
 function kit(name,geo,mat,max,shadow){const m=new THREE.InstancedMesh(geo,mat,max);m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   for(let i=0;i<max;i++)m.setColorAt(i,tmpC.setRGB(1,1,1));m.count=0;m.frustumCulled=false;m.castShadow=shadow!==false;m.receiveShadow=true;scene.add(m);KITS[name]={mesh:m,k:0,max}}
 const treeMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.9});
-const TREEU={uTime:{value:0},tL:{value:null},tB:{value:null},nL:{value:null},uPh:{value:0}};
+
+const TREEU={uEarth:{value:0},uTime:{value:0},tL:{value:null},tB:{value:null},nL:{value:null},uPh:{value:0}};
 /* photo leaves and bark (Poly Haven, CC0), projected from three sides onto every crown and trunk */
 {const g=new THREE.DataTexture(new Uint8Array([128,128,128,255]),1,1,THREE.RGBAFormat);g.needsUpdate=true;const nf=new THREE.DataTexture(new Uint8Array([128,128,255,255]),1,1,THREE.RGBAFormat);nf.needsUpdate=true;
  TREEU.tL.value=TREEU.tB.value=g;TREEU.nL.value=nf;let left=3;const L=new THREE.TextureLoader();
@@ -173,7 +174,7 @@ treeMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,TREEU);
   vTN=normalize(mat3(modelMatrix)*objectNormal);
   #endif
   vTW=(modelMatrix*tw).xyz;}`);
-  sh.fragmentShader='uniform sampler2D tL,tB,nL;uniform float uPh;varying float vTH;varying vec3 vTW,vTN;\nvec3 tri(sampler2D t,vec3 p,vec3 w){return texture2D(t,p.zy).rgb*w.x+texture2D(t,p.xz).rgb*w.y+texture2D(t,p.xy).rgb*w.z;}\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+  sh.fragmentShader='uniform sampler2D tL,tB,nL;uniform float uPh,uEarth;varying float vTH;varying vec3 vTW,vTN;\nvec3 tri(sampler2D t,vec3 p,vec3 w){return texture2D(t,p.zy).rgb*w.x+texture2D(t,p.xz).rgb*w.y+texture2D(t,p.xy).rgb*w.z;}\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
   diffuseColor.rgb*=.92+.16*smoothstep(.18,.45,vTH);
   float tf=(1.-smoothstep(5.,26.,length(vTW-cameraPosition)))*uPh;float leafW=max(smoothstep(0.,.05,diffuseColor.g-diffuseColor.r),smoothstep(.12,.2,vTH));
   vec3 tw3=pow(abs(vTN),vec3(4.));tw3/=tw3.x+tw3.y+tw3.z+1e-4;
@@ -258,17 +259,23 @@ function P(name,cx,cy,cz,rot,dx,dz,dy,sx,sy,sz,hex,extraRot){const c=Math.cos(ro
 const BUILD_KITS=['adobe','adobeCyl','hipTile','domeW','hipThatch','timber','bed','hay','plaster','stone','brick','thatch','tiles','coneThatch','coneTile','pyr','tower','office','glass','dome','box','cyl','ring','flame','fence','lamp','awning','plazaStone','plazaDirt','pool','townTree','boat'];
 kit('puddle',unitCyl(14),inlandWaterMat(false),6000,false);kit('reed',unitCone(4),stdMat({roughness:1}),12000,false);
 kit('hedge',unitBox(),stdMat({roughness:1}),20000,false);kit('farmW',unitBox(),MAT.plain,3000);kit('farmR',gableGeo(),MAT.plain,3000);
+/* painted looks: leaves turn a deeper, olive woodland green (bright lime crowns read as plastic in a painted scene) */
+{const _tb=treeMat.onBeforeCompile;treeMat.onBeforeCompile=sh=>{_tb(sh);sh.fragmentShader=sh.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+  if(uEarth>0.){vec3 c=diffuseColor.rgb;float gl=smoothstep(.0,.04,c.g-max(c.r,c.b));diffuseColor.rgb=mix(c,c*vec3(.64,.74,.54),gl*uEarth);}`)}}
 const TREE_KITS=['conifer','broad','palm','bush','rock','tuft','flower','puddle','reed','hedge','farmW','farmR'];
 /* the countryside: hedgerows, dry-stone walls or fences round the fields, and a farmstead with a barn here and there */
 function countryside(){const farm=new Set();
   for(const i of fieldTiles){const o=owner[i],n=o>=0?nations[o]:null;if(!n)continue;const e=n.era,x=i%W,y=(i/W)|0,X0=x-W/2,Z0=y-H/2;
     if(Math.hypot(X0+.5-camT.x,Z0+.5-camT.z)>camDist*1.5+5)continue;
-    const kind=e<=1?'stone':e>=5?'fence':hash(i*3.3)<.6?'hedge':'stone',col=kind==='hedge'?0x46682e:kind==='stone'?0x9a948a:0xd8cfbc,hh=kind==='hedge'?.03:kind==='stone'?.018:.016,th=kind==='hedge'?.03:kind==='stone'?.02:.004;
+    const px_=!!LK.pixel,kind=e<=1?'stone':e>=5?'fence':hash(i*3.3)<(px_?.8:.6)?'hedge':'stone',col=kind==='hedge'?(px_?0x34502a:0x46682e):kind==='stone'?0x9a948a:0xd8cfbc,hh=kind==='hedge'?(px_?.055:.03):kind==='stone'?.018:.016,th=kind==='hedge'?(px_?.065:.03):kind==='stone'?.02:.004;
     for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X>=0&&Y>=0&&X<W&&Y<H&&fieldTiles.has(Y*W+X)&&hash(i*7+d)<.55)continue;
       const horiz=DY[d]!==0,cx=X0+.5+DX[d]*.5,cz=Z0+.5+DY[d]*.5,segs=4;
       for(let s=0;s<segs;s++){const f=(s+.5)/segs-.5,px=horiz?cx+f:cx,pz=horiz?cz:cz+f,gy=groundY(px,pz);if(gy<waterY+.03)continue;
         add('hedge',px,gy-.008,pz,horiz?.25:th,hh,horiz?th:.25,0,col)}
-      if(kind==='hedge'&&hash(i*11+d)<.35){const px=cx+(horiz?(hash(i+d)-.5)*.7:0),pz=cz+(horiz?0:(hash(i+d)-.5)*.7);add('broad',px,groundY(px,pz)-.01,pz,.5,.55,.5,hash(i)*6,0x5a7a3a)}}
+      if(kind==='hedge'&&hash(i*11+d)<.35){const px=cx+(horiz?(hash(i+d)-.5)*.7:0),pz=cz+(horiz?0:(hash(i+d)-.5)*.7);add('broad',px,groundY(px,pz)-.01,pz,.5,.55,.5,hash(i)*6,0x5a7a3a)}
+      /* the pixel look: hedgerows are lumpy lines of shrubs, some in flower, as in an old painted countryside */
+      if(kind==='hedge'&&px_)for(let s=0;s<6;s++){const f=(s+.5)/6-.5+(hash(i*3+d*7+s)-.5)*.08,px=horiz?cx+f:cx,pz=horiz?cz:cz+f,gy=groundY(px,pz),hv=hash(i*5+d*3+s);if(gy<waterY+.03)continue;
+        add('bush',px,gy-.01,pz,.2+hv*.08,.17+hv*.08,.2+hv*.08,hv*6,hv<.2?0x6f8a46:hv<.6?0x48692f:0x3d5c2a);if(hv>.72)add('flower',px+.02,gy+.045,pz+.015,.03,.022,.03,0,hv>.86?0xe8e2d0:0xc85a5a)}}
     /* a farmstead on open ground beside the field */
     if(e>=1&&e<=6&&hash(i*17.1)<.18)for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
       if(fieldTiles.has(j)||occupied.has(j)||farm.has(j)||isWater(j)||owner[j]!==o)continue;farm.add(j);
@@ -1001,10 +1008,10 @@ const CROPS=[[214,176,70],[196,158,58],[104,150,52],[136,178,64],[132,96,58],[16
 function rebuildFields(){
   const pos=[],uv=[],col=[];fieldTiles.clear();
   const vtx=(x,z,u,v,c)=>{pos.push(x,groundY(x,z)+.012,z);uv.push(u,v);col.push(c[0],c[1],c[2])};
-  for(const n of nations){if(!n.alive||n.era<1)continue;const rad=n.era>=4?3:2;
+  for(const n of nations){if(!n.alive||n.era<1)continue;const rad=(n.era>=4?3:2)+(LK.pixel?1:0);
     for(const c of n.cities)for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const i=Y*W+X;
       if(owner[i]!==n.id||occupied.has(i)||fieldTiles.has(i))continue;const b=biome[i];if(!(b===4||b===8||(b===5&&n.era>=3)))continue;
-      if(hash(i*5.3)>(n.era>=5?.8:.62))continue;
+      if(hash(i*5.3)>(n.era>=5?.8:LK.pixel?.82:.62))continue;
       const X0=X-W/2,Z0=Y-H/2;if(groundY(X0+.5,Z0+.5)<waterY+.08)continue;
       fieldTiles.add(i);const along=hash(i*2.1)<.5,strips=n.era>=6?1:2+((hash(i*9.7)*3)|0);
       for(let s=0;s<strips;s++){const c0=CROPS[(hash(i*13+s)*CROPS.length)|0],cc=(n.famine>0?[lerp(c0[0],132,.75),lerp(c0[1],104,.75),lerp(c0[2],70,.75)]:c0).map(v=>LIN[v|0]),a0=s/strips+.012,a1=(s+1)/strips-.012;
