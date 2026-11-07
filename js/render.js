@@ -194,9 +194,9 @@ let pixN=0,pixWant=0,pixSince=0;
 /* as in a painted pixel game: from a normal distance the scene is drawn slightly soft (smoothed up from a lower resolution);
    only right up close does it turn into visible pixels, about two to three screen pixels each */
 function pixTarget(){if(!LK.pixel)return 0;const dev=devicePixelRatio||1,d=camDist,cur=pixN?pixN/dev:0;
-  let css=d<1.25?3:d<2.6?2:0;
+  let css=d<1.25?2.5:d<2.6?1.75:0;
   /* a little slack around each step so a zoom that rests near the edge does not flip back and forth */
-  if(cur===3&&d<1.45)css=3;else if(cur===2&&d>1.1&&d<2.9)css=2;
+  const cc=Math.round(cur*4)/4;if(cc>=2.25&&d<1.45)css=2.5;else if(cc>=1.5&&cc<2.25&&d>1.1&&d<2.9)css=1.75;
   return css?Math.max(2,Math.round(css*dev)):0}
 function pixTick(){const t=pixTarget(),now=performance.now();if(t===pixN){pixWant=t;return}
   if(t!==pixWant){pixWant=t;pixSince=now;return}if(now-pixSince>400)resize()}
