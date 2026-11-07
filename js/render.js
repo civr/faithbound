@@ -211,7 +211,7 @@ let VW,VH,VY,detail,terrainMesh=null,skirtMesh=null,waterMesh=null,waterSide=nul
 const shapeH=v=>{const d=v-SEA0;return d>=0?SEA0*HS+d*HS*(.5+d*2.9+Math.max(0,d-.32)*2.4):SEA0*HS+d*HS*1.4};
 /* towns flatten the ground they stand on, like a real settlement on a terrace */
 let flatSpots=[],flatSig='',tslope=new Float32Array(1);
-function cityRadius(n,cap){return (cap?.62:.42)+Math.min(.5,Math.floor(cityLevel(n))*.05)}
+function cityRadius(n,cap){return (cap?.62:.42)+Math.min(.7,Math.floor(cityLevel(n))*.05)}
 function citySig(){let s='';for(const n of nations)if(n.alive)n.cities.forEach((c,ci)=>{s+=c.x+','+c.y+','+(cityRadius(n,ci===0)*100|0)+';'});return s}
 function sampleH(tx,ty){tx=clamp(tx,0,W-1);ty=clamp(ty,0,H-1);const x0=Math.floor(tx),y0=Math.floor(ty),x1=Math.min(x0+1,W-1),y1=Math.min(y0+1,H-1),fx=tx-x0,fy=ty-y0;
   return lerp(lerp(h[y0*W+x0],h[y0*W+x1],fx),lerp(h[y1*W+x0],h[y1*W+x1],fx),fy)}

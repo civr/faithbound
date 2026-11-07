@@ -772,7 +772,7 @@ function updateLife(dt,now){
       const px=fx+ox*c-oz*s,pz=fz+ox*s+oz*c,flap=.6+Math.abs(Math.sin(now/120+k))*.8;add('bird',px,y+Math.sin(now/700+k)*.03,pz,.035,.035*flap,.035,-dir+Math.PI/2)}}
   kitCommit(['animal','bird','aBody','aHead','aLeg']);if(updateLife.ak&&updateLife.ak.length)mcommit(updateLife.ak)}
 const occupied=new Set();
-function cityLevel(n){return clamp(Math.sqrt(n.pop/Math.max(1,n.cities.length))/2.3,1,10)}
+function cityLevel(n){return clamp(Math.sqrt(n.pop/Math.max(1,n.cities.length))/2.3,1,14)}
 /* ---------- town plans: every town grows its own street network from a centre ---------- */
 function chaikin2(p,it){for(let k=0;k<it;k++){const o=[p[0]];for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1];o.push([a[0]*.75+b[0]*.25,a[1]*.75+b[1]*.25],[a[0]*.25+b[0]*.75,a[1]*.25+b[1]*.75])}o.push(p[p.length-1]);p=o}return p}
 /* how far a city sprawls: from the Industrial age big cities grow into metropolises that cover many miles */
@@ -783,7 +783,7 @@ function isLagoon(n,c,e){if(e<2||e>5||!n)return false;if(c._lagT===terrVer)retur
   const lucky=hash(c.x*7.3+c.y*13.1)<(cultOf(n)==='med'?.85:.22);c._lagT=terrVer;return c._lag=w>=2&&w<=17&&lucky}
 function townPlan(n,c,cap,e){
   const MR=metroRadius(n,c,cap,e),mb=MR>.75?Math.round(MR*4)/4:0;
-  const band=e===0?0:e<5?1:e<6?2:3,key=band+'|'+flatSig.length+'|'+(cap?1:0)+'|'+mb+'|'+(isLagoon(n,c,e)?1:0);if(c._plan&&c._plan.key===key)return c._plan;
+  const band=e===0?0:e<5?1:e<6?2:3,gf=clamp(.8+cityLevel(n)*.055,.9,1.6),key=band+'|'+flatSig.length+'|'+(cap?1:0)+'|'+mb+'|'+(isLagoon(n,c,e)?1:0)+'|'+Math.round(gf*5);if(c._plan&&c._plan.key===key)return c._plan;
   const R_=mulberry32((c.x*73856093^c.y*19349663^(cap?777:0))>>>0),cx=wx(c.x),cz=wz(c.y),pr=e===0?.06:cap&&e>=3&&e<=4&&!isLagoon(n,c,e)?.66:cap?.24:.1;
   /* never build up a mountain: not much higher than the town square, and not on a steep slope */
   /* a lagoon town, like Venice: houses rise straight out of the shallow water and the streets become canals */
@@ -802,7 +802,7 @@ function townPlan(n,c,cap,e){
       if(Math.hypot(x-cx,z-cz)<.07||bad(x,z)||!free(x,z,.04))continue;mark(x,z,.04);huts.push([x,z]);{const hr=R_()*6.283;slots.push({x,z,rot:hr,w:.1,d:.1,core:0,st:-1,at:0,fx:x+Math.sin(hr)*.075,fz:z+Math.cos(hr)*.075,dd:Math.hypot(x-cx,z-cz)+R_()*.15})}}
     slots.sort((a,b)=>a.dd-b.dd);return c._plan={key,streets,slots,pr}}
   if(mb)return c._plan=organicMetro(c,cap,e,mb,key,R_,cx,cz,pr,bad,free,mark);
-  const straight=band>=2?.65:1,len=(cap?2.1:1.4)*(e>=3&&e<=4?(cap?1.15:.85):1)*(band>=2?1.25:1)*(band===3?1.4:1)*Math.sqrt(clamp(W/112,.6,1.4));
+  const straight=band>=2?.65:1,len=gf*(cap?2.1:1.4)*(e>=3&&e<=4?(cap?1.15:.85):1)*(band>=2?1.25:1)*(band===3?1.4:1)*Math.sqrt(clamp(W/112,.6,1.4));
   const walk=(x,z,h,L,main)=>{const pts=[[x,z,0]],step=.06;let d=0;
     const gy=(x,z)=>lag?Math.max(groundY(x,z),waterY):groundY(x,z);/* in a lagoon the canals are as flat as streets */
     for(let s=0;s<L/step;s++){let best=null,bc=1e9;const y0=gy(x,z);
@@ -918,7 +918,7 @@ function rebuildCities(){patchSets();RB0=performance.now();try{rebuildCities0()}
 function rebuildCities0(){{let s='';for(const n of nations)if(n.alive&&n.era>=5&&n.era<=6)s+=n.id+':'+n.era+':'+n.cities.length+';';if(s!==sootSig){sootSig=s;if(typeof colorDirty!=='undefined')colorDirty=true}}
   for(const m of townFlags)scene.remove(m);townFlags=[];airports=[];spaceports=[];bgrid.clear();FOOT.clear();kitReset(BUILD_KITS);occupied.clear();bare.clear();grassAt.x=1e9;emitters=[];herds=[];cityStreets=[];for(const g of windmills)scene.remove(g);windmills=[];
   const stale=[];
-  for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(10,cityLevel(n)+(gold?1.5:0))*2)/2;
+  for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(14,cityLevel(n)+(gold?1.5:0))*2)/2;
     n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);
       if(hit&&hit.key===key){replayCity(hit);return}
       if(!hit){buildOne(n,c,ci,e,gold,lvl,key);return}
