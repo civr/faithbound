@@ -451,7 +451,7 @@ function renderLooks(sel){if(!$(sel))return;$(sel).innerHTML=Object.keys(LOOKS).
 const UIS=[['brass','Dark brass'],['navy','Imperial blue'],['parchment','Parchment'],['marble','Marble'],['frost','Frost'],['night','Night'],['clay','Clay']];
 function applyUI(k){settings.ui=k;document.body.classList.remove('ui-navy','ui-parchment','ui-marble','ui-frost','ui-night','ui-clay');if(k!=='brass')document.body.classList.add('ui-'+k);saveSettings()}
 settings.ui='parchment';settings.arch='classic';applyUI('parchment');
-function lookRoads(){if(typeof BWIN!=='undefined')BWIN.uEarth.value=LK.pixel?1:0;if(typeof TREEU!=='undefined')TREEU.uEarth.value=LK.pixel?1:0;if(typeof ROADMATS!=='undefined'){ROADMATS[0].color.setRGB(...(LK.pixel?[.72,.62,.5]:[1,1,1]));ROADMATS[1].color.setRGB(...(LK.pixel?[.8,.78,.74]:[1,1,1]))}}
+function lookRoads(){if(typeof BWIN!=='undefined')BWIN.uEarth.value=LK.pixel?1:0;if(typeof terrU!=='undefined')terrU.uHam.value=LK.pixel?1:0;if(typeof TREEU!=='undefined')TREEU.uEarth.value=LK.pixel?1:0;if(typeof ROADMATS!=='undefined'){ROADMATS[0].color.setRGB(...(LK.pixel?[.72,.62,.5]:[1,1,1]));ROADMATS[1].color.setRGB(...(LK.pixel?[.8,.78,.74]:[1,1,1]))}}
 function applyLook(k){lookKey=k;LK=LOOKS[k];if(VY)colorTerrain();lookRoads();if(typeof propsDirty!=='undefined')propsDirty=true;lastEnv=-1e9;settings.look=k;saveSettings();if(typeof resize==='function')resize()}
 
 /* ---------- HUD ---------- */
@@ -795,7 +795,7 @@ function frameBody(now){
   waterU.uTime.value=now/1000;terrU.uTime.value=now/1000;if(typeof TREEU!=='undefined')TREEU.uTime.value=now/1000;
   placeCamera(dt);updateSky(dt,now);
   if(shakeT>0){shakeT-=dt;const a=shakeT*.03*camDist/10;cam.position.x+=(rng()-.5)*a;cam.position.y+=(rng()-.5)*a}
-  terrU.uTint.value=settings.borders?(.025+.22*smooth(9,32,camDist)):0;
+  terrU.uTint.value=settings.borders?(LK.pixel?.012+.05*smooth(14,60,camDist):(.025+.22*smooth(9,32,camDist))):0;/* the painted look keeps territory to a faint wash; the border lines carry it */
   if(contestedList.length&&!paused&&rng()<dt*8){const i=contestedList[(rng()*contestedList.length)|0],x=wx(i%W)+(rng()-.5)*.6,z=wz((i/W)|0)+(rng()-.5)*.6;if(Math.hypot(x-camT.x,z-camT.z)<camDist*1.2+2)emit(rng()<.3?'fire':'dark',x,groundY(x,z)+.03,z)}
   if(borderMesh)borderMat.uniforms.uOp.value=.95*smooth(2.5,10,camDist)+.25*(1-smooth(2.5,10,camDist))*(selected>=0?1:.6);
   if(spaceView){renderSpace(dt);octx.clearRect(0,0,ov.width,ov.height)}else{renderFrame();try{drawOverlay(now)}catch(e){reportErr('overlay',e)}}

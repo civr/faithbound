@@ -190,10 +190,26 @@ kit('box',unitBox(),MAT.plain,90000);kit('adobe',unitBox(),MAT.adobe,9000);kit('
 kit('domeW',new THREE.SphereGeometry(.5,14,7,0,Math.PI*2,0,Math.PI/2),MAT.plain,1600);kit('cyl',unitCyl(8),MAT.plain,12000);
 kit('ring',(()=>{const g=new THREE.TorusGeometry(.5,.05,6,24);g.rotateX(Math.PI/2);return g})(),MAT.glow,500,false);
 kit('flame',unitCone(6),MAT.flame,300,false);
-kit('conifer',leafTree(11,'con'),treeMat,32000);
+kit('conifer',leafTree(11,'con'),treeMat,48000);
 kit('broad',leafTree(7,'broad'),treeMat,32000);
+/* the painted countryside's broadleaf tree: a slim dark trunk and a full, round crown of many leaf clumps, dark underneath and lit on top */
+function hamTree(seed,tall){const r=mulberry32(seed),pos=[],nor=[],col=[];
+  const push=(g,cf)=>{g=g.index?g.toNonIndexed():g;const a=g.attributes.position.array,n=g.attributes.normal.array;for(let i=0;i<a.length;i+=3){pos.push(a[i],a[i+1],a[i+2]);nor.push(n[i],n[i+1],n[i+2]);const c=cf(a[i],a[i+1],a[i+2]);col.push(c[0],c[1],c[2])}};
+  const th=tall?.34:.28,trunk=new THREE.CylinderGeometry(.014,.026,th,6);trunk.translate(0,th/2,0);push(trunk,()=>[.22,.15,.09]);
+  for(const s of [-1,1]){const br=new THREE.CylinderGeometry(.006,.011,.12,4);br.rotateZ(s*.7);br.translate(s*.04,th*.78,0);push(br,()=>[.22,.15,.09])}
+  const cy=th+(tall?.14:.1),R=tall?.17:.2,n=11+((r()*4)|0),sd=r()*100;
+  for(let b=0;b<n;b++){const ig=new THREE.IcosahedronGeometry(.5,1),P=ig.attributes.position,N=ig.attributes.normal;
+    const a=r()*6.283,el=(r()-.35)*1.6,d=b===0?0:R*(.45+r()*.5),s=b===0?R*.95:R*(.42+r()*.3);
+    const ox=Math.cos(a)*Math.cos(el)*d,oy=Math.sin(el)*d*(tall?1.5:1)+(b===0?0:.01),oz=Math.sin(a)*Math.cos(el)*d;
+    for(let i=0;i<P.count;i++){const x=P.getX(i),y=P.getY(i),z=P.getZ(i),k=.86+.26*(Math.sin(x*11.1+sd+b)*Math.cos(z*9.3-sd)*.5+.5);
+      const px=x*k*s+ox,py=y*k*s*(tall?1.25:.92)+cy+oy,pz=z*k*s+oz;P.setXYZ(i,px,py,pz);
+      /* normals point out from the crown's centre, so the whole crown shades as one soft ball */
+      const nx=px,ny=(py-cy)*(tall?.8:1.1),nz=pz,l=Math.hypot(nx,ny,nz)||1;N.setXYZ(i,nx/l,ny/l,nz/l)}
+    const tone=.8+r()*.2;push(ig,(x,y,z)=>{const ao=(.35+.65*clamp((y-(cy-R*.9))/(R*1.9),0,1))*tone*(.85+.15*clamp(Math.hypot(x,z)/R,0,1));return[ao,ao,ao]})}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));return g}
+kit('hamA',hamTree(17,false),treeMat,40000);kit('hamB',hamTree(29,true),treeMat,30000);
 kit('palm',palmGeo(5),treeMat,8000);
-kit('bush',bushGeo(3),treeMat,24000);
+kit('bush',bushGeo(3),treeMat,40000);
 kit('rock',(()=>{const g=new THREE.DodecahedronGeometry(.5,0);g.translate(0,.25,0);return g})(),stdMat({roughness:1}),6000);
 kit('fence',unitBox(),MAT.plain,30000,false);kit('lamp',unitBox(),MAT.lamp,4000,false);kit('awning',gableGeo(),MAT.awning,8000);
 kit('plazaStone',unitCyl(24),MAT.plaza,400,false);kit('plazaDirt',unitCyl(18),MAT.dirtPlaza,400,false);kit('pool',unitCyl(16),inlandWaterMat(false),5000,false);
@@ -261,8 +277,8 @@ kit('puddle',unitCyl(14),inlandWaterMat(false),6000,false);kit('reed',unitCone(4
 kit('hedge',unitBox(),stdMat({roughness:1}),20000,false);kit('farmW',unitBox(),MAT.plain,3000);kit('farmR',gableGeo(),MAT.plain,3000);
 /* painted looks: leaves turn a deeper, olive woodland green (bright lime crowns read as plastic in a painted scene) */
 {const _tb=treeMat.onBeforeCompile;treeMat.onBeforeCompile=sh=>{_tb(sh);sh.fragmentShader=sh.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
-  if(uEarth>0.){vec3 c=diffuseColor.rgb;float gl=smoothstep(.0,.04,c.g-max(c.r,c.b));diffuseColor.rgb=mix(c,c*vec3(.56,.66,.47),gl*uEarth);}`)}}
-const TREE_KITS=['conifer','broad','palm','bush','rock','tuft','flower','puddle','reed','hedge','farmW','farmR'];
+  if(uEarth>0.){vec3 c=diffuseColor.rgb;float gl=smoothstep(.0,.04,c.g-max(c.r,c.b));vec3 d=c*vec3(.52,.58,.42);d=mix(d,vec3(dot(d,vec3(.3,.59,.11))),.22);diffuseColor.rgb=mix(c,d,gl*uEarth);}`)}}
+const TREE_KITS=['hamA','hamB','conifer','broad','palm','bush','rock','tuft','flower','puddle','reed','hedge','farmW','farmR'];
 /* the countryside: hedgerows, dry-stone walls or fences round the fields, and a farmstead with a barn here and there */
 function countryside(){const farm=new Set();
   for(const i of fieldTiles){const o=owner[i],n=o>=0?nations[o]:null;if(!n)continue;const e=n.era,x=i%W,y=(i/W)|0,X0=x-W/2,Z0=y-H/2;
@@ -1004,6 +1020,7 @@ fieldMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,FIELDU);
   if(fFade>.01){vec3 nn=texture2D(fN,vFW.xz*.45).xyz*2.-1.;normal=normalize(normal+(viewMatrix*vec4(nn.x,0.,-nn.y,0.)).xyz*.5*fFade*(1.-fCrop*.6));}`)};
 const roadMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95});
 let fieldMesh=null,roadMesh=null;const fieldTiles=new Set();
+const CROPS_H=[[192,152,70],[204,164,78],[110,80,52],[96,70,46],[90,110,50],[176,144,76]];
 const CROPS=[[214,176,70],[196,158,58],[104,150,52],[136,178,64],[132,96,58],[160,150,70],[186,160,48]];
 function rebuildFields(){
   const pos=[],uv=[],col=[];fieldTiles.clear();
@@ -1013,7 +1030,16 @@ function rebuildFields(){
       if(owner[i]!==n.id||occupied.has(i)||fieldTiles.has(i))continue;const b=biome[i];if(!(b===4||b===8||(b===5&&n.era>=3)))continue;
       if(hash(i*5.3)>(n.era>=5?.8:LK.pixel?.82:.62))continue;
       const X0=X-W/2,Z0=Y-H/2;if(groundY(X0+.5,Z0+.5)<waterY+.08)continue;
-      fieldTiles.add(i);const along=hash(i*2.1)<.5,strips=n.era>=6?1:2+((hash(i*9.7)*3)|0);
+      fieldTiles.add(i);
+      /* the painted countryside: neighbouring tiles form one large field of a single crop (ripe wheat, ploughed rows, young green or hay),
+         its rows running straight on across the whole field */
+      if(LK.pixel){const pk=hash(Math.floor(X/2+hash(Y*.37)*.9)*7.31+Math.floor(Y/2)*13.7+n.id*3.1),crop=n.famine>0?[132,104,70]:CROPS_H[(pk*CROPS_H.length*.999)|0],cc=crop.map(v=>LIN[v|0]),alongP=hash(pk*9.1)<.5,M=3;
+        for(let q=0;q<M;q++)for(let r2=0;r2<M;r2++){const a0=q/M,a1=(q+1)/M,b0=r2/M,b1=(r2+1)/M,P=(a,b)=>[X0+a,Z0+b],U=(x,z)=>alongP?[x*2.4,z*1.1]:[z*2.4,x*1.1];
+          const p00=P(a0,b0),p10=P(a1,b0),p01=P(a0,b1),p11=P(a1,b1),u00=U(...p00),u10=U(...p10),u01=U(...p01),u11=U(...p11);
+          vtx(p00[0],p00[1],u00[0],u00[1],cc);vtx(p01[0],p01[1],u01[0],u01[1],cc);vtx(p11[0],p11[1],u11[0],u11[1],cc);
+          vtx(p00[0],p00[1],u00[0],u00[1],cc);vtx(p11[0],p11[1],u11[0],u11[1],cc);vtx(p10[0],p10[1],u10[0],u10[1],cc)}
+        continue}
+      const along=hash(i*2.1)<.5,strips=n.era>=6?1:2+((hash(i*9.7)*3)|0);
       for(let s=0;s<strips;s++){const c0=CROPS[(hash(i*13+s)*CROPS.length)|0],cc=(n.famine>0?[lerp(c0[0],132,.75),lerp(c0[1],104,.75),lerp(c0[2],70,.75)]:c0).map(v=>LIN[v|0]),a0=s/strips+.012,a1=(s+1)/strips-.012;
         for(let q=0;q<3;q++){const b0=q/3+.02*(q===0),b1=(q+1)/3-.02*(q===2);
           const pt=(a,b)=>along?[X0+a,Z0+b]:[X0+b,Z0+a];
@@ -1128,7 +1154,17 @@ function rebuildRoads(){roadBare.clear();grassAt.x=1e9;if(ribcVer!==terrVer){RIB
 }
 
 /* ---------- forests ---------- */
+/* how many trees a tile carries. Woods are dense; open country has groves where a slow noise runs high and only the odd lone tree
+   elsewhere, so the land reads as woods and meadows, not an even sprinkle. It never depends on where the camera is, so trees stay put. */
+function groveN(x,y){const s=4.2,X=Math.floor(x/s),Y=Math.floor(y/s),fx=x/s-X,fy=y/s-Y,q=(a,b)=>hash(a*131.7+b*71.3+5.1),u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy);
+  return lerp(lerp(q(X,Y),q(X+1,Y),u),lerp(q(X,Y+1),q(X+1,Y+1),u),v)}
+function treeWant(i){const b=biome[i],g=groveN(i%W,(i/W)|0),lone=hash(i*1.3);
+  switch(b){case 5:return 16;case 6:return 10;case 9:return g>.42?11:lone<.1?1:0;case 4:return g>.64?8:LK.pixel?(lone<.16?2:lone<.48?1:0):lone<.07?1:0;case 8:return lone<.22?1:0;
+    case 3:return lone<.3&&(1-Math.abs(((i/W)|0)/(H-1)-.5)*2)>.5?1:0;case 11:return g>.55?5:lone<.25?1:0;case 12:return 3;case 7:return lone<.3?1:0}return 0}
+/* one even scale for the whole world, so the forests always fit in the drawing budget instead of thinning out away from the camera */
+let TGS=1;
 function rebuildTrees(){
+  {let tot=0;for(let i=0;i<N;i++)if(!isWater(i))tot+=treeWant(i);TGS=Math.min(1,62000/Math.max(1,tot))}
   kitReset(TREE_KITS);const dens=(settings.quality==='high'?1:settings.quality==='medium'?.65:.4)*(typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1),farm=countryside();
   /* trees near towns are drawn at a believable size next to the houses */
   const near=new Float32Array(N).fill(1);for(const n of nations)if(n.alive)for(const c of n.cities)for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);near[Y*W+X]=Math.min(near[Y*W+X],.5+smooth(1,3.2,d)*.5)}
@@ -1137,22 +1173,24 @@ function rebuildTrees(){
     if(marshAt(i)){/* a marsh: reeds and a few willows */for(let t=0;t<0;t++){const x=x0+.1+hash(i*2.3+t)*.8,z=z0+.1+hash(i*5.1+t)*.8,y=groundY(x,z);if(y<waterY+.01)continue;const s=.12+hash(i+t*9)*.22;let lo=y,hi=y;for(let q=0;q<4;q++){const a=q*1.571,g=groundY(x+Math.cos(a)*s*.45,z+Math.sin(a)*s*.32);lo=Math.min(lo,g);hi=Math.max(hi,g)}if(hi-lo>.03)continue;add('puddle',x,lo-.004,z,s,hi-lo+.0055,s*.7,hash(i*t+1)*6)}
       for(let t=0;t<16;t++){const x=x0+hash(i*3.7+t)*.98,z=z0+hash(i*6.3+t*2)*.98,y=groundY(x,z);if(y<waterY+.01)continue;add('reed',x,y-.003,z,.008,.05+hash(i*t+3)*.04,.008,0,hash(i+t)<.5?0x6a7a3a:0x8a7a48)}
       if(hash(i*4.4)<.5){const x=x0+.5,z=z0+.5,y=groundY(x,z);if(y>waterY+.02)add('broad',x,y-.01,z,.55,.6,.55,hash(i)*6,0x5f7a3a)}continue}
-    if(b===5){n=19;type=lat<.45||climate.temp<.4?'conifer':'mix'}else if(b===6){n=10;type='jungle'}else if(b===4){n=hash(i*1.3)<.4?3:0;type='broad'}
-    else if(b===8){n=hash(i*1.3)<.3?1:0;type='acacia'}else if(b===9){n=hash(i*1.3)<.55?3:0;type='conifer'}else if(b===3){n=hash(i*1.3)<.3&&lat>.5?1:0;type='palm'}
-    else if(b===11){n=5;type='mount'}else if(b===12){n=3;type='rock'}else if(b===7){n=hash(i*1.3)<.3?1:0;type='rock'}
+    n=treeWant(i);type=b===5?(!LK.pixel&&(lat<.45||climate.temp<.4)?'conifer':'mix'):b===6?'jungle':b===4?'broad':b===8?'acacia':b===9?'conifer':b===3?'palm':b===11?'mount':b===12||b===7?'rock':'broad';
     if((b===4||b===8)&&dens>.5&&settings.quality!=='high'){const tn=b===4?3:2;for(let t=0;t<tn;t++){const x=x0+hash(i*2.7+t*5)*.96+.02,z=z0+hash(i*4.3+t*7)*.96+.02,y=groundY(x,z);if(y>waterY+.04)add('tuft',x,y-.004,z,.016,.022+hash(i+t)*.014,.016,hash(i*t),b===4?0x4e7232:0x8a8a44)}
       if(hash(i*8.1)<.22){const fc=[0xe8d84a,0xd8504a,0xf2f2f2,0x9a6ad0,0xf0a040][(hash(i*3.9)*5)|0];for(let t=0;t<5;t++){const x=x0+hash(i*6.1+t)*.9+.05,z=z0+hash(i*1.9+t*3)*.9+.05,y=groundY(x,z);if(y>waterY+.04)add('flower',x,y+.006,z,.012,.012,.012,0,fc)}}}
     if(owner[i]>=0&&nations[owner[i]].era>=3&&type!=='rock')n=Math.round(n*.45);
-    const lod=(()=>{const dd=Math.hypot(x0+.5-camT.x,z0+.5-camT.z);return dd>camDist*1.6+6?.3:dd>camDist*1.1+3?.6:1})();n=Math.round(n*dens*lod);
+    const lod=1;n=Math.round(n*dens*TGS);
     for(let t=0;t<n;t++){const x=x0+.08+hash(i*3.1+t)*.84,z=z0+.08+hash(i*7.7+t)*.84,y=groundY(x,z);if(y<waterY+.05)continue;
       const s=(.62+hash(i*11.3+t)*.5)*near[i],hv=hash(i*5.9+t);
       if(type==='rock'||(type==='mount'&&hv<.45)){if(hv<.6)add(natKit('rock',hv),x,y-.03,z,.08+hv*.25,.06+hv*.16,.08+hv*.2,hv*6,hv<.3?0x8a8378:0x9a9488);continue}
       if(type==='mount'){if(y<shapeH(.8))add('conifer',x,y-.01,z,s*.85,s*.95,s*.85,hv*6,0x2f4a30);continue}
       if((type==='mix'||type==='conifer'||type==='jungle')&&hv<.45&&lod>.5)add('bush',x+.04,y-.01,z+.03,s*.9,s*.7,s*.9,hv*6,type==='jungle'?0x3f6a2a:0x45602e);
-      let k=type;if(type==='mix')k=hv<.4?'conifer':'broad';if(type==='jungle')k=hv<.35?'palm':'broad';if(type==='acacia')k='broad';
+      let k=type;if(type==='mix')k=hv<(LK.pixel?(lat<.35?.5:.12):.4)?'conifer':'broad';if(type==='jungle')k=hv<.35?'palm':'broad';if(type==='acacia')k='broad';
       const col=k==='conifer'?(hv<.5?0x27412a:0x31502f):k==='palm'?0x5d8a3a:type==='jungle'?(hv<.5?0x2f6a32:0x3d7a35):(hv<.25?0x3a6428:hv<.5?0x46702e:hv<.75?0x527a32:0x5e7f30);
       if(type==='acacia'){const ak=natKit('acacia',hv);if(ak==='broad')add('broad',x,y-.01,z,s*1.2,s*.55,s*1.2,hv*6,0x7a8a3c);else add(ak,x,y-.01,z,s,s,s,hv*6,0x7a8a3c)}else add(k==='broad'?natKit('broad',hv):k,x,y-.01,z,s,s,s,hv*6,col);
       if(hv>.8&&k!=='palm')add('bush',x+.06,y-.01,z+.04,s,s,s,0,0x4f7a36)}}
+  /* the painted countryside: pale stones and pebbles along the river banks */
+  if(LK.pixel&&river)for(let i=0;i<N;i++){if(!river[i]||isWater(i)||occupied.has(i))continue;const x0=i%W-W/2,z0=((i/W)|0)-H/2;
+    for(let t=0;t<4;t++){const hv=hash(i*9.13+t*3.7);if(hv<.35)continue;const x=x0+.1+hash(i*2.9+t)*.8,z=z0+.1+hash(i*6.7+t*1.3)*.8,y=groundY(x,z);if(y<waterY+.01)continue;
+      const sz=.02+hv*.03;add(natKit('rock',hv),x,y-.008,z,sz,sz*.6,sz*.8,hv*6,hv<.6?0x9a958a:0xb0aa9c)}}
   /* hedgerows along field edges and orchards near villages */
   if(dens>.4)for(const i of fieldTiles){const X=i%W,Y=(i/W)|0;for(let d=0;d<4;d++){const nx=X+DX[d],ny=Y+DY[d];if(nx<0||ny<0||nx>=W||ny>=H)continue;const j=ny*W+nx;if(fieldTiles.has(j)||hash(i*7+d)<.5)continue;
     for(let q=0;q<9;q++){if(hash(i*17+d*3+q)<.2)continue;const t=(q+.5)/9+(hash(i*5+q)-.5)*.06,ex=wx(X)+(DX[d]?DX[d]*.48:t-.5),ez=wz(Y)+(DY[d]?DY[d]*.48:t-.5),ey=groundY(ex,ez);if(ey<waterY+.04)continue;
