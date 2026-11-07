@@ -284,7 +284,7 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
       vec3 an=abs(gn)+1e-3;an/=an.x+an.y+an.z;vec3 rk=(texture2D(tR,vWP.zy*.35).rgb*an.x+texture2D(tR,vWP.xy*.35).rgb*an.z+texture2D(tR,P1*.8).rgb*an.y)/mR;
       vec3 sn=texture2D(tW,P1).rgb/mW;
       float wG=gr*above,wR=st*above,wS=sandy*(1.-wR),wD=soil*(1.-wR),wW=snowy;float wsum=wG+wR+wS+wD+wW+1e-3;
-      vec3 det=(g*wG+rk*wR+sa*wS+so*wD+sn*wW)/wsum;det=mix(vec3(1.),det,min(1.,wsum));det=clamp(det,.35,1.8);
+      vec3 det=(g*wG+rk*wR+sa*wS+so*wD+sn*wW)/wsum;det=mix(vec3(1.),det,min(1.,wsum));det=mix(vec3(1.),det,1.+uHam*.55);det=clamp(det,.3,1.9);
       diffuseColor.rgb*=mix(vec3(1.),det,dfade*.92);
       bumpW=vec4(wG+wD*.7+wS*.5,wR,0.,0.)/wsum;}}
     /* sunlight dancing on the shallow seabed */

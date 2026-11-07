@@ -283,15 +283,15 @@ const TREE_KITS=['hamA','hamB','conifer','broad','palm','bush','rock','tuft','fl
 function countryside(){const farm=new Set();
   for(const i of fieldTiles){const o=owner[i],n=o>=0?nations[o]:null;if(!n)continue;const e=n.era,x=i%W,y=(i/W)|0,X0=x-W/2,Z0=y-H/2;
     if(Math.hypot(X0+.5-camT.x,Z0+.5-camT.z)>camDist*1.5+5)continue;
-    const px_=!!LK.pixel,kind=e<=1?'stone':e>=5?'fence':hash(i*3.3)<(px_?.8:.6)?'hedge':'stone',col=kind==='hedge'?(px_?0x34502a:0x46682e):kind==='stone'?0x9a948a:0xd8cfbc,hh=kind==='hedge'?(px_?.055:.03):kind==='stone'?.018:.016,th=kind==='hedge'?(px_?.065:.03):kind==='stone'?.02:.004;
+    const px_=!!LK.pixel,kind=e<=1?'stone':e>=5?'fence':hash(i*3.3)<(px_?.8:.6)?'hedge':'stone',col=kind==='hedge'?(px_?0x34502a:0x46682e):kind==='stone'?0x9a948a:0xd8cfbc,hh=kind==='hedge'?(px_?.022:.03):kind==='stone'?.018:.016,th=kind==='hedge'?(px_?.05:.03):kind==='stone'?.02:.004;
     for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X>=0&&Y>=0&&X<W&&Y<H&&fieldTiles.has(Y*W+X)&&hash(i*7+d)<.55)continue;
       const horiz=DY[d]!==0,cx=X0+.5+DX[d]*.5,cz=Z0+.5+DY[d]*.5,segs=4;
       for(let s=0;s<segs;s++){const f=(s+.5)/segs-.5,px=horiz?cx+f:cx,pz=horiz?cz:cz+f,gy=groundY(px,pz);if(gy<waterY+.03)continue;
-        add('hedge',px,gy-.008,pz,horiz?.25:th,hh,horiz?th:.25,0,col)}
+        if(!(px_&&kind==='hedge'))add('hedge',px,gy-.008,pz,horiz?.25:th,hh,horiz?th:.25,0,col)}
       if(kind==='hedge'&&hash(i*11+d)<.35){const px=cx+(horiz?(hash(i+d)-.5)*.7:0),pz=cz+(horiz?0:(hash(i+d)-.5)*.7);add('broad',px,groundY(px,pz)-.01,pz,.5,.55,.5,hash(i)*6,0x5a7a3a)}
       /* the pixel look: hedgerows are lumpy lines of shrubs, some in flower, as in an old painted countryside */
-      if(kind==='hedge'&&px_)for(let s=0;s<6;s++){const f=(s+.5)/6-.5+(hash(i*3+d*7+s)-.5)*.08,px=horiz?cx+f:cx,pz=horiz?cz:cz+f,gy=groundY(px,pz),hv=hash(i*5+d*3+s);if(gy<waterY+.03)continue;
-        add('bush',px,gy-.01,pz,.2+hv*.08,.17+hv*.08,.2+hv*.08,hv*6,hv<.2?0x6f8a46:hv<.6?0x48692f:0x3d5c2a);if(hv>.72)add('flower',px+.02,gy+.045,pz+.015,.03,.022,.03,0,hv>.86?0xe8e2d0:0xc85a5a)}}
+      if(kind==='hedge'&&px_)for(let s=0;s<9;s++){const f=(s+.5)/9-.5+(hash(i*3+d*7+s)-.5)*.06,px=horiz?cx+f:cx,pz=horiz?cz:cz+f,gy=groundY(px,pz),hv=hash(i*5+d*3+s);if(gy<waterY+.03)continue;
+        add('bush',px,gy-.012,pz,.26+hv*.1,.2+hv*.1,.26+hv*.1,hv*6,hv<.2?0x5f7a3c:hv<.6?0x42602c:0x3a5628);if(hv>.72)add('flower',px+.02,gy+.04,pz+.015,.013,.01,.013,0,hv>.86?0xe8e2d0:0xc85a5a)}}
     /* a farmstead on open ground beside the field */
     if(e>=1&&e<=6&&hash(i*17.1)<.18)for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
       if(fieldTiles.has(j)||occupied.has(j)||farm.has(j)||isWater(j)||owner[j]!==o)continue;farm.add(j);
@@ -1004,18 +1004,30 @@ function buildExtras(){
 /* ---------- fields & roads (merged ground ribbons) ---------- */
 const fieldMat=new THREE.MeshStandardMaterial({map:TX.furrow,vertexColors:true,roughness:1});
 /* photo soil and leafy crops (Poly Haven, CC0) laid over the painted crop rows, close up only */
-const FIELDU={fS:{value:null},fC:{value:null},fN:{value:null},uPh:{value:0}};
+const FIELDU={uHam:{value:0},fS:{value:null},fC:{value:null},fN:{value:null},uPh:{value:0}};
 {const g=new THREE.DataTexture(new Uint8Array([128,128,128,255]),1,1,THREE.RGBAFormat);g.needsUpdate=true;const nf=new THREE.DataTexture(new Uint8Array([128,128,255,255]),1,1,THREE.RGBAFormat);nf.needsUpdate=true;
  FIELDU.fS.value=FIELDU.fC.value=g;FIELDU.fN.value=nf;let left=3;const L=new THREE.TextureLoader();
  for(const [k,f] of [['fS','f_soil'],['fC','f_crop'],['fN','f_soil_n']])L.load('assets/textures/'+f+'.jpg',t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;FIELDU[k].value=t;if(--left<=0)FIELDU.uPh.value=1},undefined,()=>{left--})}
 fieldMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,FIELDU);
   sh.vertexShader='varying vec3 vFW;\n'+sh.vertexShader.replace('#include <worldpos_vertex>','#include <worldpos_vertex>\n  vFW=(modelMatrix*vec4(transformed,1.)).xyz;');
-  sh.fragmentShader='uniform sampler2D fS,fC,fN;uniform float uPh;varying vec3 vFW;float fFade,fCrop;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+  sh.fragmentShader='uniform sampler2D fS,fC,fN;uniform float uPh,uHam;varying vec3 vFW;float fFade,fCrop;\nfloat wh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float wn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wh(i),wh(i+vec2(1,0)),f.x),mix(wh(i+vec2(0,1)),wh(i+vec2(1,1)),f.x),f.y);}\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
   fFade=(1.-smoothstep(12.,46.,length(vFW-cameraPosition)))*uPh;fCrop=smoothstep(-.02,.06,diffuseColor.g-diffuseColor.r*.92);
   if(fFade>.01){vec2 P=vFW.xz*.45;float so=texture2D(fS,P).r*.6+texture2D(fS,P*.31+.31).r*.4,cr=texture2D(fC,P*1.3).r*.65+texture2D(fC,P*.4+.17).r*.35;
     /* broad patches where the crop grows thicker or thinner, and wetter or drier soil */
     float pa=texture2D(fC,P*.07+.53).r*.6+texture2D(fS,P*.11+.2).r*.4;
     float d=mix(so,cr,fCrop*.75)+(pa-.5)*.9;diffuseColor.rgb*=mix(1.,.45+d*1.1,fFade*.95);}
+  /* the painted look, close up: ears of wheat and clods of soil at their real size, streaked along the rows */
+  if(uHam>0.){float cf=(1.-smoothstep(1.5,10.,length(vFW-cameraPosition)))*uHam;
+    if(cf>.01){
+    #ifdef USE_MAP
+      vec2 R=vUv*vec2(9.,2.2);
+    #else
+      vec2 R=vFW.xz*vec2(9.,22.);
+    #endif
+      /* stalks streak along the rows, ears catch the light in specks; soil breaks into clods */
+      float st=wn(vec2(R.x*4.,R.y*90.)),sp=wn(R*vec2(38.,70.)),ear=step(.78,wh(floor(R*vec2(30.,60.)))),cl=wn(vFW.xz*55.)*.55+wn(vFW.xz*150.)*.45;
+      float ripe=smoothstep(.04,.14,diffuseColor.r-diffuseColor.b*1.2)*smoothstep(.1,.25,dot(diffuseColor.rgb,vec3(.3,.59,.11)));
+      float det=mix(.55+cl*.9,.62+st*.5+(sp-.5)*.35+ear*.22,ripe);diffuseColor.rgb*=mix(1.,det,cf*.9);}}
   diffuseColor.rgb*=.86;`).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
   if(fFade>.01){vec3 nn=texture2D(fN,vFW.xz*.45).xyz*2.-1.;normal=normalize(normal+(viewMatrix*vec4(nn.x,0.,-nn.y,0.)).xyz*.5*fFade*(1.-fCrop*.6));}`)};
 const roadMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95});
