@@ -509,10 +509,18 @@ function cottage(x,y,z,rot,w,d,hh,hk){const o=hash(hk*53+3);
   if(o>=.58)framing(x,y,z,rot,w,d,hh,1);facade(x,y,z,rot,w,d,hh,hk,1);
   if(hash(hk*17)<.45)chimney(x,y+hh*.5,z,rot,w,d,y+hh+rh*.85,hk,hash(hk*19)<.5)}
 /* the plot behind a house: wattle fence, dug beds, and a haystack, woodpile, shed or fruit tree */
+/* a house in a terraced row: it fills its plot exactly, wall to wall with its neighbours, its ridge along the lane so the roofs run on as one line.
+   Heights, plaster and roof colours vary from house to house, as in an old street that grew one house at a time */
+function terraceHouse(n,sl,y,e,hk){const med=cultOf(n)==='med',hh=.06+hash(hk*7.1)*.045+(sl.core>.6?.02:0);
+  const walls=med?[0xe8dcc4,0xdcc8a8,0xeee4d0,0xd8c09c]:[0xe6dcc8,0xd8ccb4,0xcfc2a6,0xe0d4bc,0xbfae92],wc=walls[(hash(hk*3.3)*walls.length)|0];
+  const thatch=!med&&e<=3&&hash(hk*5.7)<.45,roof=thatch?'thatch':'tiles',rc=thatch?0xffffff:med?ROOF_RED[(hash(hk*2.2)*ROOF_RED.length)|0]:(hash(hk*9.9)<.5?ROOF_RED[(hash(hk)*ROOF_RED.length)|0]:ROOF_SLATE[(hash(hk*4)*ROOF_SLATE.length)|0]);
+  const wall=hash(hk*6.6)<.18?'stone':'plaster';
+  /* the plot's width runs along the lane: give the builder the frontage as width so the ridge follows the street */
+  house(sl.x,y,sl.z,sl.rot,sl.w*1.01,sl.d,hh,wall,wc,roof,rc,hash(hk*8.8)<.4,{hk:hk*.44})}
 function townInfill(n,plan,cx,cz,HP,i0,KO){const ds=HP.map(h=>Math.hypot(h[0]-cx,h[1]-cz)).sort((a,b)=>a-b),RT=ds[Math.floor(ds.length*.85)]+.06,st=.085;
   const SP=[];for(const s of plan.streets)for(const q of s.pts)SP.push(q);
   for(let gx=-RT;gx<=RT;gx+=st)for(let gz=-RT;gz<=RT;gz+=st){const hv=hash(i0*7.7+gx*131.3+gz*71.9),x=cx+gx+(hash(hv*9.1)-.5)*.05,z=cz+gz+(hash(hv*5.3)-.5)*.05,d=Math.hypot(x-cx,z-cz);
-    if(d>RT||d<plan.pr+.08||hv<.5)continue;const t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id||fieldTiles.has(t))continue;const y=groundY(x,z);if(y<waterY+.03)continue;
+    if(d>RT||d<plan.pr+.08||hv<.5)continue;if(plan.coreR&&d<plan.coreR)continue;const t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id||fieldTiles.has(t))continue;const y=groundY(x,z);if(y<waterY+.03)continue;
     let ok=true;for(const h of HP)if(Math.hypot(h[0]-x,h[1]-z)<h[2]+.05){ok=false;break}if(!ok)continue;
     for(const q of SP)if(Math.hypot(q[0]-x,q[1]-z)<.055){ok=false;break}if(!ok)continue;
     if(KO&&KO.some(q=>Math.hypot(x-q[0],z-q[1])<q[2]+.05))continue;
@@ -773,6 +781,8 @@ function updateLife(dt,now){
   kitCommit(['animal','bird','aBody','aHead','aLeg']);if(updateLife.ak&&updateLife.ak.length)mcommit(updateLife.ak)}
 const occupied=new Set();
 function cityLevel(n){return clamp(Math.sqrt(n.pop/Math.max(1,n.cities.length))/2.3,1,14)}
+/* one great city per country: the capital draws people in and grows well beyond the rest, which stay market towns and villages */
+function townLevel(n,cap){const l=cityLevel(n);return cap?Math.min(14,l*1.35+1.5):Math.max(1,l*.68)}
 /* ---------- town plans: every town grows its own street network from a centre ---------- */
 function chaikin2(p,it){for(let k=0;k<it;k++){const o=[p[0]];for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1];o.push([a[0]*.75+b[0]*.25,a[1]*.75+b[1]*.25],[a[0]*.25+b[0]*.75,a[1]*.25+b[1]*.75])}o.push(p[p.length-1]);p=o}return p}
 /* how far a city sprawls: from the Industrial age big cities grow into metropolises that cover many miles */
@@ -783,7 +793,7 @@ function isLagoon(n,c,e){if(e<2||e>5||!n)return false;if(c._lagT===terrVer)retur
   const lucky=hash(c.x*7.3+c.y*13.1)<(cultOf(n)==='med'?.85:.22);c._lagT=terrVer;return c._lag=w>=2&&w<=17&&lucky}
 function townPlan(n,c,cap,e){
   const MR=metroRadius(n,c,cap,e),mb=MR>.75?Math.round(MR*4)/4:0;
-  const band=e===0?0:e<5?1:e<6?2:3,gf=clamp(.8+cityLevel(n)*.055,.9,1.6),key=band+'|'+flatSig.length+'|'+(cap?1:0)+'|'+mb+'|'+(isLagoon(n,c,e)?1:0)+'|'+Math.round(gf*5);if(c._plan&&c._plan.key===key)return c._plan;
+  const band=e===0?0:e<5?1:e<6?2:3,tl=townLevel(n,cap),gf=clamp(.8+tl*.055,.9,1.6),dens=clamp((tl-6)/6,0,1),key=band+'|'+flatSig.length+'|'+(cap?1:0)+'|'+mb+'|'+(isLagoon(n,c,e)?1:0)+'|'+Math.round(gf*5)+'|'+Math.round(dens*4);if(c._plan&&c._plan.key===key)return c._plan;
   const R_=mulberry32((c.x*73856093^c.y*19349663^(cap?777:0))>>>0),cx=wx(c.x),cz=wz(c.y),pr=e===0?.06:cap&&e>=3&&e<=4&&!isLagoon(n,c,e)?.66:cap?.24:.1;
   /* never build up a mountain: not much higher than the town square, and not on a steep slope */
   /* a lagoon town, like Venice: houses rise straight out of the shallow water and the streets become canals */
@@ -815,26 +825,31 @@ function townPlan(n,c,cap,e){
   for(const a of arms){const pts=walk(cx+Math.cos(a)*pr,cz+Math.sin(a)*pr,a,len*(.6+R_()*.6),true);if(pts.length>3)streets.push({pts,main:true,base:pr})}
   const mains=streets.length;
   for(let m=0;m<mains;m++){const st=streets[m];let side=R_()<.5?1:-1;
-    for(let i=4;i<st.pts.length-2;i+=3+((R_()*4)|0)){if(R_()>(e>=3&&e<=4?.95:.6))continue;const p0=st.pts[i],p1=st.pts[i+1],h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0])+side*(Math.PI/2+(R_()-.5)*.6);side=-side;
-      const pts=walk(p0[0],p0[1],h,.25+R_()*.6*(cap?1.3:1),false);if(pts.length>3)streets.push({pts,main:false,base:p0[2]+st.base})}}
+    for(let i=4;i<st.pts.length-2;i+=(dens>.5?2:3)+((R_()*(4-2*dens))|0)){if(R_()>(e>=3&&e<=4?.95:.6+dens*.3))continue;const p0=st.pts[i],p1=st.pts[i+1],h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0])+side*(Math.PI/2+(R_()-.5)*.6);side=-side;
+      const pts=walk(p0[0],p0[1],h,(.25+R_()*.6*(cap?1.3:1))*(1+dens*.5),false);if(pts.length>3)streets.push({pts,main:false,base:p0[2]+st.base})}}
   /* plaza frontage first, then plots along every street, both sides */
   const hs=band===1?[.1,.075]:band===2?[.12,.08]:[.11,.1];
   const ring=pr>.5?0:Math.max(5,Math.round(pr*6.283/(hs[0]+.02)));for(let k=0;k<ring;k++){const a=k/ring*6.283+.2,r=pr+hs[1]/2+.03,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;
     if(bad(x,z)||!free(x,z,Math.max(hs[0],.1)*.66))continue;mark(x,z,Math.max(hs[0],.1)*.66);slots.push({x,z,rot:Math.atan2(-Math.cos(a),-Math.sin(a)),w:hs[0],d:hs[1],core:1,st:-1,at:0,fx:cx+Math.cos(a)*pr*.8,fz:cz+Math.sin(a)*pr*.8,dd:pr*.5})}
   for(const st of streets)for(const q of st.pts)mark(q[0],q[1],st.main?.035:.025);
   streets.forEach((st,si)=>{const sw=st.main?.035:.025;
-    for(let i=1;i<st.pts.length;i++){const p0=st.pts[i-1],p1=st.pts[i],h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0]);
-      for(const side of [1,-1]){const dd=st.base+p1[2],core=clamp(1-dd/(cap?1.1:.6),0,1),rural=band===1&&core<(e>=3&&e<=4?.28:.6);
-        if(R_()<(rural?.3:band>=2?.28:e>=3?.05:.12))continue;
+    const fine=band===1&&dens>.25;const PT=fine?st.pts.flatMap((q,i)=>i?[[ (q[0]+st.pts[i-1][0])/2,(q[1]+st.pts[i-1][1])/2,(q[2]+st.pts[i-1][2])/2],q]:[q]):st.pts;
+    for(let i=1;i<PT.length;i++){const p0=PT[i-1],p1=PT[i],h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0]);
+      for(const side of [1,-1]){const dd=st.base+p1[2],core=clamp(1-dd/((cap?1.1:.6)*(1+dens*.8)),0,1),rural=band===1&&core<(e>=3&&e<=4?.28:.6)*(1-dens*.8);
+        if(R_()<(rural?.3*(1-dens*.6):band>=2?.28:e>=3?.05*(1-dens):.12))continue;
         /* villages: detached cottages on long plots with gaps of meadow; town cores: houses shoulder to shoulder */
-        const w=hs[0]*(.85+R_()*.35),d=hs[1]*(.85+R_()*.3),off=sw+d/2+(rural?.02+R_()*.04:.008+R_()*.012),nx=-Math.sin(h)*side,nz=Math.cos(h)*side,x=p1[0]+nx*off,z=p1[1]+nz*off;
-        const rr=rural?Math.max(w,d,.1)*.7:Math.max(w,d,.1)*.66+.003;if(bad(x,z)||!free(x,z,rr))continue;
-        let pd=band===1?(rural?.11+R_()*.15:LK.pixel?.05+R_()*.04:.05+R_()*.04):0;const pw=w*(1.05+R_()*.45),bx=x+nx*(d/2+pd/2),bz=z+nz*(d/2+pd/2);
+        /* the heart of a big town: terraced rows, each house wall to wall with the next and its front on the lane, no gaps and no gardens */
+        const terr=band===1&&dens>.25&&core>.3-dens*.22&&!rural;
+        let w=hs[0]*(.85+R_()*.35),d=hs[1]*(.85+R_()*.3),off=sw+d/2+(rural?.02+R_()*.04:.008+R_()*.012);
+        if(terr){w=hs[0]*(.92+(w/hs[0]-.85)*.3);d=hs[1]*(1.05+(d/hs[1]-.85)*.4);off=sw+w*.5+.004}
+        const nx=-Math.sin(h)*side,nz=Math.cos(h)*side,x=p1[0]+nx*off,z=p1[1]+nz*off;
+        const rr=terr?w*.5+.001:rural?Math.max(w,d,.1)*.7:Math.max(w,d,.1)*.66+.003;if(bad(x,z)||!free(x,z,rr))continue;
+        let pd=terr?0:band===1?(rural?.11+R_()*.15:LK.pixel?.05+R_()*.04:.05+R_()*.04):0;const pw=w*(1.05+R_()*.45),bx=x+nx*(d/2+pd/2),bz=z+nz*(d/2+pd/2);
         if(pd>0&&(bad(bx,bz)||!free(bx,bz,pd*.42)))pd=0;
         mark(x,z,rr);if(pd>0){mark(bx,bz,pd*.45);mark(x+nx*(d/2+pd*.9),z+nz*(d/2+pd*.9),pw*.4)}
-        slots.push({x,z,rot:Math.atan2(-nx,-nz),w,d,pd,pw,core,st:si,at:p1[2],fx:p1[0],fz:p1[1],dd:dd+R_()*.25})}}});
+        slots.push({x,z,rot:Math.atan2(-nx,-nz),w,d,pd,pw,core,st:si,at:p1[2],fx:p1[0],fz:p1[1],dd:dd+R_()*(terr?.02:.25)-(terr?.3:0),terr})}}});
   slots.sort((a,b)=>a.dd-b.dd);
-  return c._plan={key,streets,slots,pr}}
+  {let cr=0;for(const q of slots)if(q.terr)cr=Math.max(cr,Math.hypot(q.x-cx,q.z-cz));return c._plan={key,streets,slots,pr,coreR:cr*.85}}}
 /* a grown city: avenues leave the old square like spokes, ring roads curve round them at the old wall lines,
    and crooked lanes fill the gaps. Towers stand in the middle, flats around them, houses with gardens far out. */
 function organicMetro(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[],slots=[],ph=R_()*6.283;
@@ -939,7 +954,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       const CO=cap&&e>=3&&e<=4?2.3:1;if(cap&&n.wonder){const wx_=cx+.42*CO,wz_=cz-.3*CO;solid(()=>wonder(n,wx_,surfY(wx_,wz_),wz_,n.wonder),wx_,wz_,0,false,undefined,'big');occupied.add(Math.floor(wz_+H/2)*W+Math.floor(wx_+W/2));KO.push([wx_,wz_,.3])}
       if(n.faith>=0&&(cap||hash(i0*3)<.35)){const tx=cx-.32*CO,tz=cz+.2*CO;solid(()=>sacredSite(faiths[n.faith],n,tx,surfY(tx,tz),tz,e,hash(i0)*3,cap),tx,tz,0,false,undefined,'big');KO.push([tx,tz,cap?.26:.2])}
       if(c.dike)dikeRing(c,cx,cz);
-      MCTX={lvl,cap,tall:[],w:.12,cu:cultOf(n),n};const lagoon=isLagoon(n,c,e);MCTX.lagoon=lagoon;const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+lvl*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?3.4:3.2):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
+      MCTX={lvl,cap,tall:[],w:.12,cu:cultOf(n),n};const lagoon=isLagoon(n,c,e);MCTX.lagoon=lagoon;const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+Math.min(14,townLevel(n,cap)+(gold?1.5:0))*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?3.4:3.2):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
       if(plan.metro)plan.streets.forEach((st,si)=>{if(st.main&&st.base<=plan.pr+.01)reach.set(si,.5)});let k=0,placed=0;const HP=[];CUR_GREEN=c._green=[];c._poi={pts:[],plaza:[cx,cz],r:plan.pr};
       const far=Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.3+2.5;MCTX.far=far;
       if(e>=2&&e<=4&&!plan.metro&&!lagoon&&count>=(cap?14:18)){const ds=[];for(const sl of slots){if(ds.length>=count)break;const t=tileAt(sl.x,sl.z);if(t<0||(owner[t]>=0&&owner[t]!==n.id))continue;ds.push(Math.hypot(sl.x-cx,sl.z-cz))}
@@ -961,7 +976,9 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
             add('boat',px+fx*.012,waterY+.002,pz+fz*.012,.012,.008,.07,sl.rot+Math.PI/2,0x161616)}}
         else if(mx-mn>.012&&e>=1)add('stone',sl.x,mn-.03,sl.z,sl.w*1.04,mx-mn+.03,sl.d*1.04,sl.rot,0xa8a090);
         const fa=hash(i0*2.7)*6.283,inD=Math.abs(((Math.atan2(sl.z-cz,sl.x-cx)-fa+9.42)%6.283)-3.14)<1;/* the mills crowd into one smoky quarter */
-        if(e===5&&sl.core<.4&&inD&&hk<.55&&(MCTX.fac|0)<(cap?7:3+lvl)){MCTX.fac=(MCTX.fac|0)+1;factory(sl.x,y,sl.z,sl.rot,true)}else dwelling(n,sl.x,y,sl.z,sl.rot,e,hk,k,sl.core);
+        if(e===5&&sl.core<.4&&inD&&hk<.55&&(MCTX.fac|0)<(cap?7:3+lvl)){MCTX.fac=(MCTX.fac|0)+1;factory(sl.x,y,sl.z,sl.rot,true)}
+        else if(sl.terr&&e>=2&&e<=4&&['west','med'].includes(cultOf(n)))terraceHouse(n,sl,y,e,hk);
+        else dwelling(n,sl.x,y,sl.z,sl.rot,e,hk,k,sl.core);
         if(!far&&sl.pd>0&&e>=1&&e<=4&&cultOf(n)!=='mideast'&&cultOf(n)!=='africa')yard(sl.x,sl.z,sl.rot,sl.w,sl.d,sl.pd,sl.pw,hk);
         if(!far&&plan.metro&&e>=5&&e<=6&&sl.core<.5&&hk>.35)frontGarden(sl.x,y,sl.z,sl.rot,Math.min(sl.w,.075),Math.min(sl.d,.075),hk);
         },sl.x,sl.z,sl.rot);
