@@ -428,7 +428,10 @@ function loTreeGeo(src,type){src.computeBoundingBox();const b=src.boundingBox,y0
   for(let i=n0;i<P.length;i+=3){let nx=(P[i]-cc.x)/Math.max(.01,sz.x*sz.x),ny=(P[i+1]-cc.y)/Math.max(.01,sz.y*sz.y)+(type==='cone'?.6/Math.max(.01,sz.y):0),nz=(P[i+2]-cc.z)/Math.max(.01,sz.z*sz.z);const l=Math.hypot(nx,ny,nz)||1;N[i]=nx/l;N[i+1]=ny/l;N[i+2]=nz/l}
   return g}
 const LOD_KITS=['lodBox'];
-const treeLodDist=()=>Math.max(7,lodDist()*.75*(LK.pixel?1.45:1));
+/* the switch to simple trees follows the zoom: the camera itself is camDist away from what you look at, so a fixed distance would turn
+   every tree on screen into a stand-in at an ordinary zoom. Trees within about the camera's distance plus a margin are always the full ones. */
+const camD=()=>typeof camDist==='number'?camDist:10,perfK=()=>typeof PERF!=='undefined'&&perfOn()?Math.max(.75,PERF.lodK):1;
+const treeLodDist=()=>Math.max(7,lodDist()*.75*(LK.pixel?1.45:1),Math.min(camD()*1.35+5,28)*perfK());/* far out a tree is a few pixels, so the reach stops growing */
 function makeTreeLo(name){const K=KITS[name];if(!K||K.lodP)return;const lo='lo_'+name;kit(lo,loTreeGeo(K.mesh.geometry,TREE_LO[name]),modelTreeMat(),K.max,false);KITS[lo].pn=0;K.lodP=lo;LOD_KITS.push(lo)}
 TREE_LO.hamA=TREE_LO.hamB='round';for(const n of ['hamA','hamB','conifer','broad','townTree','palm','bush'])makeTreeLo(n);
 {const _ps=prepStatic;prepStatic=function(name,g){const r=_ps.apply(this,arguments);if(TREE_LO['s_'+name])makeTreeLo('s_'+name);return r}}
@@ -520,7 +523,7 @@ kit('canopyR',canopyGeo(false),modelTreeMat(),12000,false);kit('canopyC',canopyG
 KITS.canopyR.revLod=KITS.canopyC.revLod=true;TREE_KITS.push('canopyR','canopyC');
 let CANOPY=new Uint8Array(1);
 const CANOPY_SRC=['hamA','hamB','conifer','broad','palm','s_tree_a','s_tree_b','s_tree_c','s_tree_d','s_bush_a','s_bush_b','s_bush_c'];
-const canopyDist=()=>Math.max(13,lodDist()*1.45);
+const canopyDist=()=>Math.max(13,lodDist()*1.45,treeLodDist()*1.5+4);
 function buildCanopies(){if(CANOPY.length!==N)CANOPY=new Uint8Array(N);else CANOPY.fill(0);kitReset(['canopyR','canopyC']);if(settings.canopy===false)return kitCommit(['canopyR','canopyC']);
   const cnt=new Uint16Array(N),con=new Uint16Array(N),top=new Float32Array(N),col=new Float32Array(N*3);
   for(const n of CANOPY_SRC){const K=KITS[n];if(!K||!K.cs)continue;for(let i=0;i<K.n;i++){const x=K.cs[i*4],y=K.cs[i*4+1],z=K.cs[i*4+2],r=K.cs[i*4+3],t=tileAt(x,z);if(t<0)continue;
