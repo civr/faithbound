@@ -14,6 +14,10 @@ services:
       ALLOW_SIGNUP: "true"
       # Optional: people need this code to create an account. Empty = no code.
       SIGNUP_CODE: ""
+      # "1" when Nginx Proxy Manager (or another proxy) sits in front, so sign-in limits see the real address. "0" if the port faces the internet directly.
+      TRUST_PROXY: "1"
+      # Space each account may use for saved worlds, in megabytes.
+      QUOTA_MB: "200"
     volumes:
       - faithbound-data:/data
 
