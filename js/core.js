@@ -98,6 +98,8 @@ const SPEEDS=[0,2,6,20];
 /* looks: lighting plus a full-screen grade. post: sat, con(trast), lift/gain (shadow and highlight tint), vig(nette), tilt (tilt-shift blur),
    line (ink outlines), poster (toon light bands), paper (parchment atlas), bloom, grain */
 const LOOKS={
+  hamlet:{label:'Hamlet',desc:'Painted pixel countryside: chunky pixels up close, a tilt-shift diorama from afar',pixel:1,sat:1.04,exposure:.9,tint:[66,92,46,.12],sun:0xfff0d6,sunI:2.1,hemiI:.85,fog:.8,lock:.2,
+    skyTop:0x9cc2dc,skyHor:0xe2ead8,post:{sat:.86,con:1.08,lift:[.014,.016,.006],gain:[1.03,1.01,.92],vig:.2,tilt:.9,tiltFar:1,ao:1,mist:.25,bloom:.06,grain:0}},
   manor:{label:'Manor',desc:'Soft natural daylight, hazy distance, lived-in countryside',sat:.9,exposure:.92,sun:0xfff0d8,sunI:1.75,hemiI:.7,fog:1.05,lock:-1,
     skyTop:0x8fb2d4,skyHor:0xd3dee4,post:{sat:.8,con:1.05,lift:[.01,.012,.012],gain:[1,.99,.95],vig:.32,bloom:.1,grain:0}},
   realistic:{label:'Realistic',desc:'Natural daylight, full day and night',sat:.95,exposure:.9,sun:0xfff1dd,sunI:2.3,hemiI:.7,fog:1.1,lock:-1,deep:0x123a52,shallow:0x3a8a92,
@@ -186,7 +188,7 @@ let year=0,belief=100,beliefRate=.8,climate={temp:.5,rain:.5},sea=.44,moistActiv
 let flags={warm:false,sail:false};
 let weatherDim=0,flashT=0;
 const account={online:false,user:null,signup:true,code:false,lastCloud:0,worlds:[]};
-let sizeKey='medium',lookKey='manor',LK=LOOKS.manor,speedIdx=1,tool='inspect',selected=-1,inspectTile=-1,selectedFaith=-1,warFrom=-1,unlimited=false,playing=false;
+let sizeKey='medium',lookKey='hamlet',LK=LOOKS.hamlet,speedIdx=1,tool='inspect',selected=-1,inspectTile=-1,selectedFaith=-1,warFrom=-1,unlimited=false,playing=false;
 const isMobile=matchMedia('(pointer:coarse)').matches;
 let settings={quality:isMobile?'medium':'high',shadows:true,daynight:true,borders:true,labels:true,people:true,disasters:'normal',arch:'classic'};
 try{const s=JSON.parse(localStorage.getItem('faithbound.settings')||'null');if(s)Object.assign(settings,s)}catch(e){}

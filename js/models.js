@@ -106,15 +106,23 @@ function modelTreeMat(){if(MTREE_MAT)return MTREE_MAT;const m=treeMat.clone();co
     #ifdef USE_INSTANCING_COLOR
     {float lf=1.-step(.025,abs(color.r-color.b));vColor.xyz*=mix(vec3(1.),instanceColor.xyz,lf);}
     #endif`)};m.customProgramCacheKey=()=>'mtree';return MTREE_MAT=m}
-const SMODEL_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85,metalness:0}),BWIN={uNight:{value:0}};
+const SMODEL_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85,metalness:0}),BWIN={uNight:{value:0},uEarth:{value:0}};
 /* windows glow after dark: the window parts of most houses light up warm, some stay dark */
-SMODEL_MAT.onBeforeCompile=sh=>{sh.uniforms.uNight=BWIN.uNight;
+SMODEL_MAT.onBeforeCompile=sh=>{sh.uniforms.uNight=BWIN.uNight;sh.uniforms.uEarth=BWIN.uEarth;
   sh.vertexShader='attribute float aPart;varying float vWin;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
     vWin=(aPart>6.5&&aPart<7.5)?1.:0.;
     #ifdef USE_INSTANCING
     {vec3 ip=vec3(instanceMatrix[3][0],instanceMatrix[3][1],instanceMatrix[3][2]);vWin*=step(.3,fract(sin(dot(ip.xz,vec2(12.9898,78.233)))*43758.5453));}
     #endif`);
-  sh.fragmentShader='uniform float uNight;varying float vWin;\n'+sh.fragmentShader.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n totalEmissiveRadiance+=vec3(1.,.72,.38)*vWin*uNight*1.8;')};
+  sh.fragmentShader='uniform float uNight,uEarth;varying float vWin;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+    /* earthy palette for the painted looks: bright teal, navy and red roofs become slate, thatch and weathered brown, khaki plaster turns to whitewash */
+    if(uEarth>0.){vec3 c=diffuseColor.rgb;float l=dot(c,vec3(.3,.59,.11)),mx=max(c.r,max(c.g,c.b)),mn=min(c.r,min(c.g,c.b)),sat=(mx-mn)/max(mx,.001);
+      float blu=smoothstep(.05,.22,(c.b-max(c.r,c.g*.8))/max(mx,.001)),red=smoothstep(.55,.78,(c.r-max(c.g,c.b))/max(mx,.001)),
+        kha=smoothstep(.04,.12,c.g-c.b)*smoothstep(.0,.05,c.r-c.g*.92)*smoothstep(.12,.3,l)*(1.-red);
+      vec3 slate=vec3(l*1.05,l*1.02,l*1.)*.9+.012,thatch=vec3(l*1.5,l*1.22,l*.8)+vec3(.03,.02,0.);
+      c=mix(c,mix(slate,thatch,smoothstep(.1,.22,l)),blu*.9);
+      c=mix(c,vec3(l*1.4,l*1.05,l*.75)+.01,red*.85);c=mix(c,vec3(.62,.58,.5)*(.75+l),kha*.55*uEarth);
+      diffuseColor.rgb=mix(diffuseColor.rgb,c,uEarth);}`).replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n totalEmissiveRadiance+=vec3(1.,.72,.38)*vWin*uNight*1.8;')};
 SMODEL_MAT.customProgramCacheKey=()=>'smodel';
 {const _sn=setNight;setNight=function(f){_sn(f);BWIN.uNight.value=f}}
 const VEH_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.5,metalness:.15});const VEH_KITS=[];
@@ -466,9 +474,12 @@ document.addEventListener('DOMContentLoaded',()=>{if(typeof updateAudio!=='funct
 
 /* ---------- forest blocks: far away, a whole wooded tile is drawn as one lumpy canopy instead of dozens of trees ---------- */
 function canopyGeo(cone){const P=[],C=[],put=(g,col)=>{g=g.index?g.toNonIndexed():g;const a=g.attributes.position.array;for(let i=0;i<a.length;i+=3){P.push(a[i],a[i+1],a[i+2]);C.push(...col)}};
-  const spots=[[0,0,1],[.28,.22,.82],[-.27,.25,.86],[.25,-.28,.8],[-.3,-.22,.9],[0,.36,.75],[.36,-.02,.78],[-.36,.04,.84],[.02,-.36,.8]];
-  const NR=[];for(const [x,z,hh] of spots){let g;const n0=P.length;if(cone){g=new THREE.ConeGeometry(.17,hh,6,1);g.translate(x,hh/2,z)}else{g=new THREE.IcosahedronGeometry(.5,1);g.scale(.42,hh*.62,.42);g.translate(x,hh*.62,z)}put(g,[.8,.8,.8]);
-    const cy=cone?hh*.35:hh*.62,sx=cone?.17:.21,sy=cone?hh*.7:hh*.31;for(let i=n0;i<P.length;i+=3){let nx=(P[i]-x)/(sx*sx),ny=(P[i+1]-cy)/(sy*sy)+(cone?.8/sy:0),nz=(P[i+2]-z)/(sx*sx);const l=Math.hypot(nx,ny,nz)||1;NR.push(nx/l,ny/l,nz/l)}}
+  /* crowns scattered over the whole tile and a little past its edge, so neighbouring blocks knit into one woodland with no grid showing;
+     each crown its own shade, so the canopy reads as many trees with dark gaps between them */
+  const spots=[];{let sd=7;const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;for(let t=0;spots.length<(cone?18:15)&&t<400;t++){const x=(rnd()-.5)*1.08,z=(rnd()-.5)*1.08;
+    if(spots.every(q=>Math.hypot(q[0]-x,q[1]-z)>(cone?.2:.24)))spots.push([x,z,.62+rnd()*.42,.62+rnd()*.34])}}
+  const NR=[];for(const [x,z,hh,sh] of spots){let g;const n0=P.length,rw=cone?.13:.17+hh*.05;if(cone){g=new THREE.ConeGeometry(rw,hh,6,1);g.translate(x,hh/2,z)}else{g=new THREE.IcosahedronGeometry(.5,0);g.scale(rw*2,hh*.6,rw*2);g.translate(x,hh*.66,z)}put(g,[sh,sh,sh]);
+    const cy=cone?hh*.35:hh*.66,sx=rw,sy=cone?hh*.7:hh*.3;for(let i=n0;i<P.length;i+=3){let nx=(P[i]-x)/(sx*sx),ny=(P[i+1]-cy)/(sy*sy)+(cone?.8/sy:0),nz=(P[i+2]-z)/(sx*sx);const l=Math.hypot(nx,ny,nz)||1;NR.push(nx/l,ny/l,nz/l)}}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(NR,3));return g}
 kit('canopyR',canopyGeo(false),modelTreeMat(),12000,false);kit('canopyC',canopyGeo(true),modelTreeMat(),12000,false);
 KITS.canopyR.revLod=KITS.canopyC.revLod=true;TREE_KITS.push('canopyR','canopyC');
@@ -480,8 +491,8 @@ function buildCanopies(){if(CANOPY.length!==N)CANOPY=new Uint8Array(N);else CANO
   for(const n of CANOPY_SRC){const K=KITS[n];if(!K||!K.cs)continue;for(let i=0;i<K.n;i++){const x=K.cs[i*4],y=K.cs[i*4+1],z=K.cs[i*4+2],r=K.cs[i*4+3],t=tileAt(x,z);if(t<0)continue;
     cnt[t]++;if(n==='conifer')con[t]++;top[t]+=y+r*.7;if(K.mc){col[t*3]+=K.mc[i*3];col[t*3+1]+=K.mc[i*3+1];col[t*3+2]+=K.mc[i*3+2]}else{col[t*3]+=.2;col[t*3+1]+=.3;col[t*3+2]+=.12}}}
   const c3=new THREE.Color();
-  for(let t=0;t<N;t++){const c=cnt[t];if(c<6)continue;const x=wx(t%W)+.5,z=wz((t/W)|0)+.5,gy=groundY(x,z);if(gy<waterY)continue;const hh=Math.max(.15,top[t]/c-gy),cov=Math.min(1.05,.55+c/40);
-    c3.setRGB(col[t*3]/c,col[t*3+1]/c,col[t*3+2]/c);c3.convertLinearToSRGB();add(con[t]*2>c?'canopyC':'canopyR',x,gy-.01,z,cov,hh,cov,hash(t*3.1)*6.28,c3.getHex());CANOPY[t]=1}
+  for(let t=0;t<N;t++){const c=cnt[t];if(c<6)continue;const x=wx(t%W)+.5,z=wz((t/W)|0)+.5,gy=groundY(x,z);if(gy<waterY)continue;const hh=Math.max(.15,top[t]/c-gy),cov=Math.min(1.08,.7+c/36);
+    c3.setRGB(col[t*3]/c,col[t*3+1]/c,col[t*3+2]/c);c3.convertLinearToSRGB();add(con[t]*2>c?'canopyC':'canopyR',x+(hash(t*5.3)-.5)*.16,gy-.01,z+(hash(t*7.1)-.5)*.16,cov,hh*(.9+hash(t*2.3)*.2),cov,hash(t*3.1)*6.28,c3.getHex());CANOPY[t]=1}
   kitCommit(['canopyR','canopyC'])}
 {const _rt=rebuildTrees;rebuildTrees=function(){const r=_rt.apply(this,arguments);try{buildCanopies()}catch(e){console.warn('canopy',e)}return r}}
 /* in the cull: trees on a blocked tile vanish beyond the canopy distance, and the canopy itself only shows out there */
