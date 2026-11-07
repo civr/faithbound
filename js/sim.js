@@ -126,9 +126,9 @@ function bestSite(A,x,y,r){let best=-1,bs=-1;for(let dy=-r;dy<=r;dy++)for(let dx
   if(owner[j]!==A.id)continue;const sc=siteScore(j);if(sc>bs){bs=sc;best=j}}return best}
 /* rivers and ridges slow a nation down, so borders tend to settle on them */
 function terrFactor(i,j){let f=1;if((river[i]>0)!==(river[j]>0))f*=.3;if(tslope.length===N)f*=clamp(1.25-tslope[j]*.9,.2,1);if(biome[j]===11||biome[j]===12)f*=.35;return f}
-function maybeCity(A,x,y,j){if(rng()>.07)return;j=bestSite(A,x,y,1);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,3))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year});propsDirty=true;
+function maybeCity(A,x,y,j){if(rng()>.03)return;j=bestSite(A,x,y,1);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,5))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year});propsDirty=true;
   if(!milestones.has('city2')){milestone('city2','A second city rises','The '+A.name+' founded a new town.')}}
-function foundTown(A,x,y,j){if((A.tiles/Math.max(1,A.cities.length))<9)return;j=bestSite(A,x,y,2);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,3))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year});propsDirty=true}
+function foundTown(A,x,y,j){if((A.tiles/Math.max(1,A.cities.length))<18)return;j=bestSite(A,x,y,2);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,5))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year});propsDirty=true}
 const mil=n=>n.pop/Math.max(1,n.tiles)*ERAS[n.era].mil*ten(n).mil*(n.gpMil||1)*(n.bless>0?1.3:1)*(n.hero&&n.hero.until>year?1.6:1);
 /* ---------- alliances: sworn friends join each other's wars ---------- */
 const allied=(a,b)=>!!(a.allies&&a.allies.includes(b.id));
@@ -402,7 +402,7 @@ function tick(){
     n.pop+=n.pop*.035*[.6,.68,.76,.82,.88,.95,1,1][n.era]*t.grow*stabGrow(n)*(.85+.3*(n.happy??.6))*(n.bless>0?1.8:1)*(n.festival>0?1.25:1)*(1-n.pop/n.cap);
     /* settlers: a people with room to spare sends families out to found small villages inside its own lands */
     if(n.tiles/Math.max(1,n.cities.length)>=10&&n.pop>n.cities.length*12&&rng()<.03){const c0=n.cities[(rng()*n.cities.length)|0];
-      for(let q=0;q<6;q++){const x=c0.x+Math.round((rng()-.5)*10),y=c0.y+Math.round((rng()-.5)*10);if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]===n.id&&!nearCity(x,y,3)&&hab[j]>.3){const k=n.cities.length;foundTown(n,x,y,j);if(n.cities.length>k){if(rng()<.25)log(`Settlers from ${c0.name} founded ${n.cities[k].name}.`,'');break}}}}
+      for(let q=0;q<6;q++){const x=c0.x+Math.round((rng()-.5)*10),y=c0.y+Math.round((rng()-.5)*10);if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]===n.id&&!nearCity(x,y,5)&&hab[j]>.3){const k=n.cities.length;foundTown(n,x,y,j);if(n.cities.length>k){if(rng()<.25)log(`Settlers from ${c0.name} founded ${n.cities[k].name}.`,'');break}}}}
     if(n.plague>0){n.plague--;n.pop*=.975}
     if(n.wars.size)n.pop*=1-.002*n.wars.size;
     n.pop=Math.max(2,n.pop);worldPop+=n.pop;
@@ -426,7 +426,7 @@ function tick(){
   for(let k=0;k<K;k++){
     const i=(rng()*N)|0,a=owner[i];if(a<0)continue;
     const x=i%W,y=(i/W)|0,d=(rng()*4)|0,X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;
-    const j=Y*W+X,b=owner[j],A=nations[a];if(b===a){if(rng()<.004&&A.pop>A.cities.length*15)foundTown(A,x,y,i);continue}
+    const j=Y*W+X,b=owner[j],A=nations[a];if(b===a){if(rng()<.004&&A.pop>A.cities.length*30)foundTown(A,x,y,i);continue}
     if(b<0){if(hab[j]<.1)continue;const pr=A.pop/A.cap;if(rng()<hab[j]*.4*(pr>.6?1:.2)*ten(A).exp*(1+A.era*.08)*terrFactor(i,j)){claim(j,a);maybeCity(A,X,Y,j)}continue}
     A.nb.add(b);const B=nations[b];
     if(A.wars.has(b)){if(A.front.length<60)A.front.push(i);if(B.front.length<60)B.front.push(j);
