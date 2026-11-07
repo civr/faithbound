@@ -97,27 +97,10 @@ const SPEEDS=[0,2,6,20];
 /* ---------- looks (colour grades on one realistic renderer) ---------- */
 /* looks: lighting plus a full-screen grade. post: sat, con(trast), lift/gain (shadow and highlight tint), vig(nette), tilt (tilt-shift blur),
    line (ink outlines), poster (toon light bands), paper (parchment atlas), bloom, grain */
+/* one look only: the painted pixel countryside */
 const LOOKS={
-  hamlet:{label:'Hamlet',desc:'Painted pixel countryside: chunky pixels up close, a tilt-shift diorama from afar',pixel:1,sat:1.04,exposure:.9,tint:[66,92,46,.12],sun:0xfff0d6,sunI:2.1,hemiI:.85,fog:.8,lock:.2,
-    skyTop:0x9cc2dc,skyHor:0xe2ead8,post:{sat:.86,con:1.08,lift:[.014,.016,.006],gain:[1.03,1.01,.92],vig:.2,tilt:.9,tiltFar:1,ao:1,mist:.25,bloom:.06,grain:0}},
-  manor:{label:'Manor',desc:'Soft natural daylight, hazy distance, lived-in countryside',sat:.9,exposure:.92,sun:0xfff0d8,sunI:1.75,hemiI:.7,fog:1.05,lock:-1,
-    skyTop:0x8fb2d4,skyHor:0xd3dee4,post:{sat:.8,con:1.05,lift:[.01,.012,.012],gain:[1,.99,.95],vig:.32,bloom:.1,grain:0}},
-  realistic:{label:'Realistic',desc:'Natural daylight, full day and night',sat:.95,exposure:.9,sun:0xfff1dd,sunI:2.3,hemiI:.7,fog:1.1,lock:-1,deep:0x123a52,shallow:0x3a8a92,
-    skyTop:0x5d93cf,skyHor:0xcfe3ee,post:{sat:1.06,con:1.06,lift:[0,.005,.015],gain:[1.02,1,.98],vig:.3,bloom:.18,grain:0}},
-  golden:{label:'Golden Hour',desc:'Warm low sun, long shadows, glowing haze',sat:1.05,exposure:.95,sun:0xffc98a,sunI:2.6,hemiI:.75,fog:1.2,lock:.09,
-    skyTop:0x6f86b8,skyHor:0xf3c79a,post:{sat:1.12,con:1.08,lift:[.03,.01,0],gain:[1.1,1,.85],vig:.45,bloom:.55,grain:0}},
-  overcast:{label:'Northern',desc:'Cold, muted, misty fjord light',sat:.78,exposure:.95,sun:0xe6eef7,sunI:1.6,hemiI:1.15,fog:1.6,lock:-1,
-    skyTop:0x8a9db0,skyHor:0xd8dee3,post:{sat:.62,con:1.14,lift:[.02,.035,.06],gain:[.92,.98,1.05],vig:.5,bloom:.1,grain:0}},
-  miniature:{label:'Miniature',desc:'Tilt-shift model village, shallow focus',sat:1.22,exposure:.95,sun:0xfff6e8,sunI:2.6,hemiI:1,fog:.5,lock:.22,
-    skyTop:0x67b3ea,skyHor:0xdff1f8,post:{sat:1.3,con:1.1,lift:[0,0,0],gain:[1.03,1.01,.97],vig:.25,tilt:1,bloom:.2,grain:0}},
-  stillwater:{label:'Still Water',desc:'Pastel haze, soft light, a calm lilac sky',sat:1,exposure:.84,sun:0xfff0e6,sunI:1.8,hemiI:.9,fog:.75,lock:.2,flat:1,tint:[190,214,186,.16],deep:0x4f8fa6,shallow:0x9fd6cc,
-    skyTop:0xc4c0e6,skyHor:0xf5e2d8,post:{sat:.92,con:1,lift:[.02,.015,.035],gain:[1.01,.98,1.02],vig:.14,bloom:.15,grain:0}},
-  lantern:{label:'Lantern Dusk',desc:'A long blue hour, towns glowing amber',sat:.92,exposure:1.05,sun:0xffae6e,sunI:1.5,hemiI:1,fog:1.3,lock:.499,tint:[60,70,110,.18],deep:0x081830,shallow:0x1a4660,
-    skyTop:0x1d2650,skyHor:0x8a6f8e,post:{sat:.95,con:1.04,lift:[0,.012,.045],gain:[1.05,.98,1],vig:.38,bloom:.65,grain:0}},
-  clay:{label:'Clay Garden',desc:'Warm matte toy world, soft and bright',sat:1.25,exposure:.88,sun:0xfff2df,sunI:2,hemiI:1.05,fog:.75,lock:.2,tint:[240,214,170,.1],deep:0x3a88b4,shallow:0x86cfe4,
-    skyTop:0x9fd3ea,skyHor:0xfff0dc,post:{sat:1.12,con:.96,lift:[.025,.02,.012],gain:[1.03,1,.95],vig:.16,bloom:.1,grain:0}},
-  storybook:{label:'Storybook',desc:'Ink outlines and soft painted colour bands',sat:1.15,exposure:1.05,sun:0xfff4e0,sunI:2.3,hemiI:1.25,fog:.7,lock:.2,
-    skyTop:0x8cc6ea,skyHor:0xf6ecd8,post:{sat:1.12,con:.96,lift:[.06,.05,.04],gain:[1,.99,.96],vig:.2,line:1,poster:5,bloom:.1,grain:0}}};
+  hamlet:{label:'Hamlet',desc:'Painted pixel countryside: chunky pixels up close, a tilt-shift diorama from afar',pixel:1,sat:1.04,exposure:.9,tint:[66,92,46,.12],sun:0xfff0d6,sunI:2.1,hemiI:.85,fog:.8,lock:-1,
+    skyTop:0x9cc2dc,skyHor:0xe2ead8,post:{sat:.86,con:1.08,lift:[.014,.016,.006],gain:[1.03,1.01,.92],vig:.2,tilt:.9,tiltFar:1,ao:1,mist:.25,bloom:.06,grain:0}}};
 
 
 /* ---------- tech tree ---------- */

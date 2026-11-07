@@ -293,9 +293,8 @@ function renderSheet(full){const B=$('#sheetBody');if(!sheetPanel)return;
       <p class="note">Factories in the Industrial and Modern ages warm the world. Warm seas rise and swallow coasts; cold freezes the poles.</p></div>
       <div class="sec"><h4>Pace of history</h4><div id="paceBox2"></div></div>
       <div class="sec"><h4>Disasters now</h4><div class="list" id="disList"></div></div>
-      <div class="sec"><h4>State of the world</h4><div class="kv" id="worldStats"></div></div>
-      <div class="sec"><h4>Look</h4><div class="looks" id="looks2"></div></div>`;
-    if(full){renderPaceBox('#paceBox2');$('#tempR').value=Math.round(climate.temp*100);$('#rainR').value=Math.round(climate.rain*100);renderLooks('#looks2')}
+      <div class="sec"><h4>State of the world</h4><div class="kv" id="worldStats"></div></div>`;
+    if(full){renderPaceBox('#paceBox2');$('#tempR').value=Math.round(climate.temp*100);$('#rainR').value=Math.round(climate.rain*100)}
     $('#tempO').textContent=(14+(climate.temp-.5)*24).toFixed(1)+' °C';$('#rainO').textContent=Math.round(40+climate.rain*120)+'%';
     const s=Math.round((sea-.44)*900);$('#seaO').textContent=(s>=0?'+':'')+s+' m';{const em=climate.emis||0,wm=climate.temp-(worldOpts.t0??.5);if($('#smokeO'))$('#smokeO').textContent=em<=0?'Clean':em<2e4?'A little':em<1e5?'Heavy':'Choking';if($('#warmO'))$('#warmO').textContent=(wm>=0?'+':'')+(wm*20).toFixed(1)+' °C'}
     const hr=(dayT*24+6)%24;$('#todO').textContent=`${String(Math.floor(hr)).padStart(2,'0')}:${String(Math.floor(hr%1*60)).padStart(2,'0')}`;
@@ -448,10 +447,10 @@ function openGov(n){govFor=n.id;const opts=govOptions(n);
 function renderArchs(sel){const el=$(sel);if(!el)return;el.innerHTML=Object.keys(ARCH).map(k=>`<button data-arch="${k}" aria-pressed="${k===(settings.arch||'classic')}"><b>${ARCH[k].label}</b><small>${ARCH[k].desc}</small></button>`).join('')}
 function applyArch(k){settings.arch=k;saveSettings();propsDirty=true;lastProps=-1e9}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-arch]');if(!b)return;applyArch(b.dataset.arch);renderArchs('#'+b.parentElement.id)});
-function renderLooks(sel){$(sel).innerHTML=Object.keys(LOOKS).map(k=>`<button data-look="${k}" aria-pressed="${k===lookKey}"><b>${LOOKS[k].label}</b><small>${LOOKS[k].desc}</small></button>`).join('')}
+function renderLooks(sel){if(!$(sel))return;$(sel).innerHTML=Object.keys(LOOKS).map(k=>`<button data-look="${k}" aria-pressed="${k===lookKey}"><b>${LOOKS[k].label}</b><small>${LOOKS[k].desc}</small></button>`).join('')}
 const UIS=[['brass','Dark brass'],['navy','Imperial blue'],['parchment','Parchment'],['marble','Marble'],['frost','Frost'],['night','Night'],['clay','Clay']];
 function applyUI(k){settings.ui=k;document.body.classList.remove('ui-navy','ui-parchment','ui-marble','ui-frost','ui-night','ui-clay');if(k!=='brass')document.body.classList.add('ui-'+k);saveSettings()}
-applyUI(settings.ui||'parchment');
+settings.ui='parchment';settings.arch='classic';applyUI('parchment');
 function lookRoads(){if(typeof BWIN!=='undefined')BWIN.uEarth.value=LK.pixel?1:0;if(typeof TREEU!=='undefined')TREEU.uEarth.value=LK.pixel?1:0;if(typeof ROADMATS!=='undefined'){ROADMATS[0].color.setRGB(...(LK.pixel?[.72,.62,.5]:[1,1,1]));ROADMATS[1].color.setRGB(...(LK.pixel?[.8,.78,.74]:[1,1,1]))}}
 function applyLook(k){lookKey=k;LK=LOOKS[k];if(VY)colorTerrain();lookRoads();if(typeof propsDirty!=='undefined')propsDirty=true;lastEnv=-1e9;settings.look=k;saveSettings();if(typeof resize==='function')resize()}
 
@@ -631,7 +630,7 @@ function openSetup(){renderWorldSliders();$('#titleMain').hidden=true;$('#setup'
   $$('#sizeSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.size===sizeKey));renderLooks('#looks');renderArchs('#archs');
   $$('#climSeg button').forEach(b=>b.setAttribute('aria-pressed',Math.abs(+b.dataset.c-climate.temp)<.02))}
 $('#sizeSeg').onclick=e=>{const b=e.target.closest('[data-size]');if(!b)return;sizeKey=b.dataset.size;genWorld();updateHUD();openSetup()};
-$('#looks').onclick=e=>{const b=e.target.closest('[data-look]');if(b){applyLook(b.dataset.look);renderLooks('#looks')}};
+if($('#looks'))$('#looks').onclick=e=>{const b=e.target.closest('[data-look]');if(b){applyLook(b.dataset.look);renderLooks('#looks')}};
 $('#climSeg').onclick=e=>{const b=e.target.closest('[data-c]');if(!b)return;climate.temp=+b.dataset.c;terrainDirty=true;openSetup()};
 /* ---------- pace controls (setup and World panel) ---------- */
 function renderPaceBox(sel){const o=worldOpts,el=$(sel);if(!el)return;
@@ -710,13 +709,12 @@ $('#modalBox').addEventListener('click',e=>{const b=e.target.closest('[data-dip]
 function openSettings(){setTimeout(()=>$('#modalBox').classList.add('setbox'),0);const t=(k,label,v)=>`<label class="tog">${label}<input type="checkbox" data-set="${k}" ${v?'checked':''}></label>`;
   openModal(`<h2>Settings</h2><div class="setcols"><div class="setcol"><div class="sec"><span class="lab">Graphics quality</span><div class="seg">${['low','medium','high'].map(q=>`<button data-q="${q}" aria-pressed="${settings.quality===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div>
     <p class="note">Lower quality draws fewer trees and smaller shadows. Use it on older phones.</p></div>
-    <div class="sec"><span class="lab">Interface</span><div class="seg">${UIS.map(([k,l])=>`<button data-ui="${k}" aria-pressed="${(settings.ui||'parchment')===k}">${l}</button>`).join('')}</div></div>
     <div class="sec"><span class="lab">Power</span><div class="seg">${[['saver','Battery saver'],['balanced','Balanced'],['max','Maximum']].map(([k,l])=>`<button data-pow="${k}" aria-pressed="${(settings.power||'balanced')===k}">${l}</button>`).join('')}</div>
     <p class="note">Balanced runs at 60 frames a second while you move the view and 30 when it is still, at a slightly lower resolution on sharp screens. Battery saver halves that again with fewer pixels, so laptops stay cool and quiet. Maximum has no limits and the sharpest shadows.</p></div>
     <div class="sec"><span class="lab">World mood</span><div class="seg">${['calm','lively','turbulent'].map(q=>`<button data-mood="${q}" aria-pressed="${(settings.mood||'calm')===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div><p class="note">How much happens at once. Calm keeps wars, prayers, plagues and choices rare.</p></div>
     <div class="sec"><span class="lab">Disasters</span><div class="seg">${['off','mild','normal','wild'].map(q=>`<button data-dis="${q}" aria-pressed="${(settings.disasters||'normal')===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div>
     <p class="note">Storms, wildfires, famine, epidemics, earthquakes and eruptions. Your own powers always work.</p></div>
-    <div class="sec">${t('shadows','Shadows',settings.shadows)}${t('daynight','Day and night cycle',settings.daynight)}${t('borders','Territory borders',settings.borders)}${t('labels','Nation names',settings.labels)}${t('people','People walking around',settings.people)}${t('models','3D models (houses, trees, animals, vehicles)',settings.models!==false)}${t('clouds','Clouds',settings.clouds!==false)}${t('seasons','Seasons (snow in winter, golden autumns)',settings.seasons!==false)}${t('post','Look effects (outlines, focus blur, grading)',settings.post!==false)}${t('pixel','Pixel art up close (Hamlet look, also faster)',settings.pixel!==false)}${t('autoPerf','Adjust detail automatically to keep it smooth',settings.autoPerf!==false)}${typeof perfNote==='function'?`<p class="note">${perfNote()}</p>`:''}${t('fps','Show frame rate',!!settings.fps)}${t('events','Choice events (peoples ask you to decide)',settings.events!==false)}${t('unlimited','Sandbox: unlimited belief',unlimited)}</div>
+    <div class="sec">${t('shadows','Shadows',settings.shadows)}${t('daynight','Day and night cycle',settings.daynight)}${t('borders','Territory borders',settings.borders)}${t('labels','Nation names',settings.labels)}${t('people','People walking around',settings.people)}${t('models','3D models (houses, trees, animals, vehicles)',settings.models!==false)}${t('clouds','Clouds',settings.clouds!==false)}${t('seasons','Seasons (snow in winter, golden autumns)',settings.seasons!==false)}${t('post','Look effects (outlines, focus blur, grading)',settings.post!==false)}${t('autoPerf','Adjust detail automatically to keep it smooth',settings.autoPerf!==false)}${typeof perfNote==='function'?`<p class="note">${perfNote()}</p>`:''}${t('fps','Show frame rate',!!settings.fps)}${t('events','Choice events (peoples ask you to decide)',settings.events!==false)}${t('unlimited','Sandbox: unlimited belief',unlimited)}</div>
     </div><div class="setcol"><div class="sec"><span class="lab">Sound</span>${t('mute','Mute all sound',settings.mute)}
       <span class="lab" style="margin-top:8px;display:block">Music</span><div class="seg">${[['peaceful','Peaceful'],['fairytale','Fairy tale'],['anthem','Anthem'],['cinematic','Cinematic'],['calm','Calm'],['epic','Epic'],['cozy','Cozy'],['classic','Classic'],['off','Off']].map(([k,l])=>`<button data-mus="${k}" aria-pressed="${(settings.music||'peaceful')===k}">${l}</button>`).join('')}</div>
       <p class="note">Peaceful: slow, soft piano over warm strings, always calm. Fairy tale: a waltz with a music box, harp and sparkling bells; darker and faster in war. Anthem: one main theme like a Civilization score; the band grows with every age, war makes it faster and darker. Cinematic: slow organ swells, a ticking pulse and deep drones; it quickens in war and races in a world war. Calm: slow pads and bells. Epic: strings, horns and timpani. Cozy: harp, soft piano and flute. Classic: the old music, a different band for each age.</p>
@@ -724,9 +722,8 @@ function openSettings(){setTimeout(()=>$('#modalBox').classList.add('setbox'),0)
       <p class="note">Sound starts after your first click. Ambience follows the camera: waves on the coast, birds in the woods, crowds in town.</p></div>
     <div class="sec"><span class="lab">Pop-up messages</span>${MSGKINDS.map(([k,l])=>`<label class="tog">${l}<input type="checkbox" data-msg="${k}" ${(settings.msgs||{})[k]!==false?'checked':''}></label>`).join('')}<label class="tog">Everything else<input type="checkbox" data-msg="other" ${(settings.msgs||{}).other!==false?'checked':''}></label>
       <p class="note">Everything still goes into the Chronicle. The same message is shown at most once every 20 seconds.</p></div>
-    </div></div><div class="sec"><span class="lab">Look</span><div class="looks" id="looks3"></div></div>
-    <div class="sec"><span class="lab">Building style</span><div class="looks" id="archs3"></div></div>
-    <div class="row"><div class="flex"></div><button class="btn primary" data-p="back">Done</button></div>`);renderLooks('#looks3');renderArchs('#archs3')}
+    </div></div>
+    <div class="row"><div class="flex"></div><button class="btn primary" data-p="back">Done</button></div>`)}
 function openHelp(){openModal(`<h2>How to play</h2><div class="help">
   <p>You are a god watching over a young world. <b>Tribes</b> grow into nations on their own, found cities, and advance through eight ages, from the Stone Age to the Future.</p>
   <p><b>Belief</b> pays for your powers. You earn a little on your own, and much more when nations follow a faith you revealed. Open <b>Faiths</b> to design one: name, symbol, colour and two tenets.</p>
@@ -815,7 +812,7 @@ function frameBody(now){
 
 /* ---------- start ---------- */
 if(settings.lookV!==3){settings.lookV=3;settings.look='hamlet';saveSettings()}
-if(settings.look&&LOOKS[settings.look]){lookKey=settings.look;LK=LOOKS[lookKey]}lookRoads();document.addEventListener('DOMContentLoaded',lookRoads);
+settings.look='hamlet';lookKey='hamlet';LK=LOOKS.hamlet;lookRoads();document.addEventListener('DOMContentLoaded',lookRoads);
 resize();applyGraphics();genWorld();renderTitle();probeAccount();try{if(sessionStorage.getItem('fb.resume')){sessionStorage.removeItem('fb.resume');if(loadGame())startPlaying(false)}}catch(e){}
 requestAnimationFrame(frame);
 setTimeout(()=>{if(/^#view=/.test(location.hash))openSharedFromHash()},300);
