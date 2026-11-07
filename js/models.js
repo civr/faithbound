@@ -77,8 +77,8 @@ function prepModel(name,gltf){const d=Object.assign({},MODEL_DEFS[name],MODEL_FI
 /* ---------- static models: trees, rocks, buildings, landmarks and vehicles, each one an instanced kit ----------
    tree: leaves take the instance colour (so every biome and season tints them), the trunk keeps its own; wind and photo leaves as the other trees.
    unit: squeezed into a 1x1x1 box standing on the ground, so add(name,x,y,z,w,h,d) places it at exactly that size and its footprint is solid. */
-const SMODEL={tree_a:{k:'tree',h:1.05,max:6000},tree_b:{k:'tree',h:.95,max:6000},tree_d:{k:'tree',h:1.1,max:6000},
-  tree_c:{k:'tree',h:1.1,max:9000},bush_a:{k:'tree',h:.95,max:9000},bush_b:{k:'tree',h:1,max:9000},bush_c:{k:'tree',h:.9,max:9000},
+const SMODEL={tree_a:{k:'tree',h:1.05,max:16000},tree_b:{k:'tree',h:.95,max:16000},tree_d:{k:'tree',h:1.1,max:16000},
+  tree_c:{k:'tree',h:1.1,max:16000},bush_a:{k:'tree',h:.95,max:14000},bush_b:{k:'tree',h:1,max:14000},bush_c:{k:'tree',h:.9,max:14000},
   car1:{k:'veh',len:.05,max:400},car2:{k:'veh',len:.05,max:400},suv:{k:'veh',len:.054,max:400},sports1:{k:'veh',len:.05,max:300},sports2:{k:'veh',len:.05,max:300},taxi:{k:'veh',len:.05,max:300},cop:{k:'veh',len:.05,max:200},
   bus:{k:'veh',len:.08,max:200},schoolbus:{k:'veh',len:.075,max:100},
   loco_front:{k:'veh',len:.1,max:60},loco_tender:{k:'veh',len:.055,max:60},loco_wagon:{k:'veh',len:.09,max:180},hs_front:{k:'veh',len:.12,max:60},hs_wagon:{k:'veh',len:.1,max:180},
@@ -144,7 +144,7 @@ function prewarmShaders(){try{if(typeof renderer!=='undefined'&&typeof cam!=='un
 const sOn=name=>settings.models!==false&&!!MDL.ready[name];
 /* which kit draws a tree of this kind: the model when it has loaded, the old shape otherwise */
 const NAT_SETS={broad:['bush_a','bush_b','tree_c','bush_c'],acacia:['tree_a','tree_b','tree_d'],rock:['rock_a','rock_b','rock_c']};
-function natKit(kind,hv){const L=NAT_SETS[kind];if(L){const n=L[Math.floor(((hv*7.31)%1)*L.length)];if(sOn(n))return 's_'+n}return kind==='acacia'?'broad':kind}
+function natKit(kind,hv){if(LK.pixel&&kind==='broad')return ((hv*5.17)%1)<.62?'hamA':'hamB';const L=NAT_SETS[kind];if(L){const n=L[Math.floor(((hv*7.31)%1)*L.length)];if(sOn(n))return 's_'+n}return kind==='acacia'?'broad':kind}
 /* a building model fitted inside a w x d plot, keeping its own proportions; it stands as a solid thing like any other house */
 function addB(name,x,y,z,w,d,rot,hex,hs){if(!sOn(name))return false;const [a,b,c]=MDL.info[name].d.dim,s=Math.min(w/a,d/c);add('s_'+name,x,y,z,a*s,b*s*(hs||1),c*s,rot||0,hex==null?0xffffff:hex);return true}
 const pickH=(L,h)=>L[Math.floor(((h*9.73)%1)*L.length)];
@@ -349,9 +349,18 @@ document.addEventListener('DOMContentLoaded',()=>{if(typeof tradeTrainRoutes!=='
   return true}}
 
 /* ---------- far away, a building is drawn as a plain block of its own colour: the detail is invisible there and costs the most ---------- */
-kit('lodBox',(()=>{const g=new THREE.BoxGeometry(1,1,1);g.translate(0,.5,0);return g})(),new THREE.MeshStandardMaterial({roughness:.9}),40000,false);
+/* the far-away stand-in is a little house (walls and a pitched roof, the roof darker), so distant towns still read as villages, not blocks */
+kit('lodBox',(()=>{const P=[],C=[],q=(a,b,c,col)=>{P.push(...a,...b,...c);for(let k=0;k<3;k++)C.push(...col)};const W=[1,1,1],R=[.58,.5,.42],G=[.86,.84,.8];
+  const x0=-.5,x1=.5,z0=-.5,z1=.5,y0=0,y1=.56,y2=1;
+  /* walls */q([x0,y0,z1],[x1,y0,z1],[x1,y1,z1],W);q([x0,y0,z1],[x1,y1,z1],[x0,y1,z1],W);q([x1,y0,z0],[x0,y0,z0],[x0,y1,z0],W);q([x1,y0,z0],[x0,y1,z0],[x1,y1,z0],W);
+  q([x1,y0,z1],[x1,y0,z0],[x1,y1,z0],W);q([x1,y0,z1],[x1,y1,z0],[x1,y1,z1],W);q([x0,y0,z0],[x0,y0,z1],[x0,y1,z1],W);q([x0,y0,z0],[x0,y1,z1],[x0,y1,z0],W);
+  /* gable ends */q([x0,y1,z1],[x1,y1,z1],[0,y2,z1],G);q([x1,y1,z0],[x0,y1,z0],[0,y2,z0],G);
+  /* roof, with a small overhang */const o=.06;q([x1+o,y1-.04,z1+o],[x1+o,y1-.04,z0-o],[0,y2,z0-o],R);q([x1+o,y1-.04,z1+o],[0,y2,z0-o],[0,y2,z1+o],R);
+  q([x0-o,y1-.04,z0-o],[x0-o,y1-.04,z1+o],[0,y2,z1+o],R);q([x0-o,y1-.04,z0-o],[0,y2,z1+o],[0,y2,z0-o],R);
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.computeVertexNormals();return g})(),
+  new THREE.MeshStandardMaterial({roughness:.9,vertexColors:true}),40000,false);
 const LODP={stamp:-1,n:0};const _lodM=new THREE.Matrix4(),_lodC=new THREE.Color();
-const lodDist=()=>(settings.power==='saver'?6.5:settings.power==='max'?13:settings.quality==='low'?6.5:9)*(typeof PERF!=='undefined'&&perfOn()?PERF.lodK:1);
+const lodDist=()=>(settings.power==='saver'?6.5:settings.power==='max'?13:settings.quality==='low'?6.5:9)*(typeof PERF!=='undefined'&&perfOn()?PERF.lodK:1)*(LK.pixel?1.35:1);
 {const _ck=cullKit;cullKit=function(K,P,margin){if(!K.lodC)return _ck(K,P,margin);
   if(LODP.stamp!==CULLK.last){LODP.stamp=CULLK.last;LODP.n=0}const LK=KITS.lodBox,LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,avg=K.avg,LD2=lodDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
   const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
@@ -395,7 +404,7 @@ function loTreeGeo(src,type){src.computeBoundingBox();const b=src.boundingBox,y0
 const LOD_KITS=['lodBox'];
 const treeLodDist=()=>Math.max(7,lodDist()*.75);
 function makeTreeLo(name){const K=KITS[name];if(!K||K.lodP)return;const lo='lo_'+name;kit(lo,loTreeGeo(K.mesh.geometry,TREE_LO[name]),modelTreeMat(),K.max,false);KITS[lo].pn=0;K.lodP=lo;LOD_KITS.push(lo)}
-for(const n of ['conifer','broad','townTree','palm','bush'])makeTreeLo(n);
+TREE_LO.hamA=TREE_LO.hamB='round';for(const n of ['hamA','hamB','conifer','broad','townTree','palm','bush'])makeTreeLo(n);
 {const _ps=prepStatic;prepStatic=function(name,g){const r=_ps.apply(this,arguments);if(TREE_LO['s_'+name])makeTreeLo('s_'+name);return r}}
 /* trees switch to their simple crowns closer in than buildings do, since a forest is thousands of them */
 {const _ck2=cullKit;cullKit=function(K,P,margin){if(!K.lodP)return _ck2(K,P,margin);
@@ -484,7 +493,7 @@ function canopyGeo(cone){const P=[],C=[],put=(g,col)=>{g=g.index?g.toNonIndexed(
 kit('canopyR',canopyGeo(false),modelTreeMat(),12000,false);kit('canopyC',canopyGeo(true),modelTreeMat(),12000,false);
 KITS.canopyR.revLod=KITS.canopyC.revLod=true;TREE_KITS.push('canopyR','canopyC');
 let CANOPY=new Uint8Array(1);
-const CANOPY_SRC=['conifer','broad','palm','s_tree_a','s_tree_b','s_tree_c','s_tree_d','s_bush_a','s_bush_b','s_bush_c'];
+const CANOPY_SRC=['hamA','hamB','conifer','broad','palm','s_tree_a','s_tree_b','s_tree_c','s_tree_d','s_bush_a','s_bush_b','s_bush_c'];
 const canopyDist=()=>Math.max(13,lodDist()*1.45);
 function buildCanopies(){if(CANOPY.length!==N)CANOPY=new Uint8Array(N);else CANOPY.fill(0);kitReset(['canopyR','canopyC']);if(settings.canopy===false)return kitCommit(['canopyR','canopyC']);
   const cnt=new Uint16Array(N),con=new Uint16Array(N),top=new Float32Array(N),col=new Float32Array(N*3);

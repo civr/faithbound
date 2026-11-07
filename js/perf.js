@@ -23,7 +23,7 @@ function applyTier(t){t=Math.max(0,Math.min(4,t));PERF.tier=t;
   if(typeof CULLK!=='undefined')CULLK.dirty=true;if(typeof treesDirty!=='undefined')treesDirty=true;if(typeof resize==='function')resize();
   if(typeof shadowForce!=='undefined')shadowForce=true}
 /* post effects (outlines, focus blur, colour grading) are full-screen passes: the first thing a laptop chip gives up */
-{const _pa=postActive;postActive=function(){return _pa()&&!(perfOn()&&PERF.tier>=(LK.soft?3:1))}}
+{const _pa=postActive;postActive=function(){return _pa()&&!(perfOn()&&PERF.tier>=(LK.pixel?3:1))}}
 /* (the painted look draws at a reduced resolution, so its effects stay affordable a few levels longer) */
 /* watch the frame rate */
 setInterval(()=>{if(!perfOn()||typeof frameEMA==='undefined'||typeof playing==='undefined'||!playing||document.hidden)return;

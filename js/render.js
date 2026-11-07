@@ -190,15 +190,19 @@ function focusOn(x,z,dist){camT.x=x;camT.z=z;if(dist)camDistT=dist}
 /* pixel looks: the scene is drawn at a lower resolution and the browser scales it up with hard edges. Like a sprite game, the pixels grow as
    the camera comes closer (whole device pixels each, so every pixel is the same size); far out it is close to full detail. It is also much cheaper to draw. */
 let pixN=0,pixWant=0,pixSince=0;
-function pixTarget(){return 0;const dev=devicePixelRatio||1,css=Math.min(2,7/Math.max(1,camDist));
-  /* only right up close does it turn to soft pixels, at most two screen pixels each; from a normal distance it is drawn at full detail */
-  if(css<1.4)return 0;return Math.max(2,Math.round(css*dev))}
+/* the painted look: soft pixels of a fixed size (about two screen pixels) at every zoom, so it never jumps between sharp and blocky */
+/* as in a painted pixel game: from a normal distance the scene is drawn slightly soft (smoothed up from a lower resolution);
+   only right up close does it turn into visible pixels, about two to three screen pixels each */
+function pixTarget(){if(!LK.pixel)return 0;const dev=devicePixelRatio||1,d=camDist,cur=pixN?pixN/dev:0;
+  let css=d<1.25?3:d<2.6?2:0;
+  /* a little slack around each step so a zoom that rests near the edge does not flip back and forth */
+  if(cur===3&&d<1.45)css=3;else if(cur===2&&d>1.1&&d<2.9)css=2;
+  return css?Math.max(2,Math.round(css*dev)):0}
 function pixTick(){const t=pixTarget(),now=performance.now();if(t===pixN){pixWant=t;return}
   if(t!==pixWant){pixWant=t;pixSince=now;return}if(now-pixSince>400)resize()}
 function resize(){const w=innerWidth,hh=innerHeight,dpr=Math.min(settings.power==='saver'?1:settings.power==='max'?(settings.quality==='high'?2:1.5):1.25,devicePixelRatio||1);
-  pixN=0;gl.style.imageRendering='';
-  /* the painted look draws at a slightly lower resolution and lets the browser smooth it up: softer edges, like a painting, and cheaper */
-  renderer.setPixelRatio((settings.quality==='low'?Math.min(1,dpr):dpr)*(typeof dynScale==='number'?dynScale:1)*(LK.soft||1));renderer.setSize(w,hh,false);
+  pixN=pixTarget();pixWant=pixN;gl.style.imageRendering=pixN?'pixelated':'';
+  renderer.setPixelRatio(pixN?(devicePixelRatio||1)/pixN:(settings.quality==='low'?Math.min(1,dpr):dpr)*(typeof dynScale==='number'?dynScale:1)*(LK.soft||1));renderer.setSize(w,hh,false);
   ov.width=Math.round(w*Math.min(2,devicePixelRatio||1));ov.height=Math.round(hh*Math.min(2,devicePixelRatio||1));
   cam.aspect=w/hh;cam.fov=w<hh?52:38;cam.updateProjectionMatrix()}
 
@@ -238,7 +242,7 @@ const WAVE_TEX=makeWaveTex();
 const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:0});
 const NOISE_GLSL=`varying vec3 vWP;float hn(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hn(i),hn(i+vec2(1,0)),f.x),mix(hn(i+vec2(0,1)),hn(i+vec2(1,1)),f.x),f.y);}`;
-const terrU={uLite:{value:0},uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30},uOwn:{value:null},uWar:{value:null},uMap:{value:new THREE.Vector2(1,1)},uTint:{value:0},uTime:{value:0},uPhoto:{value:0},
+const terrU={uHam:{value:0},uLite:{value:0},uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30},uOwn:{value:null},uWar:{value:null},uMap:{value:new THREE.Vector2(1,1)},uTint:{value:0},uTime:{value:0},uPhoto:{value:0},
   tG:{value:null},tD:{value:null},tS:{value:null},tR:{value:null},tW:{value:null},nG:{value:null},nR:{value:null},
   mG:{value:new THREE.Vector3(.57,.53,.36)},mD:{value:new THREE.Vector3(.5,.41,.35)},mS:{value:new THREE.Vector3(.62,.54,.51)},mR:{value:new THREE.Vector3(.43,.36,.2)},mW:{value:new THREE.Vector3(.53,.53,.58)}};
 /* photo-scanned ground (Poly Haven, CC0): grass, earth, sand, rock and snow, with normal maps for grass and rock */
@@ -249,9 +253,9 @@ const terrU={uLite:{value:0},uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0}
  for(const [k,f] of Object.entries(files))L.load('assets/textures/'+f+'.jpg',t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;terrU[k].value=t;done()},undefined,()=>{done()});}
 terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
-  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uLite;uniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;uniform float uPhoto;uniform sampler2D tG,tD,tS,tR,tW,nG,nR;uniform vec3 mG,mD,mS,mR,mW;\n'+NOISE_GLSL)
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uHam;uniform float uLite;uniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;uniform float uPhoto;uniform sampler2D tG,tD,tS,tR,tW,nG,nR;uniform vec3 mG,mD,mS,mR,mW;\n'+NOISE_GLSL)
    .replace('#include <color_fragment>',`#include <color_fragment>
-    float camD=length(vWP-cameraPosition),dfade=(1.-smoothstep(14.,52.,camD))*uPhoto*(1.-uLite);
+    float camD=length(vWP-cameraPosition),dfade=(1.-smoothstep(14.+uHam*26.,52.+uHam*68.,camD))*uPhoto*(1.-uLite);
     /* two scales of the same photo, turned against each other, so the tiling does not show */
     vec2 P1=vWP.xz*.42,P2=mat2(.8,-.6,.6,.8)*vWP.xz*.13+.37;vec4 bumpW=vec4(0.);
     float dn=vn(vWP.xz*11.)*.45+vn(vWP.xz*37.)*.3+vn(vWP.xz*2.7)*.25;diffuseColor.rgb*=.9+dn*.2;
@@ -262,6 +266,10 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
     vec3 mead=mix(lush,dry,smoothstep(.4,.8,p1*.6+p2*.4));mead*=.84+.3*p4;
     float bl=vn(vWP.xz*vec2(190.,60.))*.5+vn(vWP.xz*vec2(70.,210.))*.5;mead*=.96+bl*.08*dfade;
     diffuseColor.rgb=mix(diffuseColor.rgb,mead,gr*.85);}
+    /* the painted countryside: grass in irregular darker clumps and tussocks, so a meadow reads as real turf from any height */
+    if(uHam>0.){float hq1=vn(vWP.xz*1.45+vec2(3.1)),hq2=vn(vWP.xz*4.7+vec2(1.7)),hq3=vn(vWP.xz*17.),hq4=vn(vWP.xz*.38);
+      float clump=smoothstep(.48,.74,hq1*.55+hq2*.45);diffuseColor.rgb*=mix(1.,.68,clump*gr*uHam);
+      diffuseColor.rgb*=1.+(hq3-.5)*.34*gr*uHam;float hq5=vn(vWP.xz*41.+vec2(7.));diffuseColor.rgb*=1.+(hq5-.5)*.2*gr*uHam*(1.-smoothstep(4.,18.,camD));diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.12,1.06,.86),smoothstep(.55,.85,hq4)*gr*.5*uHam);}
     /* steep ground shows bare earth and rock */
     vec3 gn=normalize(cross(dFdx(vWP),dFdy(vWP)));float st=smoothstep(.62,.86,1.-abs(gn.y));
     vec3 rockC=mix(vec3(.075,.065,.05),vec3(.13,.12,.10),vn(vWP.xz*9.+vWP.y*3.));diffuseColor.rgb=mix(diffuseColor.rgb,rockC*(.85+dn*.3),st*.85*step(.01,vWP.y-uWaterY));
@@ -375,7 +383,7 @@ function colorTerrain(){
   const TC=new Float32Array(N*3),SOOT=new Float32Array(N);
   for(const n of nations){if(!n.alive||n.era<5||n.era>6)continue;const k_=n.era===5?1:.4;n.cities.forEach((c,ci)=>{const R2=(ci===0?3.2:2.2)+Math.min(2,n.pop/Math.max(1,n.cities.length)/600);
     for(let dy=-Math.ceil(R2);dy<=Math.ceil(R2);dy++)for(let dx=-Math.ceil(R2);dx<=Math.ceil(R2);dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d>R2)continue;const j=Y*W+X;SOOT[j]=Math.max(SOOT[j],k_*(1-d/R2))}})}
-  for(let i=0;i<N;i++){const c=typeof marshAt==='function'&&marshAt(i)?MARSH_C:GROUND[biome[i]],v=1-.1*hash(i*1.7);let r=c[0]*v,g=c[1]*v,b=c[2]*v;
+  const GRD=LK.ground||{};for(let i=0;i<N;i++){const c=typeof marshAt==='function'&&marshAt(i)?MARSH_C:GRD[biome[i]]||GROUND[biome[i]],v=1-.1*hash(i*1.7);let r=c[0]*v,g=c[1]*v,b=c[2]*v;
     if(typeof scorched!=='undefined'&&scorched&&scorched[i]>0&&!isWater(i)){const t=Math.min(1,scorched[i]/18)*.85;r=lerp(r,56,t);g=lerp(g,50,t);b=lerp(b,44,t)}
     if(SOOT[i]>0&&!isWater(i)){const t=SOOT[i]*.5;r=lerp(r,82,t);g=lerp(g,76,t);b=lerp(b,62,t)}
     TC[i*3]=r;TC[i*3+1]=g;TC[i*3+2]=b}
