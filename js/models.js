@@ -109,12 +109,20 @@ function modelTreeMat(){if(MTREE_MAT)return MTREE_MAT;const m=treeMat.clone();co
 const SMODEL_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85,metalness:0}),BWIN={uNight:{value:0},uEarth:{value:0}};
 /* windows glow after dark: the window parts of most houses light up warm, some stay dark */
 SMODEL_MAT.onBeforeCompile=sh=>{sh.uniforms.uNight=BWIN.uNight;sh.uniforms.uEarth=BWIN.uEarth;
-  sh.vertexShader='attribute float aPart;varying float vWin;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+  sh.vertexShader='attribute float aPart;varying float vWin;varying vec3 vMW,vMN;\n'+sh.vertexShader.replace('#include <project_vertex>',`#include <project_vertex>
+    {vec4 mw=vec4(transformed,1.);vec3 mn=objectNormal;
+    #ifdef USE_INSTANCING
+    mw=instanceMatrix*mw;mn=mat3(instanceMatrix)*mn;
+    #endif
+    vMW=(modelMatrix*mw).xyz;vMN=normalize(mat3(modelMatrix)*mn);}`).replace('#include <begin_vertex>',`#include <begin_vertex>
     vWin=(aPart>6.5&&aPart<7.5)?1.:0.;
     #ifdef USE_INSTANCING
     {vec3 ip=vec3(instanceMatrix[3][0],instanceMatrix[3][1],instanceMatrix[3][2]);vWin*=step(.3,fract(sin(dot(ip.xz,vec2(12.9898,78.233)))*43758.5453));}
     #endif`);
-  sh.fragmentShader='uniform float uNight,uEarth;varying float vWin;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+  sh.fragmentShader=`uniform float uNight,uEarth;varying float vWin;varying vec3 vMW,vMN;
+float fbH(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float fbN(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(fbH(i),fbH(i+vec2(1,0)),f.x),mix(fbH(i+vec2(0,1)),fbH(i+vec2(1,1)),f.x),f.y);}
+`+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
     /* earthy palette for the painted looks: bright teal, navy and red roofs become slate, thatch and weathered brown, khaki plaster turns to whitewash */
     if(uEarth>0.){vec3 c=diffuseColor.rgb;float l=dot(c,vec3(.3,.59,.11)),mx=max(c.r,max(c.g,c.b)),mn=min(c.r,min(c.g,c.b)),sat=(mx-mn)/max(mx,.001);
       float blu=smoothstep(.05,.22,(c.b-max(c.r,c.g*.8))/max(mx,.001)),red=smoothstep(.55,.78,(c.r-max(c.g,c.b))/max(mx,.001)),
@@ -122,7 +130,21 @@ SMODEL_MAT.onBeforeCompile=sh=>{sh.uniforms.uNight=BWIN.uNight;sh.uniforms.uEart
       vec3 slate=vec3(l*1.05,l*1.02,l*1.)*.9+.012,thatch=vec3(l*1.5,l*1.22,l*.8)+vec3(.03,.02,0.);
       c=mix(c,mix(slate,thatch,smoothstep(.1,.22,l)),blu*.9);
       c=mix(c,vec3(l*1.4,l*1.05,l*.75)+.01,red*.85);c=mix(c,vec3(.62,.58,.5)*(.75+l),kha*.55*uEarth);
-      diffuseColor.rgb=mix(diffuseColor.rgb,c,uEarth);}`).replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n totalEmissiveRadiance+=vec3(1.,.72,.38)*vWin*uNight*1.8;')};
+      diffuseColor.rgb=mix(diffuseColor.rgb,c,uEarth);
+      /* surface texture, close up only: straw on thatched roofs, coursed stone on grey walls, grain on timber, rough plaster elsewhere */
+      float tf=1.-smoothstep(2.5,9.,length(vMW-cameraPosition));
+      if(tf>.01&&vWin<.5){vec3 nn=normalize(vMN),an=abs(nn);c=diffuseColor.rgb;l=dot(c,vec3(.3,.59,.11));mx=max(c.r,max(c.g,c.b));mn=min(c.r,min(c.g,c.b));sat=(mx-mn)/max(mx,.001);
+        vec2 sp=an.x>an.z?vMW.zy:vMW.xy;vec2 tp=an.y>.7?vMW.xz:sp;
+        float roof=smoothstep(.3,.5,nn.y)*(1.-smoothstep(.93,.99,nn.y));
+        vec2 dn=normalize(nn.xz+vec2(1e-4));vec2 rp=vec2(dot(vMW.xz,vec2(-dn.y,dn.x))*420.,(vMW.y*1.4+dot(vMW.xz,dn))*55.);
+        float straw=fbN(rp)*.55+fbN(rp*vec2(.5,2.3)+vec2(3.1))*.45,ridge=fbN(vec2(rp.x*.04,rp.y*.6))*.5;
+        float stoneM=(1.-roof)*smoothstep(.22,.08,sat)*smoothstep(.06,.14,l);
+        vec2 bp=vec2(sp.x*95.,sp.y*140.);bp.x+=step(1.,mod(floor(bp.y),2.))*.5;vec2 bf=fract(bp);float joint=smoothstep(.0,.08,bf.x)*smoothstep(1.,.92,bf.x)*smoothstep(.0,.12,bf.y)*smoothstep(1.,.88,bf.y);
+        float stone=(.72+.28*joint)*(.86+.28*fbH(floor(bp)));
+        float woodM=(1.-roof)*smoothstep(.25,.45,sat)*smoothstep(.2,.08,l)*(c.r>c.b?1.:0.);float grain=.85+.3*fbN(vec2(sp.x*30.,sp.y*600.));
+        float plast=.93+.14*fbN(tp*260.)+.06*fbN(tp*900.);
+        float m=mix(plast,straw*.62+.62+ridge*.2,roof);m=mix(m,stone,stoneM);m=mix(m,grain,woodM*(1.-roof));
+        diffuseColor.rgb*=mix(1.,m,tf*uEarth);}}`).replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n totalEmissiveRadiance+=vec3(1.,.72,.38)*vWin*uNight*1.8;')};
 SMODEL_MAT.customProgramCacheKey=()=>'smodel';
 {const _sn=setNight;setNight=function(f){_sn(f);BWIN.uNight.value=f}}
 const VEH_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.5,metalness:.15});const VEH_KITS=[];
