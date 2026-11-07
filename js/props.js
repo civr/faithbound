@@ -419,6 +419,20 @@ function castle(n,x,y,z,e,nc){const ST=CASTLE_STYLE[cultOf(n)]||CASTLE_STYLE.wes
   CRENEL_FORK=false}
 /* a town wall: stone in the middle ages, a palisade before, with towers and gates where the main streets leave */
 let WALL_TIGHT=false;
+function packInside(n,plan,cx,cz,R,e,KO,HP,k0){const SP=[];for(const st of plan.streets)for(let i=1;i<st.pts.length;i++){const a=st.pts[i-1],b=st.pts[i];for(let q=0;q<3;q++){const t=q/3;SP.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t])}}
+  const G=new Map(),gk=(x,z)=>Math.floor(x/.15)+','+Math.floor(z/.15);for(const q of SP){const kk=gk(q[0],q[1]);if(!G.has(kk))G.set(kk,[]);G.get(kk).push(q)}
+  const nearSt=(x,z)=>{const gx=Math.floor(x/.15),gz=Math.floor(z/.15);let b=null,bd=9;for(let a=-2;a<=2;a++)for(let c=-2;c<=2;c++){const L=G.get((gx+a)+','+(gz+c));if(L)for(const q of L){const d=Math.hypot(q[0]-x,q[1]-z);if(d<bd){bd=d;b=q}}}return [b,bd]};
+  const st=.086;let kk=k0;
+  for(let gx=-R;gx<=R;gx+=st)for(let gz=-R;gz<=R;gz+=st){const x=cx+gx,z=cz+gz,d=Math.hypot(gx,gz);if(d>R*.97||d<plan.pr*.75)continue;
+    const t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id||river[t])continue;
+    if(KO.some(q=>Math.hypot(x-q[0],z-q[1])<q[2]+.03))continue;
+    const [q,sd]=nearSt(x,z);if(!q||sd<.075||sd>.5)continue;/* keep the lanes clear; deep inside a block, face the nearest lane anyway */
+    const rot=Math.atan2(q[0]-x,q[1]-z),hk=hash(x*91.7+z*53.3),w=.082+hash(hk*3)*.016,dd=.074+hash(hk*5)*.012;
+    let mn=1e9,mx=-1e9;for(const [a,b] of [[-w/2,-dd/2],[w/2,-dd/2],[-w/2,dd/2],[w/2,dd/2]]){const yy=groundY(x+a*Math.cos(rot)+b*Math.sin(rot),z-a*Math.sin(rot)+b*Math.cos(rot));mn=Math.min(mn,yy);mx=Math.max(mx,yy)}
+    if(mn<waterY+.03||mx-mn>.06)continue;
+    const sl={x,z,rot,w,d:dd,core:.7,terr:true};kk++;
+    const up=solid(()=>{if(mx-mn>.012)add('stone',x,mn-.03,z,w*1.04,mx-mn+.03,dd*1.04,rot,0xa8a090);terraceHouse(n,sl,mx,e,hk)},x,z,rot,false,-.016);
+    if(up){HP.push([x,z,Math.max(w,dd)*.62]);occupied.add(t)}}}
 /* inside a walled city: a market square with stalls and a well, and a stone church with a spire, each on its own open ground */
 function innerCity(n,plan,cx,cy,cz,e,cap,i0,wR,KO){const cu=cultOf(n);
   const spot=(a0,d,r)=>{for(let q=0;q<8;q++){const a=a0+q*.79,x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d,t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id)continue;const y=groundY(x,z);if(y<waterY+.03)continue;
@@ -1024,13 +1038,15 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         if(e===5&&sl.core<.4&&inD&&hk<.55&&(MCTX.fac|0)<(cap?7:3+lvl)){MCTX.fac=(MCTX.fac|0)+1;factory(sl.x,y,sl.z,sl.rot,true)}
         else if(sl.terr&&e>=1&&!wet)terraceHouse(n,sl,y,e,hk);
         else dwelling(n,sl.x,y,sl.z,sl.rot,e,hk,k,sl.core);
-        if(!far&&sl.pd>0&&e>=1&&e<=4&&cultOf(n)!=='mideast'&&cultOf(n)!=='africa')yard(sl.x,sl.z,sl.rot,sl.w,sl.d,sl.pd,sl.pw,hk);
+        if(!far&&sl.pd>0&&e>=1&&e<=4&&cultOf(n)!=='mideast'&&cultOf(n)!=='africa'&&!(plan.wallR>.3&&Math.hypot(sl.x-cx,sl.z-cz)<plan.wallR+.05))yard(sl.x,sl.z,sl.rot,sl.w,sl.d,sl.pd,sl.pw,hk);
         if(!far&&plan.metro&&e>=5&&e<=6&&sl.core<.5&&hk>.35)frontGarden(sl.x,y,sl.z,sl.rot,Math.min(sl.w,.075),Math.min(sl.d,.075),hk);
         },sl.x,sl.z,sl.rot,false,sl.terr?-.016:undefined);
         if(!up)continue;placed++;HP.push([sl.x,sl.z,Math.max(sl.w,sl.d)*.62+(sl.pd||0)*.9]);occupied.add(ti);(MCTX.dists||(MCTX.dists=[])).push(Math.hypot(sl.x-cx,sl.z-cz));bareRect(sl.x,sl.z,sl.rot,sl.w*1.15,sl.d*1.2);
         if(sl.st>=0)reach.set(sl.st,Math.max(reach.get(sl.st)||0,sl.at+.12));
         if(!lagoon||groundY(sl.fx,sl.fz)>waterY+.02)c._poi.pts.push([sl.fx,sl.fz]);
         if(!far&&e>=3&&e<=5&&hk<.16)smokeAt(sl.x,y+.13*(1+sl.core*.6),sl.z,false,.25)}
+      /* a walled city is packed: every open patch inside the wall fills with houses, each facing the nearest lane, wall to wall with its neighbours */
+      if(!far&&plan.wallR>.3&&e>=2&&e<=4&&!plan.metro&&!lagoon)packInside(n,plan,cx,cz,plan.wallR+.05,e,KO,HP,k);
       /* the painted look: the green between the lanes fills with orchards, garden shrubs, vegetable plots and haystacks, as in an old village */
       if(LK.pixel&&!far&&e>=1&&e<=4&&!plan.metro&&!lagoon&&HP.length>4)townInfill(n,plan,cx,cz,HP,i0,KO);
       if(e===7&&!far&&typeof windTurbine==='function'){/* wind turbines on the open ground beyond the town */const R2=(plan.metro||(cap?1.1:.7))+.45;for(let k=0;k<(cap?5:3);k++){const a=hash(i0*3.1+k)*6.283,x=cx+Math.cos(a)*R2,z=cz+Math.sin(a)*R2,t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id)continue;windTurbine(x,groundY(x,z),z,.34,hash(i0)*6.28)}}
