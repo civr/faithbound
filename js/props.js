@@ -186,7 +186,7 @@ kit('thatch',gableGeo(),MAT.thatch,4000);kit('hipThatch',hipGeo(.3),MAT.thatch2,
 kit('coneThatch',unitCone(12),MAT.thatch,12000);kit('coneTile',unitCone(10),MAT.tiles,4000);kit('pyr',(()=>{const g=unitCone(4);g.rotateY(Math.PI/4);return g})(),MAT.tiles,1200);
 kit('tower',unitCyl(14),MAT.stone,4000);kit('office',unitBox(),MAT.office,2500);kit('glass',unitBox(),MAT.glass,2000);
 kit('dome',(()=>{const g=new THREE.SphereGeometry(.5,16,8,0,Math.PI*2,0,Math.PI/2);return g})(),MAT.metal,700);
-kit('box',unitBox(),MAT.plain,90000);kit('adobe',unitBox(),MAT.adobe,9000);kit('adobeCyl',unitCyl(12),MAT.adobe,8000);kit('hipTile',hipGeo(.32),MAT.tiles,6000);
+kit('box',unitBox(),MAT.plain,220000);kit('adobe',unitBox(),MAT.adobe,24000);kit('adobeCyl',unitCyl(12),MAT.adobe,8000);kit('hipTile',hipGeo(.32),MAT.tiles,6000);
 kit('domeW',new THREE.SphereGeometry(.5,14,7,0,Math.PI*2,0,Math.PI/2),MAT.plain,1600);kit('cyl',unitCyl(8),MAT.plain,12000);
 kit('ring',(()=>{const g=new THREE.TorusGeometry(.5,.05,6,24);g.rotateX(Math.PI/2);return g})(),MAT.glow,500,false);
 kit('flame',unitCone(6),MAT.flame,300,false);
@@ -209,13 +209,13 @@ function hamTree(seed,tall){const r=mulberry32(seed),pos=[],nor=[],col=[];
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));return g}
 kit('hamA',hamTree(17,false),treeMat,40000);kit('hamB',hamTree(29,true),treeMat,30000);
 kit('palm',palmGeo(5),treeMat,8000);
-kit('bush',bushGeo(3),treeMat,40000);
+kit('bush',bushGeo(3),treeMat,80000);
 kit('rock',(()=>{const g=new THREE.DodecahedronGeometry(.5,0);g.translate(0,.25,0);return g})(),stdMat({roughness:1}),6000);
 kit('fence',unitBox(),MAT.plain,30000,false);kit('lamp',unitBox(),MAT.lamp,4000,false);kit('awning',gableGeo(),MAT.awning,8000);
 kit('plazaStone',unitCyl(24),MAT.plaza,400,false);kit('plazaDirt',unitCyl(18),MAT.dirtPlaza,400,false);kit('pool',unitCyl(16),inlandWaterMat(false),5000,false);
 kit('townTree',leafTree(23,'broad'),treeMat,16000);
 kit('boat',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,6,1,false,0,Math.PI);g.rotateZ(Math.PI);g.rotateY(Math.PI/2);g.scale(1,.6,1);return g})(),MAT.plain,400);
-kit('tuft',unitCone(4),stdMat({roughness:1}),16000,false);kit('flower',new THREE.SphereGeometry(.5,5,3),MAT.plain,8000,false);
+kit('tuft',unitCone(4),stdMat({roughness:1}),16000,false);kit('flower',new THREE.SphereGeometry(.5,5,3),MAT.plain,20000,false);
 kit('animal',unitBox(),MAT.plain,1200,false);
 kit('aBody',new THREE.SphereGeometry(.5,10,7),stdMat({roughness:.95}),1400,false);kit('aHead',new THREE.SphereGeometry(.5,8,6),stdMat({roughness:.9}),1400,false);
 kit('aLeg',(()=>{const g=new THREE.CylinderGeometry(.5,.38,1,5);g.translate(0,-.5,0);return g})(),stdMat({roughness:.9}),5600,false);kit('car',unitBox(),MAT.plain,400,false);
@@ -282,7 +282,6 @@ const TREE_KITS=['hamA','hamB','conifer','broad','palm','bush','rock','tuft','fl
 /* the countryside: hedgerows, dry-stone walls or fences round the fields, and a farmstead with a barn here and there */
 function countryside(){const farm=new Set();
   for(const i of fieldTiles){const o=owner[i],n=o>=0?nations[o]:null;if(!n)continue;const e=n.era,x=i%W,y=(i/W)|0,X0=x-W/2,Z0=y-H/2;
-    if(Math.hypot(X0+.5-camT.x,Z0+.5-camT.z)>camDist*1.5+5)continue;
     const px_=!!LK.pixel,kind=e<=1?'stone':e>=5?'fence':hash(i*3.3)<(px_?.8:.6)?'hedge':'stone',col=kind==='hedge'?(px_?0x34502a:0x46682e):kind==='stone'?(px_?0x7f7a6e:0x9a948a):(px_?0x6e5840:0xd8cfbc),hh=kind==='hedge'?(px_?.022:.03):kind==='stone'?.018:.016,th=kind==='hedge'?(px_?.05:.03):kind==='stone'?.02:.004;
     for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X>=0&&Y>=0&&X<W&&Y<H&&fieldTiles.has(Y*W+X)&&hash(i*7+d)<.55)continue;
       const horiz=DY[d]!==0,cx=X0+.5+DX[d]*.5,cz=Z0+.5+DY[d]*.5,segs=4;
@@ -1016,11 +1015,11 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         /* a big town with a dense core is a walled city: the wall runs just outside the packed streets, with the market and the church inside;
            cottages, gardens and orchards spread outside the gates */
         const tight=plan.wallR>.3,wR=tight?plan.wallR+.05:0;
-        if(tight){WALL_TIGHT=true;try{townWall(n,plan,cx,cz,wR,e,far,i0)}finally{WALL_TIGHT=false}if(!far)innerCity(n,plan,cx,cy,cz,e,cap,i0,wR,KO)}
-        else if(ds.length>=(cap?14:18)){ds.sort((a,b)=>a-b);townWall(n,plan,cx,cz,ds[Math.floor(ds.length*.8)]+.09,e,far,i0)}}
+        if(tight){WALL_TIGHT=true;try{townWall(n,plan,cx,cz,wR,e,false,i0)}finally{WALL_TIGHT=false}innerCity(n,plan,cx,cy,cz,e,cap,i0,wR,KO)}
+        else if(ds.length>=(cap?14:18)){ds.sort((a,b)=>a-b);townWall(n,plan,cx,cz,ds[Math.floor(ds.length*.8)]+.09,e,false,i0)}}
       if(e>=1)solid(()=>harbour(c,cx,cz,e,i0),cx,cz,0,true,undefined,'big');
       c._canals=[];
-      for(const sl of slots){if(placed>=count)break;k++;MCTX.w=sl.metro?sl.w:.12;if(far&&plan.metro&&sl.core<.3&&hash(k*7.7)<.75)continue;
+      for(const sl of slots){if(placed>=count)break;k++;MCTX.w=sl.metro?sl.w:.12;
         if(e>=1){/* two towns that meet never build on the same spot */const bk=Math.round(sl.x*12)+','+Math.round(sl.z*12);if(bgrid.has(bk))continue;bgrid.add(bk)}
         const ti=tileAt(sl.x,sl.z);if(ti<0||(owner[ti]>=0&&owner[ti]!==n.id))continue;
         if(KO.some(q=>Math.hypot(sl.x-q[0],sl.z-q[1])<q[2]+Math.max(sl.w,sl.d)*.6))continue;/* never on top of the temple, the palace or a wonder */
@@ -1038,18 +1037,18 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         if(e===5&&sl.core<.4&&inD&&hk<.55&&(MCTX.fac|0)<(cap?7:3+lvl)){MCTX.fac=(MCTX.fac|0)+1;factory(sl.x,y,sl.z,sl.rot,true)}
         else if(sl.terr&&e>=1&&!wet)terraceHouse(n,sl,y,e,hk);
         else dwelling(n,sl.x,y,sl.z,sl.rot,e,hk,k,sl.core);
-        if(!far&&sl.pd>0&&e>=1&&e<=4&&cultOf(n)!=='mideast'&&cultOf(n)!=='africa'&&!(plan.wallR>.3&&Math.hypot(sl.x-cx,sl.z-cz)<plan.wallR+.05))yard(sl.x,sl.z,sl.rot,sl.w,sl.d,sl.pd,sl.pw,hk);
-        if(!far&&plan.metro&&e>=5&&e<=6&&sl.core<.5&&hk>.35)frontGarden(sl.x,y,sl.z,sl.rot,Math.min(sl.w,.075),Math.min(sl.d,.075),hk);
+        if(sl.pd>0&&e>=1&&e<=4&&cultOf(n)!=='mideast'&&cultOf(n)!=='africa'&&!(plan.wallR>.3&&Math.hypot(sl.x-cx,sl.z-cz)<plan.wallR+.05))yard(sl.x,sl.z,sl.rot,sl.w,sl.d,sl.pd,sl.pw,hk);
+        if(plan.metro&&e>=5&&e<=6&&sl.core<.5&&hk>.35)frontGarden(sl.x,y,sl.z,sl.rot,Math.min(sl.w,.075),Math.min(sl.d,.075),hk);
         },sl.x,sl.z,sl.rot,false,sl.terr?-.016:undefined);
         if(!up)continue;placed++;HP.push([sl.x,sl.z,Math.max(sl.w,sl.d)*.62+(sl.pd||0)*.9]);occupied.add(ti);(MCTX.dists||(MCTX.dists=[])).push(Math.hypot(sl.x-cx,sl.z-cz));bareRect(sl.x,sl.z,sl.rot,sl.w*1.15,sl.d*1.2);
         if(sl.st>=0)reach.set(sl.st,Math.max(reach.get(sl.st)||0,sl.at+.12));
         if(!lagoon||groundY(sl.fx,sl.fz)>waterY+.02)c._poi.pts.push([sl.fx,sl.fz]);
         if(!far&&e>=3&&e<=5&&hk<.16)smokeAt(sl.x,y+.13*(1+sl.core*.6),sl.z,false,.25)}
       /* a walled city is packed: every open patch inside the wall fills with houses, each facing the nearest lane, wall to wall with its neighbours */
-      if(!far&&plan.wallR>.3&&e>=2&&e<=4&&!plan.metro&&!lagoon)packInside(n,plan,cx,cz,plan.wallR+.05,e,KO,HP,k);
+      if(plan.wallR>.3&&e>=2&&e<=4&&!plan.metro&&!lagoon)packInside(n,plan,cx,cz,plan.wallR+.05,e,KO,HP,k);
       /* the painted look: the green between the lanes fills with orchards, garden shrubs, vegetable plots and haystacks, as in an old village */
-      if(LK.pixel&&!far&&e>=1&&e<=4&&!plan.metro&&!lagoon&&HP.length>4)townInfill(n,plan,cx,cz,HP,i0,KO);
-      if(e===7&&!far&&typeof windTurbine==='function'){/* wind turbines on the open ground beyond the town */const R2=(plan.metro||(cap?1.1:.7))+.45;for(let k=0;k<(cap?5:3);k++){const a=hash(i0*3.1+k)*6.283,x=cx+Math.cos(a)*R2,z=cz+Math.sin(a)*R2,t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id)continue;windTurbine(x,groundY(x,z),z,.34,hash(i0)*6.28)}}
+      if(LK.pixel&&e>=1&&e<=4&&!plan.metro&&!lagoon&&HP.length>4)townInfill(n,plan,cx,cz,HP,i0,KO);
+      if(e===7&&typeof windTurbine==='function'){/* wind turbines on the open ground beyond the town */const R2=(plan.metro||(cap?1.1:.7))+.45;for(let k=0;k<(cap?5:3);k++){const a=hash(i0*3.1+k)*6.283,x=cx+Math.cos(a)*R2,z=cz+Math.sin(a)*R2,t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id)continue;windTurbine(x,groundY(x,z),z,.34,hash(i0)*6.28)}}
       if(MCTX.fac>0){/* smog: a brown haze hangs over the mill towns */const R_=(plan.metro||(cap?1.1:.7))*1.05+.3;add('smog',cx,cy+.05,cz,R_*2,.3+MCTX.fac*.02,R_*2,0,0x6a5a48);
         const fa=hash(i0*2.7)*6.283;add('smog',cx+Math.cos(fa)*R_*.45,cy+.08,cz+Math.sin(fa)*R_*.45,R_*1.1,.36,R_*1.1,0,0x4a4038)}
       {const fa=hash(i0*11)*6.283,fr=(cap?.3:.15)*.62,fx=cx+Math.cos(fa)*fr,fz=cz+Math.sin(fa)*fr;townFlag(n,fx,groundY(fx,fz),fz,cap,e)}
