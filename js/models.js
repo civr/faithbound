@@ -477,7 +477,7 @@ function canopyGeo(cone){const P=[],C=[],put=(g,col)=>{g=g.index?g.toNonIndexed(
   /* crowns scattered over the whole tile and a little past its edge, so neighbouring blocks knit into one woodland with no grid showing;
      each crown its own shade, so the canopy reads as many trees with dark gaps between them */
   const spots=[];{let sd=7;const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;for(let t=0;spots.length<(cone?18:15)&&t<400;t++){const x=(rnd()-.5)*1.08,z=(rnd()-.5)*1.08;
-    if(spots.every(q=>Math.hypot(q[0]-x,q[1]-z)>(cone?.2:.24)))spots.push([x,z,.62+rnd()*.42,.62+rnd()*.34])}}
+    if(spots.every(q=>Math.hypot(q[0]-x,q[1]-z)>(cone?.2:.24)))spots.push([x,z,.62+rnd()*.42,.46+rnd()*.3])}}
   const NR=[];for(const [x,z,hh,sh] of spots){let g;const n0=P.length,rw=cone?.13:.17+hh*.05;if(cone){g=new THREE.ConeGeometry(rw,hh,6,1);g.translate(x,hh/2,z)}else{g=new THREE.IcosahedronGeometry(.5,0);g.scale(rw*2,hh*.6,rw*2);g.translate(x,hh*.66,z)}put(g,[sh,sh,sh]);
     const cy=cone?hh*.35:hh*.66,sx=rw,sy=cone?hh*.7:hh*.3;for(let i=n0;i<P.length;i+=3){let nx=(P[i]-x)/(sx*sx),ny=(P[i+1]-cy)/(sy*sy)+(cone?.8/sy:0),nz=(P[i+2]-z)/(sx*sx);const l=Math.hypot(nx,ny,nz)||1;NR.push(nx/l,ny/l,nz/l)}}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(NR,3));return g}

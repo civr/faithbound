@@ -70,15 +70,16 @@ function shadowTick(){if(!renderer.shadowMap.enabled)return;renderer.shadowMap.a
     gap=moved?(settings.power==='saver'?66:settings.power==='max'?16:33):sunMoved?(settings.power==='saver'?500:250):(playing?1000:3000);
   if(now-shadowAt>gap||shadowForce){shadowAt=now;shadowSig=sig;shadowSun=sun;shadowForce=false;renderer.shadowMap.needsUpdate=true}}
 let shadowForce=true;
-/* pixel looks: the camera moves in whole screen pixels, so buildings and trees keep their pixels while you pan instead of shimmering */
+/* (camera snapping to whole pixels made the view shake while it eased, so it is off) */
 const PXS={r:new THREE.Vector3(),u:new THREE.Vector3(),d:new THREE.Vector3()};
 function pixSnap(on){if(!on){if(PXS.on){cam.position.sub(PXS.d);cam.updateMatrixWorld();PXS.on=false}return}
   const hpx=renderer.domElement.height||1,ws=2*camDist*Math.tan(cam.fov*Math.PI/360)/hpx;cam.updateMatrixWorld();
   PXS.r.setFromMatrixColumn(cam.matrixWorld,0);PXS.u.setFromMatrixColumn(cam.matrixWorld,1);
   const a=cam.position.dot(PXS.r),b=cam.position.dot(PXS.u),da=Math.round(a/ws)*ws-a,db=Math.round(b/ws)*ws-b;
   PXS.d.copy(PXS.r).multiplyScalar(da).addScaledVector(PXS.u,db);cam.position.add(PXS.d);cam.updateMatrixWorld();PXS.on=true}
-function renderFrame(){pixSnap(pixN>1);try{renderFrame0()}finally{pixSnap(false)}}
-function renderFrame0(){if(typeof cullTick==='function'&&settings.cull!==false)cullTick();shadowTick();pixTick();
+function renderFrame(){renderFrame0()}
+function renderFrame0(){/* the near clipping plane follows the zoom: zoomed out, depth precision stays fine enough that shore sand and water do not flicker */
+  {const nr=clamp(camDist*.012,.02,2.5);if(Math.abs(cam.near-nr)>nr*.05){cam.near=nr;cam.updateProjectionMatrix()}}if(typeof cullTick==='function'&&settings.cull!==false)cullTick();shadowTick();pixTick();
   if(!postActive()){PLU.uPL.value=0;renderer.render(scene,cam);return}
   renderer.getDrawingBufferSize(POST.size);const w=POST.size.x,h=POST.size.y;
   if(!POST.rt||POST.rt.width!==w||POST.rt.height!==h){if(POST.rt){POST.rt.depthTexture.dispose();POST.rt.dispose()}
@@ -189,13 +190,15 @@ function focusOn(x,z,dist){camT.x=x;camT.z=z;if(dist)camDistT=dist}
 /* pixel looks: the scene is drawn at a lower resolution and the browser scales it up with hard edges. Like a sprite game, the pixels grow as
    the camera comes closer (whole device pixels each, so every pixel is the same size); far out it is close to full detail. It is also much cheaper to draw. */
 let pixN=0,pixWant=0,pixSince=0;
-function pixTarget(){if(!LK.pixel)return 0;const dev=devicePixelRatio||1,css=clamp(17/Math.max(1,camDist),1,4.5);
-  let n=Math.max(1,Math.round(css*dev*(settings.power==='saver'?1.3:1)));const ds=typeof dynScale==='number'?dynScale:1;if(ds<.99)n=Math.ceil(n/ds);return n}
+function pixTarget(){return 0;const dev=devicePixelRatio||1,css=Math.min(2,7/Math.max(1,camDist));
+  /* only right up close does it turn to soft pixels, at most two screen pixels each; from a normal distance it is drawn at full detail */
+  if(css<1.4)return 0;return Math.max(2,Math.round(css*dev))}
 function pixTick(){const t=pixTarget(),now=performance.now();if(t===pixN){pixWant=t;return}
-  if(t!==pixWant){pixWant=t;pixSince=now;return}if(now-pixSince>220||!pixN||!t)resize()}
+  if(t!==pixWant){pixWant=t;pixSince=now;return}if(now-pixSince>400)resize()}
 function resize(){const w=innerWidth,hh=innerHeight,dpr=Math.min(settings.power==='saver'?1:settings.power==='max'?(settings.quality==='high'?2:1.5):1.25,devicePixelRatio||1);
-  pixN=pixTarget();pixWant=pixN;gl.style.imageRendering=pixN?'pixelated':'';
-  renderer.setPixelRatio(pixN?(devicePixelRatio||1)/pixN:(settings.quality==='low'?Math.min(1,dpr):dpr)*(typeof dynScale==='number'?dynScale:1));renderer.setSize(w,hh,false);
+  pixN=0;gl.style.imageRendering='';
+  /* the painted look draws at a slightly lower resolution and lets the browser smooth it up: softer edges, like a painting, and cheaper */
+  renderer.setPixelRatio((settings.quality==='low'?Math.min(1,dpr):dpr)*(typeof dynScale==='number'?dynScale:1)*(LK.soft||1));renderer.setSize(w,hh,false);
   ov.width=Math.round(w*Math.min(2,devicePixelRatio||1));ov.height=Math.round(hh*Math.min(2,devicePixelRatio||1));
   cam.aspect=w/hh;cam.fov=w<hh?52:38;cam.updateProjectionMatrix()}
 
