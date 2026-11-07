@@ -418,10 +418,27 @@ function castle(n,x,y,z,e,nc){const ST=CASTLE_STYLE[cultOf(n)]||CASTLE_STYLE.wes
   if(ST.torre){const tx=kx+.15,tz=kz-.12;add('stone',tx,y-.03,tz,.055,.62,.055,0,ST.keep);for(const [ox,oz,rr] of [[0,.0281,0],[0,-.0281,0],[.0281,0,Math.PI/2],[-.0281,0,Math.PI/2]])add('box',tx+ox,y+.5,tz+oz,.02,.04,.002,rr,0x26221e);add('pyr',tx,y+.59,tz,.075,.09,.075,0,0xb85a36)}
   CRENEL_FORK=false}
 /* a town wall: stone in the middle ages, a palisade before, with towers and gates where the main streets leave */
+let WALL_TIGHT=false;
+/* inside a walled city: a market square with stalls and a well, and a stone church with a spire, each on its own open ground */
+function innerCity(n,plan,cx,cy,cz,e,cap,i0,wR,KO){const cu=cultOf(n);
+  const spot=(a0,d,r)=>{for(let q=0;q<8;q++){const a=a0+q*.79,x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d,t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id)continue;const y=groundY(x,z);if(y<waterY+.03)continue;
+    if(KO.some(k=>Math.hypot(k[0]-x,k[1]-z)<k[2]+r))continue;let mn=1e9,mx=-1e9;for(const [u,v] of [[r,0],[-r,0],[0,r],[0,-r]]){const yy=groundY(x+u,z+v);mn=Math.min(mn,yy);mx=Math.max(mx,yy)}if(mx-mn>.05)continue;return [x,y,z]}return null};
+  const a0=hash(i0*5.5)*6.283,dm=Math.min(wR-.2,plan.pr+(cap?.24:.16));
+  if(dm>plan.pr+.08){const R0=cap?.17:.12,m=spot(a0,dm+(cap?.04:0),R0+.01);if(m){const [x,y,z]=m,r=R0;KO.push([x,z,r+.02]);
+    solid(()=>{add(e>=3?'plazaStone':'plazaDirt',x,y-.012,z,r*2,.016,r*2,a0);
+      add('cyl',x,y,z,.028,.022,.028,0,0x9a948a);add('pool',x,y+.005,z,.02,.02,.02);add('cyl',x-.012,y,z,.003,.04,.003,0,0x5a4632);add('cyl',x+.012,y,z,.003,.04,.003,0,0x5a4632);add('tiles',x,y+.04,z,.036,.016,.032,0,0x8e3f2c);
+      const st=(cap?8:5)+((hash(i0*3.1)*3)|0);for(let k=0;k<st;k++){const a=k/st*6.283+a0,sx=x+Math.cos(a)*r*.68,sz=z+Math.sin(a)*r*.68,rt=-a;
+        P('box',sx,y,sz,rt,0,0,0,.032,.015,.02,0x7a5a3a);P('cyl',sx,y,sz,rt,-.014,.008,0,.003,.036,.003,0x5a4632);P('cyl',sx,y,sz,rt,.014,.008,0,.003,.036,.003,0x5a4632);
+        P('awning',sx,y+.032,sz,rt,0,0,0,.038,.013,.028,AWN[(hash(i0*7+k)*AWN.length)|0]);if(hash(i0*9+k)<.5)add('hay',sx+Math.cos(a)*.03,y,sz+Math.sin(a)*.03,.018,.02,.018,0,0xc8a060)}},x,z,0,true,undefined,'big')}}
+  if(['west','nordic','med'].includes(cu)){const c2=spot(a0+2.4,Math.min(wR-.18,plan.pr+(cap?.22:.15)),.11);if(c2){const [x,y,z]=c2,rot=hash(i0*7.7)*6.283,sc=cap?1.25:1;KO.push([x,z,.12*sc]);
+    solid(()=>{const col=0x9a9282,rc=LK.pixel?0x5a5e66:ROOF_SLATE[0];
+      P('stone',x,y-.02,z,rot,0,.01*sc,0,.075*sc,.07*sc,.15*sc,col);P('tiles',x,y+.05*sc,z,rot,0,.01*sc,0,.085*sc,.045*sc,.16*sc,rc);
+      P('stone',x,y-.02,z,rot,0,-.085*sc,0,.05*sc,.15*sc,.05*sc,col);P('pyr',x,y+.13*sc,z,rot,0,-.085*sc,0,.06*sc,.09*sc,.06*sc,rc);
+      for(const sd of [-1,1])for(let q=0;q<3;q++)P('box',x,y+.02*sc,z,rot,sd*.0385*sc,(-.03+q*.045)*sc,0,.002,.03*sc,.012*sc,0x2a3038)},x,z,rot,true,undefined,'big')}}}
 function townWall(n,plan,cx,cz,R,e,far,i0){if(R<.3)return;CRENEL_FORK=cultOf(n)==='med';try{townWall0(n,plan,cx,cz,R,e,far,i0)}finally{CRENEL_FORK=false}}
 function townWall0(n,plan,cx,cz,R,e,far,i0){const stone=e>=3,col=stone?(LK.pixel?0x8e8576:0xcfc8b8):0x6e5236,H=stone?(LK.pixel?.062:.09):.07,TR=LK.pixel?0x5a4c3e:ROOF_SLATE[0],L=.075,K=Math.max(16,Math.ceil(6.283*R/L)),ph=hash(i0*4.4)*6.283,gates=[];
   for(const st of plan.streets){if(!st.main)continue;for(const q of st.pts){const d=Math.hypot(q[0]-cx,q[1]-cz);if(d>=R){gates.push(Math.atan2(q[1]-cz,q[0]-cx));break}}}
-  const rad=t=>R*(1+.07*Math.sin(3*t+ph)+.04*Math.sin(5*t+ph*1.7)),pt=t=>[cx+Math.cos(t)*rad(t),cz+Math.sin(t)*rad(t)];
+  const wb=WALL_TIGHT?.35:1,rad=t=>R*(1+wb*(.07*Math.sin(3*t+ph)+.04*Math.sin(5*t+ph*1.7))),pt=t=>[cx+Math.cos(t)*rad(t),cz+Math.sin(t)*rad(t)];
   const nearGate=t=>gates.some(g=>Math.abs(((t-g+9.42)%6.283)-3.14)<.055/R+.02);
   for(let k=0;k<K;k++){const t0=k/K*6.283,t1=(k+1)/K*6.283,[x0,z0]=pt(t0),[x1,z1]=pt(t1),mx=(x0+x1)/2,mz=(z0+z1)/2,ti=tileAt(mx,mz);
     if(ti<0||isWater(ti)||owner[ti]!==n.id)continue;const y=groundY(mx,mz);if(y<waterY+.02)continue;
@@ -542,11 +559,11 @@ function terraceHouse0(n,sl,y,e,hk){const cu=cultOf(n),x=sl.x,z=sl.z,rot=sl.rot,
 function townInfill(n,plan,cx,cz,HP,i0,KO){const ds=HP.map(h=>Math.hypot(h[0]-cx,h[1]-cz)).sort((a,b)=>a-b),RT=ds[Math.floor(ds.length*.85)]+.06,st=.085;
   const SP=[];for(const s of plan.streets)for(const q of s.pts)SP.push(q);
   for(let gx=-RT;gx<=RT;gx+=st)for(let gz=-RT;gz<=RT;gz+=st){const hv=hash(i0*7.7+gx*131.3+gz*71.9),x=cx+gx+(hash(hv*9.1)-.5)*.05,z=cz+gz+(hash(hv*5.3)-.5)*.05,d=Math.hypot(x-cx,z-cz);
-    if(d>RT||d<plan.pr+.08||hv<.5)continue;if(plan.coreR&&d<plan.coreR)continue;const t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id||fieldTiles.has(t))continue;const y=groundY(x,z);if(y<waterY+.03)continue;
+    if(d>RT||d<plan.pr+.08||hv<.5)continue;const inW=plan.wallR>.3&&d<plan.wallR+.05;const t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id||fieldTiles.has(t))continue;const y=groundY(x,z);if(y<waterY+.03)continue;
     let ok=true;for(const h of HP)if(Math.hypot(h[0]-x,h[1]-z)<h[2]+.05){ok=false;break}if(!ok)continue;
     for(const q of SP)if(Math.hypot(q[0]-x,q[1]-z)<.055){ok=false;break}if(!ok)continue;
     if(KO&&KO.some(q=>Math.hypot(x-q[0],z-q[1])<q[2]+.05))continue;
-    const r=hash(hv*3.7);
+    const r=inW?.32+hash(hv*3.7)*.62:hash(hv*3.7);/* inside the walls: courtyard gardens and shrubs, no orchards */
     if(r<.32)greenAdd(natKit('broad',hv),x,y-.01,z,.28+hv*.1,.27+hv*.1,.28+hv*.1,hv*6,hv<.5?0x4e6a32:0x5a7236);/* fruit tree */
     else if(r<.8){for(let q=0;q<2;q++){const a=hv*6+q*2.1,bx=x+Math.cos(a)*.02,bz=z+Math.sin(a)*.02;greenAdd('bush',bx,groundY(bx,bz)-.01,bz,.22+q*.04,.19+q*.04,.22+q*.04,a,q%2?0x44622e:0x50703a)}}
     else if(r<.94){const rot=hash(hv*2.2)*3.14;add('bed',x,y-.004,z,.07,.008,.05,rot,0xe0d0c0);bareRect(x,z,rot,.075,.055)}
@@ -871,7 +888,7 @@ function townPlan(n,c,cap,e){
         mark(x,z,rr);if(pd>0){mark(bx,bz,pd*.45);mark(x+nx*(d/2+pd*.9),z+nz*(d/2+pd*.9),pw*.4)}
         slots.push({x,z,rot:Math.atan2(-nx,-nz),w,d,pd,pw,core,st:si,at:p1[2],fx:p1[0],fz:p1[1],dd:dd+R_()*(terr?.02:.25)-(terr?.3:0),terr})}}});
   slots.sort((a,b)=>a.dd-b.dd);
-  {let cr=0;for(const q of slots)if(q.terr)cr=Math.max(cr,Math.hypot(q.x-cx,q.z-cz));return c._plan={key,streets,slots,pr,coreR:cr*.85}}}
+  {const td=slots.filter(q=>q.terr).map(q=>Math.hypot(q.x-cx,q.z-cz)).sort((a,b)=>a-b),cr=td.length?td[td.length-1]:0,w8=td.length>12?td[Math.floor(td.length*.8)]:0;return c._plan={key,streets,slots,pr,coreR:cr*.85,wallR:w8}}}
 /* a grown city: avenues leave the old square like spokes, ring roads curve round them at the old wall lines,
    and crooked lanes fill the gaps. Towers stand in the middle, flats around them, houses with gardens far out. */
 function organicMetro(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[],slots=[],ph=R_()*6.283;
@@ -982,7 +999,11 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       if(plan.metro)plan.streets.forEach((st,si)=>{if(st.main&&st.base<=plan.pr+.01)reach.set(si,.5)});let k=0,placed=0;const HP=[];CUR_GREEN=c._green=[];c._poi={pts:[],plaza:[cx,cz],r:plan.pr};
       const far=Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.3+2.5;MCTX.far=far;
       if(e>=2&&e<=4&&!plan.metro&&!lagoon&&count>=(cap?14:18)){const ds=[];for(const sl of slots){if(ds.length>=count)break;const t=tileAt(sl.x,sl.z);if(t<0||(owner[t]>=0&&owner[t]!==n.id))continue;ds.push(Math.hypot(sl.x-cx,sl.z-cz))}
-        if(ds.length>=(cap?14:18)){ds.sort((a,b)=>a-b);townWall(n,plan,cx,cz,ds[Math.floor(ds.length*.8)]+.09,e,far,i0)}}
+        /* a big town with a dense core is a walled city: the wall runs just outside the packed streets, with the market and the church inside;
+           cottages, gardens and orchards spread outside the gates */
+        const tight=plan.wallR>.3,wR=tight?plan.wallR+.05:0;
+        if(tight){WALL_TIGHT=true;try{townWall(n,plan,cx,cz,wR,e,far,i0)}finally{WALL_TIGHT=false}if(!far)innerCity(n,plan,cx,cy,cz,e,cap,i0,wR,KO)}
+        else if(ds.length>=(cap?14:18)){ds.sort((a,b)=>a-b);townWall(n,plan,cx,cz,ds[Math.floor(ds.length*.8)]+.09,e,far,i0)}}
       if(e>=1)solid(()=>harbour(c,cx,cz,e,i0),cx,cz,0,true,undefined,'big');
       c._canals=[];
       for(const sl of slots){if(placed>=count)break;k++;MCTX.w=sl.metro?sl.w:.12;if(far&&plan.metro&&sl.core<.3&&hash(k*7.7)<.75)continue;
