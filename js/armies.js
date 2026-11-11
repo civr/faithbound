@@ -28,7 +28,7 @@ function updateArmies(dt,k,now){
     /* a siege ends when the town falls or is relieved */
     if(a.c&&(!B||!B.cities.includes(a.c)||a.c.siege<=0)){a.c=null;if(a.mode==='siege'){const g=atWar&&armyGoal(A,B);if(g){a.tx=g.x;a.tz=g.z;a.c=g.c;a.mode='march'}else a.mode='home'}}
     const d=Math.hypot(a.tx-a.x,a.tz-a.z);
-    if(a.mode==='march'||a.mode==='home'){if(d>.06){const st=Math.min(d,s*.32);a.x+=(a.tx-a.x)/d*st;a.z+=(a.tz-a.z)/d*st;a.face=Math.atan2(a.tz-a.z,a.tx-a.x)}
+    if(a.mode==='march'||a.mode==='home'){if(d>.06){const st=Math.min(d,s*.32*(typeof weatherSlow==='function'?weatherSlow(a.x,a.z):1));a.x+=(a.tx-a.x)/d*st;a.z+=(a.tz-a.z)/d*st;a.face=Math.atan2(a.tz-a.z,a.tx-a.x)}
       else if(a.mode==='home'){a.str-=s*.5}else a.mode=a.c?'siege':'field'}
     if(a.mode==='field'&&rng()<s*.05){const g=armyGoal(A,B);if(g){a.tx=g.x;a.tz=g.z;a.c=g.c;a.mode='march'}}
     /* battle: enemy armies that meet in the field fight until one breaks */

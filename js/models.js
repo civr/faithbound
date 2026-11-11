@@ -101,6 +101,8 @@ Object.assign(SMODEL,{c_large:{k:'build',unit:1,max:400},c_round:{k:'build',unit
   deer:{k:'veh',wild:1,len:.052,max:300},stag:{k:'veh',wild:1,len:.06,max:150},fox:{k:'veh',wild:1,len:.034,max:100},donkey:{k:'veh',wild:1,len:.048,max:400}});
 for(const n of ['town2s','town3b','town3s','town4','cottage1'])SMODEL[n].win=['darkgrey'];SMODEL.med_house.win=['darkblue','darkpurple'];
 let MTREE_MAT=null,SBVER=0,MDL_LOADER=null;const MDL_REQ=new Set();
+/* snow and rain show on trees and on the plain building materials too */
+weatherHook(treeMat);for(const k in MAT)weatherHook(MAT[k]);
 function modelTreeMat(){if(MTREE_MAT)return MTREE_MAT;const m=treeMat.clone();const base=treeMat.onBeforeCompile;
   m.onBeforeCompile=sh=>{base(sh);sh.vertexShader=sh.vertexShader.replace('#include <color_vertex>',`vColor=color.xyz;
     #ifdef USE_INSTANCING_COLOR
@@ -145,7 +147,7 @@ float fbN(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(fbH(
         float plast=.96+.08*fbN(tp*180.);
         float m=mix(plast,straw*.3+.82+ridge*.1,roof);m=mix(m,stone,stoneM);m=mix(m,grain,woodM*(1.-roof));
         diffuseColor.rgb*=mix(1.,m,tf*uEarth);}}`).replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n totalEmissiveRadiance+=vec3(1.,.72,.38)*vWin*uNight*1.8;')};
-SMODEL_MAT.customProgramCacheKey=()=>'smodel';
+SMODEL_MAT.customProgramCacheKey=()=>'smodel';weatherHook(SMODEL_MAT);
 {const _sn=setNight;setNight=function(f){_sn(f);BWIN.uNight.value=f}}
 const VEH_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.5,metalness:.15});const VEH_KITS=[];
 function prepStatic(name,gltf){const d=Object.assign({},SMODEL[name]);gltf.scene.updateMatrixWorld(true);PART_EXTRA=d.win?new RegExp('^('+d.win.join('|')+')$'):null;let f;try{f=flatten(gltf.scene)}finally{PART_EXTRA=null}

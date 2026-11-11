@@ -6,19 +6,30 @@ function harvestOf(n){
   let H=1.02+Math.min(.12,n.era*.02);
   H-=Math.abs(climate.temp-.5)*1.1;H-=Math.max(0,.35-climate.rain)*.8;
   if(typeof dryCapital==='function'&&dryCapital(n))H-=.22;
-  n._hw=(n._hw||0)*.45+(rng()-.5)*.34;H+=n._hw;
+  n._hw=(n._hw||0)*.45+(rng()-.5)*.2;H+=n._hw;
+  /* the weather pattern over this land: drought starves the fields, good rains fill the barns, endless rain rots them */
+  const A=rainAnom(n);n.rainA=A;n.harvWhy=null;
+  if(A<-.38){H-=.3*Math.min(1,(-A-.38)/.4);n.harvWhy='drought'}else if(A>.7){H-=.12;n.harvWhy='endless rain'}else if(A>.25){H+=.1*Math.min(1,(A-.25)/.3);n.harvWhy='good rains'}
   if(n.wars.size)H-=.04*n.wars.size+(n.front&&n.front.length>20?.08:0);
   if(n.famine>0)H-=.25;if(n.sick)H-=.08;if(n.bless>0)H+=.22;if(n.festival>0)H+=.04;
   return clamp(H,.3,1.4)}
-function harvestTick(){for(const n of nations){if(!n.alive||!n.cities.length)continue;
+function harvestTick(){if(typeof wxPattern==='function')wxPattern();
+  /* heavy rain years on a river land can end in a flood */
+  for(const n of nations){if(!n.alive||!n.cities.length||typeof riverFlood!=='function')continue;const A=rainAnom(n);
+    if(A>.6&&rng()<.012*(A-.5)*10*dLevel()){const c=n.cities[(rng()*n.cities.length)|0];if(c&&riverFlood(c.y*W+c.x)){n.pop*=.99}}}
+  for(const n of nations){if(!n.alive||!n.cities.length)continue;
   const H=harvestOf(n);n.harvest=H;
+  /* droughts and wet spells are news: they start and end */
+  {const A=n.rainA??0;if(!n.drought&&A<-.5){n.drought=year;if(important(n)||n.id===selected)log(`A drought grips ${n.name}. The rivers run low and the fields crack.`,'doom')}
+   else if(n.drought&&A>-.3){if(year-n.drought>2&&(important(n)||n.id===selected))log(`The rains have returned to ${n.name} after ${year-n.drought} dry years.`,'life');n.drought=0}}
   n.pop*=1+clamp(H-1,-.5,.4)*.03;
   n.happy=clamp((n.happy??.6)+(H-1)*.025,0,1);
   if(n.wars.size){n.warYears=(n.warYears||0)+1;n.happy=clamp(n.happy-.003*Math.min(3,n.wars.size)-(n.warYears>12?.004:0),0,1)}else n.warYears=0;
   if(H<.45&&!n.famine&&typeof startFamine==='function'&&rng()<.12*dLevel())startFamine(n,'hunger');
   if(important(n)&&year-(n._hlog||-99)>40){
     if(H<.55){n._hlog=year;log(`A poor harvest in ${n.name}. Bread is scarce this winter.`,'life')}
-    else if(H>1.3){n._hlog=year;log(`A rich harvest in ${n.name}. The barns are full.`,'life')}}}}
+    else if(H>1.3){n._hlog=year;log(`A rich harvest in ${n.name}. The barns are full.`,'life')}}}
+}
 const harvestWord=H=>H==null?'—':H<.55?'Poor':H<.85?'Thin':H<1.1?'Fair':H<1.25?'Good':'Rich';
 
 /* ---------- families move to better land ---------- */

@@ -72,16 +72,51 @@ function everydayWeather(dt,k){if(!dt||settings.weather===false||typeof camT==='
   if(WXD.t>WXD.next){WXD.next=WXD.t+25+rng()*45;const wet=climate.rain??.5;WXD.target=rng()<.3+wet*.35?.45+rng()*.55:rng()*.2;
     if(!WXD.wind||rng()<.3){const a=rng()*6.283;WXD.wind=[Math.cos(a)*.22,Math.sin(a)*.22]}}
   WXD.over+=(WXD.target-WXD.over)*Math.min(1,dt*.06);
-  const showers=storms.filter(s=>s.kind==='shower').length;
-  if(k>0&&showers<3&&WXD.over>.4&&rng()<dt*k*.06*WXD.over){const a=rng()*6.283,d=camDist*.3+rng()*Math.min(30,camDist*.9),x=clamp(camT.x+Math.cos(a)*d,-W/2,W/2),z=clamp(camT.z+Math.sin(a)*d,-H/2,H/2),t=tileAt(x,z);
+  /* showers fall all over the world (so every land gets its share of rain), and some start near where you are looking */
+  const showers=storms.filter(s=>s.kind==='shower').length,wet=climate.rain??.5,cap=Math.round(4+wet*6);
+  if(k>0&&showers<cap&&rng()<dt*k*(.05+.1*WXD.over)*(.5+wet)){let x,z;
+    if(rng()<.35){const a=rng()*6.283,d=camDist*.3+rng()*Math.min(30,camDist*.9);x=clamp(camT.x+Math.cos(a)*d,-W/2,W/2);z=clamp(camT.z+Math.sin(a)*d,-H/2,H/2)}
+    else{let i=-1;for(let q=0;q<40;q++){const j=(rng()*N)|0,an=WXG.anom?WXG.anom[j]:0;if(!isWater(j)&&rng()<(.25+moistAt(j))*clamp(.55+an*.7,.04,1.4)){i=j;break}}if(i<0)return;x=wx(i%W);z=wz((i/W)|0)}
+    const t=tileAt(x,z);
     const cold=t>=0&&([2,9,10,12].includes(biome[t])||(typeof seasonName==='function'&&/winter/i.test(seasonName())&&climate.temp<.55&&Math.abs(z)>H*.2));
     storms.push({kind:'shower',x,z,seed:rng()*1000,t:0,life:20+rng()*16,r:2+rng()*1.8,vx:WXD.wind[0],vz:WXD.wind[1],bolt:1e9,landfall:false,snow:cold})}
   weatherDim=Math.max(weatherDim,WXD.over*.3)}
+/* ---------- the weather leaves its mark: wet ground after rain, snow that settles and melts, and a record of each land's rain ---------- */
+function wxRainOn(S,dt,k){const f=(S.fade||0)*dt*k,snow=S.kind==='blizzard'||S.snow,r=S.r,ci=tileAt(S.x,S.z);if(ci<0||f<=0)return;
+  const cx=ci%W,cy=(ci/W)|0,R=Math.ceil(r);
+  for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){const X=cx+dx,Y=cy+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(wx(X)-S.x,wz(Y)-S.z);if(d>r)continue;
+    const j=Y*W+X,w=f*(1-d/r)*(.75+.5*hash(j*1.7+S.seed));
+    if(snow){WXG.snow[j]=Math.min(1,WXG.snow[j]+w*.09);WXG.rain[j]+=w*.4}else{WXG.wet[j]=Math.min(1,WXG.wet[j]+w*.16);WXG.rain[j]+=w;if(WXG.snow[j]>0)WXG.snow[j]=Math.max(0,WXG.snow[j]-w*.05)}}
+  WXG.dirty=true}
+function wxTick(dt,k){if(typeof wxEnsure!=='function'||!N)return;wxEnsure();
+  for(const S of storms)wxRainOn(S,dt,k);
+  WXG.acc+=dt*k;WXG.up+=dt;
+  if(WXG.acc>.5){const t=WXG.acc;WXG.acc=0;const warm=clamp(climate.temp,0,1),sa=typeof seasonAmounts==='function'&&settings.seasons!==false?seasonAmounts():{snow:0},cold=clamp(1.15-climate.temp*1.2,.3,1);
+    const dry=Math.exp(-t*(.03+warm*.03)),melt=t*(.004+warm*.02)*(1-sa.snow*.9);
+    for(let i=0;i<N;i++){const w=WXG.wet[i];if(w>0)WXG.wet[i]=w<.01?0:w*dry;
+      /* winter: snow settles over the cold lands and high ground on its own, as the seasons already paint it */
+      const y=(i/W)|0,lat=Math.abs(wz(y))/(H/2),hb=isWater(i)?-1:h[i]-sea,want=hb<0?0:sa.snow*cold*clamp((lat+hb*.66-.64)/.22,0,1);
+      let s=WXG.snow[i];if(s<want)s=Math.min(want,s+t*.02);else if(s>0)s=Math.max(0,s-melt);WXG.snow[i]=s}
+    WXG.dirty=true}
+  if(WXG.dirty&&WXG.up>.35){WXG.up=0;wxUpload()}}
+{const _us2=updateStorms;updateStorms=function(dt,k){_us2(dt,k);try{wxTick(dt,k)}catch(e){console.warn('weather',e)}}}
+/* how the weather lies on a tile, in words */
+function groundWord(i){if(!WXG.wet||i<0)return '';const s=WXG.snow[i],w=WXG.wet[i],a=WXG.anom?WXG.anom[i]:0;return s>.45?'Deep snow':s>.15?'Snow-covered':w>.5?'Soaked from the rain':w>.15?'Wet after rain':a<-.55?'Parched by drought':a>.6?'Sodden after wet years':''}
+/* ---------- weather patterns: wet years and droughts sweep over whole regions and last a few decades ---------- */
+function wxNoise(x,y,s){const X=Math.floor(x),Y=Math.floor(y),fx=x-X,fy=y-Y,u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy),q=(a,b)=>hash(a*73.13+b*19.71+s*7.77);
+  return lerp(lerp(q(X,Y),q(X+1,Y),u),lerp(q(X,Y+1),q(X+1,Y+1),u),v)}
+function wxPattern(){if(typeof wxEnsure!=='function')return;wxEnsure();const P=40,e=Math.floor(year/P),f=smooth(0,1,(year%P)/P),S=18,seed=worldSeed||1;
+  for(let i=0;i<N;i++){const x=(i%W)/S,y=((i/W)|0)/S,a=wxNoise(x+e*.37,y,seed+e)*.65+wxNoise(x*2.1,y*2.1,seed+e+91)*.35,b=wxNoise(x+(e+1)*.37,y,seed+e+1)*.65+wxNoise(x*2.1,y*2.1,seed+e+92)*.35;
+    WXG.anom[i]=clamp((lerp(a,b,f)-.5)*3.4,-1,1)}WXG.dirty=true}
+/* how the weather pattern lies over a nation: below zero drier than usual, above wetter */
+function rainAnom(n){if(typeof WXG==='undefined'||!WXG.anom)return 0;let s=0,c=0;for(const t of n.cities){for(let dy=-2;dy<=2;dy+=2)for(let dx=-2;dx<=2;dx+=2){const X=t.x+dx,Y=t.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;s+=WXG.anom[Y*W+X];c++}}return c?s/c:0}
+/* armies wade through mud and snow */
+function weatherSlow(x,z){const i=tileAt(x,z);if(i<0||!WXG.wet)return 1;return clamp(1-WXG.wet[i]*.35-WXG.snow[i]*.55,.35,1)}
 {const _us=updateStorms;updateStorms=function(dt,k){_us(dt,k);try{everydayWeather(dt,k)}catch(e){}}}
 function brushWorld(x,z,r,fn){const i=tileAt(x,z);if(i<0)return;brush(i,r,(j,d)=>fn(j,1-d/(r+.5)))}
 
 /* ---------- wildfires ---------- */
-function ignite(i){if(fires.has(i)||(scorched&&scorched[i]>0)||fires.size>160)return false;const f=FUEL[biome[i]];if(!f)return false;
+function ignite(i){if(fires.has(i)||(scorched&&scorched[i]>0)||fires.size>160)return false;if(WXG.wet&&(WXG.wet[i]>.35||WXG.snow[i]>.3))return false;const f=FUEL[biome[i]];if(!f)return false;
   fires.set(i,{t:0,fuel:f});const c=cityAtTile(i);if(c){c.n.pop*=.96;log(`Fire swept through ${c.c.name}.`,'doom')}return true}
 function startWildfire(i,god,quiet){if(!ignite(i))return false;const n=owner[i]>=0?nations[owner[i]]:null,x=wx(i%W),z=wz((i/W)|0);
   if(!quiet||rng()<.3){log(god?`You set the land ablaze${n?' in '+n.name:''}.`:`A wildfire broke out${n?' in the lands of '+n.name:' in the wild forests'}.`,'doom');if(!quiet||god)toast('Wildfire',n?`Burning in ${n.name}.`:'Burning in the wild forests.',x,z)}
@@ -159,6 +194,8 @@ function disasterTick(){
   if(climate.temp>.38&&rng()<.007*L*(climate.temp+.3)){const i=pick(j=>biome[j]===0&&Math.abs(((j/W)|0)/(H-1)-.5)<.32);if(i>=0)spawnStorm('hurricane',wx(i%W),wz((i/W)|0))}
   if(rng()<.012*L*clamp(1.25-climate.temp*1.6,0,1.2)){const i=pick(j=>biome[j]===9||biome[j]===10||(biome[j]===5&&Math.abs(((j/W)|0)/(H-1)-.5)>.32));if(i>=0)spawnStorm('blizzard',wx(i%W),wz((i/W)|0))}
   if(rng()<.014*L*(.5+climate.temp)){const i=pick(j=>FUEL[biome[j]]>=.8&&moistAt(j)<.55);if(i>=0)startWildfire(i,false)}
+  /* droughts dry the forests out: fires break out far more often there */
+  if(WXG.anom&&rng()<.025*L){const i=pick(j=>FUEL[biome[j]]>=.45&&WXG.anom[j]<-.55,400);if(i>=0)startWildfire(i,false)}
   if(rng()<.005*L){const al=nations.filter(n=>n.alive&&n.pop>40&&!n.sick&&(n.immune||0)<year);if(al.length)startEpidemic(al[(rng()*al.length)|0])}
   if(rng()<.004*L){const al=nations.filter(n=>n.alive&&n.cities.length);if(al.length)earthquake(al[(rng()*al.length)|0],false)}
 }

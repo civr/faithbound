@@ -253,7 +253,29 @@ const WAVE_TEX=makeWaveTex();
 const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:0});
 const NOISE_GLSL=`varying vec3 vWP;float hn(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hn(i),hn(i+vec2(1,0)),f.x),mix(hn(i+vec2(0,1)),hn(i+vec2(1,1)),f.x),f.y);}`;
-const terrU={uTide:{value:0},uTideA:{value:0},uHam:{value:0},uLite:{value:0},uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30},uOwn:{value:null},uWar:{value:null},uMap:{value:new THREE.Vector2(1,1)},uTint:{value:0},uTime:{value:0},uPhoto:{value:0},
+/* ---------- weather on the land: where rain fell lately (dark, shiny ground) and where snow lies, one value per tile.
+   The simulation fills it (disasters.js); the ground, the buildings and the trees all read the same small texture. */
+const WXU={uWx:{value:null},uWxM:{value:new THREE.Vector2(1,1)}};
+const WXG={wet:null,snow:null,rain:null,tex:null,dirty:false,up:0,acc:0};
+function wxEnsure(){if(WXG.wet&&WXG.wet.length===N&&WXG.tex&&WXG.tex.image.width===W)return;
+  WXG.wet=new Float32Array(N);WXG.snow=new Float32Array(N);WXG.rain=new Float32Array(N);WXG.anom=new Float32Array(N);
+  if(WXG.tex)WXG.tex.dispose();WXG.tex=new THREE.DataTexture(new Uint8Array(N*4),W,H,THREE.RGBAFormat);WXG.tex.magFilter=WXG.tex.minFilter=THREE.LinearFilter;WXG.tex.needsUpdate=true;
+  WXU.uWx.value=WXG.tex;WXU.uWxM.value.set(W,H)}
+function wxUpload(){if(!WXG.tex)return;const d=WXG.tex.image.data,w=WXG.wet,s=WXG.snow;const a=WXG.anom;for(let i=0;i<N;i++){d[i*4]=Math.min(255,w[i]*255)|0;d[i*4+1]=Math.min(255,s[i]*255)|0;d[i*4+2]=clamp((a[i]+1)*127.5,0,255)|0}WXG.tex.needsUpdate=true;WXG.dirty=false}
+/* any lit material can show it: snow settles on surfaces facing up, rain darkens and wets them */
+function weatherHook(m){if(!m||!m.isMeshStandardMaterial||m._wx)return;m._wx=true;const prev=m.onBeforeCompile,pk=m.customProgramCacheKey();
+  m.onBeforeCompile=function(sh,r){if(prev)prev.call(this,sh,r);sh.uniforms.uWx=WXU.uWx;sh.uniforms.uWxM=WXU.uWxM;
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWxP,vWxN;').replace('#include <worldpos_vertex>',`#include <worldpos_vertex>
+  {vec4 wp=vec4(transformed,1.);vec3 wn=objectNormal;
+  #ifdef USE_INSTANCING
+  wp=instanceMatrix*wp;wn=mat3(instanceMatrix)*wn;
+  #endif
+  vWxP=(modelMatrix*wp).xyz;vWxN=normalize(mat3(modelMatrix)*wn);}`);
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D uWx;uniform vec2 uWxM;varying vec3 vWxP,vWxN;').replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+  {vec4 wx=texture2D(uWx,(vWxP.xz+uWxM*.5)/uWxM);float up=smoothstep(.12,.55,vWxN.y);float sn=smoothstep(.12,.5,wx.g)*up;float wt=smoothstep(.08,.6,wx.r)*(1.-sn);
+   diffuseColor.rgb=mix(diffuseColor.rgb*(1.-.22*wt),vec3(.9,.92,.96),sn*.86);roughnessFactor=mix(roughnessFactor,.3,wt*.7*up);}`)};
+  m.customProgramCacheKey=()=>'wx|'+pk;m.needsUpdate=true}
+const terrU={uWx:WXU.uWx,uTide:{value:0},uTideA:{value:0},uHam:{value:0},uLite:{value:0},uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30},uOwn:{value:null},uWar:{value:null},uMap:{value:new THREE.Vector2(1,1)},uTint:{value:0},uTime:{value:0},uPhoto:{value:0},
   tG:{value:null},tD:{value:null},tS:{value:null},tR:{value:null},tW:{value:null},nG:{value:null},nR:{value:null},
   mG:{value:new THREE.Vector3(.57,.53,.36)},mD:{value:new THREE.Vector3(.5,.41,.35)},mS:{value:new THREE.Vector3(.62,.54,.51)},mR:{value:new THREE.Vector3(.43,.36,.2)},mW:{value:new THREE.Vector3(.53,.53,.58)}};
 /* photo-scanned ground (Poly Haven, CC0): grass, earth, sand, rock and snow, with normal maps for grass and rock */
@@ -262,9 +284,9 @@ const terrU={uTide:{value:0},uTideA:{value:0},uHam:{value:0},uLite:{value:0},uWa
  const L=new THREE.TextureLoader(),files={tG:'grass',tD:'ground',tS:'sand',tR:'rock',tW:'snow',nG:'grass_n',nR:'rock_n'};let left=Object.keys(files).length;
  const done=()=>{if(--left<=0){terrU.uPhoto.value=1;if(typeof colorTerrain==='function')requestAnimationFrame(()=>{})}};
  for(const [k,f] of Object.entries(files))L.load('assets/textures/'+f+'.jpg',t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;terrU[k].value=t;done()},undefined,()=>{done()});}
-terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
+terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);sh.fragmentShader=sh.fragmentShader.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\nroughnessFactor=mix(roughnessFactor,.32,gWet*.75);');
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
-  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uTide;uniform float uTideA;uniform float uHam;uniform float uLite;uniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;uniform float uPhoto;uniform sampler2D tG,tD,tS,tR,tW,nG,nR;uniform vec3 mG,mD,mS,mR,mW;\n'+NOISE_GLSL)
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D uWx;float gWet=0.;uniform float uTide;uniform float uTideA;uniform float uHam;uniform float uLite;uniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;uniform float uPhoto;uniform sampler2D tG,tD,tS,tR,tW,nG,nR;uniform vec3 mG,mD,mS,mR,mW;\n'+NOISE_GLSL)
    .replace('#include <color_fragment>',`#include <color_fragment>
     float camD=length(vWP-cameraPosition),dfade=(1.-smoothstep(14.+uHam*16.,52.+uHam*30.,camD))*uPhoto*(1.-uLite);
     /* two scales of the same photo, turned against each other, so the tiling does not show */
@@ -308,6 +330,14 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
     diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.28,1.02,.58),uAutumn*gr*.65);
     float lat=abs(vWP.z)/uHalfH,sn=uSnow*smoothstep(.64,.86,lat+(vWP.y-uWaterY)*.11+(vn(vWP.xz*2.3)-.5)*.2)*step(.02,vWP.y-uWaterY)*(1.-st*.6);
     diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.9,.93,.97),clamp(sn,0.,1.)*.9);
+    /* the weather of the last days: fresh snow where it fell, dark wet ground where it rained */
+    {vec4 wxs=texture2D(uWx,(vWP.xz+uMap*.5)/uMap);float wsn=smoothstep(.12,.55,wxs.g+(vn(vWP.xz*3.1)-.5)*.3)*step(.012,vWP.y-uWaterY)*(1.-st*.55);
+     diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.9,.93,.97),wsn*.92);
+     gWet=smoothstep(.08,.6,wxs.r+(vn(vWP.xz*4.3)-.5)*.25)*(1.-wsn)*step(uWaterY,vWP.y);diffuseColor.rgb*=1.-.3*gWet;
+     /* years of drought scorch the grass yellow and brown; a run of wet years makes it lush */
+     float an=wxs.b*2.-1.,dr=smoothstep(-.3,-.8,an+(vn(vWP.xz*1.7)-.5)*.25)*step(uWaterY+.01,vWP.y)*(1.-wsn),lu=smoothstep(.45,.9,an)*step(uWaterY+.01,vWP.y)*(1.-wsn);
+     float gg=smoothstep(.0,.05,diffuseColor.g-max(diffuseColor.r,diffuseColor.b)*.95);
+     diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.22,1.02,.6)+vec3(.04,.02,0.),dr*gg*.7);diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.9,1.04,.88),lu*gg*.5);}
     /* nations: a soft wash of their colour; war fronts: a scorched, striped conflict zone */
     if(uTint>0.){vec2 tuv=(vWP.xz+uMap*.5)/uMap;vec4 own=texture2D(uOwn,tuv);float ab=step(uWaterY+.004,vWP.y);
       diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*.6+own.rgb*.55,own.a*uTint*ab);
