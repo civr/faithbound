@@ -785,7 +785,8 @@ function cityCenter(n,c,cx,cy,cz,e,cap,i0){
   if(e>=4&&e<=5)for(let k=0;k<6;k++){const a=k/6*6.283+.3,lx=cx+Math.cos(a)*(r+.02),lz=cz+Math.sin(a)*(r+.02);add('cyl',lx,cy,lz,.004,.075,.004,0,0x2e2e2e);add('lamp',lx,cy+.072,lz,.012,.014,.012)}
   if(e>=1&&e<=5&&herds.length<120){for(let h=0;h<1+(hash(i0*5)<.5?1:0);h++){const a=hash(i0*11+h)*6.283,d=.55+hash(i0*13+h)*.4,hx=cx+Math.cos(a)*d,hz=cz+Math.sin(a)*d,ti=Math.floor(hz+H/2)*W+Math.floor(hx+W/2);
     if(ti>=0&&ti<N&&owner[ti]===n.id&&(biome[ti]===4||biome[ti]===8)&&groundY(hx,hz)>waterY+.05)herds.push({x:hx,z:hz,kind:(q=>q<.45?'sheep':q<.78?'cow':q<.9?'pig':'horse')(hash(i0+h*3)),n:3+((hash(i0*17+h)*4)|0),seed:i0*7+h})}}}
-function harbour(c,cx,cz,e,i0){let d=-1;for(let q=0;q<4;q++){const X=c.x+DX[q],Y=c.y+DY[q];if(X<0||Y<0||X>=W||Y>=H)continue;if(isWater(Y*W+X)){d=q;break}}if(d<0)return;
+function harbour(c,cx,cz,e,i0,lvl){let d=-1;for(let q=0;q<4;q++){const X=c.x+DX[q],Y=c.y+DY[q];if(X<0||Y<0||X>=W||Y>=H)continue;if(isWater(Y*W+X)){d=q;break}}if(d<0)return;
+  if((lvl||0)>=5&&bigHarbour(c,cx,cz,e,i0,lvl,d))return;
   const len=e>=SAIL?.55:.32,px=cx+DX[d]*.45,pz=cz+DY[d]*.45,ax=DX[d]?len:.06,az=DY[d]?len:.06;
   add('box',px,waterY-.04,pz,ax,.06,az,0,e>=6?0x9a9a96:0x6b5038);
   for(const s of [-1,0,1])add('cyl',px+DX[d]*len*.45*s,waterY-.15,pz+DY[d]*len*.45*s,.016,.18,.016,0,0x4a3828);
@@ -794,6 +795,49 @@ function harbour(c,cx,cz,e,i0){let d=-1;for(let q=0;q<4;q++){const X=c.x+DX[q],Y
     if(e<5)add('awning',bx,waterY+.03,bz,.004,.05,.045,rot+Math.PI/2,0xf0ead8)}
   if(e>=SAIL){const wx_=cx+DX[d]*.25+DY[d]*.2,wz_=cz+DY[d]*.25+DX[d]*.2,wy=groundY(wx_,wz_);add(e>=5?'brick':'plaster',wx_,wy-.02,wz_,.14,.08,.09,DX[d]?Math.PI/2:0,0xffffff);add('tiles',wx_,wy+.06,wz_,.15,.05,.11,DX[d]?Math.PI/2:0,ROOF_SLATE[1])}
   if(e>=5){const kx=px+DX[d]*len*.3+DY[d]*.05,kz=pz+DY[d]*len*.3+DX[d]*.05;add('cyl',kx,waterY,kz,.012,.22,.012,0,0xd8a02a);add('box',kx,waterY+.21,kz,DX[d]?.016:.14,.012,DX[d]?.14:.016,0,0xd8a02a)}}
+/* ---------- big harbours for big cities ----------
+   A growing port builds out along its shore: a stone quay following the waterline, jetties reaching into the sea with
+   boats and ships moored alongside, warehouses behind the quay, cranes (wooden treadwheel cranes, later steel ones),
+   and in the great ports a breakwater with a lighthouse at its end. Ships use the real ship models when they are loaded. */
+const HB_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.8});tideHook(HB_MAT);
+const HB_SHIPS=[['viking_boat',0,2],['sail_ship',3,5],['liner',5,6],['cruiseship',6,7]];
+function hbShipKit(e){for(const [m,a,b] of HB_SHIPS){if(e<a||e>b||typeof modelOn!=='function'||!modelOn(m))continue;const kn='hb_'+m;
+    if(!KITS[kn]){kit(kn,MDL.geo[m],HB_MAT,160,true);BUILD_KITS.push(kn)}return kn}return null}
+function hbShipSig(){return typeof modelOn==='function'?HB_SHIPS.map(s=>modelOn(s[0])?1:0).join(''):''}
+function bigHarbour(c,cx,cz,e,i0,lvl,d){const fx=DX[d],fz=DY[d],px=-fz,pz=fx,big=lvl>=9,rot=Math.atan2(-fz,fx),wood=0x6b5038,stoneC=e>=6?0xa8a49c:0x9a8e78;
+  /* where the water starts, looking out to sea from a point along the shore */
+  const shoreAt=l=>{let wasLand=false;for(let t=-.2;t<1.8;t+=.02){const x=cx+fx*t+px*l,z=cz+fz*t+pz*l,g=groundY(x,z);if(g>waterY+.004)wasLand=true;else if(wasLand&&g<waterY-.002)return t;}return null};
+  const span=Math.min(1.7,.45+lvl*.09),seg=.16,pts=[];
+  for(let l=-span;l<=span+1e-6;l+=seg){const t=shoreAt(l);if(t!=null)pts.push([l,t])}
+  if(pts.length<3)return false;
+  /* the quay: a stone wall along the waterline, with a paved top */
+  for(const [l,t] of pts){const x=cx+fx*(t-.03)+px*l,z=cz+fz*(t-.03)+pz*l;add('stone',x,waterY-.03,z,.08,.06,seg*1.02,rot,stoneC);add('stone',x-fx*.07,waterY+.026,z-fz*.07,.08,.006,seg*1.02,rot,0xb8b0a0)}
+  /* jetties out over the water, with boats and ships alongside */
+  const nj=Math.min(pts.length-1,big?Math.min(6,2+((lvl-5)/2|0)):2+(lvl>=7?1:0)),ship=e>=2?hbShipKit(e):null;
+  for(let k=0;k<nj;k++){const [l,t]=pts[Math.round((k+.5)/nj*(pts.length-1))],len=(big?.42:.32)+hash(i0+k*3)*.12;
+    const x0=cx+fx*t+px*l,z0=cz+fz*t+pz*l,mx=x0+fx*len/2,mz=z0+fz*len/2;
+    if(groundY(x0+fx*len,z0+fz*len)>waterY-.003)continue;
+    add(e>=5?'stone':'box',mx,waterY-.012,mz,len,.03,.05,rot,e>=5?stoneC:wood);
+    if(e<5)for(let q=0;q<=3;q++)for(const sd of [-1,1])add('cyl',x0+fx*len*q/3+px*.022*sd,waterY-.1,z0+fz*len*q/3+pz*.022*sd,.007,.13,.007,0,0x4a3828);
+    for(const sd of [-1,1]){const h=hash(i0+k*7+sd),bx=mx+px*sd*(.06+(ship?.03:0)),bz=mz+pz*sd*(.06+(ship?.03:0));
+      if(ship&&h<.6)add(ship,bx,waterY+.003,bz,big?.62:.48,big?.62:.48,big?.62:.48,rot+(h<.3?Math.PI:0),0xffffff);
+      else{add('boat',bx,waterY+.012,bz,.1,.04,.035,rot,h<.5?0x6b4a2e:0x8a5a3a);add('cyl',bx,waterY+.012,bz,.004,.09,.004,0,0x5a4632)}}}
+  /* warehouses in a row behind the quay */
+  if(e>=2){const nw=big?4:2;for(let k=0;k<nw;k++){const [l,t]=pts[Math.round((k+.5)/nw*(pts.length-1))],x=cx+fx*(t-.2)+px*(l+.04),z=cz+fz*(t-.2)+pz*(l+.04),g=groundY(x,z);if(g<waterY+.008)continue;
+    const wl=.15+hash(i0+k)*.05;add(e>=5?'brick':e>=3?'timber':'plaster',x,g-.02,z,.09,.075,wl,rot,0xffffff);add('tiles',x,g+.055,z,.1,.045,wl+.01,rot,e>=5?ROOF_SLATE[1]:0x9a4a32)}}
+  /* cranes on the quay */
+  const nc=big?3:1;for(let k=0;k<nc;k++){const [l,t]=pts[Math.round((k+1)/(nc+1)*(pts.length-1))],x=cx+fx*(t-.05)+px*l,z=cz+fz*(t-.05)+pz*l;
+    if(e>=5){const col=k%2?0xc83a2a:0xe0a828;for(const a of [-1,1])for(const b of [-1,1])add('box',x+fx*.025*a+px*.02*b,waterY+.025,z+fz*.025*a+pz*.02*b,.006,.12,.006,rot,col);
+      add('box',x+fx*.03,waterY+.145,z+fz*.03,.2,.012,.05,rot,col);add('box',x+fx*.1,waterY+.08,z+fz*.1,.003,.065,.003,rot,0x2a2a2a);add('box',x+fx*.1,waterY+.072,z+fz*.1,.014,.01,.014,rot,0x3a3a3a)}
+    else if(e>=2){/* a treadwheel crane: a timber housing with its big wheel, and the jib leaning out over the water */add('box',x,waterY+.025,z,.035,.05,.035,rot,wood);add('tiles',x,waterY+.075,z,.04,.02,.04,rot,0x6a4a32);
+      add('box',x-fx*.03,waterY+.025,z-fz*.03,.008,.05,.05,rot,0x7a5a3a);add('box',x+fx*.06,waterY+.08,z+fz*.06,.12,.008,.008,rot,0x5a4030);add('box',x+fx*.115,waterY+.045,z+fz*.115,.002,.035,.002,rot,0x2a2a2a)}}
+  /* the great ports: a breakwater of rough stone out to sea, and a lighthouse at its end */
+  if(big&&e>=2){const [l,t]=pts[pts.length-1],bx0=cx+fx*t+px*l,bz0=cz+fz*t+pz*l;let x=bx0,z=bz0,ang=0;const n=10;let ok=0;
+    for(let q=0;q<n;q++){ang=q/n*.9;const dx=fx*Math.cos(ang)-px*Math.sin(ang),dz=fz*Math.cos(ang)-pz*Math.sin(ang);x+=dx*.07;z+=dz*.07;if(groundY(x,z)>waterY+.01)continue;
+      add('rock',x,waterY-.02,z,.07,.05,.06,hash(q+i0)*3,0x8a8478);ok++}
+    if(ok>=6){add('cyl',x,waterY-.02,z,.032,.06,.032,0,0x8a8478);add('cyl',x,waterY+.04,z,.02,.12,.02,0,0xf0ece4);add('cyl',x,waterY+.1,z,.0205,.025,.0205,0,0xc8382a);
+      add('cyl',x,waterY+.16,z,.016,.022,.016,0,0xfff2c0);add('cyl',x,waterY+.182,z,.022,.008,.022,0,0x3a3a3a)}}
+  return true}
 /* grass: a dense field of swaying blades around the camera when zoomed in */
 const grassU={uTime:{value:0},uC:{value:new THREE.Vector2()},uR:{value:3},uG:{value:1}};
 /* grass: clumps of curved blades, a dense carpet around the camera that thins out at the edge */
@@ -1021,7 +1065,7 @@ function cityKey(n,c,ci,e,lvl,gold,cap){const MR=metroRadius(n,c,cap,e),rad=Math
   for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===n.id)oh++}oh=Math.round(oh/4)
   const far=Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
   return [n.id,e,lvl,cap?1:0,gold?1:0,n.festival>0?1:0,c.statue?c.statue.faith:-1,c.siege>.08?1:0,c.riot&&year-c.riot<6?1:0,n.faith,n.wonder,flagKey(n.flag),cultOf(n),settings.arch,terrBase+':'+sea.toFixed(3)+':'+(c._flat||''),oh,far?1:0,Math.round(MR*4),
-    n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),n.techs&&n.techs.includes('starships')?1:0,ci,typeof SBVER!=='undefined'&&settings.models!==false?SBVER:-1].join('|')}
+    n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),hbShipSig(),n.techs&&n.techs.includes('starships')?1:0,ci,typeof SBVER!=='undefined'&&settings.models!==false?SBVER:-1].join('|')}
 /* a town's copies are kept as plain blocks (matrices, colours, culling spheres) so replaying it is a straight copy */
 function stageSpheres(K,s,at,n){if(!K.csS||K.csS.length<K.max*4)K.csS=new Float32Array(K.max*4);K.csS.set(n*4<s.length?s.subarray(0,n*4):s,at*4)}
 function replayCity(Rc){if(Rc.ft){const fr=FOOTREC;FOOTREC=null;for(const o of Rc.ft)footAdd(o);FOOTREC=fr}for(const name in Rc.m){const K=KITS[name],m=Rc.m[name],cnt=Math.min(m.length/16,K.max-K.k);if(cnt<=0)continue;
@@ -1075,7 +1119,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         const tight=plan.wallR>.3,wR=tight?plan.wallR+.05:0;
         if(tight){WALL_TIGHT=true;try{townWall(n,plan,cx,cz,wR,e,false,i0)}finally{WALL_TIGHT=false}innerCity(n,plan,cx,cy,cz,e,cap,i0,wR,KO)}
         else if(ds.length>=(cap?14:18)){ds.sort((a,b)=>a-b);townWall(n,plan,cx,cz,ds[Math.floor(ds.length*.8)]+.09,e,false,i0)}}
-      if(e>=1)solid(()=>harbour(c,cx,cz,e,i0),cx,cz,0,true,undefined,'big');
+      if(e>=1)solid(()=>harbour(c,cx,cz,e,i0,lvl),cx,cz,0,true,undefined,'big');
       c._canals=[];
       for(const sl of slots){if(placed>=count)break;k++;MCTX.w=sl.metro?sl.w:.12;
         if(e>=1){/* two towns that meet never build on the same spot */const bk=Math.round(sl.x*12)+','+Math.round(sl.z*12);if(bgrid.has(bk))continue;bgrid.add(bk)}
