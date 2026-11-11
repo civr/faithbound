@@ -180,7 +180,7 @@ function unite(K,O,name,god,root){if(!K||!O||K===O||!K.alive||!O.alive)return fa
   for(let i=0;i<N;i++)if(owner[i]===O.id)claim(i,K.id);
   const tot=Math.max(1,K.pop+O.pop);K.devotion=((K.devotion??.3)*K.pop+(O.devotion??.3)*O.pop)/tot;K.stab=Math.max(K.stab||.6,.55);
   K.pop+=O.pop;O.pop=0;if(K.faith<0)K.faith=O.faith;
-  K.techs=[...new Set([...(K.techs||[]),...(O.techs||[])])];if(O.era>K.era){K.era=O.era;K.eraY=year}
+  K.techs=[...new Set([...(K.techs||[]),...(O.techs||[])])];if(O.era>K.era){K.era=O.era;K.eraY=O.eraY??year}
   const merge=(k)=>{K[k]=[...new Set([...(K[k]||[]),...(O[k]||[])])].filter(x=>x!==K.id&&x!==O.id)};merge('known');merge('trade');merge('ties');
   /* O's allies become K's allies, if they are not at war with it */
   const oAllies=(O.allies||[]).filter(x=>x!==K.id);K.allies=(K.allies||[]).filter(x=>x!==O.id);if(K.allyY)delete K.allyY[O.id];
@@ -284,7 +284,7 @@ function rebel(n,forced,why){
   const oc=c.origin!=null&&nations[c.origin]?cultOf(nations[c.origin]):cultOf(n);
   const share=region.length/n.tiles,R_=newNation(c.x,c.y,{claim:false,name:c.name,pop:0,culture:c.colony?cultOf(n):oc});
   for(const j of region)claim(j,R_.id);const ci=R_.cities.indexOf(c);if(ci>0){R_.cities.splice(ci,1);R_.cities.unshift(c)}
-  R_.pop=n.pop*share;n.pop-=R_.pop;R_.tech=0;R_.era=n.era;R_.techs=(n.techs||[]).slice();R_.faith=rng()<.5?n.faith:-1;R_.aggr=.6+rng()*.3;R_.gov=n.gov;if(!govOptions(R_).includes(R_.gov))R_.gov=govOptions(R_)[0]||n.gov;
+  R_.pop=n.pop*share;n.pop-=R_.pop;R_.tech=0;R_.era=n.era;R_.eraY=n.eraY??n.born;R_.techs=(n.techs||[]).slice();R_.faith=rng()<.5?n.faith:-1;R_.aggr=.6+rng()*.3;R_.gov=n.gov;if(!govOptions(R_).includes(R_.gov))R_.gov=govOptions(R_)[0]||n.gov;
   R_.known=n.known.slice();R_.known.push(n.id);n.known.push(R_.id);const gv=per(c.governor);if(gv&&gv.died==null&&gv.id!==n.ruler&&!gv.machine){gv.nation=R_.id;R_.house=gv.house;crown(R_,gv,'rebel')}
   if(why){/* a town that grew into a country of its own */
     const msg=why==='colony'?`The colony of ${c.name} declared independence from ${n.name}.`:why==='conquered'?`The people of ${c.name} rose up and threw off the rule of ${n.name}.`:`${c.name} declared itself a free country, no longer ruled by ${n.name}.`;
@@ -525,13 +525,22 @@ function tick(){
   if(moistActive>0){moistActive--;for(let i=0;i<N;i++)moistD[i]*=.985;if(year%4===0)terrainDirty=true}
 }
 /* research: points flow into the current discovery; a key discovery opens the next age */
+/* how long until a nation's next age may begin: ages last their chosen time, so a key discovery made early waits for it */
+function ageWait(n){const t=n.research&&TECH[n.research];if(!t||!t.key||n.tech<TECHCOST[t.era])return null;const start=n.eraY??n.born??0,len=paceInfo().yearsPerAge,left=Math.ceil(start+len-year);
+  return left>0?{left,frac:clamp((year-start)/len,0,1),to:t.key}:null}
+const ageEarly=n=>year-(n.eraY??n.born??0)<paceInfo().yearsPerAge;
 function pickResearch(n){const open=TECHS.filter(t=>techAvailable(n,t));if(!open.length){n.research=null;return}
-  const w=open.map(t=>(t.key?1.6:1)*(t.mil&&n.aggr>.6?1.4:1)*(t.belief&&n.faith>=0?1.3:1)*(t.sea&&n.era>=3?1.2:1));
+  /* the key to the next age comes last while the age still has time to run, so the scholars keep busy with the rest */
+  const early=ageEarly(n)&&open.some(t=>!t.key);
+  const w=open.map(t=>(t.key?(early?0:1.6):1)*(t.mil&&n.aggr>.6?1.4:1)*(t.belief&&n.faith>=0?1.3:1)*(t.sea&&n.era>=3?1.2:1));
   let r=rng()*w.reduce((a,b)=>a+b,0);for(let q=0;q<open.length;q++){r-=w[q];if(r<=0){n.research=open[q].id;return}}n.research=open[0].id}
 function research(n,pts){if(!n.techs)n.techs=[];if(!n.research||!techAvailable(n,TECH[n.research]))pickResearch(n);if(!n.research){n.tech=0;return}
+  if(n.keyBank&&TECH[n.research].key){n.tech=Math.max(n.tech,n.keyBank);n.keyBank=0}
   n.tech+=pts;const t=TECH[n.research],cost=TECHCOST[t.era];
-  /* an age is never rushed: the key discovery waits until the age has lasted its full time */
-  if(t.key&&n.tech>=cost&&year-(n.eraY??n.born??0)<paceInfo().yearsPerAge){n.tech=cost;return}
+  /* an age is never rushed: the key discovery waits until the age has lasted its full time. Meanwhile the scholars work on
+     whatever else this age still has to offer; the finished key is kept and picked up again when it is the last thing left */
+  if(t.key&&n.tech>=cost&&ageEarly(n)){const alt=TECHS.filter(x=>techAvailable(n,x)&&!x.key);
+    if(alt.length&&!n.guided){n.keyBank=cost;n.research=alt[(rng()*alt.length)|0].id;n.tech=0;return}n.tech=cost;return}
   if(n.tech>=cost){n.tech-=cost;n.techs.push(t.id);n.research=null;n.guided=false;
     if(t.key){n.eraY=year;n.era=t.key;propsDirty=true;log(`${n.name} discovered ${t.name} and entered the ${ERAS[n.era].name}.`,'era');milestone('era'+n.era,ERAS[n.era].name,`${n.name} was the first to reach it.`)}
     else if(n.id===selected||rng()<.15)log(`${n.name} discovered ${t.name}.`,'era');
@@ -608,7 +617,9 @@ function applySave(d){
   worldOpts=Object.assign({pace:'standard',customN:1,customUnit:'weeks',calendar:false,anchorReal:0,anchorYear:0,maxEra:7},d.worldOpts||{});if(!PACES[worldOpts.pace])worldOpts.pace='standard';worldOpts.slot=d.slot||worldOpts.slot||null;worldOpts.name=d.worldName||worldOpts.name||'Unnamed world';if(!PACES[worldOpts.pace])worldOpts.pace='quick';
   year=d.year;belief=d.belief;climate=d.climate;flags=d.flags;dayT=d.dayT||.22;
   ruins=d.ruins||[];warData=d.warData||{};cultSeeds=d.cultSeeds||[];coves=d.coves||[];
-  nations=d.nations.map(n=>Object.assign(n,{wars:new Set(n.wars),nb:new Set(),front:[],_walk:0,gov:n.gov||'tribal'}));if(!cultSeeds.length)seedCultures();for(const n of nations){if(!n.culture){const c=n.cities[0];n.culture=c?cultureAt(c.x,c.y):'west'}if(!n.allies)n.allies=[];if(n.devotion==null)n.devotion=.3;if(n.festival==null)n.festival=0;if(!n.techs){grantTechsUpTo(n);n.tech=0}for(const k of ['known','trade','ties','reigns'])if(!n[k])n[k]=[];if(n.ruler===undefined)n.ruler=null;if(n.house===undefined)n.house=null}faiths=d.faiths.map(f=>Object.assign({tenets:f.tenets||[f.tenet],glyph:f.glyph||'star'},f));logs=d.logs;
+  nations=d.nations.map(n=>Object.assign(n,{wars:new Set(n.wars),nb:new Set(),front:[],_walk:0,gov:n.gov||'tribal'}));if(!cultSeeds.length)seedCultures();for(const n of nations){if(!n.culture){const c=n.cities[0];n.culture=c?cultureAt(c.x,c.y):'west'}if(!n.allies)n.allies=[];if(n.devotion==null)n.devotion=.3;if(n.festival==null)n.festival=0;if(!n.techs){grantTechsUpTo(n);n.tech=0}for(const k of ['known','trade','ties','reigns'])if(!n[k])n[k]=[];if(n.ruler===undefined)n.ruler=null;if(n.house===undefined)n.house=null}
+  /* older saves: breakaway nations had no age clock of their own and waited a whole age again; give them the clock of their age */
+  for(const n of nations)if(n.eraY==null){const same=nations.filter(m=>m.era===n.era&&m.eraY!=null).map(m=>m.eraY);if(same.length)n.eraY=Math.min(...same)}faiths=d.faiths.map(f=>Object.assign({tenets:f.tenets||[f.tenet],glyph:f.glyph||'star'},f));logs=d.logs;
   rivers=d.rivers||[];river=d.riv?unb64(d.riv,Uint8Array):new Uint8Array(N);
   folk=d.folk||{};folkId=d.folkId||0;houses=d.houses||[];
   milestones=new Set(d.milestones);Object.assign(milestoneInfo,d.mi||{});
