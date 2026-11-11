@@ -290,7 +290,7 @@ function drawWildModel(hd,m,x,y,z,now){const name=hd._mn!==undefined?hd._mn:(hd.
   if(!modelOn(name))return false;const F=MDL.frames[name],mv=Math.hypot(hd.vx,hd.vz)>.009&&F.walk!==F.idle;
   const list=mv?F.walk:F.idle,fi=Math.floor(now/1000*(mv?7:1.5)+m.ph*3)%list.length,kn=list[(fi+list.length)%list.length];addM(kn,x,y,z,1,mv?Math.atan2(hd.vx,hd.vz):m.a);WILD_USED.add(kn);return true}
 function drawWhaleModel(w,up,now){if(!modelOn('whale'))return false;const F=MDL.frames.whale.swim,kn=F[Math.floor(now/260)%F.length];
-  addM(kn,w.x,waterY-.05+up*.04,w.z,1,Math.atan2(Math.cos(w.a),Math.sin(w.a)),null,null,null,null,-Math.cos(w.t*.6)*.12);WILD_USED.add(kn);return true}
+  addM(kn,w.x,seaNow()-.05+up*.04,w.z,1,Math.atan2(Math.cos(w.a),Math.sin(w.a)),null,null,null,null,-Math.cos(w.t*.6)*.12);WILD_USED.add(kn);return true}
 
 /* ---------- the sea: pods of dolphins that leap, a shark's fin, manta rays in warm water and shoals of bright fish in the shallows ---------- */
 let seaLife=[],seaT=0;
@@ -307,9 +307,9 @@ function updateSeaLife(dt,k,now){if(!modelOn('dolphin'))return;seaT-=dt;
     if(i<0||!isWater(i)){s.a+=Math.PI*(.6+rng()*.8)}else{s.x=nx;s.z=nz}if(rng()<dt*.15)s.a+=(rng()-.5)*1.2;
     if(Math.hypot(s.x-camT.x,s.z-camT.z)>camDist*1.5+3||!modelOn(s.kind))continue;
     const F=MDL.frames[s.kind].swim,ry=Math.atan2(Math.cos(s.a),Math.sin(s.a));
-    for(const m of s.m){const x=s.x+m.dx,z=s.z+m.dz,kn=F[Math.floor(T*6+m.ph*2)%F.length];let y=waterY-.012,tilt=0;
-      if(s.kind==='dolphin'){const ph=(T*.9+m.ph)%6.283,arc=Math.sin(ph);y=waterY-.03+Math.max(0,arc)*.05;tilt=arc>0?-Math.cos(ph)*.7:0;if(arc>0&&arc<.08&&rng()<dt*8)emit('spray',x,waterY+.01,z,0,0)}
-      else if(s.kind==='shark')y=waterY-.026;else if(s.kind==='manta_ray')y=waterY-.022+Math.sin(T+m.ph)*.004;else y=waterY-.008;
+    for(const m of s.m){const x=s.x+m.dx,z=s.z+m.dz,kn=F[Math.floor(T*6+m.ph*2)%F.length];let y=seaNow()-.012,tilt=0;
+      if(s.kind==='dolphin'){const ph=(T*.9+m.ph)%6.283,arc=Math.sin(ph);y=seaNow()-.03+Math.max(0,arc)*.05;tilt=arc>0?-Math.cos(ph)*.7:0;if(arc>0&&arc<.08&&rng()<dt*8)emit('spray',x,seaNow()+.01,z,0,0)}
+      else if(s.kind==='shark')y=seaNow()-.026;else if(s.kind==='manta_ray')y=seaNow()-.022+Math.sin(T+m.ph)*.004;else y=seaNow()-.008;
       addM(kn,x,y,z,1,ry+(s.kind[0]==='f'?Math.sin(T*2+m.ph)*.4:0),null,null,null,null,tilt);WILD_USED.add(kn)}}}
 document.addEventListener('DOMContentLoaded',()=>{if(typeof updateLiving!=='function')return;const _ul=updateLiving;updateLiving=function(dt,k,now){if(settings.models!==false)for(const nm of WILD_ONLY){const F=MDL.frames[nm];if(F)for(const key in F)for(const kn of F[key])if(KITS[kn])KITS[kn].k=0}
   WILD_USED=new Set();const r=_ul.apply(this,arguments);try{trainStations(dt,k)}catch(e){}try{updateSeaLife(dt,k,now);drawTraffic(now,k)}catch(e){console.warn('sea',e)}

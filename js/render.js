@@ -208,6 +208,17 @@ function resize(){const w=innerWidth,hh=innerHeight,dpr=Math.min(settings.power=
 
 /* ---------- terrain ---------- */
 let VW,VH,VY,detail,terrainMesh=null,skirtMesh=null,waterMesh=null,waterSide=null,waterY=0;
+/* ---------- tides: the sea rises and falls twice a day, higher at spring tides and lower at neap tides about once a week.
+   waterY stays the mean level (towns, harbours and the land are laid out against it); TIDE is how far the sea stands above it now. */
+let TIDE=0,tideT=.1;const TIDE_A=.0095,TIDEU={uTide:{value:0},uSeaY:{value:0}};
+const seaNow=()=>waterY+TIDE;
+function tideRange(){return TIDE_A*(.72+.28*Math.cos(tideT/7.4*6.283))}
+function tideTick(dt){if(typeof playing!=='undefined'&&playing&&!(typeof speedIdx!=='undefined'&&speedIdx===0))tideT+=dt/DAYLEN;
+  const want=settings.tides!==false?tideRange()*Math.sin(tideT*1.93*6.283):0;TIDE+=(want-TIDE)*Math.min(1,dt*2);
+  TIDEU.uTide.value=TIDE;TIDEU.uSeaY.value=waterY;if(typeof terrU!=='undefined'){terrU.uTide.value=TIDE;terrU.uTideA.value=settings.tides!==false?tideRange():0}
+  if(waterMesh){waterMesh.position.y=waterY+TIDE;if(typeof ocean!=='undefined'&&ocean)ocean.position.y=waterY+TIDE;if(waterSide)waterSide.scale.y=Math.max(.01,waterY+TIDE-BASE-.03)}}
+function tideWord(){if(settings.tides===false)return '';const r=tideRange(),f=TIDE/Math.max(1e-4,r),rising=Math.cos(tideT*1.93*6.283)>0,spring=Math.cos(tideT/7.4*6.283)>.6?'spring ':Math.cos(tideT/7.4*6.283)<-.6?'neap ':'';
+  return f>.8?`High ${spring}tide`:f<-.8?`Low ${spring}tide`:rising?'Tide rising':'Tide falling'}
 const shapeH=v=>{const d=v-SEA0;return d>=0?SEA0*HS+d*HS*(.5+d*2.9+Math.max(0,d-.32)*2.4):SEA0*HS+d*HS*1.4};
 /* towns flatten the ground they stand on, like a real settlement on a terrace */
 let flatSpots=[],flatSig='',tslope=new Float32Array(1);
@@ -242,7 +253,7 @@ const WAVE_TEX=makeWaveTex();
 const terrainMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:0});
 const NOISE_GLSL=`varying vec3 vWP;float hn(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hn(i),hn(i+vec2(1,0)),f.x),mix(hn(i+vec2(0,1)),hn(i+vec2(1,1)),f.x),f.y);}`;
-const terrU={uHam:{value:0},uLite:{value:0},uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30},uOwn:{value:null},uWar:{value:null},uMap:{value:new THREE.Vector2(1,1)},uTint:{value:0},uTime:{value:0},uPhoto:{value:0},
+const terrU={uTide:{value:0},uTideA:{value:0},uHam:{value:0},uLite:{value:0},uWaterY:{value:0},uSnow:{value:0},uAutumn:{value:0},uHalfH:{value:30},uOwn:{value:null},uWar:{value:null},uMap:{value:new THREE.Vector2(1,1)},uTint:{value:0},uTime:{value:0},uPhoto:{value:0},
   tG:{value:null},tD:{value:null},tS:{value:null},tR:{value:null},tW:{value:null},nG:{value:null},nR:{value:null},
   mG:{value:new THREE.Vector3(.57,.53,.36)},mD:{value:new THREE.Vector3(.5,.41,.35)},mS:{value:new THREE.Vector3(.62,.54,.51)},mR:{value:new THREE.Vector3(.43,.36,.2)},mW:{value:new THREE.Vector3(.53,.53,.58)}};
 /* photo-scanned ground (Poly Haven, CC0): grass, earth, sand, rock and snow, with normal maps for grass and rock */
@@ -253,7 +264,7 @@ const terrU={uHam:{value:0},uLite:{value:0},uWaterY:{value:0},uSnow:{value:0},uA
  for(const [k,f] of Object.entries(files))L.load('assets/textures/'+f+'.jpg',t=>{t.wrapS=t.wrapT=THREE.RepeatWrapping;t.anisotropy=8;terrU[k].value=t;done()},undefined,()=>{done()});}
 terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
-  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uHam;uniform float uLite;uniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;uniform float uPhoto;uniform sampler2D tG,tD,tS,tR,tW,nG,nR;uniform vec3 mG,mD,mS,mR,mW;\n'+NOISE_GLSL)
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uTide;uniform float uTideA;uniform float uHam;uniform float uLite;uniform float uWaterY;uniform float uSnow;uniform float uAutumn;uniform float uHalfH;uniform sampler2D uOwn;uniform sampler2D uWar;uniform vec2 uMap;uniform float uTint;uniform float uTime;uniform float uPhoto;uniform sampler2D tG,tD,tS,tR,tW,nG,nR;uniform vec3 mG,mD,mS,mR,mW;\n'+NOISE_GLSL)
    .replace('#include <color_fragment>',`#include <color_fragment>
     float camD=length(vWP-cameraPosition),dfade=(1.-smoothstep(14.+uHam*16.,52.+uHam*30.,camD))*uPhoto*(1.-uLite);
     /* two scales of the same photo, turned against each other, so the tiling does not show */
@@ -287,6 +298,9 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);
       vec3 det=(g*wG+rk*wR+sa*wS+so*wD+sn*wW)/wsum;det=mix(vec3(1.),det,min(1.,wsum));det=mix(vec3(1.),det,1.+uHam*.15);det=clamp(det,.4,1.7);
       diffuseColor.rgb*=mix(vec3(1.),det,dfade*.92);
       bumpW=vec4(wG+wD*.7+wS*.5,wR,0.,0.)/wsum;}}
+    /* tides: sand the sea has just left is dark and wet, with a line of weed and shells at the high-water mark */
+    if(uTideA>0.){float hw=uWaterY+uTideA,lw=uWaterY+uTide,ex=step(lw,vWP.y);float wet=(1.-smoothstep(hw-.003,hw+.004,vWP.y))*ex;float fresh=1.-smoothstep(lw,lw+.01,vWP.y);
+      diffuseColor.rgb*=1.-(.3+.16*fresh)*wet;diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.86,.92,1.),wet*.5);float wrack=exp(-pow((vWP.y-hw)/.0022,2.))*ex;diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.72,.7,.6),wrack*.55);}
     /* sunlight dancing on the shallow seabed */
     if(vWP.y<uWaterY&&uLite<.5){float dep=uWaterY-vWP.y;vec2 cp=vWP.xz*2.2;float c1=vn(cp+vec2(uTime*.35,uTime*.2)),c2=vn(cp*1.3-vec2(uTime*.27,-uTime*.31));float ca=pow(1.-abs(c1-c2),7.);
       diffuseColor.rgb+=vec3(.55,.75,.7)*ca*.35*exp(-dep*2.5)*dfade;}

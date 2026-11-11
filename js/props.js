@@ -67,6 +67,13 @@ TX.lampE=canvasTex(8,(x)=>{x.fillStyle='#fff';x.fillRect(0,0,8,8)});
 const WARM=new THREE.Color(0xffd38a);
 const winMats=[];
 function stdMat(o){const m=new THREE.MeshStandardMaterial(Object.assign({roughness:.85,metalness:0},o));if(o.emissiveMap){m.emissive=WARM.clone();m.emissiveIntensity=0;winMats.push(m)}return m}
+/* copies that float at the waterline (moored boats, rowing boats, fishing boats) are lifted by the tide on the graphics chip */
+function tideHook(m){const prev=m.onBeforeCompile;m.onBeforeCompile=function(sh,r){if(prev)prev.call(this,sh,r);sh.uniforms.uTide=TIDEU.uTide;sh.uniforms.uSeaY=TIDEU.uSeaY;
+  sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nuniform float uTide;uniform float uSeaY;').replace('#include <project_vertex>',`vec4 mvPosition=vec4(transformed,1.0);
+#ifdef USE_INSTANCING
+mvPosition=instanceMatrix*mvPosition;{float oy=instanceMatrix[3].y;mvPosition.y+=uTide*step(uSeaY+.001,oy)*step(oy,uSeaY+.035);}
+#endif
+mvPosition=modelViewMatrix*mvPosition;gl_Position=projectionMatrix*mvPosition;`)};m.customProgramCacheKey=()=>'tide'+m.uuid;m.needsUpdate=true}
 const MAT={
   plaster:stdMat({map:TX.plaster,emissiveMap:TX.plasterE}),
   stone:stdMat({map:TX.stone,emissiveMap:TX.stoneE,roughness:.95}),
@@ -211,6 +218,7 @@ kit('hamA',hamTree(17,false),treeMat,40000);kit('hamB',hamTree(29,true),treeMat,
 kit('palm',palmGeo(5),treeMat,8000);
 kit('bush',bushGeo(3),treeMat,80000);
 kit('rock',(()=>{const g=new THREE.DodecahedronGeometry(.5,0);g.translate(0,.25,0);return g})(),stdMat({roughness:1}),6000);
+tideHook(MAT.plain);tideHook(MAT.awning);
 kit('fence',unitBox(),MAT.plain,30000,false);kit('lamp',unitBox(),MAT.lamp,4000,false);kit('awning',gableGeo(),MAT.awning,8000);
 kit('plazaStone',unitCyl(24),MAT.plaza,400,false);kit('plazaDirt',unitCyl(18),MAT.dirtPlaza,400,false);kit('pool',unitCyl(16),inlandWaterMat(false),5000,false);
 kit('townTree',leafTree(23,'broad'),treeMat,16000);

@@ -111,7 +111,7 @@ function updateKrakens(dt,k,now){for(let q=krakens.length-1;q>=0;q--){const K=kr
       if(s.kind==='war'&&s.era>=5&&rng()<.6){K.hp--;for(let e=0;e<6;e++)emit('flash',K.x+(rng()-.5)*.2,waterY+.1,K.z+(rng()-.5)*.2);if(K.hp>0)log('Warships fired on the kraken and wounded it.','war')}
       else{s.sink=.01;K.sunk++;log(`The kraken dragged ${s.owner<0?'a pirate ship':'a ship of '+nations[s.owner].name} beneath the waves.`,'doom');for(let e=0;e<12;e++)emit('foam',s.x+(rng()-.5)*.3,waterY+.02,s.z+(rng()-.5)*.3)}}
     const want=K.prey&&d<1.2?1:0;K.rise+=(want-K.rise)*Math.min(1,dt*2);
-    const g=K.g;g.position.set(K.x,waterY-.06+K.rise*.07,K.z);if(d>.05)g.rotation.y+=((Math.atan2(-dz,dx)-g.rotation.y+Math.PI*3)%(Math.PI*2)-Math.PI)*Math.min(1,dt*2);
+    const g=K.g;g.position.set(K.x,seaNow()-.06+K.rise*.07,K.z);if(d>.05)g.rotation.y+=((Math.atan2(-dz,dx)-g.rotation.y+Math.PI*3)%(Math.PI*2)-Math.PI)*Math.min(1,dt*2);
     const t=now/1000;for(const T of g.userData.tents)T.segs.forEach((m,i)=>{m.rotation.z=(i===0?-.35-K.rise*.5:0)+Math.sin(t*2.2+T.ph+i*.7)*(.18+K.rise*.25);m.rotation.x=Math.cos(t*1.7+T.ph+i*.5)*.12});
     if(rng()<dt*5)emit('foam',K.x+(rng()-.5)*.4,waterY+.01,K.z+(rng()-.5)*.4)}}
 function disposeGroup(g){scene.remove(g);g.traverse(o=>{if(o.geometry)o.geometry.dispose()})}
