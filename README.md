@@ -46,15 +46,21 @@ Open a world, press **Together** in the top bar and then **Invite friends**. You
 - Co-op rooms live in the server's memory: they close when the host closes the world or has been away for two minutes. Nothing extra is stored.
 - Behind Nginx Proxy Manager nothing needs changing: the live stream sends `X-Accel-Buffering: no` and a ping every 15 seconds, so the default proxy settings work.
 
-### Backups
-All data lives in the volume `faithbound-data` (`/data` in the container): `users.json`, `sessions.json` and `saves/<user>/`.
+### Data and backups
+Everything is stored in one SQLite database, `faithbound.db`, in the volume `dist_faithbound-data` (`/data` in the container): accounts, sign-ins, worlds and shared links. Worlds are stored compressed. It uses the SQLite built into Node 22, so no extra packages are needed.
 
-    docker run --rm -v faithbound-data:/data -v "$PWD":/backup alpine tar czf /backup/faithbound-backup.tgz -C /data .
+When you update from an older version, the server moves the old files (`users.json`, `sessions.json`, `shares.json`, `saves/`) into the database on its first start. It keeps them, renamed with `.migrated` at the end, as a backup. You may need to sign in once more.
 
-Restore by extracting that archive back into the volume.
+Each save of a world gets a revision number. If you play a world on a second device while it is still open on the first, the first device asks which version to keep, instead of overwriting the newer one.
+
+Make a backup:
+
+    docker run --rm -v dist_faithbound-data:/data -v "$PWD":/backup alpine tar czf /backup/faithbound-backup.tgz -C /data .
+
+Restore by stopping the container and extracting that archive back into the volume.
 
 ## Run without Docker
-    PORT=8040 DATA_DIR=./data PUBLIC_DIR=. node server.js
+    PORT=8040 DATA_DIR=./data PUBLIC_DIR=. node server.js        # needs Node 22 or newer
 
 (Node 18 or newer.) A plain static web server also works, but then there are no accounts; saves stay in the browser.
 

@@ -583,10 +583,10 @@ async function api(path,opts){const o=Object.assign({credentials:'same-origin',h
   const r=await fetch(path,o);let data=null;try{data=await r.json()}catch(e){}return{ok:r.ok,status:r.status,data}}
 async function probeAccount(){try{const c=await api('/api/config');if(!c.ok||!c.data||c.data.signup===undefined)return;account.online=true;account.signup=c.data.signup;account.code=c.data.code;
   const me=await api('/api/me');if(me.ok){account.user=me.data.username;await refreshWorlds();await uploadLocalIfNewer()}}catch(e){}renderTitle()}
-async function refreshWorlds(){const r=await api('/api/saves');account.worlds=r.ok?r.data:[]}
+async function refreshWorlds(){const r=await api('/api/saves');account.worlds=r.ok?r.data:[];for(const w of account.worlds)if(w.rev&&account.rev[w.slot]==null&&!playing)account.rev[w.slot]=w.rev}
 async function uploadLocalIfNewer(){let d;try{d=JSON.parse(localStorage.getItem('faithbound.save')||'null')}catch(e){}if(!d||(d.owner&&d.owner!==account.user))return;
   if(!d.slot)d.slot=Date.now().toString(36);const srv=account.worlds.find(w=>w.slot===d.slot);if(srv&&srv.saved>=d.saved)return;
-  d.owner=account.user;if(await cloudSave(d)){saveLocal(d);await refreshWorlds();toast('World saved to your account',`${d.worldName||'Your world'} is now on the server.`)}}
+  d.owner=account.user;if(srv&&srv.rev)account.rev[d.slot]=srv.rev;if(await cloudSave(d)){saveLocal(d);await refreshWorlds();toast('World saved to your account',`${d.worldName||'Your world'} is now on the server.`)}}
 function openAuth(mode){const reg=mode==='register';
   openModal(`<h2>${reg?'Create account':'Sign in'}</h2><form class="form2" id="authForm" data-mode="${mode}">
     <label>Name<input type="text" name="username" autocomplete="username" required minlength="3" maxlength="24"></label>
@@ -600,7 +600,9 @@ document.addEventListener('submit',async e=>{if(e.target.id!=='authForm')return;
   if(!r.ok){const er=f.querySelector('.err')||$('#authErr');er.textContent=(r.data&&r.data.error)||'Something went wrong.';return}
   account.user=r.data.username;closeModal();await refreshWorlds();await uploadLocalIfNewer();renderTitle();toast(`Welcome, ${account.user}`,'Your worlds are saved on this server now.')});
 async function logout(){await api('/api/logout',{json:{}}).catch(()=>{});account.user=null;account.worlds=[];renderTitle();toast('Signed out','Your worlds stay safe on the server.')}
-async function loadCloud(slot){const r=await api('/api/saves/'+encodeURIComponent(slot));if(!r.ok||!r.data){toast('Could not load that world',(r.data&&r.data.error)||'Try again.');return false}
+async function loadCloud(slot){const r0=await fetch('/api/saves/'+encodeURIComponent(slot),{credentials:'same-origin'}).catch(()=>null);let data=null;try{data=r0&&await r0.json()}catch(e){}const r={ok:!!(r0&&r0.ok),data};
+  if(r.ok&&r0.headers.get('X-Rev'))account.rev[slot]=+r0.headers.get('X-Rev');if(account.sync&&account.sync.slot===slot)account.sync=null;
+  if(!r.ok||!r.data){toast('Could not load that world',(r.data&&r.data.error)||'Try again.');return false}
   applySave(r.data);saveLocal(r.data);return true}
 function rel(t){const s=(Date.now()-t)/1000;return s<90?'just now':s<5400?Math.round(s/60)+' minutes ago':s<172800?Math.round(s/3600)+' hours ago':Math.round(s/86400)+' days ago'}
 async function openWorlds(){await refreshWorlds();const w=account.worlds;
@@ -662,7 +664,14 @@ $('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()})
 function openPause(){const si=saveInfo();
   openModal(`<h2>Paused</h2><div class="menu"><button class="btn primary" data-p="resume">Resume</button><button class="btn" data-p="save">Save game</button>
     <button class="btn" data-p="load" ${si||account.user?'':'disabled'}>${account.user?'Your worlds':'Load last save'} ${!account.user&&si?`<small>Year ${si.year}</small>`:''}</button><button class="btn" data-p="settings">Settings</button>
-    <button class="btn" data-p="help">How to play</button><button class="btn danger" data-p="quit">Save and quit to title</button></div>`)}
+    <button class="btn" data-p="help">How to play</button><button class="btn danger" data-p="quit">Save and quit to title</button></div>${syncLine()}`)}
+/* where the world is saved, in one line under the menu */
+function syncLine(){const S=account.sync;let t;
+  if(!account.online)t='Saved in this browser.';else if(!account.user)t='Saved in this browser only. Sign in on the title screen to keep it on the server.';
+  else if(S&&S.conflict)t='This world was played on another device. Save to choose which version to keep.';else if(S&&S.err)t=esc(S.err);
+  else if(S&&S.offline)t='The server cannot be reached right now; saved in this browser.';
+  else if(account.lastCloud)t=`Saved to your account ${rel(account.lastCloud)}${S&&S.bytes?` · ${(S.bytes/1048576).toFixed(S.bytes>1048576?1:2)} MB`:''}.`;else t='Saved to your account every minute.';
+  return `<p class="note" style="margin-top:10px;text-align:center">${t}</p>`}
 $('#menuBtn').onclick=openPause;
 /* full screen: real browser full screen where the device allows it */
 const fsEl=()=>document.fullscreenElement||document.webkitFullscreenElement;
@@ -678,7 +687,7 @@ $('#modalBox').addEventListener('click',e=>{const fm=e.target.closest('[data-fm]
   const gv=e.target.closest('[data-gov]');if(gv&&!gv.disabled){const p={n:govFor,g:gv.dataset.gov};if(typeof coopGuest==='function'&&coopGuest()){coopAct('gov',p);closeModal();return}if(doAct('gov',p)){closeModal();renderNationCard();updateHUD()}return}
   const b=e.target.closest('[data-p]');if(b){const p=b.dataset.p;if(p==='close'){closeModal();return}
     if(p==='resume')closeModal();
-    if(p==='save'){closeModal();saveGame().then(w=>toast(w==='none'?'Could not save':'Game saved',w==='cloud'?'Saved to your account on the server.':w==='local'?(account.user?'Server unreachable; saved in this browser for now.':'Saved in this browser.'):'The browser refused to store it.'))}
+    if(p==='save'){closeModal();if(account.sync&&account.sync.conflict){account.said.conflict=0;syncConflict(account.sync.meta);return}saveGame().then(w=>w==='conflict'?0:toast(w==='none'?'Could not save':'Game saved',w==='cloud'?'Saved to your account on the server.':w==='local'?(account.user?'Server unreachable; saved in this browser for now.':'Saved in this browser.'):'The browser refused to store it.'))}
     if(p==='load'){closeModal();if(account.user){openWorlds();return}if(loadGame()){toast('Save loaded',`Year ${year}.`);updateHUD();selected=-1;renderNationCard()}}
     if(p==='settings')openSettings();if(p==='help')openHelp();
     if(p==='quit'){saveGame();closeModal();playing=false;closeSheet();$('#hud').classList.add('hidden');$('#title').classList.remove('hidden');$('#setup').hidden=true;$('#titleMain').hidden=false;renderTitle()}

@@ -170,7 +170,7 @@ let nations=[],faiths=[],logs=[],ships=[],rockets=[],effects=[],milestones=new S
 let year=0,belief=100,beliefRate=.8,climate={temp:.5,rain:.5},sea=.44,moistActive=0,terrainDirty=true,propsDirty=true;
 let flags={warm:false,sail:false};
 let weatherDim=0,flashT=0;
-const account={online:false,user:null,signup:true,code:false,lastCloud:0,worlds:[]};
+const account={online:false,user:null,signup:true,code:false,lastCloud:0,worlds:[],rev:{},sync:null,said:{}};
 let sizeKey='medium',lookKey='hamlet',LK=LOOKS.hamlet,speedIdx=1,tool='inspect',selected=-1,inspectTile=-1,selectedFaith=-1,warFrom=-1,unlimited=false,playing=false;
 const isMobile=matchMedia('(pointer:coarse)').matches;
 let settings={quality:isMobile?'medium':'high',shadows:true,daynight:true,borders:true,labels:true,people:true,disasters:'normal',arch:'classic'};

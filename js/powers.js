@@ -126,17 +126,35 @@ const FLOODMAT=stdMat({color:colL(0x6f7a5e),roughness:.15,metalness:.1,transpare
 function riverFlood(i){const x0=i%W,y0=(i/W)|0;let hit=null,bd=9;for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=x0+dx,Y=y0+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(river[k]&&!isWater(k)){const d=Math.hypot(dx,dy);if(d<bd){bd=d;hit=k}}}
   if(hit==null)return null;const tiles=new Set();const hx=hit%W,hy=(hit/W)|0;
   for(let dy=-7;dy<=7;dy++)for(let dx=-7;dx<=7;dx++){const X=hx+dx,Y=hy+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(!river[k]||isWater(k))continue;
-    for(let ey=-1;ey<=1;ey++)for(let ex=-1;ex<=1;ex++){const XX=X+ex,YY=Y+ey;if(XX<0||YY<0||XX>=W||YY>=H)continue;const q=YY*W+XX;if(!isWater(q)&&biome[q]<11&&h[q]-h[k]<.03)tiles.add(q)}}
-  const pos=[],idx=[];const hit_=new Set(),lost=[];
-  for(const q of tiles){const X=q%W,Y=(q/W)|0,x=wx(X),z=wz(Y),y=groundY(x,z)+.02,b=pos.length/3,s=.55;
-    for(const [a,c] of [[-s,-s],[s,-s],[-s,s],[s,s]])pos.push(x+a,Math.max(y,groundY(x+a,z+c)+.012),z+c);idx.push(b,b+2,b+1,b+1,b+2,b+3);
-    moistD[q]=clamp(moistD[q]+.35,-.6,.6);if(owner[q]>=0)hit_.add(owner[q])}
-  for(const id of hit_){const n=nations[id];n.pop*=.97;for(const c of n.cities)if(tiles.has(c.y*W+c.x)){n.pop*=.97;lost.push(c.name)}}
+    for(let ey=-2;ey<=2;ey++)for(let ex=-2;ex<=2;ex++){const XX=X+ex,YY=Y+ey;if(XX<0||YY<0||XX>=W||YY>=H)continue;const q=YY*W+XX;if(!isWater(q)&&biome[q]<11&&h[q]-h[k]<.05)tiles.add(q)}}
+  /* the water level: the river's surface at the nearest river tile, raised by the flood. Each tile is cut into a fine grid that
+     follows the ground; where the ground lies below the flood level the water stands, shallow at the edges. */
+  const lvl=new Map(),rise=.022+rng()*.012;
+  const levelAt=(tx,ty)=>{let best=null,bd=9;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=Math.round(tx)+dx,Y=Math.round(ty)+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(!river[k]||isWater(k))continue;
+      const d=Math.hypot(X-tx,Y-ty);if(d<bd){bd=d;best=k}}if(best==null)return -1e9;if(!lvl.has(best))lvl.set(best,groundY(wx(best%W),wz((best/W)|0))+.012);return lvl.get(best)+rise*(1-Math.min(1,bd/3))};
+  const pos=[],gnd=[],lev=[],idx=[],S=5;const hit_=new Set(),lost=[],wet=new Set();
+  for(const q of tiles){const X=q%W,Y=(q/W)|0,b=pos.length/3;let any=false;
+    for(let v=0;v<=S;v++)for(let u=0;u<=S;u++){const tx=X-.5+u/S,ty=Y-.5+v/S,x=wx(X)+(u/S-.5),z=wz(Y)+(v/S-.5),g=groundY(x,z),L=levelAt(tx,ty);pos.push(x,g,z);gnd.push(g);lev.push(L);if(L>g)any=true}
+    if(!any){pos.length=b*3;gnd.length=b;lev.length=b;continue}
+    for(let v=0;v<S;v++)for(let u=0;u<S;u++){const a=b+v*(S+1)+u;idx.push(a,a+S+1,a+1,a+1,a+S+1,a+S+2)}
+    wet.add(q);moistD[q]=clamp(moistD[q]+.35,-.6,.6);if(owner[q]>=0)hit_.add(owner[q])}
+  if(!idx.length)return 0;
+  for(const id of hit_){const n=nations[id];n.pop*=.97;for(const c of n.cities)if(wet.has(c.y*W+c.x)){n.pop*=.97;lost.push(c.name)}}
   moistActive=320;terrainDirty=true;
-  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();
-  const m=new THREE.Mesh(g,FLOODMAT.clone());m.renderOrder=2;scene.add(m);floods.push({m,t:0});
-  log(`The river burst its banks${lost.length?' and flooded '+lost.slice(0,3).join(', '):''}. When the water drains, the fields will be rich.`,'sky');return tiles.size}
-function updateFloods(dt){for(let q=floods.length-1;q>=0;q--){const f=floods[q];f.t+=dt;f.m.material.opacity=.78*clamp((22-f.t)/6,0,1);if(f.t>22){scene.remove(f.m);f.m.geometry.dispose();f.m.material.dispose();floods.splice(q,1)}}}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('aG',new THREE.Float32BufferAttribute(gnd,1));g.setAttribute('aL',new THREE.Float32BufferAttribute(lev,1));g.setIndex(idx);
+  const mat=new THREE.ShaderMaterial({uniforms:{uPh:{value:0},uT:{value:0},uSun:{value:new THREE.Vector3(.5,.8,.3)}},transparent:true,depthWrite:false,
+    vertexShader:`attribute float aG,aL;uniform float uPh;varying float vD;varying vec3 vW;void main(){float L=mix(aG-.004,aL,uPh);vD=L-aG;vec3 p=position;p.y=max(aG-.004,L)+.0015;vW=p;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}`,
+    fragmentShader:`uniform float uT;varying float vD;varying vec3 vW;void main(){if(vD<=0.)discard;float d=smoothstep(0.,.02,vD);
+      vec3 mud=vec3(.38,.34,.24),deep=vec3(.2,.25,.24),c=mix(mud,deep,d);float r=sin(vW.x*90.+uT*1.7)*sin(vW.z*80.-uT*1.3);c+=vec3(.05,.06,.06)*smoothstep(.6,1.,r);
+      c=mix(c*1.12,c,smoothstep(0.,.006,vD));gl_FragColor=vec4(c,smoothstep(0.,.004,vD)*(.62+.25*d));}`});
+  const m=new THREE.Mesh(g,mat);m.renderOrder=2;m.frustumCulled=false;scene.add(m);floods.push({m,t:0,wet:[...wet]});
+  log(`The river burst its banks${lost.length?' and flooded '+lost.slice(0,3).join(', '):''}. When the water drains, the fields will be rich.`,'sky');
+  if(typeof toast==='function'&&!lost.length&&Math.hypot(wx(hx)-camT.x,wz(hy)-camT.z)<camDist*1.5+3)toast('Flood','The river has burst its banks.',wx(hx),wz(hy));return wet.size}
+/* a flood rises over a few seconds, stands, and drains away, leaving the ground dark and wet */
+function updateFloods(dt){for(let q=floods.length-1;q>=0;q--){const f=floods[q];f.t+=dt;const U=f.m.material.uniforms;
+    U.uPh.value=f.t<4?smooth(0,4,f.t):f.t<14?1:1-smooth(14,24,f.t);U.uT.value=f.t;
+    if(typeof WXG!=='undefined'&&WXG.wet&&f.wet&&f.t>3)for(const j of f.wet)WXG.wet[j]=Math.max(WXG.wet[j],.9),WXG.dirty=true;
+    if(f.t>24){scene.remove(f.m);f.m.geometry.dispose();f.m.material.dispose();floods.splice(q,1)}}}
 function shiftClimate(dir){climate.temp=clamp(climate.temp+dir*.12,.08,.95);terrainDirty=true;colorDirty=true;treesDirty=true;
   log(dir>0?'You breathed warmth over the world. Ice melts, the seas rise and the snow retreats up the mountains.':'You breathed cold over the world. Glaciers grow, the seas fall and winters bite.','sky')}
 

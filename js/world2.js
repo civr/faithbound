@@ -78,6 +78,6 @@ async function shareWorld(slot){const r=await api('/api/share/'+encodeURICompone
 document.addEventListener('click',async e=>{const s=e.target.closest('[data-share]');if(s){shareWorld(s.dataset.share);return}
   const u=e.target.closest('[data-unshare]');if(u){await api('/api/share/'+encodeURIComponent(u.dataset.unshare),{method:'DELETE',headers:{'Content-Type':'application/json'}});closeModal();toast('Sharing stopped','The old link no longer works.')}});
 async function openSharedFromHash(){const m=location.hash.match(/^#view=([a-f0-9]{16,64})$/);if(!m)return false;
-  try{const r=await fetch('/api/shared/'+m[1],{credentials:'same-origin'});if(!r.ok)throw 0;const d=await r.json();applySave(d);viewOnly=true;startPlaying(false);
+  try{const r=await fetch('/api/shared/'+m[1],{credentials:'same-origin'});if(!r.ok)throw 0;const d=await r.json();if(!d.owner&&r.headers.get('X-Owner'))d.owner=decodeURIComponent(r.headers.get('X-Owner'));applySave(d);viewOnly=true;startPlaying(false);
     document.body.classList.add('viewonly');toast('Watching a shared world',`${d.worldName||'A world'} by ${d.owner||'another god'}. Nothing you do here is saved.`);return true}
   catch(_){toast('That shared world could not be opened','The link may have been withdrawn.');return false}}

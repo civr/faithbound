@@ -10,20 +10,54 @@ const SIGNUP_CODE = process.env.SIGNUP_CODE || '';
 const MAX_SAVE = 25 * 1024 * 1024, MAX_SLOTS = 30, SESSION_DAYS = 30, QUOTA = (+process.env.QUOTA_MB || 200) * 1024 * 1024;
 const USER_RE = /^[a-zA-Z0-9_.-]{3,24}$/, SLOT_RE = /^[a-z0-9-]{1,40}$/;
 
-fs.mkdirSync(path.join(DATA, 'saves'), { recursive: true });
-const USERS = path.join(DATA, 'users.json'), SESS = path.join(DATA, 'sessions.json'), SHARES = path.join(DATA, 'shares.json');
+fs.mkdirSync(DATA, { recursive: true });
 const readJSON = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
-let users = Object.assign(Object.create(null), readJSON(USERS, {})), sessions = Object.assign(Object.create(null), readJSON(SESS, {})), shares = Object.assign(Object.create(null), readJSON(SHARES, {}));
-const persistShares = () => writeAtomic(SHARES, JSON.stringify(shares)).catch(console.error);
 
-async function writeAtomic(f, data) { const t = `${f}.${crypto.randomBytes(4).toString('hex')}.tmp`; await fsp.writeFile(t, data); await fsp.rename(t, f); }
-let sessTimer = null;
-function persistSessions() { clearTimeout(sessTimer); sessTimer = setTimeout(() => writeAtomic(SESS, JSON.stringify(sessions)).catch(console.error), 200); }
+/* ---------- the database: one SQLite file (Node's built-in sqlite, no packages) holding accounts, sessions, worlds and shared links.
+   Worlds are stored gzip-compressed. Each save of a world raises its revision, so two devices cannot silently overwrite each other. ---------- */
+{ const ew = process.emitWarning; process.emitWarning = function (w, ...a) { if (String(w).includes('SQLite')) return; return ew.call(this, w, ...a); }; }
+const { DatabaseSync } = require('node:sqlite');
+const DB_FILE = path.join(DATA, 'faithbound.db'), db = new DatabaseSync(DB_FILE);
+db.exec(`PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=5000;
+  CREATE TABLE IF NOT EXISTS users (key TEXT PRIMARY KEY, name TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, created INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS sessions (h TEXT PRIMARY KEY, user TEXT NOT NULL, exp INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS worlds (user TEXT NOT NULL, slot TEXT NOT NULL, meta TEXT NOT NULL, data BLOB NOT NULL, bytes INTEGER NOT NULL, saved INTEGER NOT NULL, rev INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (user, slot));
+  CREATE TABLE IF NOT EXISTS shares (tok TEXT PRIMARY KEY, user TEXT NOT NULL, slot TEXT NOT NULL, created INTEGER NOT NULL);
+  CREATE INDEX IF NOT EXISTS shares_user ON shares (user, slot);`);
+const Q = {
+  user: db.prepare('SELECT * FROM users WHERE key = ?'), addUser: db.prepare('INSERT INTO users (key, name, salt, hash, created) VALUES (?, ?, ?, ?, ?)'),
+  sess: db.prepare('SELECT * FROM sessions WHERE h = ?'), addSess: db.prepare('INSERT OR REPLACE INTO sessions (h, user, exp) VALUES (?, ?, ?)'), delSess: db.prepare('DELETE FROM sessions WHERE h = ?'),
+  oldSess: db.prepare('DELETE FROM sessions WHERE exp < ?'),
+  list: db.prepare('SELECT meta, rev FROM worlds WHERE user = ? ORDER BY saved DESC'), world: db.prepare('SELECT data, rev FROM worlds WHERE user = ? AND slot = ?'),
+  head: db.prepare('SELECT rev, meta FROM worlds WHERE user = ? AND slot = ?'), count: db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(bytes), 0) AS b FROM worlds WHERE user = ? AND slot != ?'),
+  put: db.prepare(`INSERT INTO worlds (user, slot, meta, data, bytes, saved, rev) VALUES (?, ?, ?, ?, ?, ?, 1)
+    ON CONFLICT (user, slot) DO UPDATE SET meta = excluded.meta, data = excluded.data, bytes = excluded.bytes, saved = excluded.saved, rev = worlds.rev + 1`),
+  delWorld: db.prepare('DELETE FROM worlds WHERE user = ? AND slot = ?'),
+  share: db.prepare('SELECT * FROM shares WHERE tok = ?'), shareOf: db.prepare('SELECT tok FROM shares WHERE user = ? AND slot = ?'),
+  addShare: db.prepare('INSERT INTO shares (tok, user, slot, created) VALUES (?, ?, ?, ?)'), delShares: db.prepare('DELETE FROM shares WHERE user = ? AND slot = ?') };
+const tx = fn => { db.exec('BEGIN'); try { const r = fn(); db.exec('COMMIT'); return r; } catch (e) { db.exec('ROLLBACK'); throw e; } };
+/* first start after the update: the old files (users.json, sessions.json, shares.json, saves/<user>/<world>.json) move into the database.
+   The old files are kept, renamed with .migrated, as a backup. */
+(function migrate() {
+  const UF = path.join(DATA, 'users.json'); if (!fs.existsSync(UF)) return;
+  const users = readJSON(UF, {}), sess = readJSON(path.join(DATA, 'sessions.json'), {}), shares = readJSON(path.join(DATA, 'shares.json'), {}); let nw = 0;
+  tx(() => {
+    for (const k of Object.keys(users)) { const u = users[k]; if (u && u.salt && u.hash && !Q.user.get(k)) Q.addUser.run(k, String(u.name || k), u.salt, u.hash, u.created || Date.now()); }
+    for (const h of Object.keys(sess)) { const x = sess[h]; if (x && x.exp > Date.now() && x.user) Q.addSess.run(h, x.user, x.exp); }
+    for (const t of Object.keys(shares)) { const x = shares[t]; if (x && x.user && x.slot && !Q.share.get(t)) Q.addShare.run(t, x.user, x.slot, x.created || Date.now()); }
+    const SD = path.join(DATA, 'saves');
+    for (const u of fs.existsSync(SD) ? fs.readdirSync(SD) : []) { const dir = path.join(SD, u); if (!fs.statSync(dir).isDirectory()) continue;
+      for (const f of fs.readdirSync(dir)) { if (!f.endsWith('.json') || f.endsWith('.meta.json')) continue; const slot = f.slice(0, -5); if (!SLOT_RE.test(slot)) continue;
+        const raw = fs.readFileSync(path.join(dir, f)), meta = readJSON(path.join(dir, slot + '.meta.json'), null) || { slot, name: 'A world', year: 0, era: 0, nations: 0, saved: Date.now() };
+        const gz = zlib.gzipSync(raw); meta.bytes = raw.length; meta.stored = gz.length; Q.put.run(u, slot, JSON.stringify(meta), gz, gz.length, meta.saved || Date.now()); nw++; } } });
+  for (const f of ['users.json', 'sessions.json', 'shares.json', 'saves']) { const a = path.join(DATA, f); if (fs.existsSync(a)) fs.renameSync(a, a + '.migrated'); }
+  console.log(`Moved ${Object.keys(users).length} accounts and ${nw} worlds into the database (${DB_FILE}). The old files are kept with .migrated at the end.`);
+})();
 
 const hashPw = (pw, salt) => new Promise((res, rej) => crypto.scrypt(pw, salt, 64, { N: 16384, r: 8, p: 1 }, (e, k) => e ? rej(e) : res(k.toString('hex'))));
 const hashTok = t => crypto.createHash('sha256').update(t).digest('hex');
 function cookies(req) { const o = {}; (req.headers.cookie || '').split(';').forEach(p => { const i = p.indexOf('='); if (i > 0) o[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim()); }); return o; }
-function sessionUser(req) { const t = cookies(req).fb_session; if (!t) return null; const h = hashTok(t), s = own(sessions, h) ? sessions[h] : null; if (!s || s.exp < Date.now() || !own(users, s.user)) return null; return s.user; }
+function sessionUser(req) { const t = cookies(req).fb_session; if (!t) return null; const s = Q.sess.get(hashTok(t)); if (!s || s.exp < Date.now() || !Q.user.get(s.user)) return null; return s.user; }
 const isSecure = req => (req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
 const setCookie = (req, tok, maxAge) => `fb_session=${tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${isSecure(req) ? '; Secure' : ''}`;
 /* behind Nginx Proxy Manager the real address is the last one in X-Forwarded-For (the proxy appends it); anything before it was written by the
@@ -50,10 +84,24 @@ const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 
 function startSession(req, res, key) {
   const tok = crypto.randomBytes(32).toString('hex');
-  sessions[hashTok(tok)] = { user: key, exp: Date.now() + SESSION_DAYS * 864e5 }; persistSessions();
-  send(res, 200, { username: users[key].name }, { 'Set-Cookie': setCookie(req, tok, SESSION_DAYS * 86400) });
+  Q.addSess.run(hashTok(tok), key, Date.now() + SESSION_DAYS * 864e5);
+  send(res, 200, { username: Q.user.get(key).name }, { 'Set-Cookie': setCookie(req, tok, SESSION_DAYS * 86400) });
 }
-const userDir = key => path.join(DATA, 'saves', key);
+const nameOf = key => { const u = key && Q.user.get(key); return u ? u.name : null; };
+/* a save arrives gzip-compressed from the browser (or plain from older pages); it is checked, and stored compressed */
+async function readSave(req) {
+  const raw = await readBody(req, MAX_SAVE); let gz, txt;
+  if (/gzip/i.test(req.headers['content-encoding'] || '')) { gz = raw; try { txt = zlib.gunzipSync(raw, { maxOutputLength: MAX_SAVE * 8 }).toString('utf8'); } catch { const e = new Error('bad gzip'); e.status = 400; throw e; } }
+  else { txt = raw.toString('utf8'); gz = zlib.gzipSync(raw); }
+  let d; try { d = JSON.parse(txt); } catch { const e = new Error('bad json'); e.status = 400; throw e; }
+  return { d, gz, size: txt.length };
+}
+/* worlds go out compressed when the browser accepts it (it always does) */
+function sendWorld(req, res, gz, extra) {
+  const h = Object.assign({ 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }, SEC, extra || {});
+  if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) { res.writeHead(200, Object.assign(h, { 'Content-Encoding': 'gzip', 'Content-Length': gz.length })); return res.end(gz); }
+  const b = zlib.gunzipSync(gz); res.writeHead(200, Object.assign(h, { 'Content-Length': b.length })); res.end(b);
+}
 
 /* ---------- co-op: one host runs the world, guests watch it live and send their miracles to the host.
    Rooms live in memory only. Messages go out over Server-Sent Events, so no extra packages are needed. ---------- */
@@ -79,7 +127,7 @@ async function coop(req, res, url, m, p) {
     if (limited('host:' + ip, 10, 600e3)) return send(res, 429, { error: 'Too many co-op worlds opened. Wait a few minutes.' });
     let code; do code = roomCode(); while (rooms.has(code));
     const r = { code, ip, world: cleanName(b.world, 'A world'), players: new Map(), made: Date.now() }; rooms.set(code, r);
-    const { pl, tok } = newPlayer(r, cleanName(b.name || sessionUser(req) && users[sessionUser(req)].name, 'Host'));
+    const { pl, tok } = newPlayer(r, cleanName(b.name || nameOf(sessionUser(req)), 'Host'));
     return send(res, 200, { room: code, tok, pid: pl.pid, color: pl.color });
   }
   const jm = p.match(/^\/api\/coop\/(join|stream|send|leave)\/([A-Z0-9]{6})$/); if (!jm || !ROOM_RE.test(jm[2])) return false;
@@ -88,7 +136,7 @@ async function coop(req, res, url, m, p) {
   if (act === 'join' && m === 'POST') {
     if (limited('join:' + ipOf(req), 20, 60000)) return send(res, 429, { error: 'Too many tries. Wait a minute.' });
     const b = await readJSONBody(req, 4096); if (r.players.size >= MAX_PLAYERS) return send(res, 409, { error: `This world already has ${MAX_PLAYERS} gods.` });
-    const { pl, tok } = newPlayer(r, cleanName(b.name || sessionUser(req) && users[sessionUser(req)].name, 'Guest'));
+    const { pl, tok } = newPlayer(r, cleanName(b.name || nameOf(sessionUser(req)), 'Guest'));
     roomCast(r, { t: 'join', pid: pl.pid, name: pl.name, color: pl.color }, pl.pid); roomCast(r, { t: 'players', list: roomPlayers(r) });
     return send(res, 200, { room: r.code, tok, pid: pl.pid, color: pl.color, world: r.world, host: (r.players.get(0) || {}).name });
   }
@@ -135,31 +183,30 @@ async function api(req, res, url) {
     if (pw.length < 8) return send(res, 400, { error: 'Use a password of at least 8 characters.' });
     if (SIGNUP_CODE && String(b.code || '') !== SIGNUP_CODE) return send(res, 403, { error: 'That invite code is not right.' });
     if (limited('signup', 30, 3600e3)) return send(res, 429, { error: 'Too many new accounts right now. Try again later.' });
-    const key = name.toLowerCase(); if (own(users, key) || key === '__proto__') return send(res, 409, { error: 'That name is already taken.' });
-    const salt = crypto.randomBytes(16).toString('hex');
-    users[key] = { name, salt, hash: await hashPw(pw, salt), created: Date.now() };
-    await writeAtomic(USERS, JSON.stringify(users));
+    const key = name.toLowerCase(); if (Q.user.get(key)) return send(res, 409, { error: 'That name is already taken.' });
+    const salt = crypto.randomBytes(16).toString('hex'), hash = await hashPw(pw, salt);
+    try { Q.addUser.run(key, name, salt, hash, Date.now()); } catch { return send(res, 409, { error: 'That name is already taken.' }); }
     return startSession(req, res, key);
   }
   if (p === '/api/login' && m === 'POST') {
     if (limited(ipOf(req))) return send(res, 429, { error: 'Too many attempts. Wait a minute and try again.' });
-    const b = await readJSONBody(req, 4096), key = String(b.username || '').trim().toLowerCase(), u = own(users, key) ? users[key] : null;
+    const b = await readJSONBody(req, 4096), key = String(b.username || '').trim().toLowerCase(), u = Q.user.get(key) || null;
     if (limited('acct:' + key, 20, 15 * 60000)) return send(res, 429, { error: 'Too many attempts for this name. Wait a quarter of an hour.' });
     const h = await hashPw(String(b.password || ''), u ? u.salt : '00000000000000000000000000000000');
     if (!u || !crypto.timingSafeEqual(Buffer.from(h, 'hex'), Buffer.from(u.hash, 'hex'))) return send(res, 401, { error: 'That name or password is not right.' });
     return startSession(req, res, key);
   }
   if (p === '/api/logout' && m === 'POST') {
-    const t = cookies(req).fb_session; if (t) { delete sessions[hashTok(t)]; persistSessions(); }
+    const t = cookies(req).fb_session; if (t) Q.delSess.run(hashTok(t));
     return send(res, 200, { ok: true }, { 'Set-Cookie': setCookie(req, '', 0) });
   }
 
   /* a shared world: anyone with the link may read it, nobody can write through it */
   const shm = p.match(/^\/api\/shared\/([a-f0-9]{16,64})$/);
   if (shm && m === 'GET') {
-    const s = own(shares, shm[1]) ? shares[shm[1]] : null; if (!s) return send(res, 404, { error: 'That shared world was not found.' });
-    try { const data = JSON.parse(await fsp.readFile(path.join(userDir(s.user), s.slot + '.json'), 'utf8')); data.owner = users[s.user] ? users[s.user].name : null;
-      return send(res, 200, data); } catch { return send(res, 404, { error: 'That world is gone.' }); }
+    const s = Q.share.get(shm[1]); if (!s) return send(res, 404, { error: 'That shared world was not found.' });
+    const w = Q.world.get(s.user, s.slot); if (!w) return send(res, 404, { error: 'That world is gone.' });
+    return sendWorld(req, res, Buffer.from(w.data), { 'X-Owner': encodeURIComponent(nameOf(s.user) || '') });
   }
   const key = sessionUser(req);
   if (!key) return send(res, 401, { error: 'Not signed in.' });
@@ -167,42 +214,37 @@ async function api(req, res, url) {
   if (shs && SLOT_RE.test(shs[1])) {
     const slot = shs[1];
     if (m === 'POST') {
-      if (!fs.existsSync(path.join(userDir(key), slot + '.json'))) return send(res, 404, { error: 'Save the world on the server first.' });
-      let tok = Object.keys(shares).find(t => shares[t].user === key && shares[t].slot === slot);
-      if (!tok) { tok = crypto.randomBytes(16).toString('hex'); shares[tok] = { user: key, slot, created: Date.now() }; await persistShares(); }
+      if (!Q.head.get(key, slot)) return send(res, 404, { error: 'Save the world on the server first.' });
+      const row = Q.shareOf.get(key, slot); let tok = row && row.tok;
+      if (!tok) { tok = crypto.randomBytes(16).toString('hex'); Q.addShare.run(tok, key, slot, Date.now()); }
       return send(res, 200, { token: tok });
     }
-    if (m === 'DELETE') { for (const t of Object.keys(shares)) if (shares[t].user === key && shares[t].slot === slot) delete shares[t]; await persistShares(); return send(res, 200, { ok: true }); }
+    if (m === 'DELETE') { Q.delShares.run(key, slot); return send(res, 200, { ok: true }); }
   }
-  if (p === '/api/me' && m === 'GET') return send(res, 200, { username: users[key].name });
+  if (p === '/api/me' && m === 'GET') return send(res, 200, { username: nameOf(key) });
 
   if (p === '/api/saves' && m === 'GET') {
-    const dir = userDir(key), list = [];
-    for (const f of await fsp.readdir(dir).catch(() => [])) if (f.endsWith('.meta.json')) { const meta = readJSON(path.join(dir, f), null); if (meta) list.push(meta); }
-    list.sort((a, b) => b.saved - a.saved); return send(res, 200, list);
+    return send(res, 200, Q.list.all(key).map(r => Object.assign(JSON.parse(r.meta), { rev: r.rev })));
   }
   const sm = p.match(/^\/api\/saves\/([a-z0-9-]{1,40})$/);
   if (sm && SLOT_RE.test(sm[1])) {
-    const slot = sm[1], dir = userDir(key), f = path.join(dir, slot + '.json'), mf = path.join(dir, slot + '.meta.json');
-    if (m === 'GET') {
-      try { const data = await fsp.readFile(f); res.writeHead(200, Object.assign({ 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }, SEC)); return res.end(data); }
-      catch { return send(res, 404, { error: 'That world was not found.' }); }
-    }
+    const slot = sm[1];
+    if (m === 'GET') { const w = Q.world.get(key, slot); if (!w) return send(res, 404, { error: 'That world was not found.' }); return sendWorld(req, res, Buffer.from(w.data), { 'X-Rev': String(w.rev) }); }
     if (m === 'PUT') {
-      const buf = await readBody(req, MAX_SAVE); let d;
-      try { d = JSON.parse(buf.toString('utf8')); } catch { return send(res, 400, { error: 'The save is not valid.' }); }
-      await fsp.mkdir(dir, { recursive: true });
-      const exists = fs.existsSync(f), count = (await fsp.readdir(dir)).filter(x => x.endsWith('.meta.json')).length;
-      if (!exists && count >= MAX_SLOTS) return send(res, 409, { error: `You can keep ${MAX_SLOTS} worlds. Delete one first.` });
-      { let used = 0; for (const x of await fsp.readdir(dir)) if (x.endsWith('.json') && x !== slot + '.json' && x !== slot + '.meta.json') used += (await fsp.stat(path.join(dir, x))).size;
-        if (used + buf.length > QUOTA) return send(res, 409, { error: 'Your worlds use all the space this server gives you. Delete one first.' }); }
-      const s = d.summary || {};
-      const meta = { slot, name: String(d.worldName || 'Unnamed world').slice(0, 40), year: d.year | 0, era: s.era | 0, nations: s.nations | 0,
-        size: d.sizeKey || '', calendar: !!(d.worldOpts && d.worldOpts.calendar), saved: Date.now(), bytes: buf.length };
-      await writeAtomic(f, buf); await writeAtomic(mf, JSON.stringify(meta));
-      return send(res, 200, meta);
+      const { d, gz, size } = await readSave(req), cur = Q.head.get(key, slot);
+      /* another device saved this world after this one last loaded or saved it: ask before overwriting */
+      const base = +(req.headers['x-base-rev'] || 0);
+      if (cur && base && base < cur.rev && req.headers['x-force'] !== '1') return send(res, 409, { error: 'conflict', conflict: true, rev: cur.rev, meta: JSON.parse(cur.meta) });
+      const used = Q.count.get(key, slot);
+      if (!cur && used.n >= MAX_SLOTS) return send(res, 409, { error: `You can keep ${MAX_SLOTS} worlds. Delete one first.` });
+      if (used.b + gz.length > QUOTA) return send(res, 409, { error: 'Your worlds use all the space this server gives you. Delete one first.' });
+      const s2 = d.summary || {};
+      const meta = { slot, name: String(d.worldName || 'Unnamed world').slice(0, 40), year: d.year | 0, era: s2.era | 0, nations: s2.nations | 0,
+        size: d.sizeKey || '', calendar: !!(d.worldOpts && d.worldOpts.calendar), saved: Date.now(), bytes: size, stored: gz.length };
+      Q.put.run(key, slot, JSON.stringify(meta), gz, gz.length, meta.saved);
+      return send(res, 200, Object.assign(meta, { rev: Q.head.get(key, slot).rev }));
     }
-    if (m === 'DELETE') { await fsp.rm(f, { force: true }); await fsp.rm(mf, { force: true }); for (const t of Object.keys(shares)) if (shares[t].user === key && shares[t].slot === slot) delete shares[t]; persistShares(); return send(res, 200, { ok: true }); }
+    if (m === 'DELETE') { tx(() => { Q.delWorld.run(key, slot); Q.delShares.run(key, slot); }); return send(res, 200, { ok: true }); }
   }
   return send(res, 404, { error: 'Not found.' });
 }
@@ -243,4 +285,6 @@ http.createServer(async (req, res) => {
   }
 }).listen(PORT, () => console.log(`Faithbound on port ${PORT}. Data in ${DATA}. Sign-up ${ALLOW_SIGNUP ? 'open' : 'closed'}${SIGNUP_CODE ? ' with invite code' : ''}.`));
 
-setInterval(() => { const now = Date.now(); let ch = false; for (const k in sessions) if (sessions[k].exp < now) { delete sessions[k]; ch = true; } if (ch) persistSessions(); }, 3600e3).unref();
+setInterval(() => { try { Q.oldSess.run(Date.now()); } catch (e) { console.error(e); } }, 3600e3).unref();
+/* close the database cleanly when the container stops */
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { try { db.close(); } catch {} process.exit(0); });

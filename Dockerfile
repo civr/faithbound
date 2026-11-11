@@ -4,7 +4,7 @@ WORKDIR /src
 COPY . .
 RUN sh ./build.sh
 
-FROM node:20-alpine
+FROM node:22-alpine
 ENV NODE_ENV=production PORT=8080 DATA_DIR=/data PUBLIC_DIR=/app/public
 WORKDIR /app
 COPY --from=build /src/dist/server.js /app/server.js

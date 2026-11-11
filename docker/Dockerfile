@@ -1,5 +1,5 @@
 # Faithbound: the game plus a small save server (accounts, worlds). No extra packages.
-FROM node:20-alpine
+FROM node:22-alpine
 ENV NODE_ENV=production PORT=8080 DATA_DIR=/data PUBLIC_DIR=/app/public
 WORKDIR /app
 COPY server.js /app/server.js

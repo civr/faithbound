@@ -602,10 +602,33 @@ function buildSave(){
 function saveLocal(d){try{localStorage.setItem('faithbound.save',JSON.stringify(d));return true}catch(e){return false}}
 /* saves locally always, and to the account when signed in; returns a promise of where it landed */
 function saveGame(){if(typeof viewOnly!=='undefined'&&viewOnly)return Promise.resolve('none');if(typeof coopGuest==='function'&&coopGuest())return Promise.resolve('none');if(typeof rewind!=='undefined'&&rewind)return Promise.resolve('none');const d=buildSave(),local=saveLocal(d);
-  if(account.user)return cloudSave(d).then(ok=>ok?'cloud':local?'local':'none');return Promise.resolve(local?'local':'none')}
-async function cloudSave(d,keepalive){try{const body=JSON.stringify(d);
-  const r=await fetch('/api/saves/'+d.slot,{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'same-origin',body,keepalive:!!keepalive&&body.length<60000});
-  if(r.ok){account.lastCloud=Date.now();return true}if(r.status===401){account.user=null}}catch(e){}return false}
+  if(account.user)return cloudSave(d).then(ok=>ok?'cloud':account.sync&&account.sync.conflict?'conflict':local?'local':'none');return Promise.resolve(local?'local':'none')}
+/* ---------- saving to the account ----------
+   The world is compressed in the browser before it goes up (often ten times smaller). The server keeps a revision number per world:
+   if another device saved the same world since this one loaded it, the server says so and the player chooses which to keep,
+   instead of an older copy silently overwriting newer play. Problems are told, not swallowed. */
+async function gzipText(t){if(typeof CompressionStream==='undefined')return null;try{const s=new Blob([t]).stream().pipeThrough(new CompressionStream('gzip'));return new Uint8Array(await new Response(s).arrayBuffer())}catch(e){return null}}
+async function cloudSave(d,keepalive,force){if(account.sync&&account.sync.conflict&&account.sync.slot===d.slot&&!force)return false;
+  try{const txt=JSON.stringify(d),gz=await gzipText(txt),body=gz||txt,headers={'Content-Type':'application/json','X-Base-Rev':String(account.rev[d.slot]||0)};
+    if(gz)headers['Content-Encoding']='gzip';if(force)headers['X-Force']='1';
+    const r=await fetch('/api/saves/'+d.slot,{method:'PUT',headers,credentials:'same-origin',body,keepalive:!!keepalive&&(gz?gz.length:txt.length)<60000});
+    let j=null;try{j=await r.json()}catch(e){}
+    if(r.ok){account.lastCloud=Date.now();if(j&&j.rev)account.rev[d.slot]=j.rev;account.sync={ok:true,t:Date.now(),bytes:j&&j.stored};return true}
+    if(r.status===401){account.user=null;syncTrouble('out','Signed out','You were signed out, so this world is only saved in this browser now. Sign in again from the title screen.');return false}
+    if(r.status===409&&j&&j.conflict){account.sync={conflict:true,slot:d.slot,meta:j.meta,rev:j.rev};syncConflict(j.meta);return false}
+    if(r.status===413){syncTrouble('big','World too large for the server','It is saved in this browser. The server may sit behind a proxy that limits upload size.');return false}
+    syncTrouble('err'+r.status,'Could not save to your account',(j&&j.error)||'The server said no. It is saved in this browser for now.');return false}
+  catch(e){account.sync={offline:true,t:Date.now()};return false}}
+function syncTrouble(k,title,text){account.sync={err:text,t:Date.now()};if(account.said[k])return;account.said[k]=true;if(typeof toast==='function')toast(title,text)}
+/* the world was played further on another device: load that version, or keep going here and overwrite it */
+function syncConflict(meta){if(typeof openModal!=='function'||account.said.conflict===meta.saved)return;account.said.conflict=meta.saved;
+  const ago=typeof rel==='function'?rel(meta.saved):'recently';
+  openModal(`<h2>Played on another device</h2><p>This world was saved somewhere else ${ago}, at year ${(meta.year||0).toLocaleString('en-US')}. Here you are at year ${year.toLocaleString('en-US')}.</p>
+    <p class="note">Pick which one to keep. The other version is replaced.</p>
+    <div class="row"><button class="btn" data-sync="load">Load that version</button><div class="flex"></div><button class="btn primary" data-sync="keep">Keep this one</button></div>`)}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-sync]');if(!b)return;const slot=account.sync&&account.sync.slot;closeModal();if(!slot)return;
+  if(b.dataset.sync==='keep'){account.sync=null;const ok=await cloudSave(buildSave(),false,true);toast(ok?'Kept this version':'Could not save',ok?'Your account now has this version of the world.':'Try again in a moment.')}
+  else{account.sync=null;if(await loadCloud(slot)){startPlaying(false);toast('Loaded','You are playing the version from your other device.')}}});
 function saveInfo(){try{const d=JSON.parse(localStorage.getItem('faithbound.save')||'null');return d?{year:d.year,saved:d.saved,size:d.sizeKey,count:d.nations.filter(n=>n.alive).length,name:d.worldName,slot:d.slot,owner:d.owner}:null}catch(e){return null}}
 function loadGame(){let d;try{d=JSON.parse(localStorage.getItem('faithbound.save')||'null')}catch(e){}return d?applySave(d):false}
 function applySave(d){
