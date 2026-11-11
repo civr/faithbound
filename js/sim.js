@@ -276,7 +276,7 @@ function fall(n,quiet){n.alive=false;for(const o of nations)if(o.allies)o.allies
 function rebel(n,forced,why){
   const cands=n.cities.slice(1);if(!cands.length)return;const c=forced||cands[(rng()*cands.length)|0];
   const maxD=Math.max(3,Math.round(Math.sqrt(n.tiles)*.45)),limit=Math.floor(n.tiles*.45),start=c.y*W+c.x;if(owner[start]!==n.id)return;
-  const seen=new Uint8Array(N),q=[start],region=[];seen[start]=1;let head=0;
+  const seen=new Uint8Array(N),q=[start],region=[];seen[start]=1;let head=0;/* the capital itself never goes with the rebels */if(n.cities[0]&&n.cities[0]!==c)seen[n.cities[0].y*W+n.cities[0].x]=1;
   while(head<q.length&&region.length<limit){const i=q[head++];region.push(i);const x=i%W,y=(i/W)|0;
     for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
       if(seen[j]||owner[j]!==n.id||Math.max(Math.abs(X-c.x),Math.abs(Y-c.y))>maxD)continue;seen[j]=1;q.push(j)}}

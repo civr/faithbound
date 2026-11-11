@@ -283,6 +283,7 @@ function renderSheet(full){const B=$('#sheetBody');if(!sheetPanel)return;
       <p class="note">Design it yourself: name, symbol, colour and two tenets. Followers give you belief.</p></div>
       <div class="sec"><h4>Your faiths</h4><div class="flist" id="faithList"></div><p class="note">Tap a faith, then tap a nation to spread it. Faiths also spread on their own between neighbours at peace.</p></div>`;
     $('#faithList').innerHTML=faiths.length?faiths.map((f,i)=>{const c=nations.filter(n=>n.alive&&n.faith===i),pop=c.reduce((s,n)=>s+n.pop,0);
+      if(f.rival)return `<div class="fcard" style="opacity:.85"><span class="fg" style="background:${f.color}">${glyph(f.glyph,'#fff')}</span><span class="nm">${esc(f.name)}<small>A rival god's cult · it wins nations from you</small></span><span class="pp">${c.length} nations<br>${fmtPop(pop)}</span></div>`;
       return `<button class="fcard" data-f="${i}" aria-pressed="${i===selectedFaith}"><span class="fg" style="background:${f.color}">${glyph(f.glyph,'#fff')}</span>
         <span class="nm">${esc(f.name)}<small>${(f.tenets||[f.tenet]).map(t=>TENETS[t].label).join(' · ')}${f.holy?' · Holy city '+esc(f.holy):''}${f.parent!=null&&faiths[f.parent]?' · branch of '+esc(faiths[f.parent].name):''}${typeof coop!=='undefined'&&coop?' · god: '+esc(coopName(f.god|0))+((f.god|0)===coop.pid?' (you)':''):''}</small></span>
         <span class="pp">${c.length} nations<br>${fmtPop(pop)}</span></button>`}).join(''):'<p class="note">None yet. Your first faith starts your flow of belief.</p>'}
