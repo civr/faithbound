@@ -107,7 +107,7 @@ function say(msg,sticky){clearTimeout(hintTimer);hintEl.className='glass hint al
 /* which pop-up messages to show: sorted into kinds, repeats of the same message are held back */
 const MSGKINDS=[['war','Wars, battles and sieges',/war|battle|siege|sack|conquer|captur|fleet|bomb|nuclear|army|invad|front|peace/i],
   ['disaster','Disasters: famine, plague, fire, storms',/famine|plague|hungry|fire|storm|hurricane|quake|flood|volcan|erupt|locust|kraken|drought|meteor|blizzard|tsunami|fallout|winter|disease|sick/i],
-  ['politics','Rulers, revolts and alliances',/ruler|king|queen|dynast|govern|allian|independ|rebel|revolt|revolution|coup|assassin|anoint|crown|throne|empire|broke away/i],
+  ['politics','Rulers, revolts and alliances',/ruler|king|queen|dynast|govern|allian|united|union|independ|rebel|revolt|revolution|coup|assassin|anoint|crown|throne|empire|broke away/i],
   ['faith','Faiths, prophets and miracles',/faith|prophet|schism|miracle|holy|pilgrim|temple|believ|eclipse/i],
   ['progress','New ages, discoveries and wonders',/age|discover|wonder|colony|colon|oil|gold|space|launch|rocket|first|invent|school|city rises|new world/i]];
 const msgKind=(a,b)=>{const s=a+' '+b;for(const [k,,re] of MSGKINDS)if(re.test(s))return k;return 'other'};
@@ -249,7 +249,7 @@ function renderNationCard(){
     ${(()=>{const hv=happyOf(n),hp=happyParts(n).sort((p,q)=>Math.abs(q[1])-Math.abs(p[1]));return `<div title="${esc(hp.map(p=>`${p[0]} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join('\n'))}"><div class="row" style="justify-content:space-between"><span class="lab">Happiness · ${happyLabel(hv)}</span><span class="lab">${hp.slice(0,2).map(p=>`${esc(p[0])} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join(' · ')}</span></div><div class="prog"><i style="width:${hv*100}%;background:${happyColor(hv)}"></i></div>${hv<.32?'<p class="note" style="color:#e8645a;margin:3px 0 0">The people are close to rising up.</p>':''}</div>`})()}
     ${(n.greats||[]).filter(g=>g.until>year).length?`<div class="greats"><span class="lab">Great people</span>${n.greats.filter(g=>g.until>year).map(g=>`<p class="note" style="margin:2px 0"><b>${esc(g.name)}</b> · ${GREAT[g.k].label} · ${GREAT[g.k].fx}</p>`).join('')}</div>`:''}
     <div><div class="row" style="justify-content:space-between"><span class="lab">Faith in you · ${devLabel(n.devotion??.3)}</span><span class="lab">${Math.round((n.devotion??.3)*100)}%${n.cities.filter(c=>c.statue).length?' · '+n.cities.filter(c=>c.statue).length+' statues':''}${n.festival>0?' · festival':''}</span></div><div class="prog"><i style="width:${(n.devotion??.3)*100}%;background:#e8c060"></i></div><p class="note" style="margin:3px 0 0">${(()=>{const d=n.devotion??.3,c=Math.round((devCost(n)-1)*100);return `Miracles here cost ${c>0?'+':''}${c}% · ${n.faith>=0?'belief ×'+devBelief(n).toFixed(1):d>.3?'prays to you a little':'gives you nothing'}${d<.2?' · ignores your guidance half the time':''}`})()}</p></div>
-    ${resourceLine(n)}<p class="note">${esc(CULTURES[cultOf(n)].label)} culture${n.allies&&n.allies.length?` · <b style="color:#9ec8f0">Allies:</b> ${esc(n.allies.map(i=>nations[i].name).join(', '))}`:''}</p>
+    ${resourceLine(n)}<p class="note">${esc(CULTURES[cultOf(n)].label)} culture${n.allies&&n.allies.length?` · <b style="color:#9ec8f0">Allies:</b> ${esc(n.allies.map(i=>nations[i].name).join(', '))}`:''}${n.unions&&n.unions.length?` · Born of the union of ${esc(n.unions[n.unions.length-1].a)} and ${esc(n.unions[n.unions.length-1].b)} in ${n.unions[n.unions.length-1].year}`:''}</p>
     ${n.trade&&n.trade.length?`<p class="note"><b style="color:#a9dba5">Trading with:</b> ${esc(n.trade.map(i=>nations[i].name).join(', '))}</p>`:''}
     ${n.alive?`<div class="quick"><button class="ib" data-q="follow">Follow</button><button class="ib" data-q="bless">Bless</button><button class="ib" data-q="festival">Festival</button><button class="ib" data-q="ally">Ally</button><button class="ib" data-q="inspire">Inspire</button><button class="ib" data-q="faith">Faith</button><button class="ib" data-q="gov">Rule</button><button class="ib" data-q="tech">Tech</button><button class="ib" data-q="dip">Treaty</button><button class="ib" data-q="war">War</button>${wars.length?'<button class="ib" data-q="peace">Peace</button>':''}</div>`:''}`;
 }
@@ -372,7 +372,9 @@ function doAct(k,p){spendMul=1;
   if(k==='guide'){const n=nations[p.n];if(!n||!n.alive||!TECH[p.t]||!techAvailable(n,TECH[p.t]))return false;spendMul=devCost(n);if(!spend(10))return false;if((n.devotion??.3)<.2&&rng()<.5){say(`The scholars of ${n.name} do not listen to a god they no longer believe in.`);return true}n.research=p.t;n.tech=0;n.guided=true;log(`You guided the scholars of ${n.name} towards ${TECH[n.research].name}.`,'era');return true}
   if(k==='gov'){const n=nations[p.n];if(!n||!n.alive||!govOptions(n).includes(p.g))return false;spendMul=devCost(n);if(!spend(30))return false;if((n.devotion??.3)<.2&&rng()<.5){say(`${n.name} ignores your voice. Win back their faith first.`);return true}setGov(n,p.g,true);if(n.cities[0])fx(n.cities[0].y*W+n.cities[0].x,'faith');return true}
   if(k==='peace'){const A=nations[p.a],B=nations[p.b];if(!A||!B||!A.alive||!B.alive||!A.wars.has(B.id)){say('That war is already over.');return false}if(!spend(15))return false;makePeace(A,B,true);delete warData[warKey(A,B)];const c=B.cities[0];if(c)fx(c.y*W+c.x,'bless');return true}
-  if(k==='dip'){const A=nations[p.a],B=nations[p.b];if(!A||!B||!A.alive||!B.alive||A===B)return false;const cost={pact:30,trade:15,marriage:25,tribute:20,ally:20,unally:10}[p.k];if(cost==null)return false;
+  if(k==='dip'){const A=nations[p.a],B=nations[p.b];if(!A||!B||!A.alive||!B.alive||A===B)return false;const cost={pact:30,trade:15,marriage:25,tribute:20,ally:20,unally:10,unite:50}[p.k];if(cost==null)return false;
+    if(p.k==='unite'){if(A.wars.has(B.id)){say('They are at war. Make peace first.');return false}const nm=cleanName(p.name);if(!nm){say('Give the new country a name first.');return false}if(!spend(cost))return false;
+      const K=p.keep===B.id?B:A,O=K===A?B:A;unite(K,O,nm,true,p.root&&cleanName(p.root)||nm);return true}
     if(p.k==='trade'&&(A.wars.has(B.id)||A.trade.includes(B.id))){say(A.wars.has(B.id)?'They are at war.':'They already trade.');return false}
     if(p.k==='ally'&&allied(A,B)){say('They are already allies.');return false}if(p.k==='unally'&&!allied(A,B)){say('They are not allies.');return false}
     if(!spend(cost))return false;const c=B.cities[0];if(c)fx(c.y*W+c.x,p.k==='tribute'?'war':'bless');
@@ -701,11 +703,35 @@ function openDiplo(n){diploFor=n.id;const others=nations.filter(m=>m.alive&&m!==
     <div class="sec"><span class="lab">With</span><select id="dipTo">${others.map(m=>`<option value="${m.id}"${m.id===diploTo?' selected':''}>${esc(m.name)}${n.wars.has(m.id)?' (at war)':''}</option>`).join('')}</select><p class="note">${rel.length?esc(B.name)+': '+rel.join(', '):esc(B.name)+': no dealings yet.'}</p></div>
     <div class="dipgrid">${act('pact','Peace treaty',30,'ends a war and forbids one for 30 years')}${act('trade','Trade pact',15,'merchants and ideas flow both ways',n.wars.has(B.id)||n.trade.includes(B.id))}
       ${act('marriage','Royal marriage',25,'joins the ruling houses; far less likely to fight')}${act('tribute','Demand tribute',20,'the weaker side pays, or takes offence')}
-      ${allied(n,B)?act('unally','Break alliance',10,'they stand alone again'):act('ally','Alliance',20,'they join each other\'s wars',n.wars.has(B.id))}</div>
+      ${allied(n,B)?act('unally','Break alliance',10,'they stand alone again'):act('ally','Alliance',20,'they join each other\'s wars',n.wars.has(B.id))}
+      ${act('unite','Unite as one',50,'two countries become one, under a joined name or a new one',n.wars.has(B.id))}</div>
     <div class="row" style="margin-top:10px"><div class="flex"></div><button class="btn" data-p="close">Done</button></div>`)}
 $('#modalBox').addEventListener('change',e=>{if(e.target.id==='dipTo'){diploTo=+e.target.value;const n=nations[diploFor];if(n)openDiplo(n)}});
-$('#modalBox').addEventListener('click',e=>{const b=e.target.closest('[data-dip]');if(!b||b.disabled)return;const p={a:diploFor,b:diploTo,k:b.dataset.dip};
+$('#modalBox').addEventListener('click',e=>{const b=e.target.closest('[data-dip]');if(!b||b.disabled)return;if(b.dataset.dip==='unite'){openUnion(diploFor,diploTo);return}const p={a:diploFor,b:diploTo,k:b.dataset.dip};
   if(typeof coopGuest==='function'&&coopGuest()){coopAct('dip',p);closeModal();return}if(doAct('dip',p)){const n=nations[diploFor];if(n)openDiplo(n);renderNationCard()}});
+/* uniting two countries: pick whose capital leads, then a joined, blended, kept or brand new name */
+let unionFor=null;
+function openUnion(a,b){const A=nations[a],B=nations[b];if(!A||!B||!A.alive||!B.alive)return;if(A.wars.has(B.id)){say('They are at war. Make peace first.');return}
+  unionFor={a,b,keep:A.pop>=B.pop?a:b,pick:0,name:null,root:null};renderUnion()}
+function renderUnion(){const u=unionFor,A=nations[u.a],B=nations[u.b];if(!A||!B||!A.alive||!B.alive){closeModal();return}const K=nations[u.keep],O=K===A?B:A,opts=unionNames(K,O);
+  if(u.pick>=0&&u.pick<opts.length){u.name=opts[u.pick][1];u.root=opts[u.pick][2]}
+  const card=(n)=>`<button data-un="keep" data-v="${n.id}" aria-pressed="${u.keep===n.id}"><b>${flagImg(n,'flag')} ${esc(n.name)}</b><small>${n.cities[0]?'Capital '+esc(n.cities[0].name)+' · ':''}${fmtPop(n.pop,n.era)} people · ${esc(GOVS[n.gov]?GOVS[n.gov].name:'')}</small></button>`;
+  openModal(`<h2>Unite ${esc(A.name)} and ${esc(B.name)}</h2><p class="note">The two countries become one: one map colour, one army, one people. All their towns, land and discoveries are shared.</p>
+    <div class="sec"><span class="lab">Who leads</span><p class="note">The leading country keeps its capital, its ruler, its government and its colour.</p><div class="tenets">${card(A)}${card(B)}</div></div>
+    <div class="sec"><span class="lab">Name of the new country</span><div class="tenets">${opts.map((o,i)=>`<button data-un="pick" data-v="${i}" aria-pressed="${u.pick===i}"><b>${esc(o[1])}</b><small>${esc(o[0])}</small></button>`).join('')}
+      <button data-un="new" aria-pressed="${u.pick===-1}"><b>A new name</b><small>Something no one has heard before</small></button></div>
+      <div class="row" style="margin-top:8px"><input type="text" id="unName" maxlength="40" value="${esc(u.name||'')}" style="flex:1" aria-label="Name of the new country"><button class="btn" data-un="new" aria-label="Suggest a new name">Suggest</button></div><p class="note">Type any name you like.</p></div>
+    <div class="row"><button class="btn" data-un="back">Back</button><div class="flex"></div><button class="btn primary" data-un="go">Unite · ${costOf(50)} belief</button></div>`);$('#modalBox').classList.add('setbox')}
+$('#modalBox').addEventListener('click',e=>{const b=e.target.closest('[data-un]');if(!b||!unionFor)return;const u=unionFor,a=b.dataset.un,inp=$('#unName');if(inp&&u.pick===-2)u.name=inp.value;
+  if(a==='keep'){u.keep=+b.dataset.v;if(u.pick<0&&inp)u.name=inp.value;renderUnion();return}
+  if(a==='pick'){u.pick=+b.dataset.v;renderUnion();return}
+  if(a==='new'){const K=nations[u.keep];u.pick=-1;u.name=u.root=cultureName(cultOf(K));renderUnion();return}
+  if(a==='back'){const n=nations[u.a];unionFor=null;if(n)openDiplo(n);return}
+  if(a==='go'){const nm=cleanName(inp?inp.value:u.name);if(!nm){say('Give the new country a name first.');return}const typed=nm!==u.name;
+    const p={a:u.a,b:u.b,k:'unite',keep:u.keep,name:nm,root:typed?nm:(u.root||nm)};unionFor=null;
+    if(typeof coopGuest==='function'&&coopGuest()){coopAct('dip',p);closeModal();say('The union is being sealed…');return}
+    if(doAct('dip',p)){closeModal();selected=p.keep;renderNationCard()}}});
+$('#modalBox').addEventListener('input',e=>{if(e.target.id==='unName'&&unionFor){unionFor.pick=-2;unionFor.name=e.target.value;unionFor.root=null;$$('#modalBox [data-un="pick"],#modalBox [data-un="new"]').forEach(x=>x.setAttribute('aria-pressed','false'))}});
 function openSettings(){setTimeout(()=>$('#modalBox').classList.add('setbox'),0);const t=(k,label,v)=>`<label class="tog">${label}<input type="checkbox" data-set="${k}" ${v?'checked':''}></label>`;
   openModal(`<h2>Settings</h2><div class="setcols"><div class="setcol"><div class="sec"><span class="lab">Graphics quality</span><div class="seg">${['low','medium','high'].map(q=>`<button data-q="${q}" aria-pressed="${settings.quality===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div>
     <p class="note">Lower quality draws fewer trees and smaller shadows. Use it on older phones.</p></div>

@@ -132,17 +132,81 @@ function foundTown(A,x,y,j){if((A.tiles/Math.max(1,A.cities.length))<18)return;j
 const mil=n=>n.pop/Math.max(1,n.tiles)*ERAS[n.era].mil*ten(n).mil*(n.gpMil||1)*(n.bless>0?1.3:1)*(n.hero&&n.hero.until>year?1.6:1);
 /* ---------- alliances: sworn friends join each other's wars ---------- */
 const allied=(a,b)=>!!(a.allies&&a.allies.includes(b.id));
-function ally(a,b,god){if(a===b||!a.alive||!b.alive||allied(a,b))return;if(a.wars.has(b.id))makePeace(a,b,false);a.allies=a.allies||[];b.allies=b.allies||[];a.allies.push(b.id);b.allies.push(a.id);
+function ally(a,b,god){if(a===b||!a.alive||!b.alive||allied(a,b))return;if(a.wars.has(b.id))makePeace(a,b,false);a.allies=a.allies||[];b.allies=b.allies||[];a.allies.push(b.id);b.allies.push(a.id);a.allyY=a.allyY||{};b.allyY=b.allyY||{};a.allyY[b.id]=b.allyY[a.id]=year;
   log(god?`By your will, ${a.name} and ${b.name} swore an alliance.`:`${a.name} and ${b.name} formed an alliance.`,'life');milestone('ally','Sworn allies','Two nations bound themselves in alliance.')}
 function breakAlliance(a,b,god){if(!allied(a,b))return;a.allies=a.allies.filter(x=>x!==b.id);b.allies=b.allies.filter(x=>x!==a.id);
   log(god?`You broke the alliance between ${a.name} and ${b.name}.`:`The alliance between ${a.name} and ${b.name} fell apart.`,'war')}
 function allianceTick(n){if(!n.known)return;
   for(const id of n.known){const m=nations[id];if(!m||!m.alive||m.id<=n.id)continue;
     const shared=[...n.wars].some(w=>m.wars.has(w)),sameFaith=n.faith>=0&&n.faith===m.faith;
-    if(allied(n,m)){if(!shared&&rng()<.0015*(sameFaith?.4:1))breakAlliance(n,m,false);continue}
+    if(allied(n,m)){if(unionTick(n,m))return;if(!shared&&rng()<.0015*(sameFaith?.4:1))breakAlliance(n,m,false);continue}
     if(n.wars.has(m.id)||(n.allies||[]).length>=3||(m.allies||[]).length>=3)continue;
     const p=.0012*(shared?7:1)*(sameFaith?2:1)*(n.trade.includes(m.id)?1.6:1)*(n.ties&&n.ties.includes(m.id)?2:1)*(n.aggr<.45&&m.aggr<.45?1.5:1);
     if(rng()<p)ally(n,m,false)}}
+/* ---------- unions: two friendly nations become one country, under a joined name or a new one ---------- */
+const UNION_STYLE={tribal:'Confederacy',chiefdom:'Confederacy',kingdom:'United Kingdom',theocracy:'Holy Union',republic:'United Republic',empire:'Empire',feudal:'United Crowns',
+  merchant:'League',constmon:'United Kingdom',democracy:'United States',communism:'Union',fascism:'Grand Union',technocracy:'Commonwealth',federation:'Federation',directorate:'Union'};
+const rootOf=n=>n.root||n.name;
+const VOW=/[aeiouy]/i;
+/* split a name into syllables: a consonant before a vowel starts a new one (with its h, as in zh or th) */
+function syll(s){const out=[];let cur='',i=0;while(i<s.length&&!VOW.test(s[i]))cur+=s[i++];
+  while(i<s.length){while(i<s.length&&VOW.test(s[i]))cur+=s[i++];let run='';while(i<s.length&&!VOW.test(s[i]))run+=s[i++];
+    if(i>=s.length){cur+=run;break}const k=run.length>=2&&/[zstcpkgw]h/i.test(run.slice(-2))?2:1;cur+=run.slice(0,run.length-k);out.push(cur);cur=run.slice(run.length-k)}
+  if(cur)out.push(cur);return out.length?out:[s]}
+/* a blend of the two names, like Benelux: the first syllables of one and the last of the other */
+function blendName(a,b){a=a.replace(/[^A-Za-z]/g,'');b=b.replace(/[^A-Za-z]/g,'');if(!a||!b)return a+b;const A=syll(a),B=syll(b);
+  let x=A.slice(0,Math.max(1,Math.ceil(A.length/2))).join(''),y=B.slice(Math.min(B.length-1,Math.floor(B.length/2))).join('').toLowerCase();
+  if(x.length<3&&A.length>1)x=A.slice(0,2).join('');
+  if(VOW.test(x[x.length-1])&&VOW.test(y[0]))y=y.slice(1);if(!VOW.test(x[x.length-1])&&!VOW.test(y[0])&&!VOW.test(y[1]||''))y=y.slice(1);
+  const s=x+y;return s[0].toUpperCase()+s.slice(1).toLowerCase()}
+/* the names a union could take, as [label, name, root, weight for unions that happen by themselves]; long chains of names are left out */
+const words=s=>s.split(/[-\s]+/).filter(Boolean);
+function unionNames(K,O){const a=rootOf(K),b=rootOf(O),wa=words(a),wb=words(b),st=UNION_STYLE[K.gov]||'Union',out=[];
+  if(wa.length+wb.length<=3&&(a+b).length<=22)out.push(['Joined',`${a}-${b}`,`${a}-${b}`,.3]);
+  const bl=blendName(wa[0],wb[wb.length-1]);if(bl.length>=4&&bl.length<=13&&bl!==a&&bl!==b)out.push(['Blended',bl,bl,.15]);
+  if(wa.length===1&&wb.length===1&&(st+a+b).length<=31)out.push([st,`${st} of ${a} and ${b}`,a,.25]);
+  out.push([`Keep ${K.name}`,K.name,a,K.unions&&K.unions.length?.45:.2]);if(O.name!==K.name)out.push([`Keep ${O.name}`,O.name,b,.03]);return out}
+function cleanName(s){return String(s||'').replace(/[\u0000-\u001f<>"`]/g,'').replace(/\s+/g,' ').trim().slice(0,40)}
+/* K keeps its capital, ruler, government and colour; O's land, towns and people join it */
+function unite(K,O,name,god,root){if(!K||!O||K===O||!K.alive||!O.alive)return false;
+  const an=K.name,bn=O.name;name=cleanName(name)||`${rootOf(K)}-${rootOf(O)}`;
+  if(K.wars.has(O.id)){K.wars.delete(O.id);O.wars.delete(K.id);delete warData[warKey(K,O)]}
+  /* O's wars carry over, unless K is a friend of that enemy: then that war just ends */
+  for(const wid of [...O.wars]){const E=nations[wid];delete warData[warKey(O,E)];if(!E||!E.alive)continue;
+    if(allied(K,E)||(K.pacts&&K.pacts[E.id]>year)){E.wars.delete(O.id);continue}
+    if(!K.wars.has(E.id)){K.wars.add(E.id);E.wars.add(K.id)}}
+  for(const c of O.cities){c.origin=K.id;delete c.conq;c.siege=0;c.besiegedBy=-1;c.unrest=0;c.joined=year;K.cities.push(c)}O.cities=[];
+  for(let i=0;i<N;i++)if(owner[i]===O.id)claim(i,K.id);
+  const tot=Math.max(1,K.pop+O.pop);K.devotion=((K.devotion??.3)*K.pop+(O.devotion??.3)*O.pop)/tot;K.stab=Math.max(K.stab||.6,.55);
+  K.pop+=O.pop;O.pop=0;if(K.faith<0)K.faith=O.faith;
+  K.techs=[...new Set([...(K.techs||[]),...(O.techs||[])])];if(O.era>K.era){K.era=O.era;K.eraY=year}
+  const merge=(k)=>{K[k]=[...new Set([...(K[k]||[]),...(O[k]||[])])].filter(x=>x!==K.id&&x!==O.id)};merge('known');merge('trade');merge('ties');
+  /* O's allies become K's allies, if they are not at war with it */
+  const oAllies=(O.allies||[]).filter(x=>x!==K.id);K.allies=(K.allies||[]).filter(x=>x!==O.id);if(K.allyY)delete K.allyY[O.id];
+  if(O.pacts){K.pacts=K.pacts||{};for(const k in O.pacts)if(+k!==K.id)K.pacts[k]=Math.max(K.pacts[k]||0,O.pacts[k])}
+  if(K.tribute&&K.tribute.to===O.id)delete K.tribute;
+  for(const o of nations){if(o.trade)o.trade=o.trade.map(x=>x===O.id?K.id:x).filter((x,i,a)=>x!==o.id&&a.indexOf(x)===i);if(o.known)o.known=o.known.map(x=>x===O.id?K.id:x).filter((x,i,a)=>x!==o.id&&a.indexOf(x)===i);
+    if(o.ties)o.ties=o.ties.map(x=>x===O.id?K.id:x).filter((x,i,a)=>x!==o.id&&a.indexOf(x)===i);if(o.tribute&&o.tribute.to===O.id)delete o.tribute}
+  fall(O,true);O.mergedInto=K.id;O.died=year;
+  /* the old royal house of O becomes one of the noble houses of the union */
+  if(typeof houses!=='undefined')for(const hh of houses)if(hh.nation===O.id)hh.nation=K.id;if(typeof folk!=='undefined')for(const id in folk){const q=folk[id];if(q.nation===O.id&&q.died==null)q.nation=K.id}
+  for(const id of oAllies){const C=nations[id];if(!C||!C.alive||C===K||K.wars.has(C.id)||allied(K,C))continue;K.allies.push(C.id);C.allies=C.allies||[];C.allies.push(K.id)}
+  K.name=name;K.root=cleanName(root)||name;K.flag=makeFlag(K,K.gov);K.unions=K.unions||[];K.unions.push({year,a:an,b:bn});
+  if(typeof selected!=='undefined'&&selected===O.id)selected=K.id;
+  const same=name===an?`. ${an} keeps its name`:name===bn?`. The new country takes the name ${bn}`:` as ${name}`;
+  log(god?`By your will, ${an} and ${bn} became one nation${same}.`:`${an} and ${bn} united into one nation${same}.`,'life');
+  milestone('union','United as one','Two nations joined into a single country.');
+  const c=K.cities[0];if(c&&typeof fx==='function')fx(c.y*W+c.x,'bless');
+  propsDirty=true;bordersDirty=true;if(typeof treesDirty!=='undefined')treesDirty=true;return true}
+/* long friendship between neighbours of one people or one faith can end in a union */
+function borders(A,B){for(let i=0;i<N;i++){if(owner[i]!==A.id)continue;const x=i%W,y=(i/W)|0;for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X>=0&&Y>=0&&X<W&&Y<H&&owner[Y*W+X]===B.id)return true}}return false}
+function unionTick(n,m){if(n.wars.has(m.id))return false;
+  n.allyY=n.allyY||{};m.allyY=m.allyY||{};if(n.allyY[m.id]==null)n.allyY[m.id]=m.allyY[n.id]=year;if(year-n.allyY[m.id]<60)return false;
+  const alive=nations.filter(o=>o.alive);if(alive.length<4)return false;let owned=0;for(const o of alive)owned+=o.tiles;if(n.tiles+m.tiles>owned*.35)return false;
+  const sameCult=cultOf(n)===cultOf(m),sameFaith=n.faith>=0&&n.faith===m.faith,tied=n.ties&&n.ties.includes(m.id);if(!sameCult&&!sameFaith&&!tied)return false;
+  const p=.0005*mood().ally*(sameCult?2:1)*(sameFaith?1.5:1)*(tied?2:1)*(Math.min(n.pop,m.pop)<Math.max(n.pop,m.pop)*.5?1.4:1);if(rng()>=p||!borders(n,m))return false;
+  const K=n.pop>=m.pop?n:m,O=K===n?m:n,opts=unionNames(K,O);let r=rng()*(opts.reduce((t,o)=>t+o[3],0)+.12);
+  for(const o of opts){r-=o[3];if(r<0)return unite(K,O,o[1],false,o[2])}const nm=cultureName(cultOf(K));return unite(K,O,nm,false,nm)}
 function startWar(a,b,kind){
   if(a===b||a.wars.has(b.id))return;
   if(a.pacts&&a.pacts[b.id]>year){if(!kind)return;/* only a god's hand breaks a sworn treaty */delete a.pacts[b.id];if(b.pacts)delete b.pacts[a.id];log(`${a.name} broke its treaty with ${b.name}.`,'war')}
@@ -207,7 +271,7 @@ function warTick(){siegeCleanup();
     if(rng()<tired*ten(A).peace*ten(B).peace*wwPeace(A,B)){addRival(A,B,.4);const win=w.score>6?A:w.score<-6?B:null,lose=win===A?B:A;
       makePeace(A,B,false);if(win)log(`${lose.name} ceded land to ${win.name} in the peace treaty.`,'war');delete warData[key]}}}}
 function makePeace(a,b,god){if(a.wars.has(b.id))noteWarEnd(a,b,god?'forced':'peace');a.wars.delete(b.id);b.wars.delete(a.id);bordersDirty=true;if(typeof consolidate==='function')consolidate();log(god?`You forced peace between ${a.name} and ${b.name}.`:`${a.name} and ${b.name} made peace.`,'life')}
-function fall(n){n.alive=false;for(const o of nations)if(o.allies)o.allies=o.allies.filter(x=>x!==n.id);n.allies=[];for(const o of nations)o.wars.delete(n.id);n.wars.clear();if(warFrom===n.id)warFrom=-1;log(`${n.name} has fallen.`,'doom');propsDirty=true;bordersDirty=true}
+function fall(n,quiet){n.alive=false;for(const o of nations)if(o.allies)o.allies=o.allies.filter(x=>x!==n.id);n.allies=[];for(const o of nations)o.wars.delete(n.id);n.wars.clear();if(warFrom===n.id)warFrom=-1;if(!quiet)log(`${n.name} has fallen.`,'doom');propsDirty=true;bordersDirty=true}
 function rebel(n,forced,why){
   const cands=n.cities.slice(1);if(!cands.length)return;const c=forced||cands[(rng()*cands.length)|0];
   const maxD=Math.max(3,Math.round(Math.sqrt(n.tiles)*.45)),limit=Math.floor(n.tiles*.45),start=c.y*W+c.x;if(owner[start]!==n.id)return;

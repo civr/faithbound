@@ -71,7 +71,7 @@ function onLogSound(kind,text){if(!SND.on||catching||speedIdx>=3)return;const se
   if(kind==='war'){if(/war on|declared war|invaded|joined the war|marched with/i.test(text))sfx('horn');else if(/fleet|stormed|pirate|siege/i.test(text))sfx('cannon')}
   else if(kind==='era'&&/completed the/.test(text))sfx('bell');else if(kind==='faith')sfx('faith');
   else if(kind==='doom'){if(/died|passed away|was killed|fallen/i.test(text))sfx('toll');else sfx('doom')}
-  else if(kind==='life'&&/founded|rises|alliance|festival|free country|in peace/i.test(text))sfx('chime')}
+  else if(kind==='life'&&/founded|rises|alliance|united|festival|free country|in peace/i.test(text))sfx('chime')}
 
 /* ---------- ambience follows what the camera sees ---------- */
 function updateAudio(dt){if(!SND.on)return;const c=SND.ctx,t=c.currentTime,A=SND.amb;
