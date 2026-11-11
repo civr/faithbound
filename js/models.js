@@ -532,7 +532,7 @@ function buildCanopies(){if(CANOPY.length!==N)CANOPY=new Uint8Array(N);else CANO
   for(let t=0;t<N;t++){const c=cnt[t];if(c<6)continue;const x=wx(t%W)+.5,z=wz((t/W)|0)+.5,gy=groundY(x,z);if(gy<waterY)continue;const hh=Math.max(.15,top[t]/c-gy),cov=Math.min(1.08,.7+c/36);
     c3.setRGB(col[t*3]/c,col[t*3+1]/c,col[t*3+2]/c);c3.convertLinearToSRGB();add(con[t]*2>c?'canopyC':'canopyR',x+(hash(t*5.3)-.5)*.16,gy-.01,z+(hash(t*7.1)-.5)*.16,cov,hh*(.9+hash(t*2.3)*.2),cov,hash(t*3.1)*6.28,c3.getHex());CANOPY[t]=1}
   kitCommit(['canopyR','canopyC'])}
-{const _rt=rebuildTrees;rebuildTrees=function(){const r=_rt.apply(this,arguments);try{buildCanopies()}catch(e){console.warn('canopy',e)}return r}}
+{const _rt=rebuildTrees;rebuildTrees=function(){const r=_rt.apply(this,arguments);if(!TREE_LIGHT)try{buildCanopies()}catch(e){console.warn('canopy',e)}return r}}
 /* in the cull: trees on a blocked tile vanish beyond the canopy distance, and the canopy itself only shows out there */
 {const _ck3=cullKit;cullKit=function(K,P,margin){
   if(K.revLod){const D2=canopyDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z,A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array,cs=K.cs,M=K.mm,MC=K.mc;let v=0;

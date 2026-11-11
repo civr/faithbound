@@ -131,7 +131,7 @@ function leafLump(s,sy,x,y,z,det,sd){const ig=new THREE.IcosahedronGeometry(.5,d
 /* a bush: a few soft leaf lumps hugging the ground */
 function bushGeo(seed){const r=mulberry32(seed),S=softParts();const n=3+((r()*2)|0);
   for(let b=0;b<n;b++){const a=r()*6.283,d=b?.04+r()*.04:0,s=b?.08+r()*.05:.13;const y=.05+(b?r()*.02:.015);
-    S.add(leafLump(s,.78,Math.cos(a)*d,y,Math.sin(a)*d,1,r()*50+b),(x,yy,z)=>{const ao=.5+.5*clamp((yy-.0)/.13,0,1);return[ao,ao,ao]})}
+    S.add(leafLump(s,.78,Math.cos(a)*d,y,Math.sin(a)*d,0,r()*50+b),(x,yy,z)=>{const ao=.5+.5*clamp((yy-.0)/.13,0,1);return[ao,ao,ao]})}
   return S.geo()}
 /* a palm: a gently bent, ringed trunk and a crown of arching fronds that droop at the tips */
 function palmGeo(seed){const r=mulberry32(seed),S=softParts();
@@ -224,8 +224,21 @@ kit('body',unitBox(),MAT.plain,900,false);kit('cart',unitBox(),MAT.plain,200);ki
 function kitReset(names){for(const n of names)KITS[n].k=0}
 /* ---------- only what the camera can see is drawn: buildings, trees and props outside the view cost nothing ---------- */
 const CULLK={dirty:true,last:0,sig:'',fr:new THREE.Frustum(),pm:new THREE.Matrix4()};
-const cullable=n=>n==='bridge'||BUILD_KITS.includes(n)||TREE_KITS.includes(n);
+const cullable=n=>n==='bridge'||BUILD_KITS.includes(n)||TREE_KITS.includes(n)||GREEN_KITS.includes(n);
+/* town gardens and orchards have their own lists, sharing the trees' shapes, so a growing town never makes the whole forest be redone */
+const GREEN_KITS=[];
+function gKit(n){const g='g_'+n;if(!KITS[g]){const B=KITS[n];if(!B)return n;kit(g,B.mesh.geometry,B.mesh.material,Math.min(B.max,24000),B.mesh.castShadow);if(B.lodP)KITS[g].lodP=B.lodP;GREEN_KITS.push(g)}return g}
+function rebuildGreen(){kitReset(GREEN_KITS);for(const g of TOWN_GREEN)add(gKit(g[0]),g[1],g[2],g[3],g[4],g[5],g[6],g[7],g[8]);kitCommit(GREEN_KITS)}
+/* the sphere around each copy, for culling: worked out from its matrix */
+function spheresOf(K,M,from,n,cs){const g=K.mesh.geometry;if(!g.boundingSphere)g.computeBoundingSphere();const bc=g.boundingSphere.center,br=g.boundingSphere.radius;
+  for(let i=from;i<n;i++){const o=i*16;cs[i*4]=M[o]*bc.x+M[o+4]*bc.y+M[o+8]*bc.z+M[o+12];cs[i*4+1]=M[o+1]*bc.x+M[o+5]*bc.y+M[o+9]*bc.z+M[o+13];cs[i*4+2]=M[o+2]*bc.x+M[o+6]*bc.y+M[o+10]*bc.z+M[o+14];
+    cs[i*4+3]=br*Math.max(Math.hypot(M[o],M[o+1],M[o+2]),Math.hypot(M[o+4],M[o+5],M[o+6]),Math.hypot(M[o+8],M[o+9],M[o+10]))}return cs}
 function cullStore(K){const n=K.k,A=K.mesh.instanceMatrix.array;K.mm=A.slice(0,n*16);K.mc=K.mesh.instanceColor?K.mesh.instanceColor.array.slice(0,n*3):null;K.n=n;
+  const cs=K.cs=new Float32Array(n*4),pre=Math.min(n,K.csPre||0);K.csPre=0;
+  /* towns replayed from their records bring their spheres along; only the rest are worked out */
+  if(pre&&K.csS){cs.set(K.csS.subarray(0,pre*4));spheresOf(K,K.mm,pre,n,cs)}else spheresOf(K,K.mm,0,n,cs);
+  K.culled=true;CULLK.dirty=true}
+function cullStoreOld(K){const n=K.k,A=K.mesh.instanceMatrix.array;K.mm=A.slice(0,n*16);K.mc=K.mesh.instanceColor?K.mesh.instanceColor.array.slice(0,n*3):null;K.n=n;
   const g=K.mesh.geometry;if(!g.boundingSphere)g.computeBoundingSphere();const bc=g.boundingSphere.center,br=g.boundingSphere.radius,M=K.mm,cs=K.cs=new Float32Array(n*4);
   for(let i=0;i<n;i++){const o=i*16;cs[i*4]=M[o]*bc.x+M[o+4]*bc.y+M[o+8]*bc.z+M[o+12];cs[i*4+1]=M[o+1]*bc.x+M[o+5]*bc.y+M[o+9]*bc.z+M[o+13];cs[i*4+2]=M[o+2]*bc.x+M[o+6]*bc.y+M[o+10]*bc.z+M[o+14];
     cs[i*4+3]=br*Math.max(Math.hypot(M[o],M[o+1],M[o+2]),Math.hypot(M[o+4],M[o+5],M[o+6]),Math.hypot(M[o+8],M[o+9],M[o+10]))}
@@ -248,15 +261,16 @@ function kitCommit(names){if(typeof shadowForce!=='undefined')shadowForce=true;f
 function add(name,x,y,z,sx,sy,sz,rot,hex,tilt){const K=KITS[name];if(K.k>=K.max)return;if(CAPT)CAPT.push(x,z,sx,sz,rot||0);
   dummy.position.set(x,y,z);dummy.rotation.set(tilt||0,rot||0,0);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();
   K.mesh.setMatrixAt(K.k,dummy.matrix);K.mesh.setColorAt(K.k,tmpC.set(hex==null?0xffffff:hex).convertSRGBToLinear());K.k++;
-  if(REC){const r=REC.k[name]||(REC.k[name]=[]);const m=dummy.matrix.elements;for(let i=0;i<16;i++)r.push(m[i]);r.push(tmpC.r,tmpC.g,tmpC.b)}}
-let REC=null;
+  if(REC){const r=REC.k[name]||(REC.k[name]=[]);const m=dummy.matrix.elements;for(let i=0;i<16;i++)r.push(m[i]);r.push(tmpC.r,tmpC.g,tmpC.b)}
+  if(TREC){const r=TREC.k[name]||(TREC.k[name]=[]);const m=dummy.matrix.elements;for(let i=0;i<16;i++)r.push(m[i]);r.push(tmpC.r,tmpC.g,tmpC.b,TREC.t)}}
+let REC=null,TREC=null;
 /* ---------- buildings are solid things: each one's real footprint is measured from what it is built of, and nothing may stand inside another ---------- */
 let CAPT=null,FOOTREC=null;const FOOT=new Map(),FCELL=.25;
 function footOf(a,ox,oz,rot,pad){if(!a.length)return null;const c=Math.cos(rot),s=Math.sin(rot);let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
   for(let i=0;i<a.length;i+=5){const dx=a[i]-ox,dz=a[i+1]-oz,lx=dx*c-dz*s,lz=dx*s+dz*c,dr=a[i+4]-rot,cd=Math.abs(Math.cos(dr)),sd=Math.abs(Math.sin(dr)),hx=Math.abs(a[i+2])/2,hz=Math.abs(a[i+3])/2;
     const ex=cd*hx+sd*hz,ez=sd*hx+cd*hz;if(lx-ex<x0)x0=lx-ex;if(lx+ex>x1)x1=lx+ex;if(lz-ez<z0)z0=lz-ez;if(lz+ez>z1)z1=lz+ez}
   const mx=(x0+x1)/2,mz=(z0+z1)/2,hw=(x1-x0)/2+pad,hd=(z1-z0)/2+pad;return {x:ox+mx*c+mz*s,z:oz-mx*s+mz*c,hw,hd,c,s,r:Math.hypot(hw,hd)}}
-function footEach(o,cb){for(let gx=Math.floor((o.x-o.r)/FCELL);gx<=Math.floor((o.x+o.r)/FCELL);gx++)for(let gz=Math.floor((o.z-o.r)/FCELL);gz<=Math.floor((o.z+o.r)/FCELL);gz++)if(cb(gx+','+gz))return true;return false}
+function footEach(o,cb){for(let gx=Math.floor((o.x-o.r)/FCELL);gx<=Math.floor((o.x+o.r)/FCELL);gx++)for(let gz=Math.floor((o.z-o.r)/FCELL);gz<=Math.floor((o.z+o.r)/FCELL);gz++)if(cb(gx*100003+gz))return true;return false}
 function footAdd(o){footEach(o,k=>{let L=FOOT.get(k);if(!L)FOOT.set(k,L=[]);L.push(o)});if(FOOTREC)FOOTREC.push(o)}
 /* two footprints overlap unless some edge direction separates them */
 function obbHit(a,b){const dx=b.x-a.x,dz=b.z-a.z;if(dx*dx+dz*dz>(a.r+b.r)**2)return false;
@@ -776,7 +790,16 @@ kit('grass',grassGeo,grassMat,44000,false);
 kit('wflower',(()=>{const g=new THREE.SphereGeometry(.5,6,4);g.scale(1,.55,1);return g})(),stdMat({roughness:.7}),4000,false);
 kit('pebble',(()=>{const g=new THREE.DodecahedronGeometry(.5,0);g.scale(1,.55,1);return g})(),stdMat({roughness:1}),2500,false);
 /* ground the grass must not grow on: house floors, roads, garden beds */
-const bare=new Set(),roadBare=new Set(),BC=.035;const bk=(x,z)=>Math.floor(x/BC)*100003+Math.floor(z/BC);
+/* where grass must not grow: one bit per small cell of the map, instead of millions of entries in a list */
+class BitGrid{constructor(){this.w=0;this.h=0;this.ox=0;this.oz=0;this.a=new Uint32Array(0)}
+  fit(){const ox=Math.ceil(W/2/BC)+4,oz=Math.ceil(H/2/BC)+4;if(ox!==this.ox||oz!==this.oz){this.ox=ox;this.oz=oz;this.w=ox*2;this.h=oz*2;this.a=new Uint32Array(Math.ceil(this.w*this.h/32))}}
+  idx(k){const X=Math.round(k/100003),x=X+this.ox,z=k-X*100003+this.oz;return x<0||z<0||x>=this.w||z>=this.h?-1:x*this.h+z}
+  add(k){if(!this.w)this.fit();const i=this.idx(k);if(i>=0)this.a[i>>5]|=1<<(i&31);return this}
+  has(k){if(!this.w)return false;const i=this.idx(k);return i>=0&&(this.a[i>>5]&(1<<(i&31)))!==0}
+  setIdx(i){if(i>=0)this.a[i>>5]|=1<<(i&31)}
+  idxs(keys){if(!this.w)this.fit();const o=new Int32Array(keys.length);for(let j=0;j<keys.length;j++)o[j]=this.idx(keys[j]);return o}
+  clear(){this.fit();this.a.fill(0)}}
+const BC=.035,bare=new BitGrid(),roadBare=new BitGrid();const bk=(x,z)=>Math.floor(x/BC)*100003+Math.floor(z/BC);
 function bareMark(x,z,r){const n=Math.ceil(r/BC);const cx=Math.floor(x/BC),cz=Math.floor(z/BC);for(let a=-n;a<=n;a++)for(let b=-n;b<=n;b++){if((a*a+b*b)*BC*BC>r*r+BC*BC)continue;bare.add((cx+a)*100003+cz+b)}}
 function bareRect(x,z,rot,w,d){const c=Math.cos(rot),s=Math.sin(rot);for(let a=-w/2;a<=w/2+1e-6;a+=BC*.8)for(let b=-d/2;b<=d/2+1e-6;b+=BC*.8)bare.add(bk(x+a*c+b*s,z-a*s+b*c))}
 const gNoise=makeNoise(9911);
@@ -970,11 +993,13 @@ const townGrowth=c=>c.born==null?1:clamp((year-c.born)/200,.15,1);
 function cityKey(n,c,ci,e,lvl,gold,cap){const MR=metroRadius(n,c,cap,e),rad=Math.ceil(Math.max(MR,.6))+1;let oh=0;
   for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===n.id)oh++}oh=Math.round(oh/4)
   const far=Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
-  return [n.id,e,lvl,cap?1:0,gold?1:0,n.festival>0?1:0,c.statue?c.statue.faith:-1,c.siege>.08?1:0,c.riot&&year-c.riot<6?1:0,n.faith,n.wonder,flagKey(n.flag),cultOf(n),settings.arch,terrVer,flatSig.length,oh,far?1:0,Math.round(MR*4),
+  return [n.id,e,lvl,cap?1:0,gold?1:0,n.festival>0?1:0,c.statue?c.statue.faith:-1,c.siege>.08?1:0,c.riot&&year-c.riot<6?1:0,n.faith,n.wonder,flagKey(n.flag),cultOf(n),settings.arch,terrBase+':'+sea.toFixed(3)+':'+(c._flat||''),oh,far?1:0,Math.round(MR*4),
     n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),n.techs&&n.techs.includes('starships')?1:0,ci,typeof SBVER!=='undefined'&&settings.models!==false?SBVER:-1].join('|')}
-function replayCity(Rc){if(Rc.ft){const fr=FOOTREC;FOOTREC=null;for(const o of Rc.ft)footAdd(o);FOOTREC=fr}for(const name in Rc.k){const K=KITS[name],a=Rc.k[name],cnt=a.length/19,M=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array;
-    for(let i=0;i<cnt&&K.k<K.max;i++){M.set(a.subarray(i*19,i*19+16),K.k*16);C.set(a.subarray(i*19+16,i*19+19),K.k*3);K.k++}}
-  for(const v of Rc.occ)occupied.add(v);for(const v of Rc.bare)bare.add(v);for(const v of Rc.bg)bgrid.add(v);
+/* a town's copies are kept as plain blocks (matrices, colours, culling spheres) so replaying it is a straight copy */
+function stageSpheres(K,s,at,n){if(!K.csS||K.csS.length<K.max*4)K.csS=new Float32Array(K.max*4);K.csS.set(n*4<s.length?s.subarray(0,n*4):s,at*4)}
+function replayCity(Rc){if(Rc.ft){const fr=FOOTREC;FOOTREC=null;for(const o of Rc.ft)footAdd(o);FOOTREC=fr}for(const name in Rc.m){const K=KITS[name],m=Rc.m[name],cnt=Math.min(m.length/16,K.max-K.k);if(cnt<=0)continue;
+    K.mesh.instanceMatrix.array.set(cnt*16<m.length?m.subarray(0,cnt*16):m,K.k*16);const c=Rc.c[name];K.mesh.instanceColor.array.set(cnt*3<c.length?c.subarray(0,cnt*3):c,K.k*3);stageSpheres(K,Rc.s[name],K.k,cnt);K.k+=cnt}
+  for(const v of Rc.occ)occupied.add(v);for(const v of Rc.bareI)bare.setIdx(v);for(const v of Rc.bg)bgrid.add(v);
   emitters.push(...Rc.em);herds.push(...Rc.hd);cityStreets.push(...Rc.cs);airports.push(...Rc.ap);spaceports.push(...Rc.sp);
   for(const g of Rc.wm){scene.add(g);windmills.push(g)}for(const m of Rc.tf){scene.add(m);townFlags.push(m)}}
 let RB0=0;
@@ -983,7 +1008,10 @@ let sootSig='';
    so the towns hand them over here instead of drawing them themselves */
 let TOWN_GREEN=[],TGSIG='',CUR_GREEN=null;
 const greenAdd=(k,x,y,z,sx,sy,sz,r,col)=>{if(CUR_GREEN)CUR_GREEN.push([k,x,y,z,sx,sy,sz,r,col])};
-function rebuildCities(){patchSets();RB0=performance.now();try{rebuildCities0()}finally{CUR_GREEN=null;TOWN_GREEN=[];for(const n of nations)if(n.alive)for(const c of n.cities)if(c._green)for(const g of c._green)TOWN_GREEN.push(g);const sig=TOWN_GREEN.length+':'+(TOWN_GREEN[0]?TOWN_GREEN[0][1].toFixed(2):'');if(sig!==TGSIG){TGSIG=sig;treesDirty=true;if(typeof jobs!=='undefined')jobs.push(()=>{if(treesDirty){rebuildTrees();if(typeof lastTrees!=='undefined')lastTrees=performance.now();treesDirty=false}})}}}
+/* towns only look different from afar in their smoke and street life, so panning rebuilds them only when a town crosses that line */
+const isFar=c=>Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
+function farChanged(){for(const n of nations)if(n.alive)for(const c of n.cities)if(c._farS!==isFar(c))return true;return false}
+function rebuildCities(){patchSets();RB0=performance.now();for(const n of nations)if(n.alive)for(const c of n.cities)c._farS=isFar(c);try{rebuildCities0()}finally{CUR_GREEN=null;TOWN_GREEN=[];for(const n of nations)if(n.alive)for(const c of n.cities)if(c._green)for(const g of c._green)TOWN_GREEN.push(g);const sig=TOWN_GREEN.length+':'+(TOWN_GREEN[0]?TOWN_GREEN[0][1].toFixed(2):'');if(sig!==TGSIG){TGSIG=sig;if(typeof jobs!=='undefined')jobs.push(rebuildGreen)}}}
 function rebuildCities0(){{let s='';for(const n of nations)if(n.alive&&n.era>=5&&n.era<=6)s+=n.id+':'+n.era+':'+n.cities.length+';';if(s!==sootSig){sootSig=s;if(typeof colorDirty!=='undefined')colorDirty=true}}
   for(const m of townFlags)scene.remove(m);townFlags=[];airports=[];spaceports=[];bgrid.clear();FOOT.clear();kitReset(BUILD_KITS);occupied.clear();bare.clear();grassAt.x=1e9;emitters=[];herds=[];cityStreets=[];for(const g of windmills)scene.remove(g);windmills=[];
   const stale=[];
@@ -997,9 +1025,12 @@ function rebuildCities0(){{let s='';for(const n of nations)if(n.alive&&n.era>=5&
   for(const q of stale){if(performance.now()-RB0<14||q.hit.era!==q.e)buildOne(q.n,q.c,q.ci,q.e,q.gold,q.lvl,q.key);else{propsDirty=true;replayCity(q.hit)}}
   /* anyone a new house went up around steps back out into the street */
   for(const w of walkers)if(inBuilding(w.x,w.z)&&w.ci){const p=cityPoint(w.ci);w.x=w.tx=p[0];w.z=w.tz=p[1];w.moving=false}
+  for(const nm of BUILD_KITS)KITS[nm].csPre=KITS[nm].k;
   buildExtras()}
 function buildOne(n,c,ci,e,gold,lvl,key){const L0={em:emitters.length,hd:herds.length,cs:cityStreets.length,ap:airports.length,sp:spaceports.length,wm:windmills.length,tf:townFlags.length};
-  REC={k:{},occ:[],bare:[],bg:[]};FOOTREC=[];try{buildCity(n,c,ci,e,gold,lvl)}finally{const Rc=REC;REC=null;Rc.ft=FOOTREC;FOOTREC=null;for(const nm in Rc.k)Rc.k[nm]=new Float32Array(Rc.k[nm]);
+  REC={k:{},occ:[],bare:[],bg:[]};FOOTREC=[];try{buildCity(n,c,ci,e,gold,lvl)}finally{const Rc=REC;REC=null;Rc.ft=FOOTREC;FOOTREC=null;Rc.m={};Rc.c={};Rc.s={};
+    for(const nm in Rc.k){const a=Rc.k[nm],cnt=a.length/19,m=new Float32Array(cnt*16),cl=new Float32Array(cnt*3);for(let i=0;i<cnt;i++){for(let j=0;j<16;j++)m[i*16+j]=a[i*19+j];cl[i*3]=a[i*19+16];cl[i*3+1]=a[i*19+17];cl[i*3+2]=a[i*19+18]}
+      const K=KITS[nm];Rc.m[nm]=m;Rc.c[nm]=cl;Rc.s[nm]=spheresOf(K,m,0,cnt,new Float32Array(cnt*4));if(K.k>=cnt)stageSpheres(K,Rc.s[nm],K.k-cnt,cnt)}delete Rc.k;Rc.bareI=bare.idxs(Rc.bare);delete Rc.bare;
     Object.assign(Rc,{key,era:e,t:performance.now(),em:emitters.slice(L0.em),hd:herds.slice(L0.hd),cs:cityStreets.slice(L0.cs),ap:airports.slice(L0.ap),sp:spaceports.slice(L0.sp),wm:windmills.slice(L0.wm),tf:townFlags.slice(L0.tf)});CITYCACHE.set(c,Rc)}}
 function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),cap=ci===0;occupied.add(i0);
       const cy=surfY(cx,cz);
@@ -1137,15 +1168,16 @@ const roadMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95});
 let fieldMesh=null,roadMesh=null;const fieldTiles=new Set();
 const CROPS_H=[[192,152,70],[204,164,78],[110,80,52],[96,70,46],[90,110,50],[176,144,76]];
 const CROPS=[[214,176,70],[196,158,58],[104,150,52],[136,178,64],[132,96,58],[160,150,70],[186,160,48]];
+let FIELD_SIG='';
 function rebuildFields(){
-  const pos=[],uv=[],col=[];fieldTiles.clear();
+  const pos=[],uv=[],col=[];fieldTiles.clear();let fsig=terrVer+'|'+(LK.pixel?1:0)+'|';const work=[];
   const vtx=(x,z,u,v,c)=>{pos.push(x,groundY(x,z)+.012,z);uv.push(u,v);col.push(c[0],c[1],c[2])};
   for(const n of nations){if(!n.alive||n.era<1)continue;const rad=(n.era>=4?3:2)+(LK.pixel?1:0);
     for(const c of n.cities)for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const i=Y*W+X;
       if(owner[i]!==n.id||occupied.has(i)||fieldTiles.has(i))continue;const b=biome[i];if(!(b===4||b===8||(b===5&&n.era>=3)))continue;
       if(hash(i*5.3)>(n.era>=5?.8:LK.pixel?.82:.62))continue;
       const X0=X-W/2,Z0=Y-H/2;if(groundY(X0+.5,Z0+.5)<waterY+.08)continue;
-      fieldTiles.add(i);
+      fieldTiles.add(i);fsig+=i+(n.famine>0?'f':'')+n.id+(n.era>=6?'m':'')+',';work.push(()=>{
       /* the painted countryside: neighbouring tiles form one large field of a single crop (ripe wheat, ploughed rows, young green or hay),
          its rows running straight on across the whole field */
       if(LK.pixel){const pk=hash(Math.floor(X/2+hash(Y*.37)*.9)*7.31+Math.floor(Y/2)*13.7+n.id*3.1),crop=n.famine>0?[132,104,70]:CROPS_H[(pk*CROPS_H.length*.999)|0],cc=crop.map(v=>LIN[v|0]),alongP=hash(pk*9.1)<.5,M=3;
@@ -1153,14 +1185,16 @@ function rebuildFields(){
           const p00=P(a0,b0),p10=P(a1,b0),p01=P(a0,b1),p11=P(a1,b1),u00=U(...p00),u10=U(...p10),u01=U(...p01),u11=U(...p11);
           vtx(p00[0],p00[1],u00[0],u00[1],cc);vtx(p01[0],p01[1],u01[0],u01[1],cc);vtx(p11[0],p11[1],u11[0],u11[1],cc);
           vtx(p00[0],p00[1],u00[0],u00[1],cc);vtx(p11[0],p11[1],u11[0],u11[1],cc);vtx(p10[0],p10[1],u10[0],u10[1],cc)}
-        continue}
+        return}
       const along=hash(i*2.1)<.5,strips=n.era>=6?1:2+((hash(i*9.7)*3)|0);
       for(let s=0;s<strips;s++){const c0=CROPS[(hash(i*13+s)*CROPS.length)|0],cc=(n.famine>0?[lerp(c0[0],132,.75),lerp(c0[1],104,.75),lerp(c0[2],70,.75)]:c0).map(v=>LIN[v|0]),a0=s/strips+.012,a1=(s+1)/strips-.012;
         for(let q=0;q<3;q++){const b0=q/3+.02*(q===0),b1=(q+1)/3-.02*(q===2);
           const pt=(a,b)=>along?[X0+a,Z0+b]:[X0+b,Z0+a];
           const p00=pt(a0,b0),p10=pt(a1,b0),p01=pt(a0,b1),p11=pt(a1,b1),L=strips*1.2;
           vtx(p00[0],p00[1],0,b0*3,cc);vtx(p01[0],p01[1],0,b1*3,cc);vtx(p11[0],p11[1],L/strips,b1*3,cc);
-          vtx(p00[0],p00[1],0,b0*3,cc);vtx(p11[0],p11[1],L/strips,b1*3,cc);vtx(p10[0],p10[1],L/strips,b0*3,cc)}}}}
+          vtx(p00[0],p00[1],0,b0*3,cc);vtx(p11[0],p11[1],L/strips,b1*3,cc);vtx(p10[0],p10[1],L/strips,b0*3,cc)}}})}}
+  /* the same farmland as last time: the field meshes stand as they are */
+  if(fsig===FIELD_SIG&&fieldMesh)return;FIELD_SIG=fsig;for(const f of work)f();
   /* the painted look: where a field meets meadow, its outer edge fades into the grass instead of stopping on a hard line */
   if(LK.pixel){const gc=((LK.ground||{})[4]||[78,104,48]).map(v=>LIN[v|0]*.95);
     const isF=(X,Z)=>X>=0&&Z>=0&&X<W&&Z<H&&fieldTiles.has(Z*W+X);
@@ -1240,8 +1274,11 @@ const DISCS=new Map();function discOff(n){if(!DISCS.has(n)){const o=[];for(let a
 let riverVer=-1;
 /* finished road ribbons are kept: a road or street that has not changed is copied, not traced again */
 const RIBC=new Map();let ribcVer=-1;
-function rebuildRoads(){roadBare.clear();grassAt.x=1e9;if(ribcVer!==terrVer){RIBC.clear();ribcVer=terrVer}
-  const P3=[[],[],[]],U3=[[],[],[]];
+/* when only the ground under some towns was re-flattened, only the road pieces there are worked out again */
+let ribcBase=-1,RIB_DIRTY=[];
+function rebuildRoads(){roadBare.clear();grassAt.x=1e9;
+  if(ribcVer!==terrVer){if(ribcBase===terrBase&&RIB_DIRTY.length<40){for(const [k,c] of RIBC)if(RIB_DIRTY.some(r=>c.x1>=r[0]&&c.x0<=r[1]&&c.z1>=r[2]&&c.z0<=r[3]))RIBC.delete(k)}else RIBC.clear();ribcVer=terrVer;ribcBase=terrBase;RIB_DIRTY=[]}
+  const P3=[[],[],[]],U3=[[],[],[]],C3=[[],[],[]];
   kitReset(['bridge']);const bridged=new Set();
   const rib=(ax,az,bx,bz,w,t)=>{const L=Math.hypot(bx-ax,bz-az);if(L<1e-4)return;const S=Math.max(1,Math.ceil(L/.1)),nx=-(bz-az)/L*w/2,nz=(bx-ax)/L*w/2,rep=t===2?3:t===1?w*40:2;
     for(let s=0;s<=S;s++){const x=lerp(ax,bx,s/S),z=lerp(az,bz,s/S),ti=tileAt(x,z);if(ti>=0&&river[ti]&&!bridged.has(ti)&&groundY(x,z)>waterY){bridged.add(ti);const rot=Math.atan2(bx-ax,bz-az),y=groundY(x,z)+.04,len=.24+.05*river[ti],col=t===0?0x6b4a2e:t===1?0xb8b0a2:0x9a9a96;
@@ -1261,9 +1298,9 @@ function rebuildRoads(){roadBare.clear();grassAt.x=1e9;if(ribcVer!==terrVer){RIB
   for(const n of nations){if(!n.alive||!n.cities.length)continue;for(const m of n.trade){const B=nations[m];if(!B||!B.alive||m<n.id||!B.cities.length||!n.nb.has(m))continue;
     const path=roadPath(n.cities[0],B.cities[0],-1,used);if(path){const e=Math.min(n.era,B.era);lines.push({path,w:e<3?.05:e<5?.065:.09,t:e<4?0:e<6?1:2})}}}
   const cached=(key,t,fn)=>{let c=RIBC.get(key);const K=KITS.bridge;
-    if(!c){const p0=P3[t].length,u0=U3[t].length,b0=K.k,bare=[];roadBare.add=v=>{bare.push(v);return Set.prototype.add.call(roadBare,v)};try{fn()}finally{delete roadBare.add}
-      c={P:P3[t].slice(p0),U:U3[t].slice(u0),bare,bn:K.k-b0,bm:K.mesh.instanceMatrix.array.slice(b0*16,K.k*16),bc:K.mesh.instanceColor?K.mesh.instanceColor.array.slice(b0*3,K.k*3):null};if(RIBC.size>5000)RIBC.clear();RIBC.set(key,c);return}
-    const A=P3[t],B=U3[t];for(let i=0;i<c.P.length;i++)A.push(c.P[i]);for(let i=0;i<c.U.length;i++)B.push(c.U[i]);for(const v of c.bare)roadBare.add(v);
+    if(!c){const p0=P3[t].length,u0=U3[t].length,b0=K.k,bare=[];roadBare.add=v=>{bare.push(v);return BitGrid.prototype.add.call(roadBare,v)};try{fn()}finally{delete roadBare.add}
+      c={P:new Float32Array(P3[t].slice(p0)),U:new Float32Array(U3[t].slice(u0)),bi:roadBare.idxs(bare),bn:K.k-b0,bm:K.mesh.instanceMatrix.array.slice(b0*16,K.k*16),bc:K.mesh.instanceColor?K.mesh.instanceColor.array.slice(b0*3,K.k*3):null};{let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;const P=c.P;for(let i=0;i<P.length;i+=3){if(P[i]<x0)x0=P[i];if(P[i]>x1)x1=P[i];if(P[i+2]<z0)z0=P[i+2];if(P[i+2]>z1)z1=P[i+2]}if(K.k>b0){x0=-1e9;x1=1e9;z0=-1e9;z1=1e9}Object.assign(c,{x0,x1,z0,z1})}if(RIBC.size>5000)RIBC.clear();RIBC.set(key,c);return}
+    C3[t].push(c);for(const v of c.bi)roadBare.setIdx(v);
     if(c.bn&&K.k+c.bn<=K.max){K.mesh.instanceMatrix.array.set(c.bm,K.k*16);if(c.bc&&K.mesh.instanceColor)K.mesh.instanceColor.array.set(c.bc,K.k*3);K.k+=c.bn}};
   for(const L of lines){const pa=L.path;cached('L'+L.t+'|'+L.w+'|'+pa.length+'|'+pa[0]+'|'+pa[pa.length>>1]+'|'+pa[pa.length-1],L.t,()=>{const pts=chaikin2(pa.map(j=>[wx(j%W)+(hash(j*3.1)-.5)*.25,wz((j/W)|0)+(hash(j*7.3)-.5)*.25]),3);
     for(let k=0;k<pts.length-1;k++)rib(pts[k][0],pts[k][1],pts[k+1][0],pts[k+1][1],L.w,L.t)})}
@@ -1272,7 +1309,10 @@ function rebuildRoads(){roadBare.clear();grassAt.x=1e9;if(ribcVer!==terrVer){RIB
     for(let k=0;k<st.pts.length-1;k++){const a=st.pts[k],b=st.pts[k+1];if(groundY(a[0],a[1])>waterY+.03&&groundY(b[0],b[1])>waterY+.03)rib(a[0],a[1],b[0],b[1],st.w,st.t)}})}
   kitCommit(['bridge']);if(riverVer!==terrVer){riverVer=terrVer;rebuildRivers()}grassAt.x=1e9;
   for(let t=0;t<3;t++){if(!roadMeshes[t]){const m=new THREE.Mesh(new THREE.BufferGeometry(),ROADMATS[t]);m.receiveShadow=true;m.frustumCulled=false;m.renderOrder=1;scene.add(m);roadMeshes[t]=m}
-    const g=freshGeo(roadMeshes[t]);g.setAttribute('position',new THREE.Float32BufferAttribute(P3[t],3));g.setAttribute('uv',new THREE.Float32BufferAttribute(U3[t],2));const nm=new Float32Array(P3[t].length);for(let q=1;q<nm.length;q+=3)nm[q]=1;g.setAttribute('normal',new THREE.BufferAttribute(nm,3));g.computeBoundingSphere()}
+    /* new pieces were built into plain lists; pieces from the cache are copied in as blocks */
+    let np=P3[t].length,nu=U3[t].length;for(const c of C3[t]){np+=c.P.length;nu+=c.U.length}const PA=new Float32Array(np),UA=new Float32Array(nu);PA.set(P3[t]);UA.set(U3[t]);
+    {let o=P3[t].length,q=U3[t].length;for(const c of C3[t]){PA.set(c.P,o);o+=c.P.length;UA.set(c.U,q);q+=c.U.length}}
+    const g=freshGeo(roadMeshes[t]);g.setAttribute('position',new THREE.BufferAttribute(PA,3));g.setAttribute('uv',new THREE.BufferAttribute(UA,2));const nm=new Float32Array(PA.length);for(let q=1;q<nm.length;q+=3)nm[q]=1;g.setAttribute('normal',new THREE.BufferAttribute(nm,3));g.computeBoundingSphere()}
 }
 
 /* ---------- forests ---------- */
@@ -1285,12 +1325,26 @@ function treeWant(i){const b=biome[i],g=groveN(i%W,(i/W)|0),lone=hash(i*1.3);
     case 3:return lone<.3&&(1-Math.abs(((i/W)|0)/(H-1)-.5)*2)>.5?1:0;case 11:return g>.55?5:lone<.25?1:0;case 12:return 3;case 7:return lone<.3?1:0}return 0}
 /* one even scale for the whole world, so the forests always fit in the drawing budget instead of thinning out away from the camera */
 let TGS=1;
-function rebuildTrees(){
+/* the countryside is recorded once and replayed when only the towns' own gardens changed, which happens every few seconds as towns grow;
+   trees standing where a town has since spread, or where fire burned, are left out of the replay. Everything is redone from scratch
+   when the land, the settings or half a minute has passed. */
+let FCACHE=null,greenDirty=false,TREE_LIGHT=false;
+const forestSig=()=>[terrBase,waterY,settings.quality,typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1,!!LK.pixel,settings.models!==false,N].join('|');
+function replayForest(){const D=LAYDIRTY&&LAYOLD&&LAYOLD.length===VY.length?LAYDIRTY:null;
+  for(const name in FCACHE.k){const K=KITS[name],a=FCACHE.k[name],cnt=a.length/20,M=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array;
+  for(let i=0;i<cnt&&K.k<K.max;i++){const o=i*20,t=a[o+19];if(t>=0&&(occupied.has(t)||(scorched&&scorched[t]>0)||fires.has(t)))continue;
+    if(D){const x=a[o+12],z=a[o+14],ti=tileAt(x,z);if(D.has(ti))a[o+13]+=groundY(x,z)-groundYIn(LAYOLD,x,z)}/* the ground under a growing town was flattened: the tree moves with it */
+    M.set(a.subarray(o,o+16),K.k*16);C.set(a.subarray(o+16,o+19),K.k*3);K.k++}}
+  if(D){LAYOLD=null;LAYDIRTY=null}}
+function rebuildTrees(light){TREE_LIGHT=false;greenDirty=false;
+  if(light===true&&FCACHE&&FCACHE.sig===forestSig()){TREE_LIGHT=true;kitReset(TREE_KITS);replayForest();kitCommit(TREE_KITS);return}
+  TREC={k:{},t:-1};LAYOLD=null;LAYDIRTY=null;try{rebuildTrees0()}finally{const R=TREC;TREC=null;for(const nm in R.k)R.k[nm]=new Float32Array(R.k[nm]);R.sig=forestSig();FCACHE=R}}
+function rebuildTrees0(){
   {let tot=0;for(let i=0;i<N;i++)if(!isWater(i))tot+=treeWant(i);TGS=Math.min(1,62000/Math.max(1,tot))}
-  kitReset(TREE_KITS);for(const g of TOWN_GREEN)add(g[0],g[1],g[2],g[3],g[4],g[5],g[6],g[7],g[8]);const dens=(settings.quality==='high'?1:settings.quality==='medium'?.65:.4)*(typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1),farm=countryside();
+  kitReset(TREE_KITS);rebuildGreen();const dens=(settings.quality==='high'?1:settings.quality==='medium'?.65:.4)*(typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1),farm=countryside();
   /* trees near towns are drawn at a believable size next to the houses */
   const near=new Float32Array(N).fill(1);for(const n of nations)if(n.alive)for(const c of n.cities)for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);near[Y*W+X]=Math.min(near[Y*W+X],.5+smooth(1,3.2,d)*.5)}
-  for(let i=0;i<N;i++){const b=biome[i];if(occupied.has(i)||fieldTiles.has(i)||farm.has(i)||(scorched&&scorched[i]>0)||fires.has(i))continue;
+  for(let i=0;i<N;i++){const b=biome[i];if(occupied.has(i)||fieldTiles.has(i)||farm.has(i)||(scorched&&scorched[i]>0)||fires.has(i))continue;if(TREC)TREC.t=i;
     const x0=i%W-W/2,z0=((i/W)|0)-H/2,lat=1-Math.abs(((i/W)|0)/(H-1)-.5)*2;let n=0,type='broad';
     if(marshAt(i)){/* a marsh: reeds and a few willows */for(let t=0;t<0;t++){const x=x0+.1+hash(i*2.3+t)*.8,z=z0+.1+hash(i*5.1+t)*.8,y=groundY(x,z);if(y<waterY+.01)continue;const s=.12+hash(i+t*9)*.22;let lo=y,hi=y;for(let q=0;q<4;q++){const a=q*1.571,g=groundY(x+Math.cos(a)*s*.45,z+Math.sin(a)*s*.32);lo=Math.min(lo,g);hi=Math.max(hi,g)}if(hi-lo>.03)continue;add('puddle',x,lo-.004,z,s,hi-lo+.0055,s*.7,hash(i*t+1)*6)}
       for(let t=0;t<16;t++){const x=x0+hash(i*3.7+t)*.98,z=z0+hash(i*6.3+t*2)*.98,y=groundY(x,z);if(y<waterY+.01)continue;add('reed',x,y-.003,z,.008,.05+hash(i*t+3)*.04,.008,0,hash(i+t)<.5?0x6a7a3a:0x8a7a48)}
@@ -1309,6 +1363,7 @@ function rebuildTrees(){
       const col=k==='conifer'?(hv<.5?0x27412a:0x31502f):k==='palm'?0x5d8a3a:type==='jungle'?(hv<.5?0x2f6a32:0x3d7a35):(hv<.25?0x3a6428:hv<.5?0x46702e:hv<.75?0x527a32:0x5e7f30);
       if(type==='acacia'){const ak=natKit('acacia',hv);if(ak==='broad')add('broad',x,y-.01,z,s*1.2,s*.55,s*1.2,hv*6,0x7a8a3c);else add(ak,x,y-.01,z,s,s,s,hv*6,0x7a8a3c)}else add(k==='broad'?natKit('broad',hv):k,x,y-.01,z,s,s,s,hv*6,col);
       if(hv>.8&&k!=='palm')add('bush',x+.06,y-.01,z+.04,s,s,s,0,0x4f7a36)}}
+  if(TREC)TREC.t=-1;
   /* the painted countryside: pale stones and pebbles along the river banks */
   if(LK.pixel&&river)for(let i=0;i<N;i++){if(!river[i]||isWater(i)||occupied.has(i))continue;const x0=i%W-W/2,z0=((i/W)|0)-H/2;
     for(let t=0;t<4;t++){const hv=hash(i*9.13+t*3.7);if(hv<.35)continue;const x=x0+.1+hash(i*2.9+t)*.8,z=z0+.1+hash(i*6.7+t*1.3)*.8,y=groundY(x,z);if(y<waterY+.01)continue;
@@ -1425,7 +1480,7 @@ function updateWalkers(dt,yrs){
   kitCommit(FIG_KITS);if(updateWalkers.pk&&updateWalkers.pk.length)mcommit(updateWalkers.pk);
 }
 /* is this point inside a house, its garden or a wall? */
-function inBuilding(x,z){const L=FOOT.get(Math.floor(x/FCELL)+','+Math.floor(z/FCELL));if(!L)return false;
+function inBuilding(x,z){const L=FOOT.get(Math.floor(x/FCELL)*100003+Math.floor(z/FCELL));if(!L)return false;
   for(const q of L){if(q.t!=='house'&&q.t!=='wall'&&q.t!=='tower')continue;const dx=x-q.x,dz=z-q.z,lx=dx*q.c-dz*q.s,lz=dx*q.s+dz*q.c;if(Math.abs(lx)<q.hw&&Math.abs(lz)<q.hd)return true}return false}
 /* gondolas glide up and down the canals of lagoon towns, a gondolier at the stern */
 let gondolas=[];

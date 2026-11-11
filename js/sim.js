@@ -54,7 +54,8 @@ function genRivers(){river=new Uint8Array(N);rivers=[];
 /* a beach only where land actually meets the sea; low inland plains stay green */
 function nearSea(x,y){for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)return true;if(h[Y*W+X]<sea)return true}return false}
 let TNOISE=null;
-function computeTerrain(){if(typeof roadCache!=='undefined')roadCache.clear();
+let TERR_T=-1;
+function computeTerrain(){terrBase++;TERR_T=climate.temp;if(typeof roadCache!=='undefined')roadCache.clear();
   sea=.44+(climate.temp-.5)*.16;
   /* temperature: latitude, height and wandering weather fronts; ice sheets then creep out from where ice already lies */
   if(!TNOISE||TNOISE.length!==N||TNOISE.key!==h[(N/3)|0]){TNOISE=new Float32Array(N);TNOISE.key=h[(N/3)|0];const off=Math.floor(h[(N/3)|0]*9973)%97;const vn=(x,y,s,k)=>{const X=Math.floor(x/s),Y=Math.floor(y/s),fx=x/s-X,fy=y/s-Y,q=(a,b)=>hash((a+k)*157.31+(b-k)*311.7),u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy);
@@ -512,7 +513,8 @@ function tick(){
    if(emis<2e4&&climate.anth>0){const c=climate.anth*.004;climate.anth-=c;climate.temp-=c}}
   if(emis>0){
     if(!flags.warm){flags.warm=true;log('Smoke rises from the first factories. The world begins to warm.','sky')}
-    if(year%5===0)terrainDirty=true}
+    /* the land is redrawn for the warming only once it has warmed (or cooled) enough to show */
+    if(year%5===0&&Math.abs(climate.temp-TERR_T)>.004)terrainDirty=true}
   if(worldPop*POPMUL[Math.max(0,...nations.filter(n=>n.alive).map(n=>n.era))]>=1e6)milestone('million','A million souls','The world population passed one million.');
   /* belief: a trickle from every faithful people, growing slowly with their numbers; a full treasury fills more slowly */
   /* in co-op every god lives on their own followers: the host counts only the faiths the host revealed */

@@ -17,7 +17,7 @@ function applyTier(t){t=Math.max(0,Math.min(4,t));PERF.tier=t;
   if(settings.shadows){setShadowsLive(t<3);const want=t>=1?1024:null;if(want&&sunL.shadow.mapSize.x>want){if(sunL.shadow.map){sunL.shadow.map.dispose();sunL.shadow.map=null}sunL.shadow.mapSize.set(want,want)}
     else if(!want&&typeof applyGraphics==='function'&&sunL.shadow.mapSize.x<(settings.quality==='high'?2048:settings.quality==='medium'?2048:1024))applyGraphics()}
   /* forests stop casting shadows from level 2: thousands of trees drawn a second time for the sun */
-  if(typeof KITS!=='undefined')for(const n in KITS){const K=KITS[n];if(K.cast0===undefined)K.cast0=K.mesh.castShadow;const tree=(typeof TREE_KITS!=='undefined'&&TREE_KITS.includes(n))||/^lo_/.test(n)||n==='townTree';K.mesh.castShadow=K.cast0&&!(tree&&t>=2)}
+  if(typeof KITS!=='undefined')for(const n in KITS){const K=KITS[n];if(K.cast0===undefined)K.cast0=K.mesh.castShadow;const tree=(typeof TREE_KITS!=='undefined'&&TREE_KITS.includes(n))||/^(lo|g)_/.test(n)||n==='townTree';K.mesh.castShadow=K.cast0&&!(tree&&t>=2)}
   /* simpler ground and water shading from level 2: no photo detail, meadow patterns, caustics or extra wave layers */
   if(typeof terrU!=='undefined')terrU.uLite.value=t>=2?1:0;if(typeof waterU!=='undefined')waterU.uLite.value=t>=2?1:0;
   if(typeof CULLK!=='undefined')CULLK.dirty=true;if(typeof treesDirty!=='undefined')treesDirty=true;if(typeof resize==='function')resize();

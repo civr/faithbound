@@ -105,7 +105,7 @@ const sunL=new THREE.DirectionalLight(0xfff1dd,2.4);sunL.castShadow=true;scene.a
 sunL.shadow.bias=-.0004;sunL.shadow.normalBias=.025;sunL.shadow.camera.near=1;sunL.shadow.camera.far=400;
 const tmpC=new THREE.Color(),tmpC2=new THREE.Color(),dummy=new THREE.Object3D(),V3=new THREE.Vector3();
 const colL=hex=>new THREE.Color(hex).convertSRGBToLinear();
-const BASE=-2.2,HS=6,SEA0=.44,R=3;let terrVer=0;
+const BASE=-2.2,HS=6,SEA0=.44,R=3;let terrVer=0,terrBase=0;/* terrVer: any change to the ground; terrBase: the land itself changed, not just the flattening under a growing town */
 
 function applyGraphics(){
   const sz=settings.quality==='high'?(settings.power==='max'?4096:2048):settings.quality==='medium'?2048:1024;
@@ -358,24 +358,52 @@ waterMat.onBeforeCompile=sh=>{
      vec3 wn=normalize(vec3((n1.x+n2.x*.7+n3.x*.18)*k*.48,1.,(n1.y+n2.y*.7+n3.y*.18)*k*.48));normal=normalize(mix(normal,(viewMatrix*vec4(wn,0.)).xyz,.85));}`);
 };
 
-function layoutTerrain(){terrVer++;
-  waterY=shapeH(sea);terrU.uWaterY.value=waterY;
-  const pos=terrainMesh.geometry.attributes.position.array;
-  flatSig=citySig();flatSpots=[];
-  for(const n of nations)if(n.alive)n.cities.forEach((c,ci)=>{const r=cityRadius(n,ci===0);let s=0,k=0;
+/* the flat ground under each town: where it is, how wide, and at what height */
+function townSpots(){const out=[];for(const n of nations)if(n.alive)n.cities.forEach((c,ci)=>{const r=cityRadius(n,ci===0);let s=0,k=0;
     for(let a=0;a<12;a++)for(const f of [0,.4,.8]){const hb=sampleH(c.x+Math.cos(a*.5236)*r*f,c.y+Math.sin(a*.5236)*r*f);if(hb>sea){s+=shapeH(hb);k++}}
-    if(k)flatSpots.push({x:c.x,y:c.y,r:r*1.35,r0:r*.75,h:Math.max(s/k,waterY+.05)})});
-  const FB=new Map();for(const f of flatSpots){const r=Math.ceil(f.r);for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const k=(Math.floor(f.x)+dx)+','+(Math.floor(f.y)+dy);if(!FB.has(k))FB.set(k,[]);FB.get(k).push(f)}}
-  for(let v=0;v<VH;v++)for(let u=0;u<VW;u++){const k=v*VW+u,tx=u/R-.5,ty=v/R-.5,hb=sampleH(tx,ty);
-    let y=shapeH(hb);y+=detail[k]*(hb>SEA0?.16*(.12+clamp((hb-SEA0)*3.4,0,1.5)):.06);
+    c._flat=k?(r*100|0)+':'+Math.round(Math.max(s/k,waterY+.05)*1000):'w';if(k)out.push({x:c.x,y:c.y,r:r*1.35,r0:r*.75,h:Math.max(s/k,waterY+.05),key:c.x+','+c.y+':'+c._flat})});return out}
+function spotGrid(spots){const FB=new Map();for(const f of spots){const r=Math.ceil(f.r);for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const k=(Math.floor(f.x)+dx)+','+(Math.floor(f.y)+dy);if(!FB.has(k))FB.set(k,[]);FB.get(k).push(f)}}return FB}
+function vertY(u,v,FB){const tx=u/R-.5,ty=v/R-.5,hb=sampleH(tx,ty);
+    let y=shapeH(hb);y+=detail[v*VW+u]*(hb>SEA0?.16*(.12+clamp((hb-SEA0)*3.4,0,1.5)):.06);
     const near=y>waterY&&FB.get(Math.floor(tx+.5)+','+Math.floor(ty+.5));if(near)for(const f of near){const dx=tx-f.x,dy=ty-f.y;if(Math.abs(dx)>f.r||Math.abs(dy)>f.r)continue;const d=Math.hypot(dx,dy);if(d>=f.r)continue;
-      const w=d<=f.r0?1:1-smooth(f.r0,f.r,d);y=lerp(y,Math.max(f.h,Math.min(y,f.h+.02)),w*.92)}
-    VY[k]=y;pos[k*3]=u/R-W/2;pos[k*3+1]=y;pos[k*3+2]=v/R-H/2}
-  tslope=new Float32Array(N);
-  for(let i=0;i<N;i++){const x=i%W,yy=(i/W)|0;let mn=1e9,mx=-1e9;for(let b=0;b<=R;b++)for(let a=0;a<=R;a++){const q=VY[(yy*R+b)*VW+x*R+a];if(q<mn)mn=q;if(q>mx)mx=q}tslope[i]=mx-mn}
+      const w=d<=f.r0?1:1-smooth(f.r0,f.r,d);y=lerp(y,Math.max(f.h,Math.min(y,f.h+.02)),w*.92)}return y}
+function tileSlope(i){const x=i%W,yy=(i/W)|0;let mn=1e9,mx=-1e9;for(let b=0;b<=R;b++)for(let a=0;a<=R;a++){const q=VY[(yy*R+b)*VW+x*R+a];if(q<mn)mn=q;if(q>mx)mx=q}return mx-mn}
+/* when only the towns changed (one grew, one was founded), just the ground around those towns is redone */
+let LAY={base:-1,wy:null,keys:null},LAYOLD=null,LAYDIRTY=null;
+function layoutTerrain(){const wy=shapeH(sea),g0=terrainMesh.geometry;
+  if(LAY.base===terrBase&&LAY.wy===wy&&LAY.keys&&g0.attributes.normal&&VY&&tslope.length===N&&layoutPatch())return 'patch';
+  terrVer++;
+  waterY=wy;terrU.uWaterY.value=waterY;
+  const pos=terrainMesh.geometry.attributes.position.array;
+  flatSig=citySig();flatSpots=townSpots();
+  const FB=spotGrid(flatSpots);
+  for(let v=0;v<VH;v++)for(let u=0;u<VW;u++){const k=v*VW+u,y=vertY(u,v,FB);VY[k]=y;pos[k*3]=u/R-W/2;pos[k*3+1]=y;pos[k*3+2]=v/R-H/2}
+  tslope=new Float32Array(N);for(let i=0;i<N;i++)tslope[i]=tileSlope(i);
   const g=terrainMesh.geometry;g.attributes.position.needsUpdate=true;g.computeVertexNormals();g.computeBoundingSphere();g.computeBoundingBox();
   colorTerrain();layoutSkirt();layoutWater();
-}
+  LAY={base:terrBase,wy,keys:new Set(flatSpots.map(f=>f.key))};LAYOLD=null;LAYDIRTY=null;return 'full'}
+function layoutPatch(){const spots=townSpots(),keys=new Set(spots.map(f=>f.key)),changed=[];
+  for(const f of spots)if(!LAY.keys.has(f.key))changed.push(f);
+  for(const f of flatSpots)if(!keys.has(f.key))changed.push(f);
+  if(!changed.length){flatSig=citySig();return true}if(changed.length>16)return false;
+  if(!LAYOLD){LAYOLD=VY.slice();LAYDIRTY=new Set()}
+  terrVer++;flatSig=citySig();flatSpots=spots;LAY.keys=keys;const FB=spotGrid(spots),g=terrainMesh.geometry,pos=g.attributes.position.array,nor=g.attributes.normal.array;
+  for(const f of changed){const u0=Math.max(0,Math.floor((f.x+.5-f.r-.2)*R)),u1=Math.min(VW-1,Math.ceil((f.x+.5+f.r+.2)*R)),v0=Math.max(0,Math.floor((f.y+.5-f.r-.2)*R)),v1=Math.min(VH-1,Math.ceil((f.y+.5+f.r+.2)*R));
+    for(let v=v0;v<=v1;v++)for(let u=u0;u<=u1;u++){const k=v*VW+u,y=vertY(u,v,FB);VY[k]=y;pos[k*3+1]=y}
+    /* normals, the same way the full rebuild makes them: each vertex adds up the faces around it */
+    const a0=Math.max(0,u0-1),a1=Math.min(VW-1,u1+1),b0=Math.max(0,v0-1),b1=Math.min(VH-1,v1+1),inR=(u,v)=>u>=a0&&u<=a1&&v>=b0&&v<=b1;
+    for(let v=b0;v<=b1;v++)for(let u=a0;u<=a1;u++){const k=(v*VW+u)*3;nor[k]=nor[k+1]=nor[k+2]=0}
+    const P=(i,o)=>pos[i*3+o],face=(A,B,C)=>{const cbx=P(C,0)-P(B,0),cby=P(C,1)-P(B,1),cbz=P(C,2)-P(B,2),abx=P(A,0)-P(B,0),aby=P(A,1)-P(B,1),abz=P(A,2)-P(B,2);
+      const nx=cby*abz-cbz*aby,ny=cbz*abx-cbx*abz,nz=cbx*aby-cby*abx;for(const q of [A,B,C]){const qu=q%VW,qv=(q/VW)|0;if(!inR(qu,qv))continue;nor[q*3]+=nx;nor[q*3+1]+=ny;nor[q*3+2]+=nz}};
+    for(let v=Math.max(0,b0-1);v<Math.min(VH-1,b1+1);v++)for(let u=Math.max(0,a0-1);u<Math.min(VW-1,a1+1);u++){const A=v*VW+u,B=A+1,C=A+VW,D=C+1;face(A,C,B);face(B,C,D)}
+    for(let v=b0;v<=b1;v++)for(let u=a0;u<=a1;u++){const k=(v*VW+u)*3,l=Math.hypot(nor[k],nor[k+1],nor[k+2])||1;nor[k]/=l;nor[k+1]/=l;nor[k+2]/=l}
+    if(typeof RIB_DIRTY!=='undefined')RIB_DIRTY.push([f.x-f.r-W/2+.5-.3,f.x+f.r-W/2+.5+.3,f.y-f.r-H/2+.5-.3,f.y+f.r-H/2+.5+.3]);
+    for(let ty=Math.max(0,Math.floor(v0/R)-1);ty<=Math.min(H-1,Math.ceil(v1/R));ty++)for(let tx=Math.max(0,Math.floor(u0/R)-1);tx<=Math.min(W-1,Math.ceil(u1/R));tx++){const i=ty*W+tx;tslope[i]=tileSlope(i);LAYDIRTY.add(i)}}
+  g.attributes.position.needsUpdate=true;g.attributes.normal.needsUpdate=true;
+  colorTerrain();layoutWater();return true}
+/* the ground height in an older copy of the heights, to move trees by as much as the ground under them moved */
+function groundYIn(A,x,z){let u=(x+W/2)*R,v=(z+H/2)*R;u=clamp(u,0,VW-1.001);v=clamp(v,0,VH-1.001);const u0=u|0,v0=v|0,fu=u-u0,fv=v-v0,k=v0*VW+u0;
+  return lerp(lerp(A[k],A[k+1],fu),lerp(A[k+VW],A[k+VW+1],fu),fv)}
 function colorTerrain(){
   const TINT=LK.tint||null;if(!!LK.flat!==terrainMat.flatShading){terrainMat.flatShading=!!LK.flat;terrainMat.needsUpdate=true}
   waterU.uDeep.value.copy(colL(LK.deep||0x0f3f63));waterU.uShallow.value.copy(colL(LK.shallow||0x2f9bb0));

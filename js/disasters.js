@@ -86,7 +86,7 @@ function ignite(i){if(fires.has(i)||(scorched&&scorched[i]>0)||fires.size>160)re
 function startWildfire(i,god,quiet){if(!ignite(i))return false;const n=owner[i]>=0?nations[owner[i]]:null,x=wx(i%W),z=wz((i/W)|0);
   if(!quiet||rng()<.3){log(god?`You set the land ablaze${n?' in '+n.name:''}.`:`A wildfire broke out${n?' in the lands of '+n.name:' in the wild forests'}.`,'doom');if(!quiet||god)toast('Wildfire',n?`Burning in ${n.name}.`:'Burning in the wild forests.',x,z)}
   return true}
-function endFire(i){fires.delete(i);if(scorched)scorched[i]=40;colorDirty=true;treesDirty=true}
+function endFire(i){fires.delete(i);if(scorched)scorched[i]=40;colorDirty=true;greenDirty=true}/* the burned trees drop out of the replayed forest; regrowth waits for the next full rebuild */
 /* a fire front: licking flames on every burning tile, embers drifting up, a glow on the ground and a column of smoke */
 function updateFires(dt,k){
   kitReset(['flameFx']);let best=1e9,bx=0,by=0,bz=0;
@@ -145,7 +145,7 @@ function updateWaves(dt,k){for(let q=waves.length-1;q>=0;q--){const w=waves[q];w
 /* ---------- yearly rolls ---------- */
 function disasterTick(){
   const L=dLevel();
-  if(scorched&&year%2===0)for(let i=0;i<N;i++)if(scorched[i]>0){scorched[i]=Math.max(0,scorched[i]-2);if(scorched[i]===0){colorDirty=true;treesDirty=true}}
+  if(scorched&&year%2===0)for(let i=0;i<N;i++)if(scorched[i]>0){scorched[i]=Math.max(0,scorched[i]-2);if(scorched[i]===0){colorDirty=true}}
   for(const n of nations){if(!n.alive)continue;
     if(n.famine>0){n.famine--;n.pop*=.975;if(n.famine===0){log(`The famine in ${n.name} is over.`,'life');propsDirty=true}}
     else if(L>0){const p=L*(n.era>=6?.25:1);
