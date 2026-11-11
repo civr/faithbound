@@ -222,7 +222,26 @@ tideHook(MAT.plain);tideHook(MAT.awning);
 kit('fence',unitBox(),MAT.plain,30000,false);kit('lamp',unitBox(),MAT.lamp,4000,false);kit('awning',gableGeo(),MAT.awning,8000);
 kit('plazaStone',unitCyl(24),MAT.plaza,400,false);kit('plazaDirt',unitCyl(18),MAT.dirtPlaza,400,false);kit('pool',unitCyl(16),inlandWaterMat(false),5000,false);
 kit('townTree',leafTree(23,'broad'),treeMat,16000);
-kit('boat',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,6,1,false,0,Math.PI);g.rotateZ(Math.PI);g.rotateY(Math.PI/2);g.scale(1,.6,1);return g})(),MAT.plain,400);
+/* a wooden boat hull: pointed bow, square stern, a rising sheer line; length along x, centred on its waterline height.
+   With colours it gets a tarred bottom, plank sides, a painted top strake and two thwarts to sit on. */
+function boatHullGeo(colored){const S=14,K=4,P=[],C=[],I=[],c=new THREE.Color(),tar=0x3a2a1e,wood=0x8a6a44,paint=0xe8e2d4,seat=0xa8865a;
+  const wOf=t=>.5*Math.pow(Math.sin(Math.PI*Math.min(1,t*.86+.14)),.55),top=t=>.22+.22*(2*t-1)**2+.12*Math.max(0,t-.72)/.28,bot=t=>-.5*(1-.65*(2*t-1)**4);
+  const push=(x,y,z,hex)=>{P.push(x,y,z);c.set(hex);C.push(c.r,c.g,c.b);return P.length/3-1};
+  const row=[];for(let i=0;i<=S;i++){const t=i/S,x=t-.5,w=wOf(t),yt=top(t),yb=Math.min(bot(t),yt-.12),r=[];
+    for(let j=-K;j<=K;j++){const th=Math.abs(j)/K*Math.PI/2,px=w*Math.sin(th)*Math.sign(j),py=yb+(yt-yb)*(1-Math.cos(th)),f=(py-yb)/(yt-yb);r.push(push(x,py,px,f>.82?paint:f>.32?wood:tar))}row.push(r)}
+  for(let i=0;i<S;i++)for(let j=0;j<2*K;j++){const a=row[i][j],b=row[i+1][j],d=row[i][j+1],e=row[i+1][j+1];I.push(a,b,d,d,b,e)}
+  {const r=row[0],m=push(-.5,(top(0)+bot(0))/2,0,tar);for(let j=0;j<2*K;j++)I.push(m,r[j+1],r[j])}/* the stern board */
+  const seats=[[-.18,.16],[.12,.13]];for(const [sx,sw] of seats){const t=sx+.5,w=wOf(t)*.92,y=top(t)-.12,h=.05;const q=[[-sw/2,-w],[sw/2,-w],[sw/2,w],[-sw/2,w]].map(([dx,dz])=>push(sx+dx,y,dz,seat));I.push(q[0],q[2],q[1],q[0],q[3],q[2]);
+    const q2=[[-sw/2,-w],[sw/2,-w],[sw/2,w],[-sw/2,w]].map(([dx,dz])=>push(sx+dx,y-h,dz,seat));I.push(q2[0],q2[1],q2[2],q2[0],q2[2],q2[3])}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));if(colored)g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.setIndex(I);g.computeVertexNormals();return g}
+/* a mast with a boom and a triangular sail, for the fishing boats; same frame as the hull */
+function boatSailGeo(){const P=[],C=[],I=[],c=new THREE.Color(),push=(x,y,z,hex)=>{P.push(x,y,z);c.set(hex);C.push(c.r,c.g,c.b);return P.length/3-1};
+  const box=(x0,x1,y0,y1,z0,z1,hex)=>{const v=[];for(const y of [y0,y1])for(const z of [z0,z1])for(const x of [x0,x1])v.push(push(x,y,z,hex));
+    for(const f of [[0,1,3,2],[4,6,7,5],[0,4,5,1],[2,3,7,6],[0,2,6,4],[1,5,7,3]])I.push(v[f[0]],v[f[1]],v[f[2]],v[f[0]],v[f[2]],v[f[3]])};
+  box(.07,.11,.1,2.1,-.02,.02,0x5a4632);box(-.3,.12,.42,.46,-.015,.015,0x5a4632);
+  const a=push(.1,2.05,0,0xe8dfc8),b=push(.1,.48,0,0xe8dfc8),d=push(-.32,.48,0,0xd8ccb0);I.push(a,b,d,a,d,b);
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.setIndex(I);g.computeVertexNormals();return g}
+kit('boat',boatHullGeo(false),MAT.plain,400);
 kit('tuft',unitCone(4),stdMat({roughness:1}),16000,false);kit('flower',new THREE.SphereGeometry(.5,5,3),MAT.plain,20000,false);
 kit('animal',unitBox(),MAT.plain,1200,false);
 kit('aBody',new THREE.SphereGeometry(.5,10,7),stdMat({roughness:.95}),1400,false);kit('aHead',new THREE.SphereGeometry(.5,8,6),stdMat({roughness:.9}),1400,false);
@@ -1070,7 +1089,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         if(wet){/* a stone footing rising out of the lagoon, green with weed at the waterline */y=Math.max(mx,waterY+.022);add('stone',sl.x,mn-.03,sl.z,sl.w*1.04,y-mn+.03,sl.d*1.04,sl.rot,0xc2b8a4);add('box',sl.x,waterY-.004,sl.z,sl.w*1.05,.01,sl.d*1.05,sl.rot,0x4a5a3a);
           if(hash(k*3.3)<.45){const fx=Math.sin(sl.rot),fz=Math.cos(sl.rot),px=sl.x+fx*(sl.d/2+.02),pz=sl.z+fz*(sl.d/2+.02);/* mooring posts and a gondola */
             for(const sd of [-1,1])add('cyl',px+fz*sd*.02,waterY-.02,pz-fx*sd*.02,.004,.06,.004,0,hash(k+sd)<.5?0xc84a3a:0x2a4a7a);
-            add('boat',px+fx*.012,waterY+.002,pz+fz*.012,.012,.008,.07,sl.rot+Math.PI/2,0x161616)}}
+            add('boat',px+fx*.012,waterY+.002,pz+fz*.012,.07,.008,.014,sl.rot+Math.PI,0x161616)}}
         else if(mx-mn>.012&&e>=1)add('stone',sl.x,mn-.03,sl.z,sl.w*1.04,mx-mn+.03,sl.d*1.04,sl.rot,0xa8a090);
         const fa=hash(i0*2.7)*6.283,inD=Math.abs(((Math.atan2(sl.z-cz,sl.x-cx)-fa+9.42)%6.283)-3.14)<1;/* the mills crowd into one smoky quarter */
         if(e===5&&sl.core<.4&&inD&&hk<.55&&(MCTX.fac|0)<(cap?7:3+lvl)){MCTX.fac=(MCTX.fac|0)+1;factory(sl.x,y,sl.z,sl.rot,true)}
@@ -1547,7 +1566,7 @@ function drawFolk(w){
   const hand=(side,sw)=>{const a=sw-bend*.3;return L(side*ax,shY-Math.cos(a)*aL,shZ-Math.sin(a)*aL)};
   if(w.sol){const e=w.uni,h=hand(1,armR||-arm);
     if(e<=3){addR('pStick',h[0],h[1]+.03*sc,h[2],.0012,.05,.0012,ry,.08,0,0x6a4a2a);addR('pCone',h[0],h[1]+.03*sc,h[2],.0028,.006,.0028,ry,.08,0,0xb8bcc0);
-      const g=hand(-1,arm);addR('pShield',...L(-ax-.003,shY-aL*.6,shZ+.002),.002,.012,.012,ry,0,0,e<=1?0x8a6a3a:parseInt(nations[w.nid].color.slice(1),16))}
+      const g=hand(-1,arm);addR('pShield',...L(-ax-.003,shY-aL*.6,shZ+.002),.002,.012,.012,ry,0,0,w.shieldCol??(e<=1||!nations[w.nid]?0x8a6a3a:parseInt(nations[w.nid].color.slice(1),16)))}
     else addR('pStick',h[0],h[1]+.016,h[2],.0016,.03,.0016,ry,.35,0,e===7?0xd8dee4:0x3a2a1e)}
   else if(w.act==='farm'&&!w.moving){const h=hand(1,armR);addR('pStick',h[0],h[1]+.012,h[2],.0011,.026,.0011,ry,armR+1.9,0,0x7a5a3a)}
   else if(w.tool){const h=hand(1,armR||-arm);addR('pStick',h[0],h[1]+.02,h[2],.0011,.03,.0011,ry,-.2,0,0x7a5a3a)}

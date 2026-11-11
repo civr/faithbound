@@ -96,7 +96,10 @@ function greatTick(n){n.greats=(n.greats||[]).filter(g=>g.until>year);n.gpTech=n
 
 /* ---------- tradeTrains on the trade roads ---------- */
 kit('lcart',unitBox(),MAT.plain,3000,false);kit('wheel',unitCyl(8),MAT.plain,3000,false);kit('beast',unitBox(),MAT.plain,4000,false);kit('fboat',unitBox(),MAT.plain,600,false);
-const LIFE_KITS=['lcart','wheel','beast','fboat'];
+/* fishing boats: a proper wooden hull, and on some a mast with a sail */
+const FBOAT_MAT=stdMat({vertexColors:true,roughness:.85,side:THREE.DoubleSide});tideHook(FBOAT_MAT);
+kit('fbHull',boatHullGeo(true),FBOAT_MAT,400,false);kit('fbSail',boatSailGeo(),FBOAT_MAT,300,false);
+const LIFE_KITS=['lcart','wheel','beast','fboat','fbHull','fbSail'];
 let tradeTrains=[],tradeTrainT=0;
 function tradeTrainRoutes(){const out=[],dummy=new Uint8Array(N);
   for(const n of nations){if(!n.alive||!n.cities.length)continue;for(const m of n.trade||[]){const B=nations[m];if(!B||!B.alive||m<n.id||!B.cities.length||!(n.nb&&n.nb.has&&n.nb.has(m)))continue;
@@ -145,7 +148,9 @@ function updateLiving(dt,k,now){
   /* fishing boats off the coasts of older towns */
   for(const n of nations){if(!n.alive||n.era<1||n.era>5)continue;for(const c of n.cities){const cx=wx(c.x),cz=wz(c.y);if(!near(cx,cz,1.3))continue;const cw=typeof coastWater==='function'?coastWater(c):[];if(!cw.length)continue;
     for(let b=0;b<Math.min(2,cw.length);b++){const j=cw[(b*7+c.x)%cw.length],ph=hash(j+b)*6.28,x=wx(j%W)+Math.sin(now/4000+ph)*.25,z=wz((j/W)|0)+Math.cos(now/5000+ph)*.25,ti=tileAt(x,z);if(ti<0||!isWater(ti))continue;
-      add('fboat',x,waterY+.004+Math.sin(now/500+ph)*.003,z,.05,.012,.018,ph,0x7a5a3a);add('fboat',x,waterY+.02,z,.002,.03,.002,0,0xe8e0d0)}}}
+      const by=waterY+.006+Math.sin(now/500+ph)*.003,tint=[0xffffff,0xf2e6d6,0xdfe8f2,0xf0dcd0][(j+b)%4];
+      if(fishBoatModel()){addM('m_boatwsail',x,by-.012,z,.5,ph,null,null,null,null,Math.sin(now/700+ph)*.04);continue}
+      add('fbHull',x,by,z,.09,.024,.034,ph,tint,Math.sin(now/700+ph)*.04);if((j+b)%2)add('fbSail',x,by,z,.09,.03,.09,ph,0xffffff,Math.sin(now/700+ph)*.04)}}}
   for(const nm of LIFE_KITS){const K=KITS[nm];K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;if(K.mesh.instanceColor)K.mesh.instanceColor.needsUpdate=true}
   drawAvatars(dt,now)}
 
@@ -219,8 +224,155 @@ function drawBoatCrews(R2){if(camDist>=14||settings.people===false)return;const 
     for(let b=0;b<Math.min(2,cw.length);b++){const j=cw[(b*7+c.x)%cw.length],ph=hash(j+b)*6.28,x=wx(j%W)+Math.sin(now*1000/4000+ph)*.25,z=wz((j/W)|0)+Math.cos(now*1000/5000+ph)*.25;
       const ex=x-camT.x,ez=z-camT.z;if(ex*ex+ez*ez>R2)continue;const ti=tileAt(x,z);if(ti<0||!isWater(ti)||!fishingNow(x,z))continue;
       const crew=(c._crew||(c._crew={}))[b]||(c._crew[b]=[0,1].map(q=>{const w={seed:(j*13+q*7)|0,t:q*2,ph:0,moving:false,wait:1,act:q?'farm':'chat',x:0,z:0,dir:0};dressFolk(w,n);w.kid=false;w.pack=0;w.tool=false;return w}));
-      const y=sea+.004+Math.sin(now*2+ph)*.003+.006,dir=ph+Math.PI/2,cs=Math.cos(ph),sn=Math.sin(ph);
-      crew.forEach((w,q)=>{const off=(q?-.012:.012);w.x=x+cs*off;w.z=z-sn*off;w.y=y;w.dir=q?dir+Math.PI/2:dir;w.t=now+q*1.7;w.wait=1;w.act=q?'farm':'chat';drawFolk(w)});
+      const y=sea+.003+Math.sin(now*2+ph)*.003,dir=ph+Math.PI/2,cs=Math.cos(ph),sn=Math.sin(ph);
+      crew.forEach((w,q)=>{const off=(q?-.024:.018);w.x=x+cs*off;w.z=z-sn*off;w.y=y;w.dir=q?dir+Math.PI/2:dir;w.t=now+q*1.7;w.wait=1;w.act=q?'farm':'chat';drawFolk(w)});
       /* the net over the side: a few floats in a curve on the water */
       for(let q=0;q<5;q++){const t=(q-2)/2,nx=x+Math.cos(dir)*(.05+.012*Math.abs(t))+Math.sin(dir)*t*.025,nz=z-Math.sin(dir)*(.05+.012*Math.abs(t))+Math.cos(dir)*t*.025;
         addR('pHand',nx,sea+.0012+Math.sin(now*1.6+q)*.0007,nz,.0024,.0018,.0024,0,0,0,q%2?0xe8d8a0:0xc84a2a)}}}}}
+
+/* ---------- farmhands ----------
+   The fields near you are worked through the year. In spring one ploughs behind an ox (a horse from the age of
+   gunpowder, a tractor in the modern age) while another sows; in summer they hoe between the rows; at harvest they
+   reap with scythes and stand the sheaves up in stooks that fill the field; in winter the fields lie quiet.
+   Nobody works at night, in the pouring rain or in snow. */
+let farmhands=[],farmT=0;const FARM=new Map();
+const OX=[0x6a4a30,0x8a6a48,0x5a3e2a],HORSE=[0x6a4a34,0x3a2a1e,0x9a7a5a];
+function farmSeason(i){if(settings.seasons===false){return ['Spring','Summer','Autumn','Summer'][(Math.floor(year/3)+(hash(i*3.7)*4|0))%4]}return typeof seasonName==='function'?seasonName():'Summer'}
+function farmTile(i,n){const sn=farmSeason(i),e=n.era,key=i;let F=FARM.get(key);
+  if(!F||F.era!==e||F.nid!==n.id){F={era:e,nid:n.id,axis:hash(i*1.3)<.5?0:1,w:[],stooks:0,sn:null};FARM.set(key,F)}
+  if(F.sn!==sn){F.sn=sn;F.w=[];if(sn!=='Autumn')F.stooks=0;const mk=(job,q)=>{const w={seed:(i*31+q*7)|0,t:q*3,ph:0,moving:false,wait:0,act:'idle',x:0,z:0,dir:0,job,u:(hash(i+q)-.5)*.7,v:-.36+q*.24,s:q%2?-1:1,stint:hash(i*7+q)*4};dressFolk(w,n);w.kid=false;w.pack=0;w.tool=false;
+      if(e<5&&sn==='Summer'&&hash(i+q*9)<.6){w.hat='straw';w.hatCol=0xd8c078}return w};
+    const two=hash(i*5.1)<.55;
+    if(sn==='Spring'){F.w.push(mk(e>=6?'tractor':'plough',0));if(two&&e<6)F.w.push(mk('sow',1))}
+    else if(sn==='Summer'){if(e>=6){if(hash(i*2.9)<.4)F.w.push(mk('tractor',0))}else{F.w.push(mk('hoe',0));if(two)F.w.push(mk('hoe',1))}}
+    else if(sn==='Autumn'){if(e>=6)F.w.push(mk('tractor',0));else{F.w.push(mk('reap',0));if(two)F.w.push(mk('reap',1))}}
+    else if(hash(i*4.3)<.25&&e<6)F.w.push(mk('mend',0))}
+  return F}
+function updateFarmhands(dt){farmT-=dt;
+  if(farmT<=0){farmT=1.2;farmhands=[];if(camDist<14&&settings.people!==false&&nightF<=.55){const R=camDist*1.15+1,list=[];
+      for(const i of fieldTiles){const x=wx(i%W),z=wz((i/W)|0),d=Math.hypot(x-camT.x,z-camT.z);if(d>R)continue;const o=owner[i];if(o<0)continue;const n=nations[o];if(!n||!n.alive||n.era<1)continue;
+        if(typeof WXG!=='undefined'&&WXG.wet&&(WXG.wet[i]>.55||WXG.snow[i]>.3))continue;list.push([d,i,n])}
+      list.sort((a,b)=>a[0]-b[0]);let cnt=0;for(const [d,i,n] of list){if(cnt>=70)break;const F=farmTile(i,n);for(const w of F.w){w.tile=i;w.F=F;farmhands.push(w);cnt++}}}}
+  for(const w of farmhands){const i=w.tile,F=w.F,cx=wx(i%W),cz=wz((i/W)|0),ax=F.axis,lim=.4;
+    const sp=w.job==='tractor'?.11:w.job==='plough'?.035:w.job==='sow'?.05:0;
+    if(sp){w.u+=w.s*sp*dt;if(Math.abs(w.u)>lim){w.u=Math.sign(w.u)*lim;w.s*=-1;w.v+=.09;if(w.v>.4)w.v=-.4}w.moving=true;w.ph+=sp*dt*480;w.act='walk'}
+    else if(w.job==='mend'){w.moving=false;w.act='chat';w.wait=1}
+    else{w.stint-=dt;if(w.stint<=0){w.stint=3+hash(w.seed+w.t)*4;w.u+=w.s*.05;if(Math.abs(w.u)>lim){w.s*=-1;w.v+=.09;if(w.v>.4)w.v=-.4}if(w.job==='reap')F.stooks=Math.min(14,F.stooks+1)}
+      w.moving=w.stint>2.6;if(w.moving)w.ph+=dt*12;w.act='farm';w.wait=w.moving?0:1}
+    w.t+=dt;const ex=ax?0:1,ez=ax?1:0;w.x=cx+ex*w.u-ez*w.v*0;w.z=cz+ez*w.u;if(ax){w.x=cx+w.v;w.z=cz+w.u}else{w.x=cx+w.u;w.z=cz+w.v}
+    w.dir=ax?(w.s>0?0:Math.PI):(w.s>0?Math.PI/2:-Math.PI/2)}}
+function drawFarmhands(R2){if(!farmhands.length)return;const now=performance.now()/1000,done=new Set();
+  for(const w of farmhands){const ex=w.x-camT.x,ez=w.z-camT.z;if(ex*ex+ez*ez>R2)continue;const n=nations[w.F.nid];if(!n)continue;
+    const d=w.dir,fx=Math.sin(d),fz=Math.cos(d),rx=Math.cos(d),rz=-Math.sin(d),gy=groundY(w.x,w.z);
+    if(w.job==='tractor'){drawTractor(w.x,gy,w.z,d,n.era,now);continue}
+    drawFolk(w);
+    if(w.job==='plough'){/* the beast walks ahead, the plough between them */const bx=w.x+fx*.07,bz=w.z+fz*.07,by=groundY(bx,bz),horse=n.era>=3,col=(horse?HORSE:OX)[w.seed%3];
+      drawBeast(bx,by,bz,d,col,horse,now+w.seed);segR([bx-fx*.02,by+.016,bz-fz*.02],[w.x+fx*.016,gy+.012,w.z+fz*.016],.0012,0x6a4a2a);
+      addR('pPack',w.x+fx*.02,gy+.003,w.z+fz*.02,.004,.006,.012,d,.5,0,0x5a5a5a);
+      if(rng()<.15)emit('dust',w.x+fx*.02,gy+.004,w.z+fz*.02,0,0)}
+    if(w.job==='reap'&&!w.moving){/* a scythe blade at the end of the handle */const a=Math.sin(w.t*5),hx=w.x+fx*.018+rx*.006*a,hz=w.z+fz*.018+rz*.006*a;addR('pPack',hx,gy+.003,hz,.016,.0008,.003,d+Math.PI/2+a*.4,0,0,0xb8bcc0)}
+    if(w.job==='sow'&&Math.sin(w.t*4)>.85&&rng()<.3)emit('dust',w.x+rx*.012,gy+.012,w.z+rz*.012,rx*.05,rz*.05)
+    /* the stooks of the harvest, standing in rows behind the reapers */
+    if(w.job==='reap'&&!done.has(w.tile)){done.add(w.tile);const i=w.tile,cx=wx(i%W),cz=wz((i/W)|0),ax=w.F.axis;
+      for(let k=0;k<w.F.stooks;k++){const u=-.33+(k%5)*.165,v=-.3+((k/5)|0)*.2+hash(i+k)*.03,x=ax?cx+v:cx+u,z=ax?cz+u:cz+v,y=groundY(x,z);
+        addR('pCone',x,y,z,.022,.036,.022,hash(k)*3,0,0,0xd8b860);addR('pCone',x,y+.024,z,.012,.018,.012,0,0,0,0xc8a850)}}}}
+function drawBeast(x,y,z,d,col,horse,t){const fx=Math.sin(d),fz=Math.cos(d),rx=Math.cos(d),rz=-Math.sin(d),L=horse?.032:.034,H=horse?.026:.02,step=Math.sin(t*6)*.3;
+  /* legs first, then a deep body, a neck and head held forward, and a tail */
+  for(const [a,b,s] of [[1,1,1],[-1,1,-1],[1,-1,-1],[-1,-1,1]])addR('pStick',x+rx*.0055*a+fx*L*.36*b,y+H,z+rz*.0055*a+fz*L*.36*b,.0042,H,.0042,d,step*s,0,horse?0x2a2018:col);
+  addR('pPack',x,y+H+.008,z,.017,.017,L,d,0,0,col);
+  addR('pPack',x+fx*L*.55,y+H+(horse?.02:.009),z+fz*L*.55,.009,horse?.02:.011,.012,d,horse?-.5:.15,0,col);
+  addR('pPack',x+fx*L*.72,y+H+(horse?.028:.006),z+fz*L*.72,.009,.01,.014,d,horse?.4:0,0,horse?col:0x4a3424);
+  addR('pStick',x-fx*L*.5,y+H+.014,z-fz*L*.5,.0018,.016,.0018,d,-.25,0,horse?0x2a2018:col);
+  if(!horse)for(const sd of [-1,1])addR('pStick',x+fx*L*.62+rx*.006*sd,y+H+.016,z+fz*L*.62+rz*.006*sd,.0015,.008,.0015,d,Math.PI*.6,sd*.7,0xe8e0d0)}
+function drawTractor(x,y,z,d,e,now){const fx=Math.sin(d),fz=Math.cos(d),rx=Math.cos(d),rz=-Math.sin(d),col=e>=7?0xe8eef2:[0xb83a2a,0x3a7a3a,0x2a5aa0][Math.abs(Math.round(x*7+z*3))%3];
+  const P=(f,r,h)=>[x+fx*f+rx*r,y+h,z+fz*f+rz*r];
+  addR('pPack',...P(.008,0,.02),.024,.018,.05,d,0,0,col);addR('pPack',...P(-.012,0,.038),.022,.022,.022,d,0,0,0x2a3a40);addR('pPack',...P(-.012,0,.051),.026,.003,.026,d,0,0,col);
+  for(const sd of [-1,1]){addR('pShield',...P(-.014,sd*.016,.014),.008,.028,.028,d,0,0,0x1e1e1e);addR('pShield',...P(.024,sd*.014,.009),.006,.018,.018,d,0,0,0x1e1e1e)}
+  addR('pPack',...P(-.045,0,.006),.034,.006,.012,d,0,0,0x5a5a5a);addR('pStick',...P(.02,.006,.04),.002,.012,.002,d,0,0,0x2a2a2a);
+  if(rng()<.2)emit('dust',...P(-.05,0,.004),0,0);if(rng()<.05)emit('smoke',...P(.02,.006,.055))}
+{const _da2=drawArmyFolk;drawArmyFolk=function(R2){_da2.apply(this,arguments);try{drawFarmhands(R2)}catch(e){console.warn('farmhands',e)}}}
+{const _ul2=updateLiving;updateLiving=function(dt,k,now){const r=_ul2.apply(this,arguments);try{updateFarmhands(dt*(k>0?1:0))}catch(e){console.warn('farmhands',e);farmhands=[]}return r}}
+/* the small sailing boat model, once it has loaded, for the fishing boats */
+function fishBoatModel(){if(typeof modelOn!=='function'||!modelOn('boatwsail'))return false;if(!KITS.m_boatwsail){mkit('m_boatwsail',MDL.geo.boatwsail.clone(),300,true);tideHook(MODEL_MAT);LIFE_KITS.push('m_boatwsail')}return true}
+
+/* ---------- Viking raids ----------
+   In the early ages a hardy seafaring people of the cold north takes to the sea. Their longships sail for rich
+   coastal towns; the raiders run ashore with axes and round shields, plunder and burn, and row home with the loot.
+   Strong towns drive them off. A people raided again and again may pay them off with silver (Danegeld).
+   When gunpowder comes, the age of the Vikings is over. */
+let RAIDS=[],vikingAge=false;
+const VIK_SAIL='#a8322a';
+function vikingHome(){let best=null,bs=-1;
+  for(const n of nations){if(!n.alive||n.era<1||n.era>3||!n.cities.length)continue;const c=n.cities[0];const lat=Math.abs(c.y/(H-1)-.5)*2;
+    const coast=n.cities.filter(t=>coastWater(t).length).length;if(!coast||lat<.45)continue;const cold=[9,10,2].includes(biome[c.y*W+c.x])?.3:0;
+    const sc=lat+cold+(n.aggr||.5)*.6+rng()*.3;if(sc>bs){bs=sc;best=n}}
+  return best}
+function vikingTargets(home){const out=[];for(const n of nations){if(!n.alive||n===home||n.era<1||(home&&allied(home,n))||(n.danegeld||0)>year)continue;
+    for(const c of n.cities)if(coastWater(c).length)out.push({n,c,w:Math.sqrt(Math.max(1,n.pop))*(c===n.cities[0]?1.6:1)})}return out}
+function launchRaid(){const home=nations.find(n=>n.alive&&n.viking)||null;const ts=vikingTargets(home);if(!ts.length)return;
+  if(home)ts.sort((a,b)=>Math.hypot(a.c.x-home.cities[0].x,a.c.y-home.cities[0].y)-Math.hypot(b.c.x-home.cities[0].x,b.c.y-home.cities[0].y));
+  const T=ts[Math.floor(Math.pow(rng(),2)*Math.min(ts.length,8))];
+  let starts=[];if(home)for(const c of home.cities)starts.push(...coastWater(c));
+  if(!starts.length)for(let q=0;q<80&&!starts.length;q++){const top=rng()<.5,x=(rng()*W)|0,y=top?0:H-1,j=y*W+x;if(isWater(j))starts.push(j)}
+  if(!starts.length)return;
+  const goal=(x,y)=>{for(let d=0;d<4;d++){if(x+DX[d]===T.c.x&&y+DY[d]===T.c.y)return y*W+x}return -1};
+  const res=seaPath(starts,goal);if(!res||res.path.length<2||res.path.length>W*1.2)return;
+  const p0=res.path[0],g=makeShip(2,'viking',VIK_SAIL);
+  const s={owner:home?home.id:-1,kind:'viking',foe:T.n.id,era:SAIL,path:res.path,seg:0,target:res.target,x:wx(p0%W),z:wz((p0/W)|0),sink:0,g,foamT:0,town:T.c,home:home?home.id:-1};
+  g.position.set(s.x,waterY,s.z);ships.push(s);
+  if(!milestones.has('vikings')){milestone('vikings','The longships','Viking raiders put to sea.');if(typeof toast==='function')toast('Longships',`Vikings${home?' of '+home.name:''} are sailing for ${T.c.name}.`,s.x,s.z)}}
+function vikingArrive(s){if(s.homeward){const H_=nations[s.home];if(H_&&H_.alive&&s.loot){H_.pop+=s.loot*.6;H_.tech+=TECHCOST[H_.era]*.03}return}
+  const n=nations[s.foe],c=s.town;if(!n||!n.alive||!n.cities.includes(c))return;const home=nations[s.home];
+  /* the defence: the age of the town's people, its walls and whether its men are away at war */
+  const walls=cityLevel(n,n.cities.indexOf(c)===0)>=4?1.35:1,def=ERAS[n.era].mil*walls*(.6+rng())*(n.wars.size?.75:1.1),atk=ERAS[2].mil*1.35*(.6+rng())*(home?mil(home)/Math.max(.5,ERAS[home.era].mil):1);
+  const won=atk>def,dur=12+rng()*6,L=s.target;
+  RAIDS.push({x:wx(L%W),z:wz((L/W)|0),c,n:n.id,t:0,dur,won,men:null,seed:(rng()*1e9)|0});
+  let loot=0;
+  if(won){loot=n.pop*.05;n.pop*=.93;n.tech=Math.max(0,n.tech-TECHCOST[n.era]*.05);c.plundered=year;c.unrest=(c.unrest||0)+.15;n.happy=clamp((n.happy??.6)-.05,0,1);
+    const holy=n.faith>=0&&n.era>=2&&rng()<.5;if(rng()<.45&&typeof ignite==='function')setTimeout(()=>{try{ignite(c.y*W+c.x)}catch(e){}},5000);
+    n.raids=(n.raids||[]).filter(y=>y>year-30);n.raids.push(year);
+    log(`Vikings${home?' of '+home.name:''} fell on ${c.name} in ${n.name}${holy?' and plundered its monastery':''}.${n.raids.length>=3?' The coast lives in fear.':''}`,'war');
+    /* raided once too often, a people buys peace with silver */
+    if(n.raids.length>=3&&rng()<.45){n.danegeld=year+40;n.pop*=.98;if(home){home.pop+=n.pop*.01;home.tech+=TECHCOST[home.era]*.08}log(`${n.name} paid Danegeld${home?' to the Vikings of '+home.name:' to the Vikings'}: silver for forty years of peace.`,'war');n.raids=[]}}
+  else log(`The people of ${c.name} drove the Vikings back into the sea.`,'war');
+  /* the ship waits while the raid lasts, then rows home */
+  let goal;if(home&&home.alive){const hs=new Set();for(const t of home.cities)for(const j of coastWater(t))hs.add(j);goal=(x,y)=>hs.has(y*W+x)?y*W+x:-1}
+  else goal=(x,y)=>(x===0||y===0||x===W-1||y===H-1)?y*W+x:-1;
+  const res=seaPath([L],goal);if(!res||res.path.length<2)return;
+  const g=makeShip(2,'viking',VIK_SAIL),r={owner:s.owner,kind:'viking',foe:-1,era:SAIL,path:res.path,seg:0,target:res.target,x:wx(L%W),z:wz((L/W)|0),sink:0,g,foamT:0,homeward:true,home:s.home,loot,hold:dur};
+  g.position.set(r.x,waterY,r.z);ships.push(r)}
+{const _ar=arrive;arrive=function(s){if(s.kind==='viking'){try{vikingArrive(s)}catch(e){console.warn('vikings',e)}return}return _ar.apply(this,arguments)}}
+function vikingTick(){let top=0;for(const n of nations)if(n.alive)top=Math.max(top,n.era);
+  if(top>=4||top<1){if(vikingAge&&top>=4){vikingAge=false;const h=nations.find(n=>n.viking);if(h)h.viking=false;log('The age of the Vikings is over. The longships rot on the beaches.','life')}return}
+  let home=nations.find(n=>n.alive&&n.viking);
+  if(!home&&rng()<.02){home=vikingHome();if(home){home.viking=year;home.aggr=Math.max(home.aggr||.5,.7);vikingAge=true;log(`The ${home.name} take to the sea in longships. The age of the Vikings begins.`,'war')}}
+  if(!home&&!vikingAge)return;
+  const now=ships.filter(s=>s.kind==='viking'&&!s.homeward&&!s.sink).length;
+  if(now<3&&rng()<.06*mood().war*1.5)launchRaid()}
+{const _t=tick;tick=function(){_t.apply(this,arguments);try{vikingTick()}catch(e){console.warn('vikings',e)}}}
+
+/* the raiders ashore: they run from the boat into the town, plunder, set fires, and run back with their loot */
+function updateRaids(dt){for(let q=RAIDS.length-1;q>=0;q--){const R=RAIDS[q];R.t+=dt;if(R.t>R.dur){RAIDS.splice(q,1);continue}
+  const c=R.c,cx=wx(c.x),cz=wz(c.y);
+  if(R.won&&R.t>R.dur*.3&&R.t<R.dur*.8&&Math.hypot(cx-camT.x,cz-camT.z)<camDist*1.4+3&&rng()<dt*6){const a=rng()*6.28,r=rng()*.35,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r,y=groundY(x,z);emit('fire',x,y+.02,z);emit('smoke',x,y+.06,z)}}}
+function drawRaids(R2){if(!RAIDS.length||camDist>=16)return;const now=performance.now()/1000;
+  for(const R of RAIDS){const c=R.c,cx=wx(c.x),cz=wz(c.y);const ex=cx-camT.x,ez=cz-camT.z;if(ex*ex+ez*ez>R2*1.5)continue;
+    /* where they come ashore: walk from the boat towards the town until the ground is dry */
+    if(!R.shore){let sx=R.x,sz=R.z;const dx=cx-R.x,dz=cz-R.z,d=Math.hypot(dx,dz)||1;for(let k=0;k<40;k++){sx+=dx/d*.03;sz+=dz/d*.03;if(groundY(sx,sz)>waterY+.004)break}R.shore=[sx,sz]}
+    if(!R.men){R.men=[];const vk={era:2,color:'#6a3a2a'};for(let i=0;i<14;i++){const w={seed:R.seed+i*17,t:i,ph:i,moving:true,wait:0,act:'walk',x:R.shore[0],z:R.shore[1],dir:0,sol:true};soldierKit(w,vk);
+        const r=mulberry32(w.seed);w.top=[0x5a3a2a,0x3a4a5a,0x6a5a3a,0x7a2a22,0x4a5a3a][(r()*5)|0];w.bot=[0x4a3a2a,0x5a5040][(r()*2)|0];w.skin=SKIN[(r()*3)|0];w.hair=[0xc9a45a,0x8a6a3a,0x6e3a1e,0xd8b878][(r()*4)|0];
+        w.hat=r()<.75?'helm':null;w.hatCol=0x8a9098;w.uni=2;w.nid=-1;w.vk=true;w.shieldCol=[0xb83a2a,0xd8b048,0x2a4a7a,0xe8e0d0,0x3a6a3a][(r()*5)|0];w.off=[(r()-.5)*.3,(r()-.5)*.3];w.lag=r()*.12;R.men.push(w)}}
+    const f=R.t/R.dur;
+    for(const w of R.men){/* out to the town, about in it, then back to the boat with sacks */
+      const p0=R.shore,in_=[cx+w.off[0],cz+w.off[1]],out=f<.3+w.lag?clamp((f-w.lag*.5)/.3,0,1):0;let x,z,mv=true;
+      if(!R.won){const k=clamp(f/.25,0,1),back=clamp((f-.35)/.3,0,1);x=lerp(p0[0],lerp(p0[0],in_[0],.45),k-back*k);z=lerp(p0[1],lerp(p0[1],in_[1],.45),k-back*k);mv=f<.25||(f>.35&&f<.65)}
+      else if(f<.3+w.lag){x=lerp(p0[0],in_[0],out);z=lerp(p0[1],in_[1],out)}
+      else if(f<.75){x=in_[0]+Math.sin(now*.9+w.seed)*.06;z=in_[1]+Math.cos(now*.7+w.seed)*.06;mv=Math.sin(now*2+w.seed)>0;w.pack=0x8a6a44}
+      else{const k=clamp((f-.75)/.22,0,1);x=lerp(in_[0],p0[0],k);z=lerp(in_[1],p0[1],k)}
+      const dx=x-(w.x??x),dz=z-(w.z??z);if(Math.hypot(dx,dz)>1e-5)w.dir=Math.atan2(dx,dz);w.x=x;w.z=z;w.moving=mv;if(mv)w.ph+=.35;w.t=now;
+      drawFolk(w);
+      /* the axe in the other hand */
+      const fx=Math.sin(w.dir),fz=Math.cos(w.dir),rx=Math.cos(w.dir),rz=-Math.sin(w.dir),gy=groundY(x,z),sw=mv?Math.sin(w.ph)*.4:Math.sin(now*6+w.seed)*.9;
+      addR('pStick',x-rx*.008+fx*.004,gy+.026,z-rz*.008+fz*.004,.0012,.022,.0012,w.dir,-.6+sw,0,0x5a3e28);addR('pPack',x-rx*.008+fx*.014,gy+.012+sw*.004,z-rz*.008+fz*.014,.0015,.007,.006,w.dir,0,0,0xa8b0b8)}}}
+{const _da3=drawArmyFolk;drawArmyFolk=function(R2){_da3.apply(this,arguments);try{drawRaids(R2)}catch(e){console.warn('raids',e)}}}
+{const _ul3=updateLiving;updateLiving=function(dt,k,now){const r=_ul3.apply(this,arguments);try{updateRaids(dt*(k>0?1:0))}catch(e){RAIDS=[]}return r}}

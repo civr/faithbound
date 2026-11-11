@@ -410,7 +410,7 @@ function updateShips(dy,dt,now){
     if(s.sink>0){s.sink+=dt;s.g.position.y=seaNow()-s.sink*.15;s.g.rotation.z=s.sink*.4;if(rng()<dt*8)emit('dark',s.x,waterY+.05,s.z);if(s.sink>2){disposeShip(s);ships.splice(k,1)}continue}
     if(s.owner>=0&&!nations[s.owner].alive){s.sink=.01;continue}
     if(!s.wp)s.wp=shipRoute(s.path);const WP=s.wp;
-    /* ships move at sailing speed on screen, whatever the speed of the years */let rem=dy>0?SHIPSPEED[s.era]*dt*2*.9*clamp(dy/(dt*Math.max(.8,paceInfo().yearRate)),1,3):0;if(s.fight)rem=0;
+    /* ships move at sailing speed on screen, whatever the speed of the years */let rem=dy>0?SHIPSPEED[s.era]*dt*2*.9*clamp(dy/(dt*Math.max(.8,paceInfo().yearRate)),1,3):0;if(s.fight)rem=0;if(s.hold>0){s.hold-=dt;rem=0}
     if(s.hunt&&!s.fight&&!s.hunt.sink){const h=s.hunt,ddx=h.x-s.x,ddz=h.z-s.z,d=Math.hypot(ddx,ddz)||1,st=Math.min(d,rem),nx=s.x+ddx/d*st,nz=s.z+ddz/d*st,ti=tileAt(nx,nz);if(ti>=0&&isWater(ti)){s.x=nx;s.z=nz;s.head=Math.atan2(-ddz,ddx);rem=0}else s.hunt=null}
     if(s.wasOff&&!s.fight&&!s.hunt){/* back from a fight or a chase: rejoin the route at the nearest point ahead */let bi=s.seg,bd=1e9;for(let q2=s.seg;q2<WP.length;q2++){const d2=Math.hypot(WP[q2][0]-s.x,WP[q2][1]-s.z);if(d2<bd){bd=d2;bi=q2}}s.seg=Math.max(s.seg,bi-1);s.wasOff=false}
     if(s.fight||s.hunt)s.wasOff=true;

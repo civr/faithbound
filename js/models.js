@@ -250,7 +250,7 @@ function drawFolkModel(w,gy){const name=folkModel(w);if(!modelOn(name)||(typeof 
 
 /* ---------- ships: a real hull for galleys, galleons and liners ---------- */
 const SHIP_GEO_CACHE={};
-function shipModelFor(era,kind){if(era<=2)return 'viking_boat';if(era<=4)return 'sail_ship';if(kind==='pirate')return null;
+function shipModelFor(era,kind){if(kind==='viking')return 'viking_boat';if(era<=2)return 'viking_boat';if(era<=4)return 'sail_ship';if(kind==='pirate')return null;
   if(era<=6&&kind==='war')return modelOn('liner')?'warship':null;if(era===6&&Math.random()<.5)return 'cruiseship';if(era<=6)return 'liner';return null}
 /* a steam warship: the liner's hull and funnels in battleship grey, with gun turrets fore and aft */
 let WARSHIP_GEO=null;
@@ -261,7 +261,7 @@ function shipGeoVariant(name,sail){const key=name+'|'+sail;if(SHIP_GEO_CACHE[key
 const SHIP_MODEL_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.8});
 function modelShip(era,kind,color,nflag){let name=shipModelFor(era,kind);if(!name||(name!=='warship'&&!modelOn(name)))return null;const war=name==='warship';if(war)name='liner';
   const g=new THREE.Group(),mats=[];g.userData.mats=mats;const pir=kind==='pirate';
-  const sail=pir?0x1a1a1a:kind==='war'?(()=>{const a=new THREE.Color(0xf2ead8),b=new THREE.Color(color);return a.lerp(b,.3).getHex()})():null;
+  const sail=pir?0x1a1a1a:kind==='viking'?0xa8322a:kind==='war'?(()=>{const a=new THREE.Color(0xf2ead8),b=new THREE.Color(color);return a.lerp(b,.3).getHex()})():null;
   const m=new THREE.Mesh(war?warshipGeo():shipGeoVariant(name,sail),SHIP_MODEL_MAT);m.castShadow=true;g.add(m);
   if(war){const geo=MDL.geo.liner;geo.computeBoundingBox();const bb=geo.boundingBox,L=bb.max.x-bb.min.x,dy=bb.max.y*.5;
     for(const fx of [.36,.27,-.36]){const tx=bb.min.x+L*(.5+fx),tr=new THREE.Mesh(SG.box,SM.dark);tr.scale.set(.055,.022,.04);tr.position.set(tx,dy,0);tr.castShadow=true;g.add(tr);
@@ -402,7 +402,7 @@ const lodDist=()=>(settings.power==='saver'?6.5:settings.power==='max'?13:settin
 /* ---------- models load as the world needs them: a Stone Age world never downloads cars or space domes ---------- */
 function modelEras(n){
   if(/^(cow|horse|sheep|pig|male_|female_|knight|tree_|bush_|rock_|zebra|llama|wolf|dolphin|shark|whale|manta|fish|deer|stag|fox|donkey)/.test(n))return [0,7];
-  if(n==='viking_boat')return [0,2];if(n==='sail_ship'||n==='boatwsail')return [2,5];if(n==='cruiseship')return [6,7];if(/plane/.test(n))return [5,7];if(/^tank/.test(n))return [5,6];
+  if(n==='viking_boat')return [0,3];if(n==='sail_ship'||n==='boatwsail')return [2,5];if(n==='cruiseship')return [6,7];if(/plane/.test(n))return [5,7];if(/^tank/.test(n))return [5,6];
   if(/^(egypt|japan|maya|pantheon)/.test(n))return [1,3];if(n==='torii')return [1,4];if(/^c_/.test(n))return [3,4];if(n==='med_house')return [3,6];if(/^mv_/.test(n))return [3,4];if(/^rts_/.test(n))return [2,4];
   if(/^town|^cottage/.test(n))return [4,5];if(/^farm_/.test(n))return [4,6];if(/^(sub_house|flat|shop|hospital|bank|dt_)/.test(n))return [6,6];
   if(/^(car\d|suv|sports|taxi|cop|bus|schoolbus|loco|hs_|cargo)/.test(n))return [5,6];if(/^fut_|^ship_/.test(n))return [7,7];if(n==='liner')return [5,6];return [0,7]}
