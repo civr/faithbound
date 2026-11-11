@@ -10,6 +10,9 @@ function harvestOf(n){
   /* the weather pattern over this land: drought starves the fields, good rains fill the barns, endless rain rots them */
   const A=rainAnom(n);n.rainA=A;n.harvWhy=null;
   if(A<-.38){H-=.3*Math.min(1,(-A-.38)/.4);n.harvWhy='drought'}else if(A>.7){H-=.12;n.harvWhy='endless rain'}else if(A>.25){H+=.1*Math.min(1,(A-.25)/.3);n.harvWhy='good rains'}
+  /* fishermen: towns by the sea and on rivers bring in fish, which matters most when the fields fail */
+  {let fc=0;for(const c of n.cities)if((typeof coastWater==='function'&&coastWater(c).length)||river[c.y*W+c.x])fc++;n.fishTowns=fc;const fs=n.cities.length?fc/n.cities.length:0;
+   H+=fs*(H<.9?.12:.05)*(n.era>=1?1:.6)}
   if(n.wars.size)H-=.04*n.wars.size+(n.front&&n.front.length>20?.08:0);
   if(n.famine>0)H-=.25;if(n.sick)H-=.08;if(n.bless>0)H+=.22;if(n.festival>0)H+=.04;
   return clamp(H,.3,1.4)}

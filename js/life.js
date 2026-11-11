@@ -165,3 +165,62 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(start&&(belief<b0||unlimited))answerPrayers(t0,i);return r};
   renderPrayers()});
 let spendMulAvatar=1;
+
+/* ---------- fishermen ----------
+   Along the shore near coastal towns, anglers stand at the water's edge with a rod, a line and a bobbing float.
+   Now and then a fish bites: the float dips, the rod comes up and a silver fish goes into the basket at their feet.
+   Out on the water each fishing boat has its crew, hauling in the nets. Nobody fishes at night or in a storm.
+   Towns by the sea also eat better: fish carry them through thin harvests. */
+let fishers=[],fisherT=0;
+const FISH_LINE=0xd8d4c8,FISH_ROD=0x6a4a2a,FISH_BASKET=0x9a7a48;
+/* a thin stick from point P to point Q */
+function segR(P,Q,th,hex){const dx=Q[0]-P[0],dy=Q[1]-P[1],dz=Q[2]-P[2],L=Math.hypot(dx,dy,dz);if(L<1e-5)return;const a=Math.acos(clamp(-dy/L,-1,1)),sa=Math.sin(a);
+  const b=sa>1e-4?Math.atan2(-dx/sa,-dz/sa):0;addR('pStick',P[0],P[1],P[2],th,L,th,b,a,0,hex)}
+/* points on the shore near a town where someone can stand with their feet dry and the water in front */
+function shoreSpots(c,max){const cx=wx(c.x),cz=wz(c.y),out=[],sea=waterY;
+  for(let k=0;k<28&&out.length<max;k++){const a=hash(c.x*31+c.y*17+k*7.3)*6.283,ca=Math.cos(a),sa=Math.sin(a);
+    for(let r=.3;r<2.4;r+=.03){const x=cx+ca*r,z=cz+sa*r,g=groundY(x,z);if(g<sea+.0025)break;if(g>sea+.04)continue;
+      const fx=x+ca*.16,fz=z+sa*.16;if(groundY(fx,fz)>sea-.003)continue;if(typeof inBuilding==='function'&&inBuilding(x,z))break;if(fieldTiles.has(tileAt(x,z)))continue;
+      if(out.some(o=>Math.hypot(o.x-x,o.z-z)<.18))break;out.push({x,z,dir:Math.atan2(ca,sa)});break}}
+  return out}
+function makeFisher(n,c,sp,i){const w={x:sp.x,z:sp.z,dir:sp.dir+(hash(i*3.1)-.5)*.4,seed:(c.x*997+c.y*31+i*7)|0,t:hash(i)*9,ph:0,moving:false,act:'fish',wait:1,nid:n.id,fisher:true,
+    bite:6+hash(i*5.3)*10,pull:0,fish:0,catch:(hash(i*2.2)*3)|0,cast:hash(i*9.1)*6.283};dressFolk(w,n);w.kid=false;w.tool=false;w.pack=0;if(n.era<5&&hash(i*4.4)<.5){w.hat='straw';w.hatCol=0xd8c078}return w}
+function fishingNow(x,z){if(nightF>.55)return false;if(typeof storms!=='undefined')for(const S of storms)if(S.kind!=='shower'&&Math.hypot(S.x-x,S.z-z)<S.r+.5)return false;return true}
+function updateFishers(dt){fisherT-=dt;if(fisherT<=0){fisherT=2;fishers=[];if(camDist<14&&settings.people!==false){
+    for(const n of nations){if(!n.alive||n.era>6)continue;for(const c of n.cities){const cx=wx(c.x),cz=wz(c.y);if(Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.25+2)continue;
+      if(!coastWater(c).length&&!river[c.y*W+c.x])continue;if(c._shoreV!==terrVer){c._shoreV=terrVer;c._shore=shoreSpots(c,3+((hash(c.x+c.y)*3)|0));c._fishers=null}const spots=c._shore;
+      spots.forEach((sp,i)=>{if(!fishingNow(sp.x,sp.z))return;const k=c.x*7+c.y*13+i;let f=(c._fishers||(c._fishers={}))[i];if(!f||f.era!==n.era||f.nid!==n.id)f=c._fishers[i]=makeFisher(n,c,sp,k);fishers.push(f)})}}}}
+  for(const f of fishers){f.t+=dt;f.bite-=dt;
+    if(f.bite<=0&&!f.pull){f.pull=2.2;if(rng()<.55)f.fish=1}
+    if(f.pull>0){f.pull-=dt;if(f.pull<=0){f.pull=0;if(f.fish){f.catch=Math.min(6,f.catch+1);f.fish=0}f.bite=7+rng()*14}}}}
+function drawFishers(R2){if(!fishers.length)return;const now=performance.now()/1000,sea=waterY+(typeof TIDE!=='undefined'?TIDE:0);
+  for(const f of fishers){const ex=f.x-camT.x,ez=f.z-camT.z;if(ex*ex+ez*ez>R2)continue;
+    const pulling=f.pull>0,lift=pulling?Math.min(1,(2.2-f.pull)*2.2):0,dip=!pulling&&f.bite<.8?Math.sin(now*22)*.003:0;
+    f.armR=-1.25-lift*.6;drawFolkFisher(f);
+    const c=Math.cos(f.dir),s=Math.sin(f.dir),gy=groundY(f.x,f.z);
+    /* the rod: from the hands, out over the water and up; it bends up as the fish is pulled in */
+    const hand=[f.x+s*.012,gy+.022,f.z+c*.012],ang=.55+lift*.55+Math.sin(now*1.3+f.t)*.03,len=.06,tip=[hand[0]+s*Math.cos(ang)*len,hand[1]+Math.sin(ang)*len,hand[2]+c*Math.cos(ang)*len];
+    segR(hand,tip,.0008,FISH_ROD);
+    /* the line and the float, swaying a little; a bite pulls the float under */
+    const reach=.035+.01*Math.sin(f.cast),fx=tip[0]+s*reach+Math.sin(now*.7+f.cast)*.004,fz=tip[2]+c*reach+Math.cos(now*.6+f.cast)*.004;
+    if(pulling&&f.fish){const fy=sea+lift*.03;segR(tip,[fx,fy+.006,fz],.00025,FISH_LINE);addR('pPack',fx,fy,fz,.0022,.006,.0014,f.dir,Math.sin(now*18)*.6,0,0xc8d0d8)}
+    else{const fy=sea+.0012+Math.sin(now*2+f.cast)*.0008-dip;segR(tip,[fx,fy,fz],.00025,FISH_LINE);addR('pHand',fx,fy,fz,.0026,.0026,.0026,0,0,0,0xd8402a);
+      if(f.bite<.8&&rng()<.08)emit('spray',fx,sea+.002,fz,0,0)}
+    /* the basket at their feet, with the day's catch */
+    const bx=f.x-s*.006+c*.012,bz=f.z-c*.006-s*.012;addR('pPack',bx,gy+.004,bz,.011,.008,.009,f.dir,0,0,FISH_BASKET);
+    for(let q=0;q<f.catch;q++)addR('pPack',bx+(q%3-1)*.003,gy+.0085,bz+((q/3)|0)*.003-.0015,.0016,.0012,.0055,f.dir+q,0,0,0xb8c4cc)}}
+/* an angler stands still, both hands on the rod held out in front */
+function drawFolkFisher(f){const m=f.moving,a=f.act;f.moving=false;f.act='fish';drawFolk(f);f.moving=m;f.act=a}
+{const _da=drawArmyFolk;drawArmyFolk=function(R2){_da.apply(this,arguments);try{drawFishers(R2);drawBoatCrews(R2)}catch(e){console.warn('fishers',e)}}}
+{const _ul=updateLiving;updateLiving=function(dt,k,now){const r=_ul.apply(this,arguments);try{updateFishers(dt*(k>0?1:0))}catch(e){fishers=[]}return r}}
+/* the crews of the fishing boats: one rows or steers, one hauls the net over the side */
+function drawBoatCrews(R2){if(camDist>=14||settings.people===false)return;const now=performance.now()/1000,sea=waterY+(typeof TIDE!=='undefined'?TIDE:0);
+  for(const n of nations){if(!n.alive||n.era<1||n.era>5)continue;for(const c of n.cities){const cw=coastWater(c);if(!cw.length)continue;
+    for(let b=0;b<Math.min(2,cw.length);b++){const j=cw[(b*7+c.x)%cw.length],ph=hash(j+b)*6.28,x=wx(j%W)+Math.sin(now*1000/4000+ph)*.25,z=wz((j/W)|0)+Math.cos(now*1000/5000+ph)*.25;
+      const ex=x-camT.x,ez=z-camT.z;if(ex*ex+ez*ez>R2)continue;const ti=tileAt(x,z);if(ti<0||!isWater(ti)||!fishingNow(x,z))continue;
+      const crew=(c._crew||(c._crew={}))[b]||(c._crew[b]=[0,1].map(q=>{const w={seed:(j*13+q*7)|0,t:q*2,ph:0,moving:false,wait:1,act:q?'farm':'chat',x:0,z:0,dir:0};dressFolk(w,n);w.kid=false;w.pack=0;w.tool=false;return w}));
+      const y=sea+.004+Math.sin(now*2+ph)*.003+.006,dir=ph+Math.PI/2,cs=Math.cos(ph),sn=Math.sin(ph);
+      crew.forEach((w,q)=>{const off=(q?-.012:.012);w.x=x+cs*off;w.z=z-sn*off;w.y=y;w.dir=q?dir+Math.PI/2:dir;w.t=now+q*1.7;w.wait=1;w.act=q?'farm':'chat';drawFolk(w)});
+      /* the net over the side: a few floats in a curve on the water */
+      for(let q=0;q<5;q++){const t=(q-2)/2,nx=x+Math.cos(dir)*(.05+.012*Math.abs(t))+Math.sin(dir)*t*.025,nz=z-Math.sin(dir)*(.05+.012*Math.abs(t))+Math.cos(dir)*t*.025;
+        addR('pHand',nx,sea+.0012+Math.sin(now*1.6+q)*.0007,nz,.0024,.0018,.0024,0,0,0,q%2?0xe8d8a0:0xc84a2a)}}}}}

@@ -1511,6 +1511,7 @@ function drawFolk(w){
   let leg=0,arm=0,bend=0,armR=0,bob=0,lean=0;
   if(w.moving){leg=Math.sin(w.ph)*.7;arm=-leg*.9;bob=Math.abs(Math.cos(w.ph))*.0016*sc}
   else if(w.act==='farm'&&w.wait>0){bend=.55;const q=Math.sin(w.t*5);armR=-.9-q*.5;arm=armR}
+  else if(w.act==='fish'){arm=w.armR??-1.25;armR=arm;lean=Math.sin(w.t*.4)*.02}
   else if(w.act==='chat'&&w.wait>0){arm=Math.sin(w.t*2.3)*.12;armR=-.35+Math.sin(w.t*3.1)*.3;lean=Math.sin(w.t*.7)*.05}
   else{arm=Math.sin(w.t*1.3)*.05}
   if(w.sol&&w.moving)armR=-.15;
