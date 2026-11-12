@@ -377,9 +377,30 @@ function buildTerrain(){
 const hiddenMat=new THREE.MeshBasicMaterial({visible:false});
 const oceanMat=new THREE.MeshStandardMaterial({color:colL(0x0f3f63),roughness:.12,metalness:0});
 let ocean=new THREE.Mesh(new THREE.BufferGeometry(),oceanMat);ocean.receiveShadow=true;scene.add(ocean);
-function buildOcean(){const sh=new THREE.Shape();sh.moveTo(-1500,-1500);sh.lineTo(1500,-1500);sh.lineTo(1500,1500);sh.lineTo(-1500,1500);sh.lineTo(-1500,-1500);
-  const hole=new THREE.Path();hole.moveTo(-W/2,-H/2);hole.lineTo(-W/2,H/2);hole.lineTo(W/2,H/2);hole.lineTo(W/2,-H/2);hole.lineTo(-W/2,-H/2);sh.holes.push(hole);
-  const g=new THREE.ShapeGeometry(sh);g.rotateX(-Math.PI/2);ocean.geometry.dispose();ocean.geometry=g}
+/* the open sea around the map: rings of the same water as the map's own sea, joined vertex for vertex at the edge and getting deeper outward,
+   out to the horizon, so the world no longer sits in a flat blue plane like a block */
+const OCEAN_OFF=[0,1.5,4,9,18,36,80,180,420,1500],OCEAN_DEEP=[0,.45,.8,1,1,1,1,1,1,1];let OCEAN_P=0;
+function buildOcean(){const pts=[],hw=W/2,hh=H/2;
+  for(let k=0;k<W*2;k++)pts.push([-hw+k*.5,-hh]);for(let k=0;k<H*2;k++)pts.push([hw,-hh+k*.5]);for(let k=0;k<W*2;k++)pts.push([hw-k*.5,hh]);for(let k=0;k<H*2;k++)pts.push([-hw,hh-k*.5]);
+  const P=OCEAN_P=pts.length,RN=OCEAN_OFF.length,pos=new Float32Array(P*RN*3),idx=[];
+  for(let r=0;r<RN;r++){const o=OCEAN_OFF[r],sx=(hw+o)/hw,sz=(hh+o)/hh;for(let k=0;k<P;k++){const [x,z]=pts[k],q=(r*P+k)*3;
+    /* each edge point moves straight out from its side, the corners out along the diagonal */
+    pos[q]=Math.abs(x)>=hw-1e-6?Math.sign(x)*(hw+o):x*sx;pos[q+1]=0;pos[q+2]=Math.abs(z)>=hh-1e-6?Math.sign(z)*(hh+o):z*sz}}
+  for(let r=0;r<RN-1;r++)for(let k=0;k<P;k++){const a=r*P+k,b=r*P+(k+1)%P,c=a+P,d=b+P;idx.push(a,b,c,b,d,c)}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setIndex(idx);
+  const nrm=new Float32Array(P*RN*3);for(let k=1;k<nrm.length;k+=3)nrm[k]=1;g.setAttribute('normal',new THREE.BufferAttribute(nrm,3));
+  g.setAttribute('aDepth',new THREE.BufferAttribute(new Float32Array(P*RN),1));g.setAttribute('aIce',new THREE.BufferAttribute(new Float32Array(P*RN),1));
+  ocean.geometry.dispose();ocean.geometry=g;ocean.material=waterMat;ocean.renderOrder=2;ocean.frustumCulled=false;
+  /* a dark sea floor under it, like the deep seabed inside the map, so the slightly see-through water looks the same on both sides of the edge */
+  if(!oceanFloor){oceanFloor=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:new THREE.Color(LIN[38],LIN[70],LIN[92]),roughness:1}));oceanFloor.frustumCulled=false;oceanFloor.receiveShadow=false;scene.add(oceanFloor)}else oceanFloor.geometry=g}
+let oceanFloor=null;
+/* pack ice breaks up and thins out over the last few tiles before the map's edge, with a ragged margin, so it drifts off into the open sea instead of ending in a straight line */
+function iceEdge(x,z){const e=Math.min(W/2-Math.abs(x),H/2-Math.abs(z)),n=Math.sin(x*.71+z*.33)*.5+Math.sin(x*.23-z*.61+1.7)*.35+Math.sin(x*1.9+z*1.3)*.15;return smooth(.5,4.5,e+n*2.2)}
+/* depth along the seam follows the map's own sea; further out it deepens */
+function layoutOcean(){const g=ocean.geometry;if(!g.attributes.aDepth||!OCEAN_P)return;const p=g.attributes.position.array,dA=g.attributes.aDepth.array,iA=g.attributes.aIce.array,P=OCEAN_P;
+  for(let k=0;k<P;k++){const x=p[k*3],z=p[k*3+2],d0=Math.max(0,waterY-groundY(x,z));
+    for(let r=0;r<OCEAN_OFF.length;r++){const f=OCEAN_DEEP[r];dA[r*P+k]=d0+(Math.max(d0,1.6)-d0)*f;iA[r*P+k]=0}}
+  g.attributes.aDepth.needsUpdate=true;g.attributes.aIce.needsUpdate=true}
 const waterSideMat=new THREE.MeshStandardMaterial({color:colL(0x1d5f86),transparent:true,opacity:.72,roughness:.2,depthWrite:false});
 const waterU={uLite:{value:0},uTime:{value:0},uDeep:{value:colL(0x0f3f63)},uShallow:{value:colL(0x2f9bb0)},uWave:{value:WAVE_TEX}};
 const waterMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.16,metalness:0,transparent:true,envMapIntensity:.85});
@@ -535,8 +556,10 @@ function layoutWater(rect){
   const g=waterMesh.geometry,p=g.attributes.position.array,dA=g.attributes.aDepth.array,iA=g.attributes.aIce.array;
   const X0=rect?rect[0]/R-W/2-.5:-1e9,X1=rect?rect[1]/R-W/2+.5:1e9,Z0=rect?rect[2]/R-H/2-.5:-1e9,Z1=rect?rect[3]/R-H/2+.5:1e9;
   for(let k=0;k<dA.length;k++){const x=p[k*3],z=p[k*3+2];if(x<X0||x>X1||z<Z0||z>Z1)continue;dA[k]=Math.max(0,waterY-groundY(x,z));
-    const tx=clamp(Math.floor(x+W/2),0,W-1),ty=clamp(Math.floor(z+H/2),0,H-1);iA[k]=biome[ty*W+tx]===2?1:0}
+    const tx=clamp(Math.floor(x+W/2),0,W-1),ty=clamp(Math.floor(z+H/2),0,H-1);iA[k]=biome[ty*W+tx]===2?iceEdge(x,z):0}
   g.attributes.aDepth.needsUpdate=true;g.attributes.aIce.needsUpdate=true;
+  if(!rect||rect[0]<=1||rect[2]<=1||rect[1]>=VW-2||rect[3]>=VH-2)layoutOcean();
+  if(oceanFloor)oceanFloor.position.y=Math.max(BASE,waterY-1.6);
   waterMesh.position.y=waterY;waterSide.position.y=BASE;waterSide.scale.y=waterY-BASE-.03;ocean.position.y=waterY;
 }
 
