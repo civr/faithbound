@@ -55,6 +55,13 @@ function genRivers(){river=new Uint8Array(N);rivers=[];
 function nearSea(x,y){for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)return true;if(h[Y*W+X]<sea)return true}return false}
 let TNOISE=null;
 let TERR_T=-1;
+/* how many tiles each sea tile is from the nearest land (up to 15) */
+let DLAND=null;
+function seaDistToLand(){if(!DLAND||DLAND.length!==N)DLAND=new Uint8Array(N);const D=DLAND;D.fill(255);const q=new Int32Array(N);let qh=0,qt=0;
+  for(let i=0;i<N;i++)if(h[i]>=sea){D[i]=0;q[qt++]=i}
+  while(qh<qt){const i=q[qh++],d=D[i];if(d>=15)continue;const x=i%W,y=(i/W)|0;
+    for(let k=0;k<4;k++){const X=x+DX[k],Y=y+DY[k];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(D[j]>d+1){D[j]=d+1;q[qt++]=j}}}
+  return D}
 function computeTerrain(){terrBio++;TERR_T=climate.temp;if(typeof roadCache!=='undefined')roadCache.clear();
   sea=.44+(climate.temp-.5)*.16;
   /* temperature: latitude, height and wandering weather fronts; ice sheets then creep out from where ice already lies */
@@ -64,10 +71,13 @@ function computeTerrain(){terrBio++;TERR_T=climate.temp;if(typeof roadCache!=='u
   for(let y=0;y<H;y++){const lat=1-Math.abs(y/(H-1)-.5)*2;for(let x=0;x<W;x++){const i=y*W+x,alt=h[i]-sea;
     TT[i]=lat*.85+(climate.temp-.5)*.75+.08-Math.max(0,alt)*1.25+TNOISE[i]*.22+(warmD&&warmD.length===N?warmD[i]:0)}}
   for(let pass=0;pass<3;pass++){const T2=TT.slice();for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){const i=y*W+x;let ice=0;for(let d=0;d<4;d++)if(TT[i+DX[d]+DY[d]*W]<.1)ice++;if(ice)T2[i]-=ice*.012}TT.set(T2)}
+  /* sea ice clings to cold coasts: the world is an island in an endless sea, so the open water far from land never freezes over,
+     however close to the map's edge it lies. The colder the water, the further out from the shore the ice reaches. */
+  const DL=seaDistToLand();
   for(let y=0;y<H;y++){const lat=1-Math.abs(y/(H-1)-.5)*2;
     for(let x=0;x<W;x++){const i=y*W+x,alt=h[i]-sea;
       const t=TT[i],m=clamp(baseMoist[i]+(climate.rain-.5)*.7+moistD[i],0,1);
-      let b;if(alt<0)b=t+TNOISE[i]*.1<.1?2:(alt>-.06?1:0);else if(alt>.38)b=12;else if(alt>.26)b=11;else if(t<.1)b=10;else if(t<.22)b=9;
+      const tc=t+TNOISE[i]*.1;let b;if(alt<0)b=tc<.1&&DL[i]+TNOISE[i]*3<2.5+clamp((.1-tc)*40,0,6)?2:(alt>-.06?1:0);else if(alt>.38)b=12;else if(alt>.26)b=11;else if(t<.1)b=10;else if(t<.22)b=9;
       else if(alt<.012&&nearSea(x,y))b=3;else if(t>.6&&m<.3)b=7;else if(t>.55&&m<.45)b=8;else if(t>.62&&m>.62)b=6;else if(m>.52)b=5;else b=4;
       biome[i]=b;hab[i]=BIOMES[b].hab;if(river&&river[i]&&alt>=0&&b!==10&&b!==12)hab[i]=Math.min(1,hab[i]+.25);if(owner[i]>=0&&hab[i]<.015)claim(i,-1,'flood')}}
 }
