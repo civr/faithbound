@@ -39,7 +39,7 @@ const MODEL_MAT=partMat();
 /* an instanced kit that also carries per-instance part colours */
 function mkit(name,geo,max,shadow){for(const a of ['iTop','iBot','iSkin','iHair'])geo.setAttribute(a,new THREE.InstancedBufferAttribute(new Float32Array(max*3).fill(1),3));kit(name,geo,MODEL_MAT,max,shadow);KITS[name].m=true}
 const _mc=new THREE.Color(),_md=new THREE.Object3D();
-function addM(name,x,y,z,s,ry,top,bot,skin,hair,tilt){const K=KITS[name];if(!K||(K.k>=K.cap&&!kitGrow(K,K.k+1)))return;_md.position.set(x,y,z);_md.rotation.set(tilt||0,ry,0);_md.scale.setScalar(s);_md.updateMatrix();
+function addM(name,x,y,z,s,ry,top,bot,skin,hair,tilt){const K=KITS[name];if(!K||(K.k>=K.cap&&!kitGrow(K,K.k+1)))return;if(typeof SJ!=='undefined'&&SJ)sjTouch(name,K);_md.position.set(x,y,z);_md.rotation.set(tilt||0,ry,0);_md.scale.setScalar(s);_md.updateMatrix();
   K.mesh.setMatrixAt(K.k,_md.matrix);const g=K.mesh.geometry,i=K.k*3;
   for(const [a,h] of [['iTop',top],['iBot',bot],['iSkin',skin],['iHair',hair]]){if(h==null)continue;_mc.set(h).convertSRGBToLinear();const A=g.attributes[a].array;A[i]=_mc.r;A[i+1]=_mc.g;A[i+2]=_mc.b}
   K.k++}
@@ -165,7 +165,10 @@ function prepStatic(name,gltf){const d=Object.assign({},SMODEL[name]);gltf.scene
 let SETTLE_T=0,SETTLE_B=false,SETTLE_TR=false;
 function modelSettle(k){if(k==='build')SETTLE_B=true;else SETTLE_TR=true;clearTimeout(SETTLE_T);SETTLE_T=setTimeout(()=>{if(SETTLE_B)SBVER++;if(SETTLE_TR&&typeof treesDirty!=='undefined')treesDirty=true;SETTLE_B=SETTLE_TR=false;if(typeof propsDirty!=='undefined')propsDirty=true;setTimeout(prewarmShaders,1500)},1200)}
 function prewarmShaders(){try{if(typeof renderer!=='undefined'&&typeof cam!=='undefined'){if(typeof applyTier==='function'&&perfOn())applyTier(PERF.tier);renderer.compile(scene,cam)}}catch(e){}}
-const sOn=name=>settings.models!==false&&!!MDL.ready[name];
+/* while a town is being built, every model it asks about is noted with the answer, so the town is only rebuilt when one of its own models changes */
+let MDL_USED=null;
+const sOn=name=>{const r=settings.models!==false&&!!MDL.ready[name];if(MDL_USED)MDL_USED[name]=r;return r};
+const mdlSame=mu=>{if(!mu)return true;for(const k in mu)if((settings.models!==false&&!!MDL.ready[k])!==mu[k])return false;return true};
 /* which kit draws a tree of this kind: the model when it has loaded, the old shape otherwise */
 const NAT_SETS={broad:['bush_a','bush_b','tree_c','bush_c'],acacia:['tree_a','tree_b','tree_d'],rock:['rock_a','rock_b','rock_c']};
 function natKit(kind,hv){if(LK.pixel&&kind==='broad')return ((hv*5.17)%1)<.62?'hamA':'hamB';const L=NAT_SETS[kind];if(L){const n=L[Math.floor(((hv*7.31)%1)*L.length)];if(sOn(n))return 's_'+n}return kind==='acacia'?'broad':kind}
@@ -233,7 +236,7 @@ const MODEL_KITS=()=>Object.keys(KITS).filter(n=>KITS[n].m&&n.startsWith('m_')&&
   const okS=(name,g)=>{try{prepStatic(name,g)}catch(e){console.warn('model',name,e)}};
   const load=(name,fn)=>L.load('assets/models/'+name+'.glb',g=>fn(name,g),undefined,()=>fetch('assets/models/'+name+'.json').then(r=>r.ok?r.json():null).then(j=>{if(!j||!j.b64)return;const bin=atob(j.b64),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);L.parse(u.buffer,'',g=>fn(name,g),()=>{})}).catch(()=>{}));
   MDL_LOADER=name=>load(name,SMODEL[name]?okS:ok);setTimeout(()=>{try{ensureModels()}catch(e){}},0)})();
-const modelOn=name=>settings.models!==false&&!!MDL.ready[name];
+const modelOn=name=>{const r=settings.models!==false&&!!MDL.ready[name];if(MDL_USED)MDL_USED[name]=r;return r};
 
 /* ---------- animals ---------- */
 function drawHerdModel(h,k,x,y,z,rot,T,graze,moving){const name=h.kind==='sheep'?'sheep':h.kind==='cow'?'cow':h.kind;if(!modelOn(name))return false;
@@ -389,7 +392,7 @@ const lodDist=()=>(settings.power==='saver'?6.5:settings.power==='max'?13:settin
 {const _ck=cullKit;cullKit=function(K,P,margin){if(!K.lodC)return _ck(K,P,margin);
   if(LODP.stamp!==CULLK.last){LODP.stamp=CULLK.last;LODP.n=0}kitGrow(KITS.lodBox,Math.min(KITS.lodBox.max,LODP.n+K.n));const LK=KITS.lodBox,LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,avg=K.avg,LD2=lodDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
   const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
-  for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
+  const NC=cullCands(K,P,margin),CL=K._cl;for(let j=0;j<NC;j++){const i=CL[j],x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
     for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}
     if(!ok)continue;if((cs[i*4+3]*cs[i*4+3])<CULLK.k2*((x-CULLK.cx)**2+(y-CULLK.cy)**2+(z-CULLK.cz)**2))continue;
     if((x-cx)**2+(y-cy)**2+(z-cz)**2>LD2){if(LODP.n<LK.cap){copy16(LA,LODP.n*16,M,i*16);const o=LODP.n*3;LC[o]=avg[0]*(MC?MC[i*3]:1);LC[o+1]=avg[1]*(MC?MC[i*3+1]:1);LC[o+2]=avg[2]*(MC?MC[i*3+2]:1);LODP.n++}continue}
@@ -441,7 +444,7 @@ TREE_LO.hamA=TREE_LO.hamB='round';for(const n of ['hamA','hamB','conifer','broad
 {const _ck2=cullKit;cullKit=function(K,P,margin){if(!K.lodP)return _ck2(K,P,margin);
   const LK=KITS[K.lodP];if(LK.stamp!==CULLK.last){LK.stamp=CULLK.last;LK.pn=0}kitGrow(LK,Math.min(LK.max,LK.pn+K.n));const LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,LD2=treeLodDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
   const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
-  for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
+  const NC=cullCands(K,P,margin),CL=K._cl;for(let j=0;j<NC;j++){const i=CL[j],x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
     for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}
     if(!ok)continue;if((cs[i*4+3]*cs[i*4+3])<CULLK.k2*((x-CULLK.cx)**2+(y-CULLK.cy)**2+(z-CULLK.cz)**2))continue;
     if((x-cx)**2+(y-cy)**2+(z-cz)**2>LD2){if(LK.pn<LK.cap){copy16(LA,LK.pn*16,M,i*16);if(MC)copy3(LC,LK.pn*3,MC,i*3);LK.pn++}continue}
@@ -543,13 +546,13 @@ function buildCanopies(){if(CANOPY.length!==N)CANOPY=new Uint8Array(N);else CANO
 /* in the cull: trees on a blocked tile vanish beyond the canopy distance, and the canopy itself only shows out there */
 {const _ck3=cullKit;cullKit=function(K,P,margin){
   if(K.revLod){const D2=canopyDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z,A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
-    for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2];if((x-cx)**2+(y-cy)**2+(z-cz)**2<D2)continue;const r=-(cs[i*4+3]+margin);let ok=true;
+    const NC=cullCands(K,P,margin),CL=K._cl;for(let j=0;j<NC;j++){const i=CL[j],x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2];if((x-cx)**2+(y-cy)**2+(z-cz)**2<D2)continue;const r=-(cs[i*4+3]+margin);let ok=true;
       for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}if(!ok)continue;
       copy16(A,v*16,M,i*16);if(MC)copy3(C,v*3,MC,i*3);v++}
     kitUp(K,v);return}
   if(K.lodP&&(CANOPY_SRC.includes(K.name||'')||K.name==='bush')){const D2=canopyDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z,cs=K.cs;
     /* hide the far trees that a canopy stands in for by temporarily pushing them out of every plane test */
-    const keep=K._keep||(K._keep=[]);keep.length=0;for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2];if((x-cx)**2+(y-cy)**2+(z-cz)**2>D2){const t=tileAt(x,z);if(t>=0&&CANOPY[t]){keep.push(i,cs[i*4+3]);cs[i*4+3]=-1e6}}}
+    const keep=K._keep||(K._keep=[]);keep.length=0;const NC=cullCands(K,P,margin),CL=K._cl;for(let j=0;j<NC;j++){const i=CL[j],x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2];if((x-cx)**2+(y-cy)**2+(z-cz)**2>D2){const t=tileAt(x,z);if(t>=0&&CANOPY[t]){keep.push(i,cs[i*4+3]);cs[i*4+3]=-1e6}}}
     _ck3(K,P,margin);for(let q=0;q<keep.length;q+=2)cs[keep[q]*4+3]=keep[q+1];return}
   return _ck3(K,P,margin)}}
 for(const n in KITS)if(!KITS[n].name)KITS[n].name=n;

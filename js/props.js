@@ -266,23 +266,49 @@ function rebuildGreen(){kitReset(GREEN_KITS);for(const g of TOWN_GREEN)add(gKit(
 function spheresOf(K,M,from,n,cs){const g=K.mesh.geometry;if(!g.boundingSphere)g.computeBoundingSphere();const bc=g.boundingSphere.center,br=g.boundingSphere.radius;
   for(let i=from;i<n;i++){const o=i*16;cs[i*4]=M[o]*bc.x+M[o+4]*bc.y+M[o+8]*bc.z+M[o+12];cs[i*4+1]=M[o+1]*bc.x+M[o+5]*bc.y+M[o+9]*bc.z+M[o+13];cs[i*4+2]=M[o+2]*bc.x+M[o+6]*bc.y+M[o+10]*bc.z+M[o+14];
     cs[i*4+3]=br*Math.max(Math.hypot(M[o],M[o+1],M[o+2]),Math.hypot(M[o+4],M[o+5],M[o+6]),Math.hypot(M[o+8],M[o+9],M[o+10]))}return cs}
-function cullStore(K){const n=K.k,A=K.mesh.instanceMatrix.array;K.mm=A.slice(0,n*16);K.mc=K.mesh.instanceColor?K.mesh.instanceColor.array.slice(0,n*3):null;K.n=n;
+/* the freshly filled buffers become the kit's store and the graphics buffers get the spare pair, so a town rebuild no longer copies every part of every town;
+   the cull, which runs before the next draw, fills the spare with what is in view. With culling switched off the store is copied as before. */
+function cullStore(K){const n=K.k,IM=K.mesh.instanceMatrix,A=IM.array,IC=K.mesh.instanceColor;
+  if(settings.cull===false){K.mm=A.slice(0,n*16);K.mc=IC?IC.array.slice(0,n*3):null}
+  else{const sm=K.mm&&K.mm.length===A.length&&K.mm!==A?K.mm:new Float32Array(A.length);K.mm=A;IM.array=sm;
+    if(IC){const sc=K.mc&&K.mc.length===IC.array.length&&K.mc!==IC.array?K.mc:new Float32Array(IC.array.length).fill(1);K.mc=IC.array;IC.array=sc}else K.mc=null}
+  K.n=n;
   const cs=K.cs=new Float32Array(n*4),pre=Math.min(n,K.csPre||0);K.csPre=0;
   /* towns replayed from their records bring their spheres along; only the rest are worked out */
   if(pre&&K.csS){cs.set(K.csS.subarray(0,pre*4));spheresOf(K,K.mm,pre,n,cs)}else spheresOf(K,K.mm,0,n,cs);
-  K.culled=true;CULLK.dirty=true}
+  cullCells(K);K.culled=true;CULLK.dirty=true}
 function cullStoreOld(K){const n=K.k,A=K.mesh.instanceMatrix.array;K.mm=A.slice(0,n*16);K.mc=K.mesh.instanceColor?K.mesh.instanceColor.array.slice(0,n*3):null;K.n=n;
   const g=K.mesh.geometry;if(!g.boundingSphere)g.computeBoundingSphere();const bc=g.boundingSphere.center,br=g.boundingSphere.radius,M=K.mm,cs=K.cs=new Float32Array(n*4);
   for(let i=0;i<n;i++){const o=i*16;cs[i*4]=M[o]*bc.x+M[o+4]*bc.y+M[o+8]*bc.z+M[o+12];cs[i*4+1]=M[o+1]*bc.x+M[o+5]*bc.y+M[o+9]*bc.z+M[o+13];cs[i*4+2]=M[o+2]*bc.x+M[o+6]*bc.y+M[o+10]*bc.z+M[o+14];
     cs[i*4+3]=br*Math.max(Math.hypot(M[o],M[o+1],M[o+2]),Math.hypot(M[o+4],M[o+5],M[o+6]),Math.hypot(M[o+8],M[o+9],M[o+10]))}
   K.culled=true;CULLK.dirty=true}
+/* culling in groups: when a kit is stored its copies are sorted into map cells of 6 tiles, split by size, with one sphere around each group.
+   A cull then tests the groups first and only looks at the copies in groups that are in view and big enough on screen, instead of every copy every time. */
+function cullCells(K){const n=K.n,cs=K.cs,CS=6,GX=Math.ceil(W/CS)+2,GZ=Math.ceil(H/CS)+2,NK=GX*GZ*5,key=new Int32Array(n),cnt=new Int32Array(NK);
+  for(let i=0;i<n;i++){const r=cs[i*4+3],gx=clamp(Math.floor((cs[i*4]+W/2)/CS)+1,0,GX-1),gz=clamp(Math.floor((cs[i*4+2]+H/2)/CS)+1,0,GZ-1),sc=r<.02?0:r<.05?1:r<.12?2:r<.3?3:4,k=(gz*GX+gx)*5+sc;key[i]=k;cnt[k]++}
+  const at=new Int32Array(NK).fill(-1);let nc=0;for(let k=0;k<NK;k++)if(cnt[k])at[k]=nc++;
+  const st=new Int32Array(nc+1);for(let k=0;k<NK;k++)if(cnt[k])st[at[k]+1]=cnt[k];for(let c=0;c<nc;c++)st[c+1]+=st[c];
+  const fill=st.slice(0,nc),ord=new Int32Array(n),bb=new Float32Array(nc*6),mr=new Float32Array(nc);for(let c=0;c<nc;c++){bb[c*6]=bb[c*6+1]=bb[c*6+2]=1e9;bb[c*6+3]=bb[c*6+4]=bb[c*6+5]=-1e9}
+  for(let i=0;i<n;i++){const c=at[key[i]];ord[fill[c]++]=i;const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=Math.max(0,cs[i*4+3]),o=c*6;
+    if(x-r<bb[o])bb[o]=x-r;if(y-r<bb[o+1])bb[o+1]=y-r;if(z-r<bb[o+2])bb[o+2]=z-r;if(x+r>bb[o+3])bb[o+3]=x+r;if(y+r>bb[o+4])bb[o+4]=y+r;if(z+r>bb[o+5])bb[o+5]=z+r;if(r>mr[c])mr[c]=r}
+  const cb=new Float32Array(nc*5);for(let c=0;c<nc;c++){const o=c*6;cb[c*5]=(bb[o]+bb[o+3])/2;cb[c*5+1]=(bb[o+1]+bb[o+4])/2;cb[c*5+2]=(bb[o+2]+bb[o+5])/2;
+    cb[c*5+3]=Math.hypot(bb[o+3]-bb[o],bb[o+4]-bb[o+1],bb[o+5]-bb[o+2])/2;cb[c*5+4]=mr[c]}
+  K.cN=nc;K.cSt=st;K.cOrd=ord;K.cB=cb;if(!K._cl||K._cl.length<n)K._cl=new Int32Array(Math.max(16,n));K._cst=-1}
+/* the copies worth testing in this cull: the groups in view, minus groups whose biggest copy is under a pixel. Worked out once per kit per cull. */
+function cullCands(K,P,margin){if(K._cst===CULLK.last&&K._cm===margin)return K._cn;K._cst=CULLK.last;K._cm=margin;
+  if(!K.cOrd||K.cOrd.length!==K.n)cullCells(K);const cb=K.cB,st=K.cSt,ord=K.cOrd,cl=K._cl,k2=CULLK.k2,cx=CULLK.cx,cy=CULLK.cy,cz=CULLK.cz;let m=0;
+  for(let c=0;c<K.cN;c++){const x=cb[c*5],y=cb[c*5+1],z=cb[c*5+2],R=cb[c*5+3],r=-(R+margin);let ok=true;
+    for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}if(!ok)continue;
+    if(k2>0){const d=Math.max(0,Math.sqrt((x-cx)**2+(y-cy)**2+(z-cz)**2)-R),mr=cb[c*5+4];if(mr*mr<k2*d*d)continue}
+    for(let j=st[c];j<st[c+1];j++)cl[m++]=ord[j]}
+  K._cn=m;return m}
 /* copying an instance without making a subarray each time */
 /* show the first n instances of a kit, sending only those to the graphics card */
 function kitUp(K,n){K.mesh.count=n;const c=Math.max(1,n),IM=K.mesh.instanceMatrix;IM.needsUpdate=true;IM.updateRange.offset=0;IM.updateRange.count=c*16;const IC=K.mesh.instanceColor;if(IC){IC.needsUpdate=true;IC.updateRange.offset=0;IC.updateRange.count=c*3}}
 function copy16(D,d,S,o){for(let j=0;j<16;j++)D[d+j]=S[o+j]}
 function copy3(D,d,S,o){D[d]=S[o];D[d+1]=S[o+1];D[d+2]=S[o+2]}
 function cullKit(K,P,margin){const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
-  for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
+  const NC=cullCands(K,P,margin),CL=K._cl;for(let j=0;j<NC;j++){const i=CL[j],x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
     for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}
     if(!ok)continue;if((cs[i*4+3]*cs[i*4+3])<CULLK.k2*((x-CULLK.cx)**2+(y-CULLK.cy)**2+(z-CULLK.cz)**2))continue;copy16(A,v*16,M,i*16);if(C&&MC)copy3(C,v*3,MC,i*3);v++}
   K.mesh.count=v;const IM=K.mesh.instanceMatrix;IM.needsUpdate=true;if(IM.updateRange){IM.updateRange.offset=0;IM.updateRange.count=v*16}
@@ -300,7 +326,7 @@ function cullTick(){if(typeof cam==='undefined')return;const now=performance.now
   if(typeof shadowForce!=='undefined')shadowForce=true}
 /* static things (towns, trees) redraw the shadows at once; moving things (animals, birds, grass) only ask for a redraw a few times a second */
 function kitCommit(names){if(typeof shadowForce!=='undefined'){if(names.some(cullable))shadowForce=true;else shadowSoft=true}for(const n of names){const K=KITS[n];if(cullable(n)){cullStore(K);continue}K.mesh.count=K.k;const IM=K.mesh.instanceMatrix;IM.needsUpdate=true;IM.updateRange.offset=0;IM.updateRange.count=Math.max(1,K.k)*16;if(K.mesh.instanceColor){const IC=K.mesh.instanceColor;IC.needsUpdate=true;IC.updateRange.offset=0;IC.updateRange.count=Math.max(1,K.k)*3}}}
-function add(name,x,y,z,sx,sy,sz,rot,hex,tilt){const K=KITS[name];if(K.k>=K.cap&&!kitGrow(K,K.k+1))return;if(CAPT)CAPT.push(x,z,sx,sz,rot||0);
+function add(name,x,y,z,sx,sy,sz,rot,hex,tilt){const K=KITS[name];if(K.k>=K.cap&&!kitGrow(K,K.k+1))return;if(SJ)sjTouch(name,K);if(CAPT)CAPT.push(x,z,sx,sz,rot||0);
   dummy.position.set(x,y,z);dummy.rotation.set(tilt||0,rot||0,0);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();
   K.mesh.setMatrixAt(K.k,dummy.matrix);K.mesh.setColorAt(K.k,tmpC.set(hex==null?0xffffff:hex).convertSRGBToLinear());K.k++;
   if(REC){const r=REC.k[name]||(REC.k[name]=[]);const m=dummy.matrix.elements;for(let i=0;i<16;i++)r.push(m[i]);r.push(tmpC.r,tmpC.g,tmpC.b)}
@@ -320,11 +346,18 @@ function obbHit(a,b){const dx=b.x-a.x,dz=b.z-a.z;if(dx*dx+dz*dz>(a.r+b.r)**2)ret
     if(Math.abs(dx*nx+dz*nz)>ra+rb)return false}return true}
 function footHits(o,ign){return footEach(o,k=>{const L=FOOT.get(k);if(L)for(const q of L)if(q.t!==ign&&obbHit(o,q))return true;return false})}
 /* build something as a solid thing: if it would stand inside anything already there, it is taken down again */
-function solid(fn,ox,oz,rot,force,pad,tag){const snap={k:{},rec:REC?{}:null,em:emitters.length,tall:MCTX&&MCTX.tall?MCTX.tall.length:0};
-  for(const nm in KITS)snap.k[nm]=KITS[nm].k;if(REC)for(const nm in REC.k)snap.rec[nm]=REC.k[nm].length;
-  const prev=CAPT;CAPT=[];let cap;try{fn()}finally{cap=CAPT;CAPT=prev}
+/* what a building added is noted as it goes (each kit the first time it is touched, with its count then), so a building that does not fit can be taken
+   down again without first writing down the count of every one of the 150 kits for every house */
+let SJ=null,SJID=0;
+function sjTouch(name,K){if(K._sj===SJ.id)return;K._sj=SJ.id;SJ.n.push(name);SJ.k.push(K.k);SJ.r.push(REC&&REC.k[name]?REC.k[name].length:0)}
+function solid(fn,ox,oz,rot,force,pad,tag){const em0=emitters.length,tall0=MCTX&&MCTX.tall?MCTX.tall.length:0,fr={id:++SJID,n:[],k:[],r:[]},psj=SJ;SJ=fr;
+  const prev=CAPT;CAPT=[];let cap;try{fn()}finally{cap=CAPT;CAPT=prev;SJ=psj;
+    /* the outer building, if any, takes over the notes so it can undo these too */
+    if(psj)for(let i=0;i<fr.n.length;i++){psj.n.push(fr.n[i]);psj.k.push(fr.k[i]);psj.r.push(fr.r[i]);KITS[fr.n[i]]._sj=psj.id}}
   const o=footOf(cap,ox,oz,rot,pad??.002);if(!o)return true;
-  if(!force&&footHits(o,tag==='tower'?'wall':null)){for(const nm in snap.k)KITS[nm].k=snap.k[nm];if(REC)for(const nm in REC.k)REC.k[nm].length=snap.rec[nm]||0;emitters.length=snap.em;if(MCTX&&MCTX.tall)MCTX.tall.length=snap.tall;return false}
+  if(!force&&footHits(o,tag==='tower'?'wall':null)){for(let i=fr.n.length-1;i>=0;i--){const nm=fr.n[i];KITS[nm].k=fr.k[i];if(REC&&REC.k[nm])REC.k[nm].length=fr.r[i]}
+    if(psj){/* rolled back: the outer notes for these stay valid, they hold the counts from before */}
+    emitters.length=em0;if(MCTX&&MCTX.tall)MCTX.tall.length=tall0;return false}
   o.f=!!force;o.t=tag||(force?'big':'house');footAdd(o);if(prev)for(const v of cap)prev.push(v);return true}
 /* place relative to a rotated frame */
 function P(name,cx,cy,cz,rot,dx,dz,dy,sx,sy,sz,hex,extraRot){const c=Math.cos(rot),s=Math.sin(rot);add(name,cx+dx*c+dz*s,cy+dy,cz-dx*s+dz*c,sx,sy,sz,rot+(extraRot||0),hex)}
@@ -1082,7 +1115,7 @@ function cityKey(n,c,ci,e,lvl,gold,cap){const MR=metroRadius(n,c,cap,e),rad=Math
   for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===n.id)oh++}oh=Math.round(oh/4)
   const far=Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
   return [n.id,e,lvl,cap?1:0,gold?1:0,n.festival>0?1:0,c.statue?c.statue.faith:-1,c.siege>.08?1:0,c.riot&&year-c.riot<6?1:0,n.faith,n.wonder,flagKey(n.flag),cultOf(n),settings.arch,terrBase+':'+sea.toFixed(3)+':'+(c._flat||'')+':'+(c._gv||0),oh,far?1:0,Math.round(MR*4),
-    n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),hbShipSig(),n.techs&&n.techs.includes('starships')?1:0,ci,typeof SBVER!=='undefined'&&settings.models!==false?SBVER:-1].join('|')}
+    n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),hbShipSig(),n.techs&&n.techs.includes('starships')?1:0,ci,settings.models!==false?1:0].join('|')}
 /* a town's copies are kept as plain blocks (matrices, colours, culling spheres) so replaying it is a straight copy */
 function stageSpheres(K,s,at,n){if(!K.csS||K.csS.length<(at+n)*4){const o=K.csS,c=new Float32Array(Math.min(K.max,Math.max(at+n,o?o.length/2:0,256))*4);if(o)c.set(o.subarray(0,Math.min(o.length,c.length)));K.csS=c}K.csS.set(n*4<s.length?s.subarray(0,n*4):s,at*4)}
 function replayCity(Rc){if(Rc.ft){const fr=FOOTREC;FOOTREC=null;for(const o of Rc.ft)footAdd(o);FOOTREC=fr}for(const name in Rc.m){const K=KITS[name],m=Rc.m[name],cnt=Math.min(m.length/16,K.max-K.k);if(cnt<=0)continue;kitGrow(K,K.k+cnt);
@@ -1102,15 +1135,16 @@ function farChanged(){for(const n of nations)if(n.alive)for(const c of n.cities)
 function rebuildCities(){patchSets();RB0=performance.now();for(const n of nations)if(n.alive)for(const c of n.cities)c._farS=isFar(c);try{rebuildCities0()}finally{CUR_GREEN=null;TOWN_GREEN=[];for(const n of nations)if(n.alive)for(const c of n.cities)if(c._green)for(const g of c._green)TOWN_GREEN.push(g);const sig=TOWN_GREEN.length+':'+(TOWN_GREEN[0]?TOWN_GREEN[0][1].toFixed(2):'');if(sig!==TGSIG){TGSIG=sig;if(typeof jobs!=='undefined')jobs.push(rebuildGreen)}}}
 /* when every town, lair, ruin and mine would come out exactly as it is now, the whole rebuild is skipped */
 let RC_SIG='';
+const cityModelsSame=h=>typeof mdlSame!=='function'||mdlSame(h.mu);
 function rcSig(){let s=terrBase+'/'+settings.quality+'/'+(settings.models!==false)+'/'+(typeof MDL_VER!=='undefined'?MDL_VER:0)+'/'+lookKey+'/'+settings.arch+'/';for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(14,cityLevel(n)+(gold?1.5:0))*2)/2;
-    n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);s+=(hit&&hit.key===key?'=':'!')+c.x+','+c.y+';'})}
+    n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);s+=(hit&&hit.key===key&&cityModelsSame(hit)?'=':'!')+c.x+','+c.y+';'})}
   s+='|'+coves.map(c=>c.x+','+c.y).join(';')+'|'+ruins.map(r=>r.x+','+r.y+':'+Math.floor((year-r.year)/10)).join(';')+'|'+deposits.map(d=>d.i+d.k+':'+owner[d.i]+':'+(owner[d.i]>=0&&nations[owner[d.i]]?nations[owner[d.i]].era:-1)).join(';');return s}
 function rebuildCities0(){{const sig=rcSig();if(sig===RC_SIG&&!sig.includes('!'))return;RC_SIG=sig}{let s='';for(const n of nations)if(n.alive&&n.era>=5&&n.era<=6)s+=n.id+':'+n.era+':'+n.cities.length+';';if(s!==sootSig){sootSig=s;if(typeof colorDirty!=='undefined')colorDirty=true}}
   for(const m of townFlags)scene.remove(m);townFlags=[];airports=[];spaceports=[];bgrid.clear();FOOT.clear();kitReset(BUILD_KITS);occupied.clear();bare.clear();grassAt.x=1e9;emitters=[];herds=[];cityStreets=[];for(const g of windmills)scene.remove(g);windmills=[];
   const stale=[];
   for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(14,cityLevel(n)+(gold?1.5:0))*2)/2;
     n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);
-      if(hit&&hit.key===key){replayCity(hit);return}
+      if(hit&&hit.key===key&&cityModelsSame(hit)){replayCity(hit);return}
       if(!hit){buildOne(n,c,ci,e,gold,lvl,key);return}
       /* stale: rebuild the most out-of-date towns first so none is left showing an old age */
       const d=Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z);stale.push({n,c,ci,e,gold,lvl,key,hit,pr:(hit.era!==e?0:1e4)+(hit.key.split('|')[1]!==key.split('|')[1]?0:5e3)+Math.min(4e3,d*20)-Math.min(3e3,(performance.now()-(hit.t||0))/100)})})}
@@ -1121,7 +1155,7 @@ function rebuildCities0(){{const sig=rcSig();if(sig===RC_SIG&&!sig.includes('!')
   for(const nm of BUILD_KITS)KITS[nm].csPre=KITS[nm].k;
   buildExtras();RC_SIG=rcSig()}
 function buildOne(n,c,ci,e,gold,lvl,key){const L0={em:emitters.length,hd:herds.length,cs:cityStreets.length,ap:airports.length,sp:spaceports.length,wm:windmills.length,tf:townFlags.length};
-  REC={k:{},occ:[],bare:[],bg:[]};FOOTREC=[];try{buildCity(n,c,ci,e,gold,lvl)}finally{const Rc=REC;REC=null;Rc.ft=FOOTREC;FOOTREC=null;Rc.m={};Rc.c={};Rc.s={};
+  REC={k:{},occ:[],bare:[],bg:[]};FOOTREC=[];const mu0=typeof MDL_USED!=='undefined'?MDL_USED:null,mu={};if(typeof MDL_USED!=='undefined')MDL_USED=mu;try{buildCity(n,c,ci,e,gold,lvl)}finally{if(typeof MDL_USED!=='undefined')MDL_USED=mu0;const Rc=REC;REC=null;Rc.ft=FOOTREC;FOOTREC=null;Rc.mu=mu;Rc.m={};Rc.c={};Rc.s={};
     for(const nm in Rc.k){const a=Rc.k[nm],cnt=a.length/19,m=new Float32Array(cnt*16),cl=new Float32Array(cnt*3);for(let i=0;i<cnt;i++){for(let j=0;j<16;j++)m[i*16+j]=a[i*19+j];cl[i*3]=a[i*19+16];cl[i*3+1]=a[i*19+17];cl[i*3+2]=a[i*19+18]}
       const K=KITS[nm];Rc.m[nm]=m;Rc.c[nm]=cl;Rc.s[nm]=spheresOf(K,m,0,cnt,new Float32Array(cnt*4));if(K.k>=cnt)stageSpheres(K,Rc.s[nm],K.k-cnt,cnt)}delete Rc.k;Rc.bareI=bare.idxs(Rc.bare);delete Rc.bare;
     Object.assign(Rc,{key,era:e,t:performance.now(),em:emitters.slice(L0.em),hd:herds.slice(L0.hd),cs:cityStreets.slice(L0.cs),ap:airports.slice(L0.ap),sp:spaceports.slice(L0.sp),wm:windmills.slice(L0.wm),tf:townFlags.slice(L0.tf)});CITYCACHE.set(c,Rc)}}
@@ -1505,7 +1539,7 @@ kit('pShield',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,12);g.rotateZ(Mat
 const FIG_KITS=['pGondola','pLeg','pArm','pShin','pShoe','pHand','pTorso','pHead','pHair','pSkirt','pCone','pBrim','pTri','pStick','pPack','pShield'];
 /* add with heading (ry) then a swing around the local x axis (rx) and a sideways lean (rz) */
 const dummyR=new THREE.Object3D();dummyR.rotation.order='YXZ';
-function addR(name,x,y,z,sx,sy,sz,ry,rx,rz,hex){const K=KITS[name];if(K.k>=K.cap&&!kitGrow(K,K.k+1))return;
+function addR(name,x,y,z,sx,sy,sz,ry,rx,rz,hex){const K=KITS[name];if(K.k>=K.cap&&!kitGrow(K,K.k+1))return;if(SJ)sjTouch(name,K);
   dummyR.position.set(x,y,z);dummyR.rotation.set(rx||0,ry||0,rz||0);dummyR.scale.set(sx,sy,sz);dummyR.updateMatrix();
   K.mesh.setMatrixAt(K.k,dummyR.matrix);K.mesh.setColorAt(K.k,tmpC.set(hex).convertSRGBToLinear());K.k++}
 function dressFolk(w,n){const e=n.era,C=CLOTH[e],r=mulberry32(w.seed),pk=a=>a[(r()*a.length)|0];
