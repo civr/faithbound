@@ -256,7 +256,7 @@ kit('bird',(()=>{const g=new THREE.BufferGeometry();g.setAttribute('position',ne
 kit('body',unitBox(),MAT.plain,900,false);kit('cart',unitBox(),MAT.plain,200);kit('cartTop',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,8,1,false,0,Math.PI);g.rotateZ(Math.PI/2);g.translate(0,.0,0);return g})(),MAT.plain,200);kit('head',new THREE.SphereGeometry(.5,6,4),MAT.plain,900,false);
 function kitReset(names){for(const n of names)KITS[n].k=0}
 /* ---------- only what the camera can see is drawn: buildings, trees and props outside the view cost nothing ---------- */
-const CULLK={dirty:true,last:0,sig:'',fr:new THREE.Frustum(),pm:new THREE.Matrix4()};
+const CULLK={dirty:true,last:0,sig:'',fr:new THREE.Frustum(),pm:new THREE.Matrix4(),k2:0,cx:0,cy:0,cz:0};
 const cullable=n=>n==='bridge'||BUILD_KITS.includes(n)||TREE_KITS.includes(n)||GREEN_KITS.includes(n);
 /* town gardens and orchards have their own lists, sharing the trees' shapes, so a growing town never makes the whole forest be redone */
 const GREEN_KITS=[];
@@ -284,7 +284,7 @@ function copy3(D,d,S,o){D[d]=S[o];D[d+1]=S[o+1];D[d+2]=S[o+2]}
 function cullKit(K,P,margin){const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
   for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
     for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}
-    if(!ok)continue;copy16(A,v*16,M,i*16);if(C&&MC)copy3(C,v*3,MC,i*3);v++}
+    if(!ok)continue;if((cs[i*4+3]*cs[i*4+3])<CULLK.k2*((x-CULLK.cx)**2+(y-CULLK.cy)**2+(z-CULLK.cz)**2))continue;copy16(A,v*16,M,i*16);if(C&&MC)copy3(C,v*3,MC,i*3);v++}
   K.mesh.count=v;const IM=K.mesh.instanceMatrix;IM.needsUpdate=true;if(IM.updateRange){IM.updateRange.offset=0;IM.updateRange.count=v*16}
   if(K.mesh.instanceColor){const IC=K.mesh.instanceColor;IC.needsUpdate=true;if(IC.updateRange){IC.updateRange.offset=0;IC.updateRange.count=v*3}}}
 /* re-cull when the camera has moved or turned, at most a dozen times a second while it moves */
@@ -293,6 +293,9 @@ function cullTick(){if(typeof cam==='undefined')return;const now=performance.now
   if(!CULLK.dirty&&(sig===CULLK.sig||now-CULLK.last<80))return;CULLK.sig=sig;CULLK.last=now;CULLK.dirty=false;
   cam.updateMatrixWorld();CULLK.pm.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse);CULLK.fr.setFromProjectionMatrix(CULLK.pm);
   const P=CULLK.fr.planes,margin=.6+(typeof camDist!=='undefined'?camDist:10)*.12;
+  /* things smaller than about a pixel on screen are left out: zoomed out, tens of thousands of tiny parts (crops, posts, steps) would cost
+     a million triangles and their shadows while showing nothing. The size test uses the real drawing resolution, so they come back as you zoom in. */
+  {const hp=Math.max(1,renderer.domElement.height),k=.6*Math.tan(cam.fov*Math.PI/360)/(hp/2);CULLK.k2=settings.tinyCull===false?0:k*k;CULLK.cx=cam.position.x;CULLK.cy=cam.position.y;CULLK.cz=cam.position.z}
   for(const nm in KITS){const K=KITS[nm];if(K.culled&&K.n)cullKit(K,P,margin);else if(K.culled){K.mesh.count=0}}
   if(typeof shadowForce!=='undefined')shadowForce=true}
 /* static things (towns, trees) redraw the shadows at once; moving things (animals, birds, grass) only ask for a redraw a few times a second */

@@ -456,7 +456,7 @@ const UIS=[['brass','Dark brass'],['navy','Imperial blue'],['parchment','Parchme
 function applyUI(k){settings.ui=k;document.body.classList.remove('ui-navy','ui-parchment','ui-marble','ui-frost','ui-night','ui-clay');if(k!=='brass')document.body.classList.add('ui-'+k);saveSettings()}
 settings.ui='parchment';settings.arch='classic';applyUI('parchment');
 function lookRoads(){if(typeof BWIN!=='undefined')BWIN.uEarth.value=LK.pixel?1:0;if(typeof terrU!=='undefined')terrU.uHam.value=LK.pixel?1:0;if(typeof FIELDU!=='undefined')FIELDU.uHam.value=LK.pixel?1:0;if(typeof TREEU!=='undefined')TREEU.uEarth.value=LK.pixel?1:0;if(typeof ROADMATS!=='undefined'){ROADMATS[0].color.setRGB(...(LK.pixel?[.72,.62,.5]:[1,1,1]));ROADMATS[1].color.setRGB(...(LK.pixel?[.8,.78,.74]:[1,1,1]))}}
-function applyLook(k){lookKey=k;LK=LOOKS[k];if(VY)colorTerrain();lookRoads();if(typeof propsDirty!=='undefined')propsDirty=true;lastEnv=-1e9;settings.look=k;saveSettings();if(typeof resize==='function')resize()}
+function applyLook(k){lookKey=k;LK=LOOKS[k];if(VY)colorTerrain();lookRoads();if(typeof propsDirty!=='undefined')propsDirty=true;lastEnv=-1e9;envKey='';settings.look=k;saveSettings();if(typeof resize==='function')resize()}
 
 /* ---------- HUD ---------- */
 function updateHUD(){renderGoal();{const wc=$('#warCnt');if(wc){let k=0;for(const n of nations)if(n.alive)for(const b of n.wars)if(n.id<b)k++;wc.textContent=k||''}}worldPopMul=POPMUL[nations.reduce((m,n)=>n.alive?Math.max(m,n.era):m,0)];if(spaceView&&year%5===0)renderSpacePanel();

@@ -125,7 +125,7 @@ const skyMat=new THREE.ShaderMaterial({uniforms:skyU,side:THREE.BackSide,depthWr
   if(stars>0.01&&y>0.){vec3 p=floor(d*220.);float r=fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);c+=vec3(step(.9975,r))*stars*clamp(y*4.,0.,1.);}
   if(uLinear>.5)c=pow(c,vec3(2.2));else c=toScene(c);gl_FragColor=vec4(c,1.);}`});
 const sky=new THREE.Mesh(new THREE.SphereGeometry(700,32,16),skyMat);sky.renderOrder=-1;scene.add(sky);
-const pmrem=new THREE.PMREMGenerator(renderer);let envRT=null,lastEnv=-1e9;const envCan=document.createElement('canvas');envCan.width=128;envCan.height=64;
+const pmrem=new THREE.PMREMGenerator(renderer);let envRT=null,lastEnv=-1e9,envKey='';const envCan=document.createElement('canvas');envCan.width=128;envCan.height=64;
 function refreshEnv(){const x=envCan.getContext('2d'),g=x.createLinearGradient(0,0,0,64),hx=c=>'#'+c.getHexString();
   g.addColorStop(0,hx(skyU.top.value));g.addColorStop(.5,hx(skyU.hor.value));g.addColorStop(.56,hx(skyU.gnd.value));g.addColorStop(1,'#1d2620');x.fillStyle=g;x.fillRect(0,0,128,64);
   const t=new THREE.CanvasTexture(envCan);t.mapping=THREE.EquirectangularReflectionMapping;t.encoding=THREE.sRGBEncoding;
@@ -160,7 +160,8 @@ function updateSky(dt,now){
   scene.fog.color.copy(skyU.hor.value).convertSRGBToLinear();
   const fd=camDist*LK.fog;scene.fog.near=camDist*.9+18/LK.fog;scene.fog.far=(camDist*2.4+120/LK.fog+fd*.2)*(1-.55*weatherDim);scene.fog.near*=1-.6*weatherDim;
   sky.position.copy(cam.position);
-  if(now-lastEnv>4000){lastEnv=now;refreshEnv()}
+  /* the sky reflection (water, glass, metal) is rebuilt only when the sky's colours have visibly changed: a rebuild is some twenty passes on the graphics card and a new texture */
+  if(now-lastEnv>4000){lastEnv=now;const q=c=>((c.r*48)|0)+'.'+((c.g*48)|0)+'.'+((c.b*48)|0),key=q(skyU.top.value)+'/'+q(skyU.hor.value)+'/'+q(skyU.gnd.value);if(key!==envKey||!envRT){envKey=key;refreshEnv()}}
   if(typeof setNight==='function')setNight(nightF);
   /* shadow box follows the view */
   const s=clamp(camDist*.75,6,Math.max(W,H)*.75),sc=sunL.shadow.camera;
