@@ -525,7 +525,7 @@ function drawMini(){if(getComputedStyle(mini).display==='none')return;
   pts.forEach((p,k)=>{if(!p)return;ok++;const px=ox+(p.x+W/2)*s,py=oy+(p.z+H/2)*s;k===0?mctx.moveTo(px,py):mctx.lineTo(px,py)});
   if(ok===4){mctx.closePath();mctx.stroke()}else{const px=ox+(camT.x+W/2)*s,py=oy+(camT.z+H/2)*s;mctx.strokeRect(px-6*dpr,py-6*dpr,12*dpr,12*dpr)}
   mini._map={ox,oy,s,dpr}}
-mini.addEventListener('pointerdown',e=>{const m=mini._map;if(!m)return;const r=mini.getBoundingClientRect(),px=(e.clientX-r.left)*m.dpr,py=(e.clientY-r.top)*m.dpr;
+mini.addEventListener('pointerdown',e=>{const m=mini._map;if(!m)return;const r=mini.getBoundingClientRect(),px=(e.clientX-r.left)*mini.width/r.width,py=(e.clientY-r.top)*mini.height/r.height;
   focusOn(clamp((px-m.ox)/m.s-W/2,-W/2,W/2),clamp((py-m.oy)/m.s-H/2,-H/2,H/2))});
 
 /* ---------- input ---------- */
@@ -697,6 +697,7 @@ $('#modalBox').addEventListener('click',e=>{const fm=e.target.closest('[data-fm]
   const ds=e.target.closest('[data-dis]');if(ds){settings.disasters=ds.dataset.dis;saveSettings();openSettings();return}
   const sc_=e.target.closest('[data-scen]');if(sc_){if(sc_.dataset.scen)startScenario(sc_.dataset.scen);else closeModal();return}
   const cl=e.target.closest('[data-clim]');if(cl){const d=+cl.dataset.clim;if(d){if(typeof coopGuest==='function'&&coopGuest())coopAct('clim',{d});else doAct('clim',{d})}closeModal();return}
+  const us=e.target.closest('[data-uisize]');if(us){settings.uiSize=us.dataset.uisize==='auto'?'auto':+us.dataset.uisize;saveSettings();applyUiScale();openSettings();return}
   const ub=e.target.closest('[data-ui]');if(ub){applyUI(ub.dataset.ui);openSettings();return}
   const pw=e.target.closest('[data-pow]');if(pw){settings.power=pw.dataset.pow;saveSettings();applyGraphics();openSettings();return}
   const mu=e.target.closest('[data-mus]');if(mu){settings.music=mu.dataset.mus;saveSettings();SND.bar=0;openSettings();return}
@@ -743,11 +744,18 @@ $('#modalBox').addEventListener('click',e=>{const b=e.target.closest('[data-un]'
     if(typeof coopGuest==='function'&&coopGuest()){coopAct('dip',p);closeModal();say('The union is being sealed…');return}
     if(doAct('dip',p)){closeModal();selected=p.keep;renderNationCard()}}});
 $('#modalBox').addEventListener('input',e=>{if(e.target.id==='unName'&&unionFor){unionFor.pick=-2;unionFor.name=e.target.value;unionFor.root=null;$$('#modalBox [data-un="pick"],#modalBox [data-un="new"]').forEach(x=>x.setAttribute('aria-pressed','false'))}});
+/* interface size: 'auto' fits the interface to the window (full size from about 1280 by 800, down to 70% on small laptop screens; phones keep their own layout) */
+const UI_SIZES=[['auto','Auto'],[.7,'70%'],[.8,'80%'],[.9,'90%'],[1,'100%'],[1.2,'120%']];
+function uiScale(){const v=settings.uiSize??'auto';if(v!=='auto')return clamp(+v||1,.6,1.4);if(isMobile)return 1;return clamp(Math.min(innerWidth/1280,innerHeight/800),.7,1)}
+function applyUiScale(){document.documentElement.style.setProperty('--ui',String(Math.round(uiScale()*100)/100))}
+applyUiScale();addEventListener('resize',applyUiScale);
 function openSettings(){setTimeout(()=>$('#modalBox').classList.add('setbox'),0);const t=(k,label,v)=>`<label class="tog">${label}<input type="checkbox" data-set="${k}" ${v?'checked':''}></label>`;
   openModal(`<h2>Settings</h2><div class="setcols"><div class="setcol"><div class="sec"><span class="lab">Graphics quality</span><div class="seg">${['low','medium','high'].map(q=>`<button data-q="${q}" aria-pressed="${settings.quality===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div>
     <p class="note">Lower quality draws fewer trees and smaller shadows. Use it on older phones.</p></div>
     <div class="sec"><span class="lab">Power</span><div class="seg">${[['saver','Battery saver'],['balanced','Balanced'],['max','Maximum']].map(([k,l])=>`<button data-pow="${k}" aria-pressed="${(settings.power||'balanced')===k}">${l}</button>`).join('')}</div>
     <p class="note">Balanced runs at 60 frames a second while you move the view and 30 when it is still, at a slightly lower resolution on sharp screens. Battery saver halves that again with fewer pixels, so laptops stay cool and quiet. Maximum has no limits and the sharpest shadows.</p></div>
+    <div class="sec"><span class="lab">Interface size</span><div class="seg">${UI_SIZES.map(([k,l])=>`<button data-uisize="${k}" aria-pressed="${String(settings.uiSize??'auto')===String(k)}">${l}</button>`).join('')}</div>
+    <p class="note">How big the bars, powers and panels are. Smaller leaves more room for the world. Auto shrinks them on smaller screens${(settings.uiSize??'auto')==='auto'?` (now ${Math.round(uiScale()*100)}%)`:''}.</p></div>
     <div class="sec"><span class="lab">World mood</span><div class="seg">${['calm','lively','turbulent'].map(q=>`<button data-mood="${q}" aria-pressed="${(settings.mood||'calm')===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div><p class="note">How much happens at once. Calm keeps wars, prayers, plagues and choices rare.</p></div>
     <div class="sec"><span class="lab">Disasters</span><div class="seg">${['off','mild','normal','wild'].map(q=>`<button data-dis="${q}" aria-pressed="${(settings.disasters||'normal')===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div>
     <p class="note">Storms, wildfires, famine, epidemics, earthquakes and eruptions. Your own powers always work.</p></div>

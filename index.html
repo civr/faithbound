@@ -41,7 +41,10 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 
 /* ---------- HUD ---------- */
 #hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+/* interface size (Settings): everything over the world scales together */
+#hud,#modal,#title{zoom:var(--ui,1)}
 #hud>*{pointer-events:auto}
+#hud>.bar,#hud>.powers{pointer-events:none}/* the full-width strips that hold the bars let clicks through to the world and the minimap; their panels catch them */
 .bar{position:absolute;top:0;left:0;right:0;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;pointer-events:none;
   padding-top:calc(env(safe-area-inset-top,0px) + 10px);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .bar>*{pointer-events:auto}
