@@ -697,6 +697,7 @@ $('#modalBox').addEventListener('click',e=>{const fm=e.target.closest('[data-fm]
   const ds=e.target.closest('[data-dis]');if(ds){settings.disasters=ds.dataset.dis;saveSettings();openSettings();return}
   const sc_=e.target.closest('[data-scen]');if(sc_){if(sc_.dataset.scen)startScenario(sc_.dataset.scen);else closeModal();return}
   const cl=e.target.closest('[data-clim]');if(cl){const d=+cl.dataset.clim;if(d){if(typeof coopGuest==='function'&&coopGuest())coopAct('clim',{d});else doAct('clim',{d})}closeModal();return}
+  const pxb=e.target.closest('[data-pixsize]');if(pxb){settings.pixelSize=pxb.dataset.pixsize==='off'?'off':+pxb.dataset.pixsize;saveSettings();resize();openSettings();return}
   const us=e.target.closest('[data-uisize]');if(us){settings.uiSize=us.dataset.uisize==='auto'?'auto':+us.dataset.uisize;saveSettings();applyUiScale();openSettings();return}
   const ub=e.target.closest('[data-ui]');if(ub){applyUI(ub.dataset.ui);openSettings();return}
   const pw=e.target.closest('[data-pow]');if(pw){settings.power=pw.dataset.pow;saveSettings();applyGraphics();openSettings();return}
@@ -754,6 +755,8 @@ function openSettings(){setTimeout(()=>$('#modalBox').classList.add('setbox'),0)
     <p class="note">Lower quality draws fewer trees and smaller shadows. Use it on older phones.</p></div>
     <div class="sec"><span class="lab">Power</span><div class="seg">${[['saver','Battery saver'],['balanced','Balanced'],['max','Maximum']].map(([k,l])=>`<button data-pow="${k}" aria-pressed="${(settings.power||'balanced')===k}">${l}</button>`).join('')}</div>
     <p class="note">Balanced runs at 60 frames a second while you move the view and 30 when it is still, at a slightly lower resolution on sharp screens. Battery saver halves that again with fewer pixels, so laptops stay cool and quiet. Maximum has no limits and the sharpest shadows.</p></div>
+    <div class="sec"><span class="lab">Pixel art</span><div class="seg">${PIX_SIZES.map(([k,l])=>`<button data-pixsize="${k}" aria-pressed="${String(settings.pixelSize??2)===String(k)}">${l}</button>`).join('')}</div>
+    <p class="note">The world is drawn in crisp pixels: bigger pixels look more retro and run faster. Off draws it smooth instead.</p></div>
     <div class="sec"><span class="lab">Interface size</span><div class="seg">${UI_SIZES.map(([k,l])=>`<button data-uisize="${k}" aria-pressed="${String(settings.uiSize??'auto')===String(k)}">${l}</button>`).join('')}</div>
     <p class="note">How big the bars, powers and panels are. Smaller leaves more room for the world. Auto shrinks them on smaller screens${(settings.uiSize??'auto')==='auto'?` (now ${Math.round(uiScale()*100)}%)`:''}.</p></div>
     <div class="sec"><span class="lab">World mood</span><div class="seg">${['calm','lively','turbulent'].map(q=>`<button data-mood="${q}" aria-pressed="${(settings.mood||'calm')===q}">${q[0].toUpperCase()+q.slice(1)}</button>`).join('')}</div><p class="note">How much happens at once. Calm keeps wars, prayers, plagues and choices rare.</p></div>

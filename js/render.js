@@ -12,11 +12,11 @@ const TOSCENE=`uniform float uPL,uPE;vec3 toScene(vec3 c){if(uPL<.5)return c;c=c
 const POST={rt:null,size:new THREE.Vector2(),scene:new THREE.Scene(),cam:new THREE.OrthographicCamera(-1,1,1,-1,0,1),ok:true};
 const postU={tCol:{value:null},tDep:{value:null},uRes:{value:new THREE.Vector2(1,1)},uNear:{value:.02},uFar:{value:900},uExp:{value:1},uTime:{value:0},
   uSat:{value:1},uCon:{value:1},uLift:{value:new THREE.Vector3()},uGain:{value:new THREE.Vector3(1,1,1)},uVig:{value:0},uTilt:{value:0},uLine:{value:0},
-  uPoster:{value:0},uPaper:{value:0},uBloom:{value:0},uGrain:{value:0},uBars:{value:0},uPx:{value:1},uNoAA:{value:0},
+  uPoster:{value:0},uPaper:{value:0},uBloom:{value:0},uGrain:{value:0},uBars:{value:0},uPx:{value:1},uNoAA:{value:0},uPix:{value:0},
   uAO:{value:0},uP00:{value:1},uP11:{value:1},uCamW:{value:new THREE.Matrix4()},uWaterY:{value:0},uMist:{value:0},uMistCol:{value:new THREE.Color()}};
 const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrite:false,
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
-  fragmentShader:`precision highp float;varying vec2 vUv;uniform sampler2D tCol,tDep;uniform vec2 uRes;uniform float uNoAA,uNear,uFar,uExp,uTime,uSat,uCon,uVig,uTilt,uLine,uPoster,uPaper,uBloom,uGrain,uBars,uPx,uAO,uP00,uP11,uWaterY,uMist;uniform vec3 uLift,uGain,uMistCol;uniform mat4 uCamW;
+  fragmentShader:`precision highp float;varying vec2 vUv;uniform sampler2D tCol,tDep;uniform vec2 uRes;uniform float uPix,uNoAA,uNear,uFar,uExp,uTime,uSat,uCon,uVig,uTilt,uLine,uPoster,uPaper,uBloom,uGrain,uBars,uPx,uAO,uP00,uP11,uWaterY,uMist;uniform vec3 uLift,uGain,uMistCol;uniform mat4 uCamW;
   float lin(float d){float z=d*2.-1.;return 2.*uNear*uFar/(uFar+uNear-z*(uFar-uNear));}
   float dep(vec2 uv){return lin(texture2D(tDep,uv).x);}
   vec3 aces(vec3 c){c*=uExp*.6;return clamp((c*(2.51*c+.03))/(c*(2.43*c+.59)+.14),0.,1.);}
@@ -49,9 +49,9 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
     float lum=dot(col,vec3(.299,.587,.114));
     if(uPoster>0.){float q=floor(lum*uPoster+.5)/uPoster;col*=mix(1.,q/max(lum,.02),.7);lum=dot(col,vec3(.299,.587,.114));}
     col=mix(vec3(lum),col,uSat);col=(col-.5)*uCon+.5;col=col*uGain+uLift*(1.-col);
-    if(uLine>0.){float e=0.;vec2 o=px*uPx*1.2;float dn=dep(uv+vec2(0,o.y)),ds=dep(uv-vec2(0,o.y)),de=dep(uv+vec2(o.x,0)),dw=dep(uv-vec2(o.x,0));
+    if(uLine>0.){float e=0.;vec2 o=uPix>0.?px:px*uPx*1.2;float dn=dep(uv+vec2(0,o.y)),ds=dep(uv-vec2(0,o.y)),de=dep(uv+vec2(o.x,0)),dw=dep(uv-vec2(o.x,0));
       e=max(max(abs(dn-d0),abs(ds-d0)),max(abs(de-d0),abs(dw-d0)))/d0;float ink=smoothstep(.025,.06,e)*(1.-smoothstep(150.,400.,d0));
-      vec3 cn=fetch(uv+vec2(0,o.y)),ce=fetch(uv+vec2(o.x,0));float ce2=length(cn-fetch(uv))+length(ce-fetch(uv));ink=max(ink,smoothstep(.35,.7,ce2)*.6);
+      vec3 cn=fetch(uv+vec2(0,o.y)),ce=fetch(uv+vec2(o.x,0));float ce2=length(cn-fetch(uv))+length(ce-fetch(uv));if(uPix<=0.)ink=max(ink,smoothstep(.35,.7,ce2)*.6);/* in pixel art only the outlines of things, not the grain of sand and water */
       col=mix(col,uPaper>0.?vec3(.23,.15,.08):col*.25,clamp(ink*uLine,0.,.85));}
     if(uPaper>0.){float fib=vn(uv*uRes/3.)*.5+vn(uv*uRes/11.)*.3+vn(uv*vec2(6,9))*.6;vec3 paper=vec3(.92,.85,.69)*(.9+fib*.12);vec3 ink=vec3(.32,.22,.12);
       float l2=dot(col,vec3(.299,.587,.114));vec3 tone=mix(ink,paper,smoothstep(.05,.95,l2));
@@ -59,6 +59,9 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
       float edge=length((uv-.5)*vec2(1.,.8));col*=1.-smoothstep(.45,.85,edge)*.45;col=mix(col,col*vec3(1.,.93,.82),.3);}
     float v=length((uv-.5)*vec2(uRes.x/uRes.y,1.)*.85);col*=1.-uVig*smoothstep(.35,1.05,v);
     col+=(h21(uv*uRes+fract(uTime)*91.)-.5)*uGrain;
+    /* pixel art: a limited palette with a soft ordered dither (a 4x4 Bayer pattern in the big pixels), so gradients become calm bands of pixels */
+    if(uPix>0.){vec2 fc=floor(gl_FragCoord.xy);vec2 a2=floor(fc*.5);float b2=fract(dot(a2,vec2(.5,a2.y*.75))),b1=fract(dot(fc,vec2(.5,fc.y*.75))),bay=b2*.25+b1;
+      float L=uPix;col=floor(col*L+.5+(bay-.5)*.55)/L;}
     if(uBars>0.&&(uv.y<uBars||uv.y>1.-uBars))col=vec3(0);
     gl_FragColor=vec4(clamp(col,0.,1.),1.);}`});
 POST.scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),postMat));
@@ -92,8 +95,8 @@ function renderFrame0(){/* the near clipping plane follows the zoom: zoomed out,
   postU.uExp.value=renderer.toneMappingExposure*(POST.flt?1:.8);postU.uTime.value=performance.now()/1000;postU.uPx.value=renderer.getPixelRatio();
   postU.uAO.value=settings.quality==='low'?0:(P.ao??0);postU.uP00.value=cam.projectionMatrix.elements[0];postU.uP11.value=cam.projectionMatrix.elements[5];postU.uCamW.value.copy(cam.matrixWorld);
   postU.uWaterY.value=waterY;postU.uMist.value=(P.mist??.5)*(1-.7*smooth(.02,.3,Math.sin(dayT*6.283)-.1)+.2*(typeof weatherDim!=='undefined'?weatherDim:0));postU.uMistCol.value.copy(scene.fog.color);
-  postU.uSat.value=P.sat;postU.uCon.value=P.con;postU.uLift.value.fromArray(P.lift||[0,0,0]);postU.uGain.value.fromArray(P.gain||[1,1,1]);postU.uVig.value=P.vig||0;
-  postU.uTilt.value=(P.tilt||0)*(P.tiltFar?smooth(9,34,camDist):1-smooth(20,60,camDist));postU.uNoAA.value=pixN?1:0;postU.uLine.value=P.line||0;postU.uPoster.value=P.poster||0;postU.uPaper.value=P.paper||0;postU.uBloom.value=POST.flt?(P.bloom||0):0;postU.uGrain.value=P.grain||0;postU.uBars.value=P.bars||0;
+  postU.uSat.value=P.sat*(pixN&&P.pixSat?P.pixSat:1);postU.uCon.value=P.con;postU.uLift.value.fromArray(P.lift||[0,0,0]);postU.uGain.value.fromArray(P.gain||[1,1,1]);postU.uVig.value=P.vig||0;
+  postU.uTilt.value=(P.tilt||0)*(P.tiltFar?smooth(9,34,camDist):1-smooth(20,60,camDist));postU.uNoAA.value=pixN?1:0;postU.uPix.value=pixN?(P.pixL||18):0;postU.uLine.value=P.line||(pixN?(P.pixLine==null?.5:P.pixLine):0);postU.uPoster.value=P.poster||0;postU.uPaper.value=P.paper||0;postU.uBloom.value=POST.flt?(P.bloom||0):0;postU.uGrain.value=P.grain||0;postU.uBars.value=P.bars||0;
   PLU.uPL.value=1;PLU.uPE.value=postU.uExp.value;renderer.setRenderTarget(POST.rt);renderer.render(scene,cam);renderer.setRenderTarget(null);
   try{renderer.render(POST.scene,POST.cam)}catch(e){POST.ok=false;throw e}}
 renderer.toneMappingExposure=1;
@@ -193,17 +196,14 @@ function focusOn(x,z,dist){camT.x=x;camT.z=z;if(dist)camDistT=dist}
    the camera comes closer (whole device pixels each, so every pixel is the same size); far out it is close to full detail. It is also much cheaper to draw. */
 let pixN=0,pixWant=0,pixSince=0;
 /* the painted look: soft pixels of a fixed size (about two screen pixels) at every zoom, so it never jumps between sharp and blocky */
-/* as in a painted pixel game: from a normal distance the scene is drawn slightly soft (smoothed up from a lower resolution);
-   only right up close does it turn into visible pixels, about two to three screen pixels each */
-/* (close-up pixel art is switched off: the look draws at one steady, slightly reduced resolution at every zoom instead, see LK.soft) */
-function pixTarget(){if(!LK.pixel||!LK.pixelClose)return 0;const dev=devicePixelRatio||1,d=camDist,cur=pixN?pixN/dev:0;
-  let css=d<1.25?2.5:d<2.6?1.75:0;
-  /* a little slack around each step so a zoom that rests near the edge does not flip back and forth */
-  const cc=Math.round(cur*4)/4;if(cc>=2.25&&d<1.45)css=2.5;else if(cc>=1.5&&cc<2.25&&d>1.1&&d<2.9)css=1.75;
-  return css?Math.max(2,Math.round(css*dev)):0}
+/* cozy pixel art: the scene is drawn at a lower resolution and enlarged with crisp square pixels, the same size at every zoom
+   (Settings > Pixel art: Cozy is two screen pixels per pixel, Chunky three, Retro four; Off draws smooth at LK.soft). It is also the cheapest way to draw:
+   at two pixels the graphics card colours a quarter as many. On sharp screens the pixel keeps its size on screen, not in device pixels. */
+const PIX_SIZES=[['off','Off'],[2,'Cozy'],[3,'Chunky'],[4,'Retro']];
+function pixSize(){const v=settings.pixelSize;return v==null?2:v==='off'?0:+v||0}
+function pixTarget(){if(!LK.pixel)return 0;const ps=pixSize();if(!ps)return 0;return Math.max(2,Math.round(ps*(devicePixelRatio||1)))}
 function pixTick(){const t=pixTarget(),now=performance.now();if(t===pixN){pixWant=t;return}
   if(t!==pixWant){pixWant=t;pixSince=now;return}if(now-pixSince>40)resize()}
-/* (the switch follows the zoom within a frame or two: waiting for the zoom to settle left a fast scroll sharp, then snapped it to pixels afterwards; the slack in pixTarget keeps it from flickering at the edge) */
 function resize(){const w=innerWidth,hh=innerHeight,dpr=Math.min(settings.power==='saver'?1:settings.power==='max'?(settings.quality==='high'?2:1.5):1.25,devicePixelRatio||1);
   pixN=pixTarget();pixWant=pixN;gl.style.imageRendering=pixN?'pixelated':'';
   renderer.setPixelRatio(pixN?(devicePixelRatio||1)/pixN:(settings.quality==='low'?Math.min(1,dpr):dpr)*(typeof dynScale==='number'?dynScale:1)*(LK.soft||1));renderer.setSize(w,hh,false);
