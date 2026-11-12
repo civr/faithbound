@@ -99,7 +99,7 @@ const SPEEDS=[0,2,6,20];
    line (ink outlines), poster (toon light bands), paper (parchment atlas), bloom, grain */
 /* one look only: the painted pixel countryside */
 const LOOKS={
-  hamlet:{label:'Hamlet',desc:'Painted countryside: soft and natural, pixels up close, a tilt-shift diorama from afar',pixel:1,soft:.86,ground:{3:[150,140,104],4:[78,104,48],5:[46,64,34],6:[44,66,34],8:[112,112,62],9:[52,70,42],11:[84,94,62],7:[158,132,92]},sat:.92,exposure:.86,tint:[70,84,52,.08],sun:0xfff0dc,sunI:1.9,hemiI:.8,fog:.9,lock:-1,
+  hamlet:{label:'Hamlet',desc:'Painted countryside: soft and natural, a tilt-shift diorama from afar',pixel:1,soft:.8,ground:{3:[150,140,104],4:[78,104,48],5:[46,64,34],6:[44,66,34],8:[112,112,62],9:[52,70,42],11:[84,94,62],7:[158,132,92]},sat:.92,exposure:.86,tint:[70,84,52,.08],sun:0xfff0dc,sunI:1.9,hemiI:.8,fog:.9,lock:-1,
     skyTop:0x8fb0cc,skyHor:0xd6dfe0,post:{sat:.8,con:1.05,lift:[.01,.012,.012],gain:[1,.99,.95],vig:.22,tilt:.9,tiltFar:1,ao:0,mist:.3,bloom:.04,grain:0}}};
 
 

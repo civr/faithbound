@@ -193,13 +193,15 @@ let pixN=0,pixWant=0,pixSince=0;
 /* the painted look: soft pixels of a fixed size (about two screen pixels) at every zoom, so it never jumps between sharp and blocky */
 /* as in a painted pixel game: from a normal distance the scene is drawn slightly soft (smoothed up from a lower resolution);
    only right up close does it turn into visible pixels, about two to three screen pixels each */
-function pixTarget(){if(!LK.pixel)return 0;const dev=devicePixelRatio||1,d=camDist,cur=pixN?pixN/dev:0;
+/* (close-up pixel art is switched off: the look draws at one steady, slightly reduced resolution at every zoom instead, see LK.soft) */
+function pixTarget(){if(!LK.pixel||!LK.pixelClose)return 0;const dev=devicePixelRatio||1,d=camDist,cur=pixN?pixN/dev:0;
   let css=d<1.25?2.5:d<2.6?1.75:0;
   /* a little slack around each step so a zoom that rests near the edge does not flip back and forth */
   const cc=Math.round(cur*4)/4;if(cc>=2.25&&d<1.45)css=2.5;else if(cc>=1.5&&cc<2.25&&d>1.1&&d<2.9)css=1.75;
   return css?Math.max(2,Math.round(css*dev)):0}
 function pixTick(){const t=pixTarget(),now=performance.now();if(t===pixN){pixWant=t;return}
-  if(t!==pixWant){pixWant=t;pixSince=now;return}if(now-pixSince>400)resize()}
+  if(t!==pixWant){pixWant=t;pixSince=now;return}if(now-pixSince>40)resize()}
+/* (the switch follows the zoom within a frame or two: waiting for the zoom to settle left a fast scroll sharp, then snapped it to pixels afterwards; the slack in pixTarget keeps it from flickering at the edge) */
 function resize(){const w=innerWidth,hh=innerHeight,dpr=Math.min(settings.power==='saver'?1:settings.power==='max'?(settings.quality==='high'?2:1.5):1.25,devicePixelRatio||1);
   pixN=pixTarget();pixWant=pixN;gl.style.imageRendering=pixN?'pixelated':'';
   renderer.setPixelRatio(pixN?(devicePixelRatio||1)/pixN:(settings.quality==='low'?Math.min(1,dpr):dpr)*(typeof dynScale==='number'?dynScale:1)*(LK.soft||1));renderer.setSize(w,hh,false);
@@ -350,6 +352,8 @@ terrainMat.onBeforeCompile=sh=>{Object.assign(sh.uniforms,terrU);sh.fragmentShad
 function buildTerrain(){
   for(const m of [terrainMesh,skirtMesh,waterMesh,waterSide]){if(m){scene.remove(m);m.geometry.dispose()}}
   VW=W*R+1;VH=H*R+1;const nv=VW*VH;VY=new Float32Array(nv);detail=new Float32Array(nv);
+  /* a new world: nothing laid out for the last one carries over (colour tables, pending layout steps, the old heights) */
+  CT_U=null;LAY_TOKEN++;LAY_PEND=0;LAY={base:-1,wy:null,keys:null};LAYOLD=null;LAYDIRTY=null;HPREV=null;RLY_RECT=null;LAYBIO=-1;
   const dn=makeNoise((hseed*1000)|0);
   for(let v=0;v<VH;v++)for(let u=0;u<VW;u++)detail[v*VW+u]=(dn(u/R*.9,v/R*.9,3)-.5)*2;
   const g=new THREE.BufferGeometry();
@@ -477,7 +481,7 @@ function groundYIn(A,x,z){let u=(x+W/2)*R,v=(z+H/2)*R;u=clamp(u,0,VW-1.001);v=cl
 /* ground colours. Every vertex blends the colours of the four tiles around it, then shore sand, rock, snow and the look's tint.
    It can redo just one rectangle (a town that grew), and it makes no garbage: the per-row and per-column blend weights are worked out once. */
 let CT_TC=null,CT_SOOT=null,CT_U=null,CT_V=null;
-function ctTables(){if(CT_U)return;CT_U={x0:new Int32Array(VW),x1:new Int32Array(VW),f:new Float32Array(VW)};CT_V={y0:new Int32Array(VH),y1:new Int32Array(VH),f:new Float32Array(VH)};
+function ctTables(){if(CT_U&&CT_U.x0.length===VW&&CT_V.y0.length===VH&&CT_SOOT.length===N&&CT_U.W===W)return;CT_U={W,x0:new Int32Array(VW),x1:new Int32Array(VW),f:new Float32Array(VW)};CT_V={y0:new Int32Array(VH),y1:new Int32Array(VH),f:new Float32Array(VH)};
   for(let u=0;u<VW;u++){const t=clamp(u/R-.5,0,W-1),x0=Math.floor(t);CT_U.x0[u]=x0;CT_U.x1[u]=Math.min(x0+1,W-1);CT_U.f[u]=t-x0}
   for(let v=0;v<VH;v++){const t=clamp(v/R-.5,0,H-1),y0=Math.floor(t);CT_V.y0[v]=y0*W;CT_V.y1[v]=Math.min(y0+1,H-1)*W;CT_V.f[v]=t-y0}
   CT_TC=new Float32Array(N*3);CT_SOOT=new Float32Array(N)}
