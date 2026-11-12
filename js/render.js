@@ -33,6 +33,8 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
   vec3 wpos(vec2 uv,float d){vec3 v=vec3((uv.x*2.-1.)*d/uP00,(uv.y*2.-1.)*d/uP11,-d);return (uCamW*vec4(v,1.)).xyz;}
   void main(){vec2 uv=vUv,px=1./uRes;vec3 c=uNoAA>.5?fetch(uv):fxaa(uv);
     float d0=dep(uv);bool sky0=texture2D(tDep,uv).x>.9999;
+    /* tilt-shift blur first, on the plain picture: blurring after the mist mixed misty and unmisted pixels, so the sharp middle strip ended in a hard light line */
+    if(uTilt>0.){float b=uTilt*smoothstep(.08,.42,abs(uv.y-.5));if(b>.01){vec3 acc=c;float w=1.;for(int i=0;i<16;i++){float a=float(i)*2.39996,r=sqrt(float(i)+.5)/4.;vec2 o=vec2(cos(a),sin(a))*r*b*9.*uPx*px;acc+=fetch(uv+o);w+=1.;}c=acc/w;}}
     /* ambient occlusion: darken creases, the feet of walls and the gaps between houses and trees */
     if(uAO>0.&&!sky0){float occ=0.;float rad=clamp(.09*uRes.y*uP11*.5/d0,2.,40.);float rot=0.;
       /* pairs of opposite samples: a flat or sloping surface averages out, only real creases and corners darken (no halos around trees) */
@@ -42,7 +44,6 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
       c*=1.-uAO*clamp(occ/6.*1.1,0.,.5);}
     /* low mist that pools over water and in the valleys, thicker far away */
     if(uMist>0.&&!sky0){vec3 wp=wpos(uv,d0);float above=max(0.,wp.y-uWaterY);float m=exp(-above*5.)*(1.-exp(-d0*.035))*uMist;c=mix(c,uMistCol*1.04,clamp(m,0.,.38));}
-    if(uTilt>0.){float b=uTilt*smoothstep(.08,.42,abs(uv.y-.5));if(b>.01){vec3 acc=c;float w=1.;for(int i=0;i<16;i++){float a=float(i)*2.39996,r=sqrt(float(i)+.5)/4.;vec2 o=vec2(cos(a),sin(a))*r*b*9.*uPx*px;acc+=fetch(uv+o);w+=1.;}c=acc/w;}}
     if(uBloom>0.){vec3 bl=vec3(0);for(int i=0;i<12;i++){float a=float(i)*2.39996,r=sqrt(float(i)+.5)/3.5;vec3 s=fetch(uv+vec2(cos(a),sin(a))*r*22.*uPx*px);bl+=max(s-vec3(.9),0.);}c+=bl/12.*uBloom*1.6;}
     vec3 col=srgb(aces(c));
     float lum=dot(col,vec3(.299,.587,.114));
