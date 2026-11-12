@@ -22,7 +22,7 @@ function genWorld(seedIn){
   nations=[];faiths=[];logs=[];year=0;ruins=[];warData={};coves=[];belief=100;climate.temp=.5;climate.anth=0;climate.rain=worldOpts.rain??.5;flags={warm:false,sail:false};milestones=new Set();
   selected=-1;inspectTile=-1;selectedFaith=-1;warFrom=-1;moistActive=0;effects=[];
   buildTerrain();computeTerrain();layoutTerrain();
-  seedCultures();seedDeposits();indexDeposits();annals=[];endedWars=[];hist=[];snaps=[];worldWars=[];colonies=[];planets={moon:{terra:0,life:0},mars:{terra:0,life:0}};
+  seedCultures();seedDeposits();indexDeposits();CUTY=null;annals=[];endedWars=[];hist=[];snaps=[];worldWars=[];colonies=[];planets={moon:{terra:0,life:0},mars:{terra:0,life:0}};
   let placed=0,tries=0;
   while(placed<S.tribes&&tries<6000){tries++;const i=(rng()*N)|0;if(hab[i]<.7||owner[i]>=0||(tries<4000&&siteScore(i)<.6))continue;
     const x=i%W,y=(i/W)|0;let ok=true;for(const n of nations){const c=n.cities[0];if(Math.hypot(c.x-x,c.y-y)<W/(S.tribes>5?5.5:4.2)){ok=false;break}}
@@ -605,7 +605,7 @@ function unb64(s,T){const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.l
 function buildSave(){
   if(!worldOpts.slot)worldOpts.slot=Date.now().toString(36)+Math.floor(rng()*1e6).toString(36);
   return {v:4,slot:worldOpts.slot,worldName:worldOpts.name||'Unnamed world',owner:account.user||null,worldOpts,sizeKey,lookKey,W,H,worldSeed,year,belief,climate,flags,dayT,
-    deps:deposits,annals,hist,snaps,colonies,planets,worldWars,h:b64(h),bm:b64(baseMoist),md:b64(moistD),wd:warmD&&warmD.length===N?b64(warmD):null,owner16:b64(owner),
+    deps:deposits,annals,hist,snaps,colonies,planets,worldWars,h:b64(h),bm:b64(baseMoist),md:b64(moistD),wd:warmD&&warmD.length===N?b64(warmD):null,cut:CUTY&&CUTY.length===N?b64(CUTY):null,owner16:b64(owner),
     nations:nations.map(n=>Object.assign({},n,{wars:[...n.wars],nb:[],front:[],_walk:0,_resMod:null,cities:n.cities.map(c=>{const o={};for(const k in c)if(k[0]!=='_')o[k]=c[k];return o})})),ruins,warData,cultSeeds,coves,faiths,logs:logs.slice(0,60),
     milestones:[...milestones],mi:milestoneInfo,rivers,riv:b64(river),folk,folkId,houses,saved:Date.now(),
     summary:{nations:nations.filter(n=>n.alive).length,era:nations.reduce((m,n)=>n.alive?Math.max(m,n.era):m,0)}}}
@@ -658,6 +658,6 @@ function applySave(d){
   milestones=new Set(d.milestones);Object.assign(milestoneInfo,d.mi||{});
   selected=-1;inspectTile=-1;selectedFaith=-1;warFrom=-1;moistActive=60;effects=[];
   if(d.lookKey&&LOOKS[d.lookKey])applyLook(d.lookKey);
-  buildTerrain();computeTerrain();layoutTerrain();seedClouds();deposits=d.deps||[];if(!deposits.length)seedDeposits();indexDeposits();annals=d.annals||[];hist=d.hist||[];snaps=d.snaps||[];colonies=d.colonies||[];worldWars=d.worldWars||[];planets=d.planets||{moon:{terra:0,life:0},mars:{terra:0,life:0}};
+  buildTerrain();computeTerrain();layoutTerrain();seedClouds();deposits=d.deps||[];if(!deposits.length)seedDeposits();indexDeposits();CUTY=d.cut?unb64(d.cut,Float32Array):null;if(CUTY&&CUTY.length!==N)CUTY=null;annals=d.annals||[];hist=d.hist||[];snaps=d.snaps||[];colonies=d.colonies||[];worldWars=d.worldWars||[];planets=d.planets||{moon:{terra:0,life:0},mars:{terra:0,life:0}};
   camT.set(0,0,0);camDistT=camDist=Math.max(W,H)*.85;propsDirty=true;bordersDirty=true;return true;
 }

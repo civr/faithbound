@@ -201,6 +201,8 @@ kit('tower',unitCyl(14),MAT.stone,4000);kit('office',unitBox(),MAT.office,2500);
 kit('dome',(()=>{const g=new THREE.SphereGeometry(.5,16,8,0,Math.PI*2,0,Math.PI/2);return g})(),MAT.metal,700);
 kit('box',unitBox(),MAT.plain,220000);kit('adobe',unitBox(),MAT.adobe,24000);kit('adobeCyl',unitCyl(12),MAT.adobe,8000);kit('hipTile',hipGeo(.32),MAT.tiles,6000);
 kit('domeW',new THREE.SphereGeometry(.5,14,7,0,Math.PI*2,0,Math.PI/2),MAT.plain,1600);kit('cyl',unitCyl(8),MAT.plain,12000);
+/* the woodcutters' work: stumps, stacked logs and their camps (drawn with the trees, so they come and go with the forest) */
+kit('stump',unitCyl(7),MAT.plain,20000);kit('logs',(()=>{const g=unitCyl(7);g.computeBoundingBox();const b=g.boundingBox;g.translate(0,-(b.min.y+b.max.y)/2,0);g.rotateZ(Math.PI/2);return g})(),MAT.plain,12000);/* a log lies along x */kit('camp',unitBox(),MAT.plain,4000);
 kit('ring',(()=>{const g=new THREE.TorusGeometry(.5,.05,6,24);g.rotateX(Math.PI/2);return g})(),MAT.glow,500,false);
 kit('flame',unitCone(6),MAT.flame,300,false);
 kit('conifer',leafTree(11,'con'),treeMat,48000);
@@ -367,7 +369,7 @@ kit('hedge',unitBox(),stdMat({roughness:1}),20000,false);kit('farmW',unitBox(),M
 /* painted looks: leaves turn a deeper, olive woodland green (bright lime crowns read as plastic in a painted scene) */
 {const _tb=treeMat.onBeforeCompile;treeMat.onBeforeCompile=sh=>{_tb(sh);sh.fragmentShader=sh.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
   if(uEarth>0.){vec3 c=diffuseColor.rgb;float gl=smoothstep(.0,.04,c.g-max(c.r,c.b));vec3 d=c*vec3(.52,.58,.42);d=mix(d,vec3(dot(d,vec3(.3,.59,.11))),.22);diffuseColor.rgb=mix(c,d,gl*uEarth);}`)}}
-const TREE_KITS=['hamA','hamB','conifer','broad','palm','bush','rock','tuft','flower','puddle','reed','hedge','farmW','farmR'];
+const TREE_KITS=['hamA','hamB','conifer','broad','palm','bush','rock','tuft','flower','puddle','reed','hedge','farmW','farmR','stump','logs','camp'];
 /* the countryside: hedgerows, dry-stone walls or fences round the fields, and a farmstead with a barn here and there */
 function countryside(){const farm=new Set();
   for(const i of fieldTiles){const o=owner[i],n=o>=0?nations[o]:null;if(!n)continue;const e=n.era,x=i%W,y=(i/W)|0,X0=x-W/2,Z0=y-H/2;
@@ -1480,9 +1482,17 @@ function rebuildTrees0(){
     if((b===4||b===8)&&dens>.5&&settings.quality!=='high'){const tn=b===4?3:2;for(let t=0;t<tn;t++){const x=x0+hash(i*2.7+t*5)*.96+.02,z=z0+hash(i*4.3+t*7)*.96+.02,y=groundY(x,z);if(y>waterY+.04)add('tuft',x,y-.004,z,.016,.022+hash(i+t)*.014,.016,hash(i*t),b===4?0x4e7232:0x8a8a44)}
       if(hash(i*8.1)<.22){const fc=[0xe8d84a,0xd8504a,0xf2f2f2,0x9a6ad0,0xf0a040][(hash(i*3.9)*5)|0];for(let t=0;t<5;t++){const x=x0+hash(i*6.1+t)*.9+.05,z=z0+hash(i*1.9+t*3)*.9+.05,y=groundY(x,z);if(y>waterY+.04)add('flower',x,y+.006,z,.012,.012,.012,0,fc)}}}
     if(owner[i]>=0&&nations[owner[i]].era>=3&&type!=='rock')n=Math.round(n*.45);
+    /* felled forest: stumps and log piles at first, then saplings growing into young woodland */
+    let grow=1;if((b===5||b===6)&&typeof forestGrowth==='function'){grow=forestGrowth(i);if(grow<1){const age=typeof CUTY!=='undefined'&&CUTY?year-CUTY[i]:99;
+      if(grow<.45){const ns=Math.round((LK.pixel?6:9)*(1-grow*1.6));for(let t=0;t<ns;t++){const x=x0+.08+hash(i*3.1+t)*.84,z=z0+.08+hash(i*7.7+t)*.84,y=groundY(x,z);if(y<waterY+.04)continue;
+          const r=.03+hash(i*2.3+t)*.02;add('stump',x,y-.008,z,r,.03+hash(i+t*4)*.02,r,0,hash(i*5+t)<.5?0x7a5a38:0x8a6a44)}
+        for(let t=0;t<5;t++){const x=x0+.1+hash(i*4.1+t*3)*.8,z=z0+.1+hash(i*8.3+t)*.8,y=groundY(x,z);if(y>waterY+.04)add('tuft',x,y-.004,z,.018,.024+hash(i+t)*.012,.018,hash(i*t),0x6a8a3a)}}
+      if(age<14&&hash(i*6.7)<.55){/* a stack of logs waiting for the cart */const x=x0+.3+hash(i*1.9)*.4,z=z0+.3+hash(i*9.1)*.4,y=groundY(x,z),ro=hash(i*3.3)*3.14;
+        if(y>waterY+.04)for(let r=0;r<3;r++)for(let q=0;q<3-r;q++){const off=(q-(2-r)/2)*.026;add('logs',x+Math.sin(ro)*off,y+.012+r*.021,z+Math.cos(ro)*off,.12,.024,.024,ro,r===2?0x9a7448:0x8a6440)}}
+      n=Math.round(n*grow*grow)}}
     const lod=1;n=Math.round(n*dens*TGS);
     for(let t=0;t<n;t++){const x=x0+.08+hash(i*3.1+t)*.84,z=z0+.08+hash(i*7.7+t)*.84,y=groundY(x,z);if(y<waterY+.05)continue;
-      const s=(.62+hash(i*11.3+t)*.5)*near[i],hv=hash(i*5.9+t);
+      const s=(.62+hash(i*11.3+t)*.5)*near[i]*(grow<1?.4+.6*grow:1),hv=hash(i*5.9+t);
       if(type==='rock'||(type==='mount'&&hv<.45)){if(hv<.6)add(natKit('rock',hv),x,y-.03,z,.08+hv*.25,.06+hv*.16,.08+hv*.2,hv*6,hv<.3?0x8a8378:0x9a9488);continue}
       if(type==='mount'){if(y<shapeH(.8))add('conifer',x,y-.01,z,s*.85,s*.95,s*.85,hv*6,0x2f4a30);continue}
       if((type==='mix'||type==='conifer'||type==='jungle')&&hv<.45&&lod>.5)add('bush',x+.04,y-.01,z+.03,s*.9,s*.7,s*.9,hv*6,type==='jungle'?0x3f6a2a:0x45602e);
@@ -1490,6 +1500,13 @@ function rebuildTrees0(){
       const col=k==='conifer'?(hv<.5?0x27412a:0x31502f):k==='palm'?0x5d8a3a:type==='jungle'?(hv<.5?0x2f6a32:0x3d7a35):(hv<.25?0x3a6428:hv<.5?0x46702e:hv<.75?0x527a32:0x5e7f30);
       if(type==='acacia'){const ak=natKit('acacia',hv);if(ak==='broad')add('broad',x,y-.01,z,s*1.2,s*.55,s*1.2,hv*6,0x7a8a3c);else add(ak,x,y-.01,z,s,s,s,hv*6,0x7a8a3c)}else add(k==='broad'?natKit('broad',hv):k,x,y-.01,z,s,s,s,hv*6,col);
       if(hv>.8&&k!=='palm')add('bush',x+.06,y-.01,z+.04,s,s,s,0,0x4f7a36)}}
+  /* woodcutters' camps where a town is felling now: a hut, a chopping block and stacked logs; a sawmill with a chimney from the Industrial age */
+  for(const nn of nations){if(!nn.alive)continue;for(const c of nn.cities){const L=c._lumber;if(!L||year-L.y>30||occupied.has(L.i))continue;if(TREC)TREC.t=L.i;
+    const X=L.i%W,Y=(L.i/W)|0,ax=wx(X),az=wz(Y),dx=c.x-X,dy=c.y-Y,dl=Math.hypot(dx,dy)||1,x=ax+dx/dl*.32,z=az+dy/dl*.32,y=groundY(x,z),ro=Math.atan2(dx,dy);if(y<waterY+.04)continue;
+    if(nn.era>=5){add('camp',x,y-.01,z,.14,.06,.08,ro,0x8a7a68);add('camp',x,y+.05,z,.15,.012,.09,ro,0x5a4a3e,.18);add('stump',x+.05,y,z+.02,.008,.12,.008,0,0x6a6866)}
+    else{add('camp',x,y-.01,z,.06,.065,.05,ro,0x8a6a48);add('camp',x,y+.058,z,.075,.012,.065,ro,0x5a4028,.3)}
+    add('stump',x+.07*Math.cos(ro),y-.004,z-.07*Math.sin(ro),.04,.035,.04,0,0x8a6a44);
+    for(let r=0;r<2;r++)for(let q=0;q<4-r;q++){const off=(q-(3-r)/2)*.024,px=x-.07*Math.sin(ro+1.57),pz=z-.07*Math.cos(ro+1.57);add('logs',px+Math.sin(ro)*off,y+.01+r*.02,pz+Math.cos(ro)*off,.11,.022,.022,ro,0x8a6440)}}}
   if(TREC)TREC.t=-1;
   /* the painted countryside: pale stones and pebbles along the river banks */
   if(LK.pixel&&river)for(let i=0;i<N;i++){if(!river[i]||isWater(i)||occupied.has(i))continue;const x0=i%W-W/2,z0=((i/W)|0)-H/2;

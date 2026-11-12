@@ -15,9 +15,34 @@ function seedDeposits(){deposits=[];const taken=new Set();
 const depAt=new Map();function indexDeposits(){depAt.clear();for(const d of deposits)depAt.set(d.i,d)}
 function nearDeposit(j,r){const x=j%W,y=(j/W)|0;for(const d of deposits)if(Math.hypot(d.i%W-x,((d.i/W)|0)-y)<=r)return d;return null}
 
+/* ---------- woodcutting: towns fell the forest around them for timber; the stumps stay a while and the wood grows back ---------- */
+/* CUTY holds the year each tile was last felled (0: never). A felled tile is stumps and log piles at first, then saplings, then young woodland; after
+   REGROW years it is forest again. Woodcutters work outward from each town, nearest mature forest first, on their own or unclaimed land. */
+let CUTY=null;const REGROW=90;
+/* tiles of forest a town fells every five years at full size, by age: shipbuilding in the Age of Sail wants the most, the modern world little */
+const WOOD_USE=[.5,.7,.9,1,1.3,1.1,.45,0];
+const cutArr=()=>{if(!CUTY||CUTY.length!==N)CUTY=new Float32Array(N);return CUTY};
+function forestGrowth(i){if(!CUTY||CUTY.length!==N||!CUTY[i])return 1;return clamp((year-CUTY[i])/REGROW,0,1)}
+const isForest=i=>biome[i]===5||biome[i]===6;
+function logTick(n){if(n.wood==null)n.wood=30;const use=WOOD_USE[n.era]||0;if(!use||!n.cities.length)return;const C=cutArr();
+  const f=n.faith>=0&&faiths[n.faith]?faiths[n.faith]:null,green=!!(f&&(f.tenets||[f.tenet]).includes('nature'));
+  const lvl=clamp(cityLevel(n)/14,.15,1),reach=4+(n.era>=4?2:0)+(n.era>=5?1:0);let want=0,cut=0;
+  for(const c of n.cities){const d=use*lvl*.4*(green?.5:1);want+=d;c._wacc=(c._wacc||0)+d;const k=Math.floor(c._wacc);if(!k)continue;c._wacc-=k;
+    /* the nearest standing forest within reach of this town */
+    const cand=[];for(let dy=-reach;dy<=reach;dy++)for(let dx=-reach;dx<=reach;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const i=Y*W+X,dd=Math.hypot(dx,dy);
+      if(dd>reach+.5||!isForest(i)||forestGrowth(i)<.85)continue;if(owner[i]>=0&&owner[i]!==n.id)continue;if(typeof occupied!=='undefined'&&occupied.has(i))continue;cand.push([dd+hash(i*1.7+year*.01)*1.2,i])}
+    cand.sort((a,b)=>a[0]-b[0]);let got=0;for(const [,i] of cand){if(got>=k)break;C[i]=year||1;got++;c._lumber={i,y:year}}cut+=got;
+    /* told once per town, not every time the regrown wood is cut again */
+    if(!got&&!c.bareWoods&&c._lumber&&important(n)){c.bareWoods=1;log(`The woods around ${c.name} have all been cut for timber; its woodcutters must wait for them to grow back.`,'era')}}
+  /* every felled tile yields timber; towns burn and build with most of what they need */
+  n.wood=clamp(n.wood+cut*10-want*9,0,200);
+  /* a shortage is told at most once an age */
+  const short=n.wood<1&&cut<want*.5;if(short&&n.woodShortEra!==n.era&&n.era>=1&&n.era<=4&&important(n)){n.woodShortEra=n.era;log(`${n.name} is running short of timber.`,'era')}n._woodShort=short}
 /* every few years each nation counts what it holds and what it gets through trade */
-function resourceTick(n){if(year%5!==n.id%5)return;const has={wood:0,stone:0,iron:0,gold:0,oil:0};
-  for(let i=0;i<N;i++){if(owner[i]!==n.id)continue;const b=biome[i];if(b===5||b===6)has.wood++;else if(b===11)has.stone++}
+function resourceTick(n){if(year%5!==n.id%5)return;logTick(n);const has={wood:0,stone:0,iron:0,gold:0,oil:0};
+  /* timber is what the woodcutters have stacked, not the forest standing */
+  has.wood=n.wood>=5?1:0;
+  for(let i=0;i<N;i++){if(owner[i]!==n.id)continue;if(biome[i]===11)has.stone++}
   for(const d of deposits)if(owner[d.i]===n.id)has[d.k]+=1;
   const via={};for(const id of n.trade||[]){const m=nations[id];if(!m||!m.alive||!m.res)continue;for(const k of RKEYS)if(m.res.has[k]>0&&!has[k])via[k]=(via[k]||0)+1}
   const old=n.res;n.res={has,via};
@@ -27,7 +52,7 @@ function resourceTick(n){if(year%5!==n.id%5)return;const has={wood:0,stone:0,iro
 const need=(n,k)=>n.era>=RESOURCES[k].from&&n.era<=RESOURCES[k].to;
 const hasRes=(n,k)=>n.res&&(n.res.has[k]>0||(n.res.via[k]||0)>0);
 function resMod(n){const o={},m=(k,v)=>{o[k]=(o[k]||1)*v};
-  if(need(n,'wood'))m('sea',hasRes(n,'wood')?1.1:.85);
+  if(need(n,'wood')){m('sea',hasRes(n,'wood')?1.1:.85);if(!hasRes(n,'wood'))m('grow',.97)}
   if(need(n,'stone'))m('grow',hasRes(n,'stone')?1.04:.98);
   if(need(n,'iron')){if(hasRes(n,'iron'))m('mil',1.18);else m('mil',.88)}
   if(n.res.has.gold>0){m('stab',1.06);m('tech',1.05);m('belief',1.1)}
@@ -62,5 +87,5 @@ function drawDepositLabels(dpr){if(camDist>9)return;octx.textBaseline='middle';o
     octx.fillStyle='rgba(16,16,16,.7)';octx.fillRect(sx-tw/2-11*dpr,sy-8*dpr,tw+18*dpr,16*dpr);octx.fillStyle=R.col==='#2a2a2a'?'#c8c8c8':R.col;octx.beginPath();octx.arc(sx-tw/2-4*dpr,sy,3*dpr,0,7);octx.fill();
     octx.fillStyle='#ece6da';octx.fillText(R.label,sx-tw/2+1*dpr,sy)}}
 function resourceLine(n){if(!n.res)return '';const parts=[];for(const k of RKEYS){if(!need(n,k)&&!(k==='gold'&&n.res.has.gold))continue;const h=n.res.has[k],v=n.res.via[k]||0;
-    parts.push(`<span style="color:${h||v?'var(--fg)':'#c4583a'}"><i style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${RESOURCES[k].col==='#2a2a2a'?'#c8c8c8':RESOURCES[k].col};margin-right:4px"></i>${RESOURCES[k].label}${h?'':v?' (trade)':' (lacking)'}</span>`)}
+    parts.push(`<span style="color:${h||v?'var(--fg)':'#c4583a'}"><i style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${RESOURCES[k].col==='#2a2a2a'?'#c8c8c8':RESOURCES[k].col};margin-right:4px"></i>${RESOURCES[k].label}${k==='wood'&&n.wood!=null?' '+Math.round(n.wood):''}${h?'':v?' (trade)':' (lacking)'}</span>`)}
   return parts.length?`<p class="note" style="display:flex;flex-wrap:wrap;gap:4px 10px">${parts.join('')}</p>`:''}
