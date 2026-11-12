@@ -68,8 +68,8 @@ let shadowSun=-1;
 function shadowTick(){if(!renderer.shadowMap.enabled)return;renderer.shadowMap.autoUpdate=false;const now=performance.now(),
     sig=(camT.x*20|0)+','+(camT.z*20|0)+','+(camDist*10|0),moved=sig!==shadowSig,sun=(dayT*400|0),sunMoved=sun!==shadowSun,
     gap=moved?(settings.power==='saver'?66:settings.power==='max'?16:33):sunMoved?(settings.power==='saver'?500:250):(playing?1000:3000);
-  if(now-shadowAt>gap||shadowForce){shadowAt=now;shadowSig=sig;shadowSun=sun;shadowForce=false;renderer.shadowMap.needsUpdate=true}}
-let shadowForce=true;
+  if(now-shadowAt>gap||shadowForce||(shadowSoft&&now-shadowAt>(settings.power==='max'?33:settings.power==='saver'?250:100))){shadowAt=now;shadowSig=sig;shadowSun=sun;shadowForce=false;shadowSoft=false;renderer.shadowMap.needsUpdate=true}}
+let shadowForce=true,shadowSoft=false;
 /* (camera snapping to whole pixels made the view shake while it eased, so it is off) */
 const PXS={r:new THREE.Vector3(),u:new THREE.Vector3(),d:new THREE.Vector3()};
 function pixSnap(on){if(!on){if(PXS.on){cam.position.sub(PXS.d);cam.updateMatrixWorld();PXS.on=false}return}
@@ -105,7 +105,7 @@ const sunL=new THREE.DirectionalLight(0xfff1dd,2.4);sunL.castShadow=true;scene.a
 sunL.shadow.bias=-.0004;sunL.shadow.normalBias=.025;sunL.shadow.camera.near=1;sunL.shadow.camera.far=400;
 const tmpC=new THREE.Color(),tmpC2=new THREE.Color(),dummy=new THREE.Object3D(),V3=new THREE.Vector3();
 const colL=hex=>new THREE.Color(hex).convertSRGBToLinear();
-const BASE=-2.2,HS=6,SEA0=.44,R=3;let terrVer=0,terrBase=0;/* terrVer: any change to the ground; terrBase: the land itself changed, not just the flattening under a growing town */
+const BASE=-2.2,HS=6,SEA0=.44,R=3;let terrVer=0,terrBase=0,terrBio=0;/* terrVer: any change to the ground; terrBase: the land itself changed, not just the flattening under a growing town */
 
 function applyGraphics(){
   const sz=settings.quality==='high'?(settings.power==='max'?4096:2048):settings.quality==='medium'?2048:1024;
@@ -414,66 +414,105 @@ function vertY(u,v,FB){const tx=u/R-.5,ty=v/R-.5,hb=sampleH(tx,ty);
 function tileSlope(i){const x=i%W,yy=(i/W)|0;let mn=1e9,mx=-1e9;for(let b=0;b<=R;b++)for(let a=0;a<=R;a++){const q=VY[(yy*R+b)*VW+x*R+a];if(q<mn)mn=q;if(q>mx)mx=q}return mx-mn}
 /* when only the towns changed (one grew, one was founded), just the ground around those towns is redone */
 let LAY={base:-1,wy:null,keys:null},LAYOLD=null,LAYDIRTY=null;
+/* the heights the ground was last laid out from: when only a corner of the land changed (a raised hill, a carved river), only that corner is laid out again */
+let HPREV=null,LAYBIO=-1;
+function heightChange(){if(!HPREV||HPREV.length!==N)return null;let x0=W,x1=-1,y0=H,y1=-1,n=0;
+  for(let i=0;i<N;i++)if(h[i]!==HPREV[i]){const x=i%W,y=(i/W)|0;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;n++}
+  return n?[x0,x1,y0,y1]:'same'}
 function layoutTerrain(){const wy=shapeH(sea),g0=terrainMesh.geometry;
-  if(LAY.base===terrBase&&LAY.wy===wy&&LAY.keys&&g0.attributes.normal&&VY&&tslope.length===N&&layoutPatch())return 'patch';
-  terrVer++;
-  waterY=wy;terrU.uWaterY.value=waterY;
-  const pos=terrainMesh.geometry.attributes.position.array;
-  flatSig=citySig();flatSpots=townSpots();
-  const FB=spotGrid(flatSpots);
-  for(let v=0;v<VH;v++)for(let u=0;u<VW;u++){const k=v*VW+u,y=vertY(u,v,FB);VY[k]=y;pos[k*3]=u/R-W/2;pos[k*3+1]=y;pos[k*3+2]=v/R-H/2}
-  tslope=new Float32Array(N);for(let i=0;i<N;i++)tslope[i]=tileSlope(i);
-  const g=terrainMesh.geometry;g.attributes.position.needsUpdate=true;g.computeVertexNormals();g.computeBoundingSphere();g.computeBoundingBox();
-  colorTerrain();layoutSkirt();layoutWater();
-  LAY={base:terrBase,wy,keys:new Set(flatSpots.map(f=>f.key))};LAYOLD=null;LAYDIRTY=null;return 'full'}
-function layoutPatch(){const spots=townSpots(),keys=new Set(spots.map(f=>f.key)),changed=[];
+  if(!LAY_PEND&&LAY.wy===wy&&LAY.keys&&g0.attributes.normal&&VY&&tslope.length===N){const hc=heightChange();
+    if(hc==='same'||(hc&&(hc[1]-hc[0]+5)*(hc[3]-hc[2]+5)<N*.3)){
+      if(hc!=='same'){HPREV.set(h);relayRect(hc)}
+      const bio=LAYBIO!==terrBio;LAYBIO=terrBio;if(bio)terrVer++;
+      if(layoutPatch(bio)){return 'patch'}}}
+  for(const f of layoutFullSteps(wy))f();return 'full'}
+/* the whole ground laid out again, as a list of steps. Called from the frame loop the steps run one per frame, so a shift of the coastline never freezes the view. */
+let LAY_TOKEN=0,LAY_PEND=0;
+function layoutFullSteps(wy){const tok=++LAY_TOKEN;LAY_PEND=tok;let FB;const g=terrainMesh.geometry,st=[];
+  st.push(()=>{terrBase++;terrVer++;HPREV=h.slice();LAYBIO=terrBio;RLY_RECT=null;waterY=wy;terrU.uWaterY.value=waterY;flatSig=citySig();flatSpots=townSpots();FB=spotGrid(flatSpots)});
+  const CH=Math.ceil(VH/4);for(let c=0;c<VH;c+=CH){const a=c,b=Math.min(VH,c+CH);st.push(()=>{const pos=g.attributes.position.array;
+    for(let v=a;v<b;v++)for(let u=0;u<VW;u++){const k=v*VW+u,y=vertY(u,v,FB);VY[k]=y;pos[k*3]=u/R-W/2;pos[k*3+1]=y;pos[k*3+2]=v/R-H/2}g.attributes.position.needsUpdate=true})}
+  st.push(()=>{const t=new Float32Array(N);for(let i=0;i<N;i++)t[i]=tileSlope(i);tslope=t;g.computeVertexNormals();g.computeBoundingSphere();g.computeBoundingBox()});
+  st.push(()=>colorTerrain());
+  st.push(()=>{layoutSkirt();layoutWater();LAY={base:terrBase,wy,keys:new Set(flatSpots.map(f=>f.key))};LAYOLD=null;LAYDIRTY=null;if(LAY_PEND===tok)LAY_PEND=0});
+  return st.map(f=>{const j=()=>{if(tok===LAY_TOKEN)f()};j.terr=1;return j})}
+/* for the frame loop: the cheap patch runs now; a full layout comes back as steps to spread over frames */
+function layoutTerrainJobs(){if(LAY_PEND){terrainDirty=true;return null}const wy=shapeH(sea),g0=terrainMesh.geometry;
+  if(LAY.wy===wy&&LAY.keys&&g0.attributes.normal&&VY&&tslope.length===N){const hc=heightChange();if(hc==='same'||(hc&&(hc[1]-hc[0]+5)*(hc[3]-hc[2]+5)<N*.3)){layoutTerrain();return null}}
+  return layoutFullSteps(wy)}
+/* lay out one rectangle of tiles again after the heights under it changed */
+function relayRect(hc){const x0=Math.max(0,hc[0]-2),x1=Math.min(W-1,hc[1]+2),y0=Math.max(0,hc[2]-2),y1=Math.min(H-1,hc[3]+2);
+  if(!LAYOLD){LAYOLD=VY.slice();LAYDIRTY=new Set()}terrVer++;const FB=spotGrid(flatSpots);
+  relayVerts(Math.max(0,x0*R-1),Math.min(VW-1,(x1+1)*R+1),Math.max(0,y0*R-1),Math.min(VH-1,(y1+1)*R+1),FB);
+  /* towns standing on the changed ground are drawn again on the new ground */
+  for(const n of nations)if(n.alive)for(const c of n.cities)if(c.x>=x0-4&&c.x<=x1+4&&c.y>=y0-4&&c.y<=y1+4)c._gv=(c._gv||0)+1;
+  RLY_RECT=RLY_RECT?[Math.min(RLY_RECT[0],x0*R-2),Math.max(RLY_RECT[1],(x1+1)*R+2),Math.min(RLY_RECT[2],y0*R-2),Math.max(RLY_RECT[3],(y1+1)*R+2)]:[x0*R-2,(x1+1)*R+2,y0*R-2,(y1+1)*R+2]}
+let RLY_RECT=null;
+/* heights, normals and slopes of the vertices in one rectangle */
+function relayVerts(u0,u1,v0,v1,FB){const g=terrainMesh.geometry,pos=g.attributes.position.array,nor=g.attributes.normal.array;
+  for(let v=v0;v<=v1;v++)for(let u=u0;u<=u1;u++){const k=v*VW+u,y=vertY(u,v,FB);VY[k]=y;pos[k*3+1]=y}
+  const a0=Math.max(0,u0-1),a1=Math.min(VW-1,u1+1),b0=Math.max(0,v0-1),b1=Math.min(VH-1,v1+1),inR=(u,v)=>u>=a0&&u<=a1&&v>=b0&&v<=b1;
+  for(let v=b0;v<=b1;v++)for(let u=a0;u<=a1;u++){const k=(v*VW+u)*3;nor[k]=nor[k+1]=nor[k+2]=0}
+  const P=(i,o)=>pos[i*3+o],face=(A,B,C)=>{const cbx=P(C,0)-P(B,0),cby=P(C,1)-P(B,1),cbz=P(C,2)-P(B,2),abx=P(A,0)-P(B,0),aby=P(A,1)-P(B,1),abz=P(A,2)-P(B,2);
+    const nx=cby*abz-cbz*aby,ny=cbz*abx-cbx*abz,nz=cbx*aby-cby*abx;for(const q of [A,B,C]){const qu=q%VW,qv=(q/VW)|0;if(!inR(qu,qv))continue;nor[q*3]+=nx;nor[q*3+1]+=ny;nor[q*3+2]+=nz}};
+  for(let v=Math.max(0,b0-1);v<Math.min(VH-1,b1+1);v++)for(let u=Math.max(0,a0-1);u<Math.min(VW-1,a1+1);u++){const A=v*VW+u,B=A+1,C=A+VW,D=C+1;face(A,C,B);face(B,C,D)}
+  for(let v=b0;v<=b1;v++)for(let u=a0;u<=a1;u++){const k=(v*VW+u)*3,l=Math.hypot(nor[k],nor[k+1],nor[k+2])||1;nor[k]/=l;nor[k+1]/=l;nor[k+2]/=l}
+  if(typeof RIB_DIRTY!=='undefined')RIB_DIRTY.push([u0/R-W/2-.3,u1/R-W/2+.3,v0/R-H/2-.3,v1/R-H/2+.3]);
+  for(let ty=Math.max(0,Math.floor(v0/R)-1);ty<=Math.min(H-1,Math.ceil(v1/R));ty++)for(let tx=Math.max(0,Math.floor(u0/R)-1);tx<=Math.min(W-1,Math.ceil(u1/R));tx++){const i=ty*W+tx;tslope[i]=tileSlope(i);LAYDIRTY.add(i)}
+  g.attributes.position.needsUpdate=true;g.attributes.normal.needsUpdate=true}
+function layoutPatch(bio){const spots=townSpots(),keys=new Set(spots.map(f=>f.key)),changed=[];
   for(const f of spots)if(!LAY.keys.has(f.key))changed.push(f);
   for(const f of flatSpots)if(!keys.has(f.key))changed.push(f);
-  if(!changed.length){flatSig=citySig();return true}if(changed.length>16)return false;
+  if(changed.length>16)return false;
+  if(!changed.length){flatSig=citySig();const r=RLY_RECT;RLY_RECT=null;if(bio)colorTerrain();else if(r)colorTerrain(r);if(r){layoutWater(r);g0b()}return true}
   if(!LAYOLD){LAYOLD=VY.slice();LAYDIRTY=new Set()}
-  terrVer++;flatSig=citySig();flatSpots=spots;LAY.keys=keys;const FB=spotGrid(spots),g=terrainMesh.geometry,pos=g.attributes.position.array,nor=g.attributes.normal.array;
-  for(const f of changed){const u0=Math.max(0,Math.floor((f.x+.5-f.r-.2)*R)),u1=Math.min(VW-1,Math.ceil((f.x+.5+f.r+.2)*R)),v0=Math.max(0,Math.floor((f.y+.5-f.r-.2)*R)),v1=Math.min(VH-1,Math.ceil((f.y+.5+f.r+.2)*R));
-    for(let v=v0;v<=v1;v++)for(let u=u0;u<=u1;u++){const k=v*VW+u,y=vertY(u,v,FB);VY[k]=y;pos[k*3+1]=y}
-    /* normals, the same way the full rebuild makes them: each vertex adds up the faces around it */
-    const a0=Math.max(0,u0-1),a1=Math.min(VW-1,u1+1),b0=Math.max(0,v0-1),b1=Math.min(VH-1,v1+1),inR=(u,v)=>u>=a0&&u<=a1&&v>=b0&&v<=b1;
-    for(let v=b0;v<=b1;v++)for(let u=a0;u<=a1;u++){const k=(v*VW+u)*3;nor[k]=nor[k+1]=nor[k+2]=0}
-    const P=(i,o)=>pos[i*3+o],face=(A,B,C)=>{const cbx=P(C,0)-P(B,0),cby=P(C,1)-P(B,1),cbz=P(C,2)-P(B,2),abx=P(A,0)-P(B,0),aby=P(A,1)-P(B,1),abz=P(A,2)-P(B,2);
-      const nx=cby*abz-cbz*aby,ny=cbz*abx-cbx*abz,nz=cbx*aby-cby*abx;for(const q of [A,B,C]){const qu=q%VW,qv=(q/VW)|0;if(!inR(qu,qv))continue;nor[q*3]+=nx;nor[q*3+1]+=ny;nor[q*3+2]+=nz}};
-    for(let v=Math.max(0,b0-1);v<Math.min(VH-1,b1+1);v++)for(let u=Math.max(0,a0-1);u<Math.min(VW-1,a1+1);u++){const A=v*VW+u,B=A+1,C=A+VW,D=C+1;face(A,C,B);face(B,C,D)}
-    for(let v=b0;v<=b1;v++)for(let u=a0;u<=a1;u++){const k=(v*VW+u)*3,l=Math.hypot(nor[k],nor[k+1],nor[k+2])||1;nor[k]/=l;nor[k+1]/=l;nor[k+2]/=l}
-    if(typeof RIB_DIRTY!=='undefined')RIB_DIRTY.push([f.x-f.r-W/2+.5-.3,f.x+f.r-W/2+.5+.3,f.y-f.r-H/2+.5-.3,f.y+f.r-H/2+.5+.3]);
-    for(let ty=Math.max(0,Math.floor(v0/R)-1);ty<=Math.min(H-1,Math.ceil(v1/R));ty++)for(let tx=Math.max(0,Math.floor(u0/R)-1);tx<=Math.min(W-1,Math.ceil(u1/R));tx++){const i=ty*W+tx;tslope[i]=tileSlope(i);LAYDIRTY.add(i)}}
-  g.attributes.position.needsUpdate=true;g.attributes.normal.needsUpdate=true;
-  colorTerrain();layoutWater();return true}
+  terrVer++;flatSig=citySig();flatSpots=spots;LAY.keys=keys;const FB=spotGrid(spots);
+  const RU=RLY_RECT||[1e9,-1,1e9,-1];RLY_RECT=null;for(const f of changed){const u0=Math.max(0,Math.floor((f.x+.5-f.r-.2)*R)),u1=Math.min(VW-1,Math.ceil((f.x+.5+f.r+.2)*R)),v0=Math.max(0,Math.floor((f.y+.5-f.r-.2)*R)),v1=Math.min(VH-1,Math.ceil((f.y+.5+f.r+.2)*R));RU[0]=Math.min(RU[0],u0-2);RU[1]=Math.max(RU[1],u1+2);RU[2]=Math.min(RU[2],v0-2);RU[3]=Math.max(RU[3],v1+2);
+    relayVerts(u0,u1,v0,v1,FB)}
+  if(bio)colorTerrain();else colorTerrain(RU);layoutWater(RU);g0b();return true}
+function g0b(){const g=terrainMesh.geometry;g.computeBoundingSphere();g.computeBoundingBox()}
 /* the ground height in an older copy of the heights, to move trees by as much as the ground under them moved */
 function groundYIn(A,x,z){let u=(x+W/2)*R,v=(z+H/2)*R;u=clamp(u,0,VW-1.001);v=clamp(v,0,VH-1.001);const u0=u|0,v0=v|0,fu=u-u0,fv=v-v0,k=v0*VW+u0;
   return lerp(lerp(A[k],A[k+1],fu),lerp(A[k+VW],A[k+VW+1],fu),fv)}
-function colorTerrain(){
+/* ground colours. Every vertex blends the colours of the four tiles around it, then shore sand, rock, snow and the look's tint.
+   It can redo just one rectangle (a town that grew), and it makes no garbage: the per-row and per-column blend weights are worked out once. */
+let CT_TC=null,CT_SOOT=null,CT_U=null,CT_V=null;
+function ctTables(){if(CT_U)return;CT_U={x0:new Int32Array(VW),x1:new Int32Array(VW),f:new Float32Array(VW)};CT_V={y0:new Int32Array(VH),y1:new Int32Array(VH),f:new Float32Array(VH)};
+  for(let u=0;u<VW;u++){const t=clamp(u/R-.5,0,W-1),x0=Math.floor(t);CT_U.x0[u]=x0;CT_U.x1[u]=Math.min(x0+1,W-1);CT_U.f[u]=t-x0}
+  for(let v=0;v<VH;v++){const t=clamp(v/R-.5,0,H-1),y0=Math.floor(t);CT_V.y0[v]=y0*W;CT_V.y1[v]=Math.min(y0+1,H-1)*W;CT_V.f[v]=t-y0}
+  CT_TC=new Float32Array(N*3);CT_SOOT=new Float32Array(N)}
+function colorTerrain(rect){ctTables();
   const TINT=LK.tint||null;if(!!LK.flat!==terrainMat.flatShading){terrainMat.flatShading=!!LK.flat;terrainMat.needsUpdate=true}
   waterU.uDeep.value.copy(colL(LK.deep||0x0f3f63));waterU.uShallow.value.copy(colL(LK.shallow||0x2f9bb0));
-  const col=terrainMesh.geometry.attributes.color.array,nor=terrainMesh.geometry.attributes.normal.array;
-  const TC=new Float32Array(N*3),SOOT=new Float32Array(N);
-  for(const n of nations){if(!n.alive||n.era<5||n.era>6)continue;const k_=n.era===5?1:.4;n.cities.forEach((c,ci)=>{const R2=(ci===0?3.2:2.2)+Math.min(2,n.pop/Math.max(1,n.cities.length)/600);
-    for(let dy=-Math.ceil(R2);dy<=Math.ceil(R2);dy++)for(let dx=-Math.ceil(R2);dx<=Math.ceil(R2);dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d>R2)continue;const j=Y*W+X;SOOT[j]=Math.max(SOOT[j],k_*(1-d/R2))}})}
-  const GRD=LK.ground||{};for(let i=0;i<N;i++){const c=typeof marshAt==='function'&&marshAt(i)?MARSH_C:GRD[biome[i]]||GROUND[biome[i]],v=1-.1*hash(i*1.7);let r=c[0]*v,g=c[1]*v,b=c[2]*v;
-    if(typeof scorched!=='undefined'&&scorched&&scorched[i]>0&&!isWater(i)){const t=Math.min(1,scorched[i]/18)*.85;r=lerp(r,56,t);g=lerp(g,50,t);b=lerp(b,44,t)}
+  const attr=terrainMesh.geometry.attributes.color,col=attr.array,nor=terrainMesh.geometry.attributes.normal.array;
+  const TC=CT_TC,SOOT=CT_SOOT;SOOT.fill(0);
+  /* the tile rectangle that feeds this vertex rectangle */
+  let u0=0,u1=VW-1,v0=0,v1=VH-1;if(rect){u0=Math.max(0,rect[0]|0);u1=Math.min(VW-1,rect[1]|0);v0=Math.max(0,rect[2]|0);v1=Math.min(VH-1,rect[3]|0)}
+  const tx0=Math.max(0,CT_U.x0[u0]-1),tx1=Math.min(W-1,CT_U.x1[u1]+1),ty0=Math.max(0,CT_V.y0[v0]/W-1),ty1=Math.min(H-1,CT_V.y1[v1]/W+1);
+  for(const n of nations){if(!n.alive||n.era<5||n.era>6)continue;const k_=n.era===5?1:.4;n.cities.forEach((c,ci)=>{const R2=(ci===0?3.2:2.2)+Math.min(2,n.pop/Math.max(1,n.cities.length)/600),RC=Math.ceil(R2);
+    if(c.x+RC<tx0||c.x-RC>tx1||c.y+RC<ty0||c.y-RC>ty1)return;
+    for(let dy=-RC;dy<=RC;dy++)for(let dx=-RC;dx<=RC;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d>R2)continue;const j=Y*W+X;SOOT[j]=Math.max(SOOT[j],k_*(1-d/R2))}})}
+  const GRD=LK.ground||{},mA=typeof marshAt==='function',sc=typeof scorched!=='undefined'&&scorched;
+  for(let ty=ty0;ty<=ty1;ty++)for(let tx=tx0;tx<=tx1;tx++){const i=ty*W+tx;const c=mA&&marshAt(i)?MARSH_C:GRD[biome[i]]||GROUND[biome[i]],v=1-.1*hash(i*1.7);let r=c[0]*v,g=c[1]*v,b=c[2]*v;
+    if(sc&&scorched[i]>0&&!isWater(i)){const t=Math.min(1,scorched[i]/18)*.85;r=lerp(r,56,t);g=lerp(g,50,t);b=lerp(b,44,t)}
     if(SOOT[i]>0&&!isWater(i)){const t=SOOT[i]*.5;r=lerp(r,82,t);g=lerp(g,76,t);b=lerp(b,62,t)}
     TC[i*3]=r;TC[i*3+1]=g;TC[i*3+2]=b}
-  const snowY=shapeH(.9+(climate.temp-.5)*.3),cold=climate.temp<.3;
-  for(let v=0;v<VH;v++)for(let u=0;u<VW;u++){const k=v*VW+u;
-    let tx=clamp(u/R-.5,0,W-1),ty=clamp(v/R-.5,0,H-1);const x0=Math.floor(tx),y0=Math.floor(ty),x1=Math.min(x0+1,W-1),y1=Math.min(y0+1,H-1),fx=tx-x0,fy=ty-y0;
-    const w=[(1-fx)*(1-fy),fx*(1-fy),(1-fx)*fy,fx*fy],ts=[y0*W+x0,y0*W+x1,y1*W+x0,y1*W+x1];
-    let r=0,g=0,b=0;for(let q=0;q<4;q++){r+=TC[ts[q]*3]*w[q];g+=TC[ts[q]*3+1]*w[q];b+=TC[ts[q]*3+2]*w[q]}
-    const y=VY[k];
-    if(y<waterY-.01){const t=smooth(0,1.6,waterY-y);r=lerp(SAND[0],SEABED[0]*.55,t);g=lerp(SAND[1],SEABED[1]*.55,t);b=lerp(SAND[2],SEABED[2]*.6,t)}
-    else{
-      if(y<waterY+.045&&!cold){const t=1-smooth(waterY+.012,waterY+.045,y);r=lerp(r,SAND[0],t);g=lerp(g,SAND[1],t);b=lerp(b,SAND[2],t)}
-      const sl=1-nor[k*3+1];if(sl>.32){const t=smooth(.32,.62,sl)*.75;r=lerp(r,ROCK[0],t);g=lerp(g,ROCK[1],t);b=lerp(b,ROCK[2],t)}
-      if(y>snowY){const t=smooth(snowY,snowY+.45,y)*(sl>.5?.5:1);r=lerp(r,SNOW[0],t);g=lerp(g,SNOW[1],t);b=lerp(b,SNOW[2],t)}}
-    if(TINT){const q=TINT[3]*(y<waterY-.01?.4:1);r=lerp(r,TINT[0],q);g=lerp(g,TINT[1],q);b=lerp(b,TINT[2],q)}
-    const l=(r+g+b)/3,s=LK.sat;r=l+(r-l)*s;g=l+(g-l)*s;b=l+(b-l)*s;
-    col[k*3]=LIN[clamp(r,0,255)|0];col[k*3+1]=LIN[clamp(g,0,255)|0];col[k*3+2]=LIN[clamp(b,0,255)|0]}
-  terrainMesh.geometry.attributes.color.needsUpdate=true;
+  const snowY=shapeH(.9+(climate.temp-.5)*.3),cold=climate.temp<.3,sat=LK.sat,wl=waterY-.01,sandHi=waterY+.045,sandLo=waterY+.012;
+  const SA0=SAND[0],SA1=SAND[1],SA2=SAND[2],SB0=SEABED[0]*.55,SB1=SEABED[1]*.55,SB2=SEABED[2]*.6,TI=TINT||[0,0,0,0];
+  for(let v=v0;v<=v1;v++){const ya=CT_V.y0[v],yb=CT_V.y1[v],fy=CT_V.f[v];
+    for(let u=u0;u<=u1;u++){const k=v*VW+u,xa=CT_U.x0[u],xb=CT_U.x1[u],fx=CT_U.f[u];
+      const w0=(1-fx)*(1-fy),w1=fx*(1-fy),w2=(1-fx)*fy,w3=fx*fy,a=(ya+xa)*3,bq=(ya+xb)*3,cq=(yb+xa)*3,dq=(yb+xb)*3;
+      let r=TC[a]*w0+TC[bq]*w1+TC[cq]*w2+TC[dq]*w3,g=TC[a+1]*w0+TC[bq+1]*w1+TC[cq+1]*w2+TC[dq+1]*w3,b=TC[a+2]*w0+TC[bq+2]*w1+TC[cq+2]*w2+TC[dq+2]*w3;
+      const y=VY[k];
+      if(y<wl){const t=smooth(0,1.6,waterY-y);r=SA0+(SB0-SA0)*t;g=SA1+(SB1-SA1)*t;b=SA2+(SB2-SA2)*t}
+      else{
+        if(y<sandHi&&!cold){const t=1-smooth(sandLo,sandHi,y);r+=(SA0-r)*t;g+=(SA1-g)*t;b+=(SA2-b)*t}
+        const sl=1-nor[k*3+1];if(sl>.32){const t=smooth(.32,.62,sl)*.75;r+=(ROCK[0]-r)*t;g+=(ROCK[1]-g)*t;b+=(ROCK[2]-b)*t}
+        if(y>snowY){const t=smooth(snowY,snowY+.45,y)*(sl>.5?.5:1);r+=(SNOW[0]-r)*t;g+=(SNOW[1]-g)*t;b+=(SNOW[2]-b)*t}}
+      if(TINT){const q=TI[3]*(y<wl?.4:1);r+=(TI[0]-r)*q;g+=(TI[1]-g)*q;b+=(TI[2]-b)*q}
+      const l=(r+g+b)/3;r=l+(r-l)*sat;g=l+(g-l)*sat;b=l+(b-l)*sat;
+      col[k*3]=LIN[r<0?0:r>255?255:r|0];col[k*3+1]=LIN[g<0?0:g>255?255:g|0];col[k*3+2]=LIN[b<0?0:b>255?255:b|0]}}
+  attr.needsUpdate=true;
 }
 function layoutSkirt(){
   const pos=skirtMesh.geometry.attributes.position.array,col=skirtMesh.geometry.attributes.color.array;let n=0;
@@ -486,9 +525,10 @@ function layoutSkirt(){
   for(let v=0;v<VH-1;v++){const z0=v/R-H/2,z1=(v+1)/R-H/2;seg(v*VW,(v+1)*VW,-W/2,z0,-W/2,z1);seg(v*VW+VW-1,(v+1)*VW+VW-1,W/2,z0,W/2,z1)}
   const g=skirtMesh.geometry;g.attributes.position.needsUpdate=true;g.attributes.color.needsUpdate=true;g.computeVertexNormals();g.computeBoundingSphere();
 }
-function layoutWater(){
+function layoutWater(rect){
   const g=waterMesh.geometry,p=g.attributes.position.array,dA=g.attributes.aDepth.array,iA=g.attributes.aIce.array;
-  for(let k=0;k<dA.length;k++){const x=p[k*3],z=p[k*3+2];dA[k]=Math.max(0,waterY-groundY(x,z));
+  const X0=rect?rect[0]/R-W/2-.5:-1e9,X1=rect?rect[1]/R-W/2+.5:1e9,Z0=rect?rect[2]/R-H/2-.5:-1e9,Z1=rect?rect[3]/R-H/2+.5:1e9;
+  for(let k=0;k<dA.length;k++){const x=p[k*3],z=p[k*3+2];if(x<X0||x>X1||z<Z0||z>Z1)continue;dA[k]=Math.max(0,waterY-groundY(x,z));
     const tx=clamp(Math.floor(x+W/2),0,W-1),ty=clamp(Math.floor(z+H/2),0,H-1);iA[k]=biome[ty*W+tx]===2?1:0}
   g.attributes.aDepth.needsUpdate=true;g.attributes.aIce.needsUpdate=true;
   waterMesh.position.y=waterY;waterSide.position.y=BASE;waterSide.scale.y=waterY-BASE-.03;ocean.position.y=waterY;

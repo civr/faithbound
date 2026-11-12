@@ -151,7 +151,7 @@ function updateLiving(dt,k,now){
       const by=waterY+.006+Math.sin(now/500+ph)*.003,tint=[0xffffff,0xf2e6d6,0xdfe8f2,0xf0dcd0][(j+b)%4];
       if(fishBoatModel()){addM('m_boatwsail',x,by-.012,z,.5,ph,null,null,null,null,Math.sin(now/700+ph)*.04);continue}
       add('fbHull',x,by,z,.09,.024,.034,ph,tint,Math.sin(now/700+ph)*.04);if((j+b)%2)add('fbSail',x,by,z,.09,.03,.09,ph,0xffffff,Math.sin(now/700+ph)*.04)}}}
-  for(const nm of LIFE_KITS){const K=KITS[nm];K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;if(K.mesh.instanceColor)K.mesh.instanceColor.needsUpdate=true}
+  for(const nm of LIFE_KITS){const K=KITS[nm];kitUp(K,K.k)}
   drawAvatars(dt,now)}
 
 /* ---------- the god's air: cleanse the skies of smoke ---------- */

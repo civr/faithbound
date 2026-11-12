@@ -157,8 +157,14 @@ function palmGeo(seed){const r=mulberry32(seed),S=softParts();
 
 /* ---------- instanced kits ---------- */
 const KITS={};
-function kit(name,geo,mat,max,shadow){const m=new THREE.InstancedMesh(geo,mat,max);m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  for(let i=0;i<max;i++)m.setColorAt(i,tmpC.setRGB(1,1,1));m.count=0;m.frustumCulled=false;m.castShadow=shadow!==false;m.receiveShadow=true;scene.add(m);KITS[name]={mesh:m,k:0,max}}
+/* a kit starts small and doubles as it fills, up to its maximum: most kits only ever hold a few hundred things, and reserving the maximum for every one of them took 150 MB */
+function kit(name,geo,mat,max,shadow){const cap=Math.min(max,128),m=new THREE.InstancedMesh(geo,mat,cap);m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  for(let i=0;i<cap;i++)m.setColorAt(i,tmpC.setRGB(1,1,1));m.count=0;m.frustumCulled=false;m.castShadow=shadow!==false;m.receiveShadow=true;scene.add(m);KITS[name]={mesh:m,k:0,max,cap}}
+function kitGrow(K,need){if(need<=K.cap)return true;if(K.cap>=K.max)return false;const nc=Math.min(K.max,Math.max(need,K.cap*2)),m=K.mesh;
+  m.dispatchEvent({type:'dispose'});/* frees the old buffers on the graphics card */
+  const A=new Float32Array(nc*16);A.set(m.instanceMatrix.array);const cnt=m.count;m.instanceMatrix=new THREE.InstancedBufferAttribute(A,16);m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const C=new Float32Array(nc*3).fill(1);if(m.instanceColor)C.set(m.instanceColor.array);m.instanceColor=new THREE.InstancedBufferAttribute(C,3);m.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  m.count=cnt;K.cap=nc;return true}
 const treeMat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.9});
 
 const TREEU={uEarth:{value:0},uTime:{value:0},tL:{value:null},tB:{value:null},nL:{value:null},uPh:{value:0}};
@@ -270,10 +276,15 @@ function cullStoreOld(K){const n=K.k,A=K.mesh.instanceMatrix.array;K.mm=A.slice(
   for(let i=0;i<n;i++){const o=i*16;cs[i*4]=M[o]*bc.x+M[o+4]*bc.y+M[o+8]*bc.z+M[o+12];cs[i*4+1]=M[o+1]*bc.x+M[o+5]*bc.y+M[o+9]*bc.z+M[o+13];cs[i*4+2]=M[o+2]*bc.x+M[o+6]*bc.y+M[o+10]*bc.z+M[o+14];
     cs[i*4+3]=br*Math.max(Math.hypot(M[o],M[o+1],M[o+2]),Math.hypot(M[o+4],M[o+5],M[o+6]),Math.hypot(M[o+8],M[o+9],M[o+10]))}
   K.culled=true;CULLK.dirty=true}
+/* copying an instance without making a subarray each time */
+/* show the first n instances of a kit, sending only those to the graphics card */
+function kitUp(K,n){K.mesh.count=n;const c=Math.max(1,n),IM=K.mesh.instanceMatrix;IM.needsUpdate=true;IM.updateRange.offset=0;IM.updateRange.count=c*16;const IC=K.mesh.instanceColor;if(IC){IC.needsUpdate=true;IC.updateRange.offset=0;IC.updateRange.count=c*3}}
+function copy16(D,d,S,o){for(let j=0;j<16;j++)D[d+j]=S[o+j]}
+function copy3(D,d,S,o){D[d]=S[o];D[d+1]=S[o+1];D[d+2]=S[o+2]}
 function cullKit(K,P,margin){const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
   for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
     for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}
-    if(!ok)continue;A.set(M.subarray(i*16,i*16+16),v*16);if(C&&MC)C.set(MC.subarray(i*3,i*3+3),v*3);v++}
+    if(!ok)continue;copy16(A,v*16,M,i*16);if(C&&MC)copy3(C,v*3,MC,i*3);v++}
   K.mesh.count=v;const IM=K.mesh.instanceMatrix;IM.needsUpdate=true;if(IM.updateRange){IM.updateRange.offset=0;IM.updateRange.count=v*16}
   if(K.mesh.instanceColor){const IC=K.mesh.instanceColor;IC.needsUpdate=true;if(IC.updateRange){IC.updateRange.offset=0;IC.updateRange.count=v*3}}}
 /* re-cull when the camera has moved or turned, at most a dozen times a second while it moves */
@@ -284,8 +295,9 @@ function cullTick(){if(typeof cam==='undefined')return;const now=performance.now
   const P=CULLK.fr.planes,margin=.6+(typeof camDist!=='undefined'?camDist:10)*.12;
   for(const nm in KITS){const K=KITS[nm];if(K.culled&&K.n)cullKit(K,P,margin);else if(K.culled){K.mesh.count=0}}
   if(typeof shadowForce!=='undefined')shadowForce=true}
-function kitCommit(names){if(typeof shadowForce!=='undefined')shadowForce=true;for(const n of names){const K=KITS[n];if(cullable(n)){cullStore(K);continue}K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;if(K.mesh.instanceColor)K.mesh.instanceColor.needsUpdate=true}}
-function add(name,x,y,z,sx,sy,sz,rot,hex,tilt){const K=KITS[name];if(K.k>=K.max)return;if(CAPT)CAPT.push(x,z,sx,sz,rot||0);
+/* static things (towns, trees) redraw the shadows at once; moving things (animals, birds, grass) only ask for a redraw a few times a second */
+function kitCommit(names){if(typeof shadowForce!=='undefined'){if(names.some(cullable))shadowForce=true;else shadowSoft=true}for(const n of names){const K=KITS[n];if(cullable(n)){cullStore(K);continue}K.mesh.count=K.k;const IM=K.mesh.instanceMatrix;IM.needsUpdate=true;IM.updateRange.offset=0;IM.updateRange.count=Math.max(1,K.k)*16;if(K.mesh.instanceColor){const IC=K.mesh.instanceColor;IC.needsUpdate=true;IC.updateRange.offset=0;IC.updateRange.count=Math.max(1,K.k)*3}}}
+function add(name,x,y,z,sx,sy,sz,rot,hex,tilt){const K=KITS[name];if(K.k>=K.cap&&!kitGrow(K,K.k+1))return;if(CAPT)CAPT.push(x,z,sx,sz,rot||0);
   dummy.position.set(x,y,z);dummy.rotation.set(tilt||0,rot||0,0);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();
   K.mesh.setMatrixAt(K.k,dummy.matrix);K.mesh.setColorAt(K.k,tmpC.set(hex==null?0xffffff:hex).convertSRGBToLinear());K.k++;
   if(REC){const r=REC.k[name]||(REC.k[name]=[]);const m=dummy.matrix.elements;for(let i=0;i<16;i++)r.push(m[i]);r.push(tmpC.r,tmpC.g,tmpC.b)}
@@ -888,6 +900,8 @@ function updateGrass(now){grassU.uTime.value=now/1000;
   for(let gx=-R;gx<=R;gx+=sp)for(let gz=-R;gz<=R;gz+=sp){const dd=gx*gx+gz*gz;if(dd>R*R)continue;
     const ax=Math.round((ox+gx)/sp),az=Math.round((oz+gz)/sp),hs=hash(ax*73.1+az*19.7),x=ax*sp+(hs-.5)*sp*.9,z=az*sp+(hash(ax*11.3+az*91.1)-.5)*sp*.9;
     const i=tileAt(x,z);if(i<0)continue;const b=biome[i];if(!(b===4||b===8||b===5||b===9||b===6||b===3))continue;
+    /* without grass blades only the odd flower or pebble is drawn: skip the costly checks for the spots that get neither */
+    if(!settings.grassBlades){const fq=hash(ax*3.7+az*5.3);if(fq>=.048&&fq<=.993)continue}
     if(fieldTiles.has(i)||(scorched&&scorched[i]>0)||bare.has(bk(x,z))||roadBare.has(bk(x,z)))continue;
     if(b===3&&hs<.9)continue;if((b===5||b===6)&&hs<.35)continue;if(occupied.has(i)&&hs<.25)continue;
     const y=groundY(x,z);if(y<waterY+.03)continue;
@@ -1064,11 +1078,11 @@ const townGrowth=c=>c.born==null?1:clamp((year-c.born)/200,.15,1);
 function cityKey(n,c,ci,e,lvl,gold,cap){const MR=metroRadius(n,c,cap,e),rad=Math.ceil(Math.max(MR,.6))+1;let oh=0;
   for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===n.id)oh++}oh=Math.round(oh/4)
   const far=Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
-  return [n.id,e,lvl,cap?1:0,gold?1:0,n.festival>0?1:0,c.statue?c.statue.faith:-1,c.siege>.08?1:0,c.riot&&year-c.riot<6?1:0,n.faith,n.wonder,flagKey(n.flag),cultOf(n),settings.arch,terrBase+':'+sea.toFixed(3)+':'+(c._flat||''),oh,far?1:0,Math.round(MR*4),
+  return [n.id,e,lvl,cap?1:0,gold?1:0,n.festival>0?1:0,c.statue?c.statue.faith:-1,c.siege>.08?1:0,c.riot&&year-c.riot<6?1:0,n.faith,n.wonder,flagKey(n.flag),cultOf(n),settings.arch,terrBase+':'+sea.toFixed(3)+':'+(c._flat||'')+':'+(c._gv||0),oh,far?1:0,Math.round(MR*4),
     n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),hbShipSig(),n.techs&&n.techs.includes('starships')?1:0,ci,typeof SBVER!=='undefined'&&settings.models!==false?SBVER:-1].join('|')}
 /* a town's copies are kept as plain blocks (matrices, colours, culling spheres) so replaying it is a straight copy */
-function stageSpheres(K,s,at,n){if(!K.csS||K.csS.length<K.max*4)K.csS=new Float32Array(K.max*4);K.csS.set(n*4<s.length?s.subarray(0,n*4):s,at*4)}
-function replayCity(Rc){if(Rc.ft){const fr=FOOTREC;FOOTREC=null;for(const o of Rc.ft)footAdd(o);FOOTREC=fr}for(const name in Rc.m){const K=KITS[name],m=Rc.m[name],cnt=Math.min(m.length/16,K.max-K.k);if(cnt<=0)continue;
+function stageSpheres(K,s,at,n){if(!K.csS||K.csS.length<(at+n)*4){const o=K.csS,c=new Float32Array(Math.min(K.max,Math.max(at+n,o?o.length/2:0,256))*4);if(o)c.set(o.subarray(0,Math.min(o.length,c.length)));K.csS=c}K.csS.set(n*4<s.length?s.subarray(0,n*4):s,at*4)}
+function replayCity(Rc){if(Rc.ft){const fr=FOOTREC;FOOTREC=null;for(const o of Rc.ft)footAdd(o);FOOTREC=fr}for(const name in Rc.m){const K=KITS[name],m=Rc.m[name],cnt=Math.min(m.length/16,K.max-K.k);if(cnt<=0)continue;kitGrow(K,K.k+cnt);
     K.mesh.instanceMatrix.array.set(cnt*16<m.length?m.subarray(0,cnt*16):m,K.k*16);const c=Rc.c[name];K.mesh.instanceColor.array.set(cnt*3<c.length?c.subarray(0,cnt*3):c,K.k*3);stageSpheres(K,Rc.s[name],K.k,cnt);K.k+=cnt}
   for(const v of Rc.occ)occupied.add(v);for(const v of Rc.bareI)bare.setIdx(v);for(const v of Rc.bg)bgrid.add(v);
   emitters.push(...Rc.em);herds.push(...Rc.hd);cityStreets.push(...Rc.cs);airports.push(...Rc.ap);spaceports.push(...Rc.sp);
@@ -1083,7 +1097,12 @@ const greenAdd=(k,x,y,z,sx,sy,sz,r,col)=>{if(CUR_GREEN)CUR_GREEN.push([k,x,y,z,s
 const isFar=c=>Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
 function farChanged(){for(const n of nations)if(n.alive)for(const c of n.cities)if(c._farS!==isFar(c))return true;return false}
 function rebuildCities(){patchSets();RB0=performance.now();for(const n of nations)if(n.alive)for(const c of n.cities)c._farS=isFar(c);try{rebuildCities0()}finally{CUR_GREEN=null;TOWN_GREEN=[];for(const n of nations)if(n.alive)for(const c of n.cities)if(c._green)for(const g of c._green)TOWN_GREEN.push(g);const sig=TOWN_GREEN.length+':'+(TOWN_GREEN[0]?TOWN_GREEN[0][1].toFixed(2):'');if(sig!==TGSIG){TGSIG=sig;if(typeof jobs!=='undefined')jobs.push(rebuildGreen)}}}
-function rebuildCities0(){{let s='';for(const n of nations)if(n.alive&&n.era>=5&&n.era<=6)s+=n.id+':'+n.era+':'+n.cities.length+';';if(s!==sootSig){sootSig=s;if(typeof colorDirty!=='undefined')colorDirty=true}}
+/* when every town, lair, ruin and mine would come out exactly as it is now, the whole rebuild is skipped */
+let RC_SIG='';
+function rcSig(){let s=terrBase+'/'+settings.quality+'/'+(settings.models!==false)+'/'+(typeof MDL_VER!=='undefined'?MDL_VER:0)+'/'+lookKey+'/'+settings.arch+'/';for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(14,cityLevel(n)+(gold?1.5:0))*2)/2;
+    n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);s+=(hit&&hit.key===key?'=':'!')+c.x+','+c.y+';'})}
+  s+='|'+coves.map(c=>c.x+','+c.y).join(';')+'|'+ruins.map(r=>r.x+','+r.y+':'+Math.floor((year-r.year)/10)).join(';')+'|'+deposits.map(d=>d.i+d.k+':'+owner[d.i]+':'+(owner[d.i]>=0&&nations[owner[d.i]]?nations[owner[d.i]].era:-1)).join(';');return s}
+function rebuildCities0(){{const sig=rcSig();if(sig===RC_SIG&&!sig.includes('!'))return;RC_SIG=sig}{let s='';for(const n of nations)if(n.alive&&n.era>=5&&n.era<=6)s+=n.id+':'+n.era+':'+n.cities.length+';';if(s!==sootSig){sootSig=s;if(typeof colorDirty!=='undefined')colorDirty=true}}
   for(const m of townFlags)scene.remove(m);townFlags=[];airports=[];spaceports=[];bgrid.clear();FOOT.clear();kitReset(BUILD_KITS);occupied.clear();bare.clear();grassAt.x=1e9;emitters=[];herds=[];cityStreets=[];for(const g of windmills)scene.remove(g);windmills=[];
   const stale=[];
   for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(14,cityLevel(n)+(gold?1.5:0))*2)/2;
@@ -1097,7 +1116,7 @@ function rebuildCities0(){{let s='';for(const n of nations)if(n.alive&&n.era>=5&
   /* anyone a new house went up around steps back out into the street */
   for(const w of walkers)if(inBuilding(w.x,w.z)&&w.ci){const p=cityPoint(w.ci);w.x=w.tx=p[0];w.z=w.tz=p[1];w.moving=false}
   for(const nm of BUILD_KITS)KITS[nm].csPre=KITS[nm].k;
-  buildExtras()}
+  buildExtras();RC_SIG=rcSig()}
 function buildOne(n,c,ci,e,gold,lvl,key){const L0={em:emitters.length,hd:herds.length,cs:cityStreets.length,ap:airports.length,sp:spaceports.length,wm:windmills.length,tf:townFlags.length};
   REC={k:{},occ:[],bare:[],bg:[]};FOOTREC=[];try{buildCity(n,c,ci,e,gold,lvl)}finally{const Rc=REC;REC=null;Rc.ft=FOOTREC;FOOTREC=null;Rc.m={};Rc.c={};Rc.s={};
     for(const nm in Rc.k){const a=Rc.k[nm],cnt=a.length/19,m=new Float32Array(cnt*16),cl=new Float32Array(cnt*3);for(let i=0;i<cnt;i++){for(let j=0;j<16;j++)m[i*16+j]=a[i*19+j];cl[i*3]=a[i*19+16];cl[i*3+1]=a[i*19+17];cl[i*3+2]=a[i*19+18]}
@@ -1372,7 +1391,7 @@ function rebuildRoads(){roadBare.clear();grassAt.x=1e9;
     if(!c){const p0=P3[t].length,u0=U3[t].length,b0=K.k,bare=[];roadBare.add=v=>{bare.push(v);return BitGrid.prototype.add.call(roadBare,v)};try{fn()}finally{delete roadBare.add}
       c={P:new Float32Array(P3[t].slice(p0)),U:new Float32Array(U3[t].slice(u0)),bi:roadBare.idxs(bare),bn:K.k-b0,bm:K.mesh.instanceMatrix.array.slice(b0*16,K.k*16),bc:K.mesh.instanceColor?K.mesh.instanceColor.array.slice(b0*3,K.k*3):null};{let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;const P=c.P;for(let i=0;i<P.length;i+=3){if(P[i]<x0)x0=P[i];if(P[i]>x1)x1=P[i];if(P[i+2]<z0)z0=P[i+2];if(P[i+2]>z1)z1=P[i+2]}if(K.k>b0){x0=-1e9;x1=1e9;z0=-1e9;z1=1e9}Object.assign(c,{x0,x1,z0,z1})}if(RIBC.size>5000)RIBC.clear();RIBC.set(key,c);return}
     C3[t].push(c);for(const v of c.bi)roadBare.setIdx(v);
-    if(c.bn&&K.k+c.bn<=K.max){K.mesh.instanceMatrix.array.set(c.bm,K.k*16);if(c.bc&&K.mesh.instanceColor)K.mesh.instanceColor.array.set(c.bc,K.k*3);K.k+=c.bn}};
+    if(c.bn&&K.k+c.bn<=K.max){kitGrow(K,K.k+c.bn);K.mesh.instanceMatrix.array.set(c.bm,K.k*16);if(c.bc&&K.mesh.instanceColor)K.mesh.instanceColor.array.set(c.bc,K.k*3);K.k+=c.bn}};
   for(const L of lines){const pa=L.path;cached('L'+L.t+'|'+L.w+'|'+pa.length+'|'+pa[0]+'|'+pa[pa.length>>1]+'|'+pa[pa.length-1],L.t,()=>{const pts=chaikin2(pa.map(j=>[wx(j%W)+(hash(j*3.1)-.5)*.25,wz((j/W)|0)+(hash(j*7.3)-.5)*.25]),3);
     for(let k=0;k<pts.length-1;k++)rib(pts[k][0],pts[k][1],pts[k+1][0],pts[k+1][1],L.w,L.t)})}
   for(const st0 of cityStreets){/* thin out street points: short segments cost as much as long ones */const P0=st0.pts,q=[P0[0]];for(let k=1;k<P0.length;k++){const l=q[q.length-1];if(k===P0.length-1||Math.hypot(P0[k][0]-l[0],P0[k][1]-l[1])>=.1)q.push(P0[k])}const st={pts:q,w:st0.w,t:st0.t};
@@ -1400,9 +1419,9 @@ let TGS=1;
    trees standing where a town has since spread, or where fire burned, are left out of the replay. Everything is redone from scratch
    when the land, the settings or half a minute has passed. */
 let FCACHE=null,greenDirty=false,TREE_LIGHT=false;
-const forestSig=()=>[terrBase,waterY,settings.quality,typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1,!!LK.pixel,settings.models!==false,N].join('|');
+const forestSig=()=>[terrBase,terrBio,waterY,settings.quality,typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1,!!LK.pixel,settings.models!==false,N].join('|');
 function replayForest(){const D=LAYDIRTY&&LAYOLD&&LAYOLD.length===VY.length?LAYDIRTY:null;
-  for(const name in FCACHE.k){const K=KITS[name],a=FCACHE.k[name],cnt=a.length/20,M=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array;
+  for(const name in FCACHE.k){const K=KITS[name],a=FCACHE.k[name],cnt=a.length/20;kitGrow(K,Math.min(K.max,K.k+cnt));const M=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array;
   for(let i=0;i<cnt&&K.k<K.max;i++){const o=i*20,t=a[o+19];if(t>=0&&(occupied.has(t)||(scorched&&scorched[t]>0)||fires.has(t)))continue;
     if(D){const x=a[o+12],z=a[o+14],ti=tileAt(x,z);if(D.has(ti))a[o+13]+=groundY(x,z)-groundYIn(LAYOLD,x,z)}/* the ground under a growing town was flattened: the tree moves with it */
     M.set(a.subarray(o,o+16),K.k*16);C.set(a.subarray(o+16,o+19),K.k*3);K.k++}}
@@ -1483,7 +1502,7 @@ kit('pShield',(()=>{const g=new THREE.CylinderGeometry(.5,.5,1,12);g.rotateZ(Mat
 const FIG_KITS=['pGondola','pLeg','pArm','pShin','pShoe','pHand','pTorso','pHead','pHair','pSkirt','pCone','pBrim','pTri','pStick','pPack','pShield'];
 /* add with heading (ry) then a swing around the local x axis (rx) and a sideways lean (rz) */
 const dummyR=new THREE.Object3D();dummyR.rotation.order='YXZ';
-function addR(name,x,y,z,sx,sy,sz,ry,rx,rz,hex){const K=KITS[name];if(K.k>=K.max)return;
+function addR(name,x,y,z,sx,sy,sz,ry,rx,rz,hex){const K=KITS[name];if(K.k>=K.cap&&!kitGrow(K,K.k+1))return;
   dummyR.position.set(x,y,z);dummyR.rotation.set(rx||0,ry||0,rz||0);dummyR.scale.set(sx,sy,sz);dummyR.updateMatrix();
   K.mesh.setMatrixAt(K.k,dummyR.matrix);K.mesh.setColorAt(K.k,tmpC.set(hex).convertSRGBToLinear());K.k++}
 function dressFolk(w,n){const e=n.era,C=CLOTH[e],r=mulberry32(w.seed),pk=a=>a[(r()*a.length)|0];

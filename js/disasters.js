@@ -105,9 +105,12 @@ function groundWord(i){if(!WXG.wet||i<0)return '';const s=WXG.snow[i],w=WXG.wet[
 /* ---------- weather patterns: wet years and droughts sweep over whole regions and last a few decades ---------- */
 function wxNoise(x,y,s){const X=Math.floor(x),Y=Math.floor(y),fx=x-X,fy=y-Y,u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy),q=(a,b)=>hash(a*73.13+b*19.71+s*7.77);
   return lerp(lerp(q(X,Y),q(X+1,Y),u),lerp(q(X,Y+1),q(X+1,Y+1),u),v)}
-function wxPattern(){if(typeof wxEnsure!=='function')return;wxEnsure();const P=40,e=Math.floor(year/P),f=smooth(0,1,(year%P)/P),S=18,seed=worldSeed||1;
-  for(let i=0;i<N;i++){const x=(i%W)/S,y=((i/W)|0)/S,a=wxNoise(x+e*.37,y,seed+e)*.65+wxNoise(x*2.1,y*2.1,seed+e+91)*.35,b=wxNoise(x+(e+1)*.37,y,seed+e+1)*.65+wxNoise(x*2.1,y*2.1,seed+e+92)*.35;
-    WXG.anom[i]=clamp((lerp(a,b,f)-.5)*3.4,-1,1)}WXG.dirty=true}
+/* the two 40-year patterns are worked out once per era of weather; each year only blends between them */
+let WXP={e:null,seed:null,a:null,b:null};
+function wxField(e,seed){const S=18,out=new Float32Array(N);for(let i=0;i<N;i++){const x=(i%W)/S,y=((i/W)|0)/S;out[i]=wxNoise(x+e*.37,y,seed+e)*.65+wxNoise(x*2.1,y*2.1,seed+e+91)*.35}return out}
+function wxPattern(){if(typeof wxEnsure!=='function')return;wxEnsure();const P=40,e=Math.floor(year/P),f=smooth(0,1,(year%P)/P),seed=worldSeed||1;
+  if(WXP.seed!==seed||!WXP.a||WXP.a.length!==N||WXP.e!==e){WXP.a=WXP.e===e-1&&WXP.b&&WXP.seed===seed&&WXP.b.length===N?WXP.b:wxField(e,seed);WXP.b=wxField(e+1,seed);WXP.e=e;WXP.seed=seed}
+  const A=WXP.a,B=WXP.b,an=WXG.anom;for(let i=0;i<N;i++){const v=(A[i]+(B[i]-A[i])*f-.5)*3.4;an[i]=v<-1?-1:v>1?1:v}WXG.dirty=true}
 /* how the weather pattern lies over a nation: below zero drier than usual, above wetter */
 function rainAnom(n){if(typeof WXG==='undefined'||!WXG.anom)return 0;let s=0,c=0;for(const t of n.cities){for(let dy=-2;dy<=2;dy+=2)for(let dx=-2;dx<=2;dx+=2){const X=t.x+dx,Y=t.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;s+=WXG.anom[Y*W+X];c++}}return c?s/c:0}
 /* armies wade through mud and snow */

@@ -39,11 +39,11 @@ const MODEL_MAT=partMat();
 /* an instanced kit that also carries per-instance part colours */
 function mkit(name,geo,max,shadow){for(const a of ['iTop','iBot','iSkin','iHair'])geo.setAttribute(a,new THREE.InstancedBufferAttribute(new Float32Array(max*3).fill(1),3));kit(name,geo,MODEL_MAT,max,shadow);KITS[name].m=true}
 const _mc=new THREE.Color(),_md=new THREE.Object3D();
-function addM(name,x,y,z,s,ry,top,bot,skin,hair,tilt){const K=KITS[name];if(!K||K.k>=K.max)return;_md.position.set(x,y,z);_md.rotation.set(tilt||0,ry,0);_md.scale.setScalar(s);_md.updateMatrix();
+function addM(name,x,y,z,s,ry,top,bot,skin,hair,tilt){const K=KITS[name];if(!K||(K.k>=K.cap&&!kitGrow(K,K.k+1)))return;_md.position.set(x,y,z);_md.rotation.set(tilt||0,ry,0);_md.scale.setScalar(s);_md.updateMatrix();
   K.mesh.setMatrixAt(K.k,_md.matrix);const g=K.mesh.geometry,i=K.k*3;
   for(const [a,h] of [['iTop',top],['iBot',bot],['iSkin',skin],['iHair',hair]]){if(h==null)continue;_mc.set(h).convertSRGBToLinear();const A=g.attributes[a].array;A[i]=_mc.r;A[i+1]=_mc.g;A[i+2]=_mc.b}
   K.k++}
-function mcommit(names){for(const n of names){const K=KITS[n];if(!K)continue;K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;for(const a of ['iTop','iBot','iSkin','iHair'])K.mesh.geometry.attributes[a].needsUpdate=true}}
+function mcommit(names){for(const n of names){const K=KITS[n];if(!K)continue;K.mesh.count=K.k;const c=Math.max(1,K.k),IM=K.mesh.instanceMatrix;IM.needsUpdate=true;IM.updateRange.offset=0;IM.updateRange.count=c*16;for(const a of ['iTop','iBot','iSkin','iHair']){const A=K.mesh.geometry.attributes[a];A.needsUpdate=true;A.updateRange.offset=0;A.updateRange.count=c*A.itemSize}}}
 
 /* what to load: size, axis, which way is forward, and which animations to pose */
 const MODEL_DEFS={
@@ -316,7 +316,7 @@ function updateSeaLife(dt,k,now){if(!modelOn('dolphin'))return;seaT-=dt;
 document.addEventListener('DOMContentLoaded',()=>{if(typeof updateLiving!=='function')return;const _ul=updateLiving;updateLiving=function(dt,k,now){if(settings.models!==false)for(const nm of WILD_ONLY){const F=MDL.frames[nm];if(F)for(const key in F)for(const kn of F[key])if(KITS[kn])KITS[kn].k=0}
   WILD_USED=new Set();const r=_ul.apply(this,arguments);try{trainStations(dt,k)}catch(e){}try{updateSeaLife(dt,k,now);drawTraffic(now,k)}catch(e){console.warn('sea',e)}
   mcommit([...WILD_USED]);return r}});
-{const _um=updateModern;updateModern=function(){const r=_um.apply(this,arguments);for(const nm of VEH_KITS){const K=KITS[nm];K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;if(K.mesh.instanceColor)K.mesh.instanceColor.needsUpdate=true}return r}}
+{const _um=updateModern;updateModern=function(){const r=_um.apply(this,arguments);for(const nm of VEH_KITS){const K=KITS[nm];kitUp(K,K.k)}return r}}
 
 /* ---------- caravans: pack donkeys in the old ages, a donkey pulling a covered cart later ---------- */
 function drawCaravanModel(c,e,x,y,z,r,nc){if(!sOn('donkey'))return false;const cs=Math.cos(r),sn=Math.sin(r),ry=Math.PI/2-r;
@@ -387,17 +387,17 @@ kit('lodBox',(()=>{const P=[],C=[],q=(a,b,c,col)=>{P.push(...a,...b,...c);for(le
 const LODP={stamp:-1,n:0};const _lodM=new THREE.Matrix4(),_lodC=new THREE.Color();
 const lodDist=()=>(settings.power==='saver'?6.5:settings.power==='max'?13:settings.quality==='low'?6.5:9)*(typeof PERF!=='undefined'&&perfOn()?PERF.lodK:1)*(LK.pixel?1.35:1);
 {const _ck=cullKit;cullKit=function(K,P,margin){if(!K.lodC)return _ck(K,P,margin);
-  if(LODP.stamp!==CULLK.last){LODP.stamp=CULLK.last;LODP.n=0}const LK=KITS.lodBox,LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,avg=K.avg,LD2=lodDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
+  if(LODP.stamp!==CULLK.last){LODP.stamp=CULLK.last;LODP.n=0}kitGrow(KITS.lodBox,Math.min(KITS.lodBox.max,LODP.n+K.n));const LK=KITS.lodBox,LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,avg=K.avg,LD2=lodDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
   const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
   for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
     for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}
     if(!ok)continue;
-    if((x-cx)**2+(y-cy)**2+(z-cz)**2>LD2){if(LODP.n<LK.max){LA.set(M.subarray(i*16,i*16+16),LODP.n*16);const o=LODP.n*3;LC[o]=avg[0]*(MC?MC[i*3]:1);LC[o+1]=avg[1]*(MC?MC[i*3+1]:1);LC[o+2]=avg[2]*(MC?MC[i*3+2]:1);LODP.n++}continue}
-    A.set(M.subarray(i*16,i*16+16),v*16);if(C&&MC)C.set(MC.subarray(i*3,i*3+3),v*3);v++}
+    if((x-cx)**2+(y-cy)**2+(z-cz)**2>LD2){if(LODP.n<LK.cap){copy16(LA,LODP.n*16,M,i*16);const o=LODP.n*3;LC[o]=avg[0]*(MC?MC[i*3]:1);LC[o+1]=avg[1]*(MC?MC[i*3+1]:1);LC[o+2]=avg[2]*(MC?MC[i*3+2]:1);LODP.n++}continue}
+    copy16(A,v*16,M,i*16);if(C&&MC)copy3(C,v*3,MC,i*3);v++}
   K.mesh.count=v;const IM=K.mesh.instanceMatrix;IM.needsUpdate=true;if(IM.updateRange){IM.updateRange.offset=0;IM.updateRange.count=v*16}
   if(K.mesh.instanceColor){const IC=K.mesh.instanceColor;IC.needsUpdate=true;if(IC.updateRange){IC.updateRange.offset=0;IC.updateRange.count=v*3}}}}
 {const _ct=cullTick;cullTick=function(){const st=CULLK.last;const r=_ct.apply(this,arguments);if(CULLK.last!==st){const LK=KITS.lodBox;if(LODP.stamp!==CULLK.last){LODP.n=0;LODP.stamp=CULLK.last}
-  LK.mesh.count=LODP.n;LK.mesh.instanceMatrix.needsUpdate=true;LK.mesh.instanceColor.needsUpdate=true}return r}}
+  kitUp(LK,LODP.n)}return r}}
 
 /* ---------- models load as the world needs them: a Stone Age world never downloads cars or space domes ---------- */
 function modelEras(n){
@@ -433,23 +433,23 @@ const LOD_KITS=['lodBox'];
 /* the switch to simple trees follows the zoom: the camera itself is camDist away from what you look at, so a fixed distance would turn
    every tree on screen into a stand-in at an ordinary zoom. Trees within about the camera's distance plus a margin are always the full ones. */
 const camD=()=>typeof camDist==='number'?camDist:10,perfK=()=>typeof PERF!=='undefined'&&perfOn()?Math.max(.75,PERF.lodK):1;
-const treeLodDist=()=>Math.max(7,lodDist()*.75*(LK.pixel?1.45:1),Math.min(camD()*1.35+5,28)*perfK());/* far out a tree is a few pixels, so the reach stops growing */
+const treeLodDist=()=>Math.max(7,lodDist()*.75*(LK.pixel?1.45:1),Math.min(camD()*1.35+5,22)*perfK());/* far out a tree is a few pixels, so the reach stops growing */
 function makeTreeLo(name){const K=KITS[name];if(!K||K.lodP)return;const lo='lo_'+name;kit(lo,loTreeGeo(K.mesh.geometry,TREE_LO[name]),modelTreeMat(),K.max,false);KITS[lo].pn=0;K.lodP=lo;LOD_KITS.push(lo)}
 TREE_LO.hamA=TREE_LO.hamB='round';for(const n of ['hamA','hamB','conifer','broad','townTree','palm','bush'])makeTreeLo(n);
 {const _ps=prepStatic;prepStatic=function(name,g){const r=_ps.apply(this,arguments);if(TREE_LO['s_'+name])makeTreeLo('s_'+name);return r}}
 /* trees switch to their simple crowns closer in than buildings do, since a forest is thousands of them */
 {const _ck2=cullKit;cullKit=function(K,P,margin){if(!K.lodP)return _ck2(K,P,margin);
-  const LK=KITS[K.lodP];if(LK.stamp!==CULLK.last){LK.stamp=CULLK.last;LK.pn=0}const LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,LD2=treeLodDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
+  const LK=KITS[K.lodP];if(LK.stamp!==CULLK.last){LK.stamp=CULLK.last;LK.pn=0}kitGrow(LK,Math.min(LK.max,LK.pn+K.n));const LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,LD2=treeLodDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
   const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
   for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
     for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}
     if(!ok)continue;
-    if((x-cx)**2+(y-cy)**2+(z-cz)**2>LD2){if(LK.pn<LK.max){LA.set(M.subarray(i*16,i*16+16),LK.pn*16);if(MC)LC.set(MC.subarray(i*3,i*3+3),LK.pn*3);LK.pn++}continue}
-    A.set(M.subarray(i*16,i*16+16),v*16);if(C&&MC)C.set(MC.subarray(i*3,i*3+3),v*3);v++}
+    if((x-cx)**2+(y-cy)**2+(z-cz)**2>LD2){if(LK.pn<LK.cap){copy16(LA,LK.pn*16,M,i*16);if(MC)copy3(LC,LK.pn*3,MC,i*3);LK.pn++}continue}
+    copy16(A,v*16,M,i*16);if(C&&MC)copy3(C,v*3,MC,i*3);v++}
   K.mesh.count=v;const IM=K.mesh.instanceMatrix;IM.needsUpdate=true;if(IM.updateRange){IM.updateRange.offset=0;IM.updateRange.count=v*16}
   if(K.mesh.instanceColor){const IC=K.mesh.instanceColor;IC.needsUpdate=true;if(IC.updateRange){IC.updateRange.offset=0;IC.updateRange.count=v*3}}}}
 {const _ct2=cullTick;cullTick=function(){const st=CULLK.last;const r=_ct2.apply(this,arguments);if(CULLK.last!==st)for(const nm of LOD_KITS){if(nm==='lodBox')continue;const LK=KITS[nm];if(LK.stamp!==CULLK.last){LK.stamp=CULLK.last;LK.pn=0}
-  LK.mesh.count=LK.pn;LK.mesh.instanceMatrix.needsUpdate=true;LK.mesh.instanceColor.needsUpdate=true}return r}}
+  kitUp(LK,LK.pn)}return r}}
 
 /* ---------- stations: where the railway reaches a town there is a platform and a station hall, and the train waits there before it turns back ---------- */
 kit('stP',unitBox(),MAT.stone,600,false);kit('stB',unitBox(),MAT.brick,600);kit('stR',gableGeo(),MAT.tiles,600);kit('stC',unitBox(),MAT.plain,600);
@@ -513,16 +513,21 @@ function worldSounds(dt){if(!SND.on||typeof camT==='undefined')return;const t=SN
 document.addEventListener('DOMContentLoaded',()=>{if(typeof updateAudio!=='function')return;const _ua=updateAudio;updateAudio=function(dt){const r=_ua.apply(this,arguments);try{worldSounds(dt||1/60)}catch(e){}return r}});
 
 /* ---------- forest blocks: far away, a whole wooded tile is drawn as one lumpy canopy instead of dozens of trees ---------- */
-function canopyGeo(cone){const P=[],C=[],put=(g,col)=>{g=g.index?g.toNonIndexed():g;const a=g.attributes.position.array;for(let i=0;i<a.length;i+=3){P.push(a[i],a[i+1],a[i+2]);C.push(...col)}};
+function canopyGeo(cone,few){const P=[],C=[],put=(g,col)=>{g=g.index?g.toNonIndexed():g;const a=g.attributes.position.array;for(let i=0;i<a.length;i+=3){P.push(a[i],a[i+1],a[i+2]);C.push(...col)}};
   /* crowns scattered over the whole tile and a little past its edge, so neighbouring blocks knit into one woodland with no grid showing;
      each crown its own shade, so the canopy reads as many trees with dark gaps between them */
-  const spots=[];{let sd=7;const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;for(let t=0;spots.length<(cone?18:15)&&t<400;t++){const x=(rnd()-.5)*1.08,z=(rnd()-.5)*1.08;
-    if(spots.every(q=>Math.hypot(q[0]-x,q[1]-z)>(cone?.2:.24)))spots.push([x,z,.62+rnd()*.42,.46+rnd()*.3])}}
-  const NR=[];for(const [x,z,hh,sh] of spots){let g;const n0=P.length,rw=cone?.13:.17+hh*.05;if(cone){g=new THREE.ConeGeometry(rw,hh,6,1);g.translate(x,hh/2,z)}else{g=new THREE.IcosahedronGeometry(.5,0);g.scale(rw*2,hh*.6,rw*2);g.translate(x,hh*.66,z)}put(g,[sh,sh,sh]);
+  const spots=[];{let sd=7;const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;for(let t=0;spots.length<(few?(cone?7:5):(cone?18:15))&&t<400;t++){const x=(rnd()-.5)*(few?.85:1.08),z=(rnd()-.5)*(few?.85:1.08);
+    if(spots.every(q=>Math.hypot(q[0]-x,q[1]-z)>(cone?.2:.24)*(few?1.6:1)))spots.push([x,z,.62+rnd()*.42,.46+rnd()*.3])}}
+  const NR=[];for(const [x,z,hh,sh] of spots){let g;const n0=P.length,rw=(cone?.13:.17+hh*.05)*(few?1.55:1);if(cone){g=new THREE.ConeGeometry(rw,hh,6,1);g.translate(x,hh/2,z)}else{g=new THREE.IcosahedronGeometry(.5,0);g.scale(rw*2,hh*.6,rw*2);g.translate(x,hh*.66,z)}put(g,[sh,sh,sh]);
     const cy=cone?hh*.35:hh*.66,sx=rw,sy=cone?hh*.7:hh*.3;for(let i=n0;i<P.length;i+=3){let nx=(P[i]-x)/(sx*sx),ny=(P[i+1]-cy)/(sy*sy)+(cone?.8/sy:0),nz=(P[i+2]-z)/(sx*sx);const l=Math.hypot(nx,ny,nz)||1;NR.push(nx/l,ny/l,nz/l)}}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(NR,3));return g}
 kit('canopyR',canopyGeo(false),modelTreeMat(),12000,false);kit('canopyC',canopyGeo(true),modelTreeMat(),12000,false);
 KITS.canopyR.revLod=KITS.canopyC.revLod=true;TREE_KITS.push('canopyR','canopyC');
+/* from high above a forest block is a few pixels: it swaps to a version with a third of the crowns */
+const CANOPY_G={R:[KITS.canopyR.mesh.geometry,canopyGeo(false,true)],C:[KITS.canopyC.mesh.geometry,canopyGeo(true,true)],far:false};
+function canopySwap(){const far=CANOPY_G.far?camDist>24:camDist>28;if(far===CANOPY_G.far)return;CANOPY_G.far=far;const k=far?1:0;
+  KITS.canopyR.mesh.geometry=CANOPY_G.R[k];KITS.canopyC.mesh.geometry=CANOPY_G.C[k]}
+{const _ctc=cullTick;cullTick=function(){try{canopySwap()}catch(e){}return _ctc.apply(this,arguments)}}
 let CANOPY=new Uint8Array(1);
 const CANOPY_SRC=['hamA','hamB','conifer','broad','palm','s_tree_a','s_tree_b','s_tree_c','s_tree_d','s_bush_a','s_bush_b','s_bush_c'];
 const canopyDist=()=>Math.max(13,lodDist()*1.45,treeLodDist()*1.5+4);
@@ -540,8 +545,8 @@ function buildCanopies(){if(CANOPY.length!==N)CANOPY=new Uint8Array(N);else CANO
   if(K.revLod){const D2=canopyDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z,A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
     for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2];if((x-cx)**2+(y-cy)**2+(z-cz)**2<D2)continue;const r=-(cs[i*4+3]+margin);let ok=true;
       for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}if(!ok)continue;
-      A.set(M.subarray(i*16,i*16+16),v*16);if(MC)C.set(MC.subarray(i*3,i*3+3),v*3);v++}
-    K.mesh.count=v;K.mesh.instanceMatrix.needsUpdate=true;K.mesh.instanceColor.needsUpdate=true;return}
+      copy16(A,v*16,M,i*16);if(MC)copy3(C,v*3,MC,i*3);v++}
+    kitUp(K,v);return}
   if(K.lodP&&(CANOPY_SRC.includes(K.name||'')||K.name==='bush')){const D2=canopyDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z,cs=K.cs;
     /* hide the far trees that a canopy stands in for by temporarily pushing them out of every plane test */
     const keep=K._keep||(K._keep=[]);keep.length=0;for(let i=0;i<K.n;i++){const x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2];if((x-cx)**2+(y-cy)**2+(z-cz)**2>D2){const t=tileAt(x,z);if(t>=0&&CANOPY[t]){keep.push(i,cs[i*4+3]);cs[i*4+3]=-1e6}}}

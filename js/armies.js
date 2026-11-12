@@ -65,10 +65,10 @@ function drawArmies(now){
       if(i%2===0||e>=4)add('pike',x+sn*.009,y+bob,z-c*.009,.003,L.len*1.5,.003,0,L.tool,e>=4?.6:0)}
     {const bx=a.x+c*.04,bz=a.z+sn*.04,by=groundY(bx,bz);add('pike',bx,by,bz,.004,.17,.004,0,0x5a4a3a);add('soldier',bx+.022*c,by+.13,bz+.022*sn,.045,.032,.004,-f,nc)}}
   armyCommitNow()}
-function armyCommitNow(){for(const n of ARMY_KITS){const K=KITS[n];K.mesh.count=K.k;K.mesh.instanceMatrix.needsUpdate=true;if(K.mesh.instanceColor)K.mesh.instanceColor.needsUpdate=true}}
+function armyCommitNow(){for(const n of ARMY_KITS){const K=KITS[n];kitUp(K,K.k)}}
 /* parts placed in the frame of a vehicle facing angle f: lx forward, lz to the side; rx/rz turn a cylinder onto its axle or barrel */
 const dummyA=new THREE.Object3D();dummyA.rotation.order='YZX';
-function addA(name,x,y,z,sx,sy,sz,yaw,rz,hex,rx){const K=KITS[name];if(K.k>=K.max)return;dummyA.position.set(x,y,z);dummyA.rotation.set(rx||0,yaw,rz||0);dummyA.scale.set(sx,sy,sz);dummyA.updateMatrix();
+function addA(name,x,y,z,sx,sy,sz,yaw,rz,hex,rx){const K=KITS[name];if(K.k>=K.cap&&!kitGrow(K,K.k+1))return;dummyA.position.set(x,y,z);dummyA.rotation.set(rx||0,yaw,rz||0);dummyA.scale.set(sx,sy,sz);dummyA.updateMatrix();
   K.mesh.setMatrixAt(K.k,dummyA.matrix);K.mesh.setColorAt(K.k,tmpC.set(hex).convertSRGBToLinear());K.k++}
 function vehicle(x,y,z,f){const c=Math.cos(f),s=Math.sin(f),yaw=-f;
   return {box:(lx,ly,lz,sx,sy,sz,hex,rz)=>addA('engine',x+lx*c-lz*s,y+ly,z+lx*s+lz*c,sx,sy,sz,yaw,rz||0,hex),

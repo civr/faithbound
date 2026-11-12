@@ -55,7 +55,7 @@ function genRivers(){river=new Uint8Array(N);rivers=[];
 function nearSea(x,y){for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)return true;if(h[Y*W+X]<sea)return true}return false}
 let TNOISE=null;
 let TERR_T=-1;
-function computeTerrain(){terrBase++;TERR_T=climate.temp;if(typeof roadCache!=='undefined')roadCache.clear();
+function computeTerrain(){terrBio++;TERR_T=climate.temp;if(typeof roadCache!=='undefined')roadCache.clear();
   sea=.44+(climate.temp-.5)*.16;
   /* temperature: latitude, height and wandering weather fronts; ice sheets then creep out from where ice already lies */
   if(!TNOISE||TNOISE.length!==N||TNOISE.key!==h[(N/3)|0]){TNOISE=new Float32Array(N);TNOISE.key=h[(N/3)|0];const off=Math.floor(h[(N/3)|0]*9973)%97;const vn=(x,y,s,k)=>{const X=Math.floor(x/s),Y=Math.floor(y/s),fx=x/s-X,fy=y/s-Y,q=(a,b)=>hash((a+k)*157.31+(b-k)*311.7),u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy);
