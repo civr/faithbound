@@ -34,7 +34,9 @@ const ERAS=[
   {name:'Industrial',tech:3500,cap:3.6,mil:5,emit:1,num:'VI'},
   {name:'Modern',tech:6000,cap:5,mil:7,emit:2,num:'VII'},
   {name:'Future',tech:9500,cap:6.5,mil:10,emit:.3,num:'VIII'}];
-const SAIL=4,SHIPSPEED=[0,0,0,0,.8,1.2,1.8,2.8];
+const SAIL=4,SHIPSPEED=[.5,.5,.55,.6,.8,1.05,1.4,1.9];
+/* tiles per second a ship covers on screen at normal speed: a voyage takes real time, and so real years */
+const SHIP_PACE=.65;
 const WONDERS=[null,{era:1,name:'Great Ziggurat'},{era:2,name:'Bronze Colossus'},{era:3,name:'High Cathedral'},{era:4,name:'Harbour Lighthouse'},{era:5,name:'Iron Exhibition Hall'},{era:6,name:'Sky Needle'},{era:7,name:'Orbital Spire'}];
 /* faith tenets: a faith picks two; their effects multiply */
 const TENETS={

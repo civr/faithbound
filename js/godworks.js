@@ -474,7 +474,7 @@ if(typeof vikingArrive==='function'){const _va=vikingArrive;vikingArrive=functio
   const d=document.createElement('div');d.dataset.fav='1';d.innerHTML=`<span>Feels about you</span><b>${favourWord(n)}</b>`;kv.appendChild(d);
   if(n.vassalOf!=null&&nations[n.vassalOf]){const v=document.createElement('div');v.innerHTML=`<span>Vassal of</span><b>${esc(nations[n.vassalOf].name)}</b>`;kv.appendChild(v)}
   const rel=n.cities.filter(c=>c.relic);if(rel.length){const v=document.createElement('div');v.innerHTML=`<span>Relic</span><b>${esc(rel[0].relic.name)}</b>`;kv.appendChild(v)}
-  if(typeof fishWord==='function'&&n.fishTowns){const v=document.createElement('div');v.innerHTML=`<span>Fishing</span><b>${fishWord(n)}</b>`;kv.appendChild(v)}}}
+  if(typeof fishWord==='function'&&n.fishTowns){const v=document.createElement('div');v.innerHTML=`<span>Fishing</span><b>${fishWord(n)}</b>`;kv.appendChild(v);const fn=typeof fishNote==='function'?fishNote(n):'';if(fn)kv.insertAdjacentHTML('afterend',fn)}}}
 
 /* ======================= EVERY FRAME ======================= */
 function monsterMesh(m){const g=new THREE.Group(),dark=stdMat({color:colL(m.kind==='dragon'?0x6a1e1a:0x2a2622),roughness:.7}),belly=stdMat({color:colL(m.kind==='dragon'?0xb88a4a:0x4a4038),roughness:.8}),eye=new THREE.MeshBasicMaterial({color:m.kind==='dragon'?0xffc030:0xff3020});

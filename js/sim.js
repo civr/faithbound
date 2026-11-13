@@ -373,7 +373,10 @@ function holdFestival(n,god){n.festival=6;n.devotion=clamp((n.devotion??.3)+.2,0
   log(god?`At your sign, ${n.name} held a great harvest festival. The fields will be full.`:`${n.name} held a harvest festival.`,'life')}
 
 /* ---------- fleets ---------- */
-function coastWater(c){const out=[];for(let d=0;d<4;d++){const X=c.x+DX[d],Y=c.y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))out.push(j)}return out}
+/* a town's harbour waters: the sea within two tiles of it, nearest first. Towns stand back from the waterline on firm ground, so a port is
+   the town with the sea at its doorstep, not only the one built on the very beach; its ships, raiders and fishermen sail from here. */
+function coastWater(c){const out=[];for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){if(!dx&&!dy)continue;const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))out.push([dx*dx+dy*dy,j])}
+  out.sort((a,b)=>a[0]-b[0]);return out.slice(0,4).map(q=>q[1])}
 function seaPath(starts,goal){
   const prev=new Int32Array(N).fill(-2),q=[];for(const s of starts){prev[s]=-1;q.push(s)}let head=0;
   while(head<q.length&&head<8000){const j=q[head++],x=j%W,y=(j/W)|0;const t=goal(x,y);
@@ -400,6 +403,7 @@ function launch(n,kind,foe){
   s.g.position.set(s.x,waterY,s.z);ships.push(s);
   if(kind==='war'){/* warships sail as a small squadron */const extra=n.era>=6?2:1;for(let e_=0;e_<extra;e_++){const o={...s,g:makeShip(n.era,kind,n.color,ensureFlag(n)),x:s.x+(rng()-.5)*.3,z:s.z+(rng()-.5)*.3,foamT:0,escort:true};
       const ti=tileAt(o.x,o.z);if(ti<0||!isWater(ti)){o.x=s.x;o.z=s.z}o.g.position.set(o.x,waterY,o.z);ships.push(o)}}
+  if(kind==='war'&&(important(n)||important(foe)||n.id===selected||foe.id===selected)){const y=Math.max(1,Math.round(shipYears(s)));log(`A war fleet of ${n.name} sets sail for ${foe.name}. Landfall in about ${y} year${y>1?'s':''}.`,'war')}
   if(kind==='colony'&&!flags.sail){flags.sail=true;log(`The first colony ships of ${n.name} set sail.`,'era');milestone('sail','Across the sea','Colonists set sail for distant shores.')}
 }
 function arrive(s){
@@ -417,12 +421,27 @@ function arrive(s){
       const x=j%W,y=(j/W)|0;for(let d=0;d<4;d++){const x2=x+DX[d],y2=y+DY[d];if(x2<0||y2<0||x2>=W||y2>=H)continue;const k=y2*W+x2;if(!seen.has(k)){seen.add(k);q.push(k)}}}
     fx(L,'war');log(`A fleet of ${n.name} stormed the shores of ${B.name}.`,'war');if(n.sick&&rng()<.5)infect(B,n.sick,n)}
 }
+/* ---------- voyages ----------
+   A voyage takes the time it takes to sail: nothing happens until the ship arrives, and wars, partners and free land can all change
+   while it is at sea. How many years are still ahead: the route left, at this ship's speed, in years at the chosen pace of time. */
+function shipLeft(s){const WP=s.wp||(s.wp=shipRoute(s.path));let d=0,px=s.x,pz=s.z;for(let k=s.seg+1;k<WP.length;k++){d+=Math.hypot(WP[k][0]-px,WP[k][1]-pz);px=WP[k][0];pz=WP[k][1]}return d}
+function shipYears(s){const v=(SHIPSPEED[s.era]||.8)*SHIP_PACE;return shipLeft(s)/v*paceInfo().yearRate}
+const VOY_LABEL={colony:'Colonists',war:'War fleet',trade:'Merchants',explore:'Explorers'};
+function voyageHtml(n){if(!n.alive)return '';const own=[],foe=[];
+  ships.forEach((s,i)=>{if(s.sink||s.escort)return;
+    if(s.owner===n.id&&VOY_LABEL[s.kind])own.push([i,s]);
+    else if(s.foe===n.id&&(s.kind==='war'||s.kind==='viking'))foe.push([i,s])});
+  if(!own.length&&!foe.length)return '';
+  const when=s=>{if(s.fight)return 'fighting at sea';if(s.hold>0)return 'waiting';const y=shipYears(s);return y<1?'landing now':`lands in ~${Math.max(1,Math.round(y))} year${Math.round(y)>1?'s':''}`};
+  const dest=s=>s.kind==='colony'?'new land':s.kind==='explore'?'the open sea':nations[s.foe]?esc(nations[s.foe].name):'?';
+  const row=(i,html)=>`<p class="note" data-ship="${i}" style="margin:2px 0;cursor:pointer" title="Click to watch">${html}</p>`;
+  return `<div><span class="lab">At sea</span>${own.map(([i,s])=>row(i,`<b>${VOY_LABEL[s.kind]}</b> → ${dest(s)} · ${when(s)}`)).join('')}${foe.map(([i,s])=>row(i,`<b style="color:#f0a196">${s.kind==='viking'?'Viking longships':'Enemy fleet of '+esc(nations[s.owner]?nations[s.owner].name:'?')}</b> bound for these shores · ${when(s)}`)).join('')}</div>`}
 function updateShips(dy,dt,now){
   for(let k=ships.length-1;k>=0;k--){const s=ships[k];
     if(s.sink>0){s.sink+=dt;s.g.position.y=seaNow()-s.sink*.15;s.g.rotation.z=s.sink*.4;if(rng()<dt*8)emit('dark',s.x,waterY+.05,s.z);if(s.sink>2){disposeShip(s);ships.splice(k,1)}continue}
     if(s.owner>=0&&!nations[s.owner].alive){s.sink=.01;continue}
     if(!s.wp)s.wp=shipRoute(s.path);const WP=s.wp;
-    /* ships move at sailing speed on screen, whatever the speed of the years */let rem=dy>0?SHIPSPEED[s.era]*dt*2*.9*clamp(dy/(dt*Math.max(.8,paceInfo().yearRate)),1,3):0;if(s.fight)rem=0;if(s.hold>0){s.hold-=dt;rem=0}
+    /* ships move at sailing speed on screen, whatever the speed of the years */let rem=dy>0?SHIPSPEED[s.era]*dt*SHIP_PACE*clamp(dy/(dt*Math.max(.8,paceInfo().yearRate)),1,3):0;if(s.fight)rem=0;if(s.hold>0){s.hold-=dt;rem=0}
     if(s.hunt&&!s.fight&&!s.hunt.sink){const h=s.hunt,ddx=h.x-s.x,ddz=h.z-s.z,d=Math.hypot(ddx,ddz)||1,st=Math.min(d,rem),nx=s.x+ddx/d*st,nz=s.z+ddz/d*st,ti=tileAt(nx,nz);if(ti>=0&&isWater(ti)){s.x=nx;s.z=nz;s.head=Math.atan2(-ddz,ddx);rem=0}else s.hunt=null}
     if(s.wasOff&&!s.fight&&!s.hunt){/* back from a fight or a chase: rejoin the route at the nearest point ahead */let bi=s.seg,bd=1e9;for(let q2=s.seg;q2<WP.length;q2++){const d2=Math.hypot(WP[q2][0]-s.x,WP[q2][1]-s.z);if(d2<bd){bd=d2;bi=q2}}s.seg=Math.max(s.seg,bi-1);s.wasOff=false}
     if(s.fight||s.hunt)s.wasOff=true;

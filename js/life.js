@@ -124,7 +124,7 @@ const BEAST={deer:[0x8a5a34,.024,.014],reindeer:[0x8a7a68,.024,.015],camel:[0xc8
    Bronze Age, sailing smacks in the Age of Sail, small motor trawlers with a wheelhouse in the modern world. They put out in the morning to
    fishing grounds a few tiles off the coast (shallow water first), drift there while the crew works the nets, and come home in the
    evening; at night and in storms they lie at the shore. */
-const FB_SPEED=[.1,.13,.13,.14,.2,.22,.32,.34];
+const FB_SPEED=[.07,.09,.09,.1,.13,.14,.2,.22];
 const fbType=e=>e===0?'canoe':e<=3?'row':e<=5?'sail':'motor';
 function lineWater(x0,z0,x1,z1){const L=Math.hypot(x1-x0,z1-z0),n=Math.max(2,Math.ceil(L/.18));for(let q=1;q<=n;q++){const t=q/n,ti=tileAt(x0+(x1-x0)*t,z0+(z1-z0)*t);if(ti<0||!isWater(ti))return false}return true}
 function fbGrounds(c){if(c._fbgV===terrVer&&c._fbg)return c._fbg;const homes=[],spots=[];const cx=wx(c.x),cz=wz(c.y);
@@ -135,9 +135,15 @@ function fbGrounds(c){if(c._fbgV===terrVer&&c._fbg)return c._fbg;const homes=[],
     cand.sort((a,b)=>b.s-a.s);for(const q of cand){if(spots.every(o=>Math.hypot(o.x-q.x,o.z-q.z)>.9))spots.push(q);if(spots.length>=6)break}}
   c._fbgV=terrVer;c._fbg={homes,spots};return c._fbg}
 function fishFleet(n,c,dt,now){if(!seaNear(c).length)return;const G=fbGrounds(c);if(!G.homes.length||!G.spots.length){c._fbs=null;return}
-  const cnt=Math.min(typeof fishBoats==='function'?fishBoats(n,c):2,G.spots.length+1,5);
-  if(!c._fbs||c._fbs.era!==n.era||c._fbs.length!==cnt){c._fbs=[];c._fbs.era=n.era;for(let b=0;b<cnt;b++){const h=G.homes[b%G.homes.length],ph=hash(c.x*31+c.y*7+b*13);
-      c._fbs.push({x:h.x+(ph-.5)*.12,z:h.z+(hash(ph*91)-.5)*.12,hd:ph*6.28,st:'home',b,ph,wait:ph*6,h,s:G.spots[b%G.spots.length],ox:(hash(b*5.1+c.x)-.5)*.5,oz:(hash(b*8.3+c.y)-.5)*.5,mv:0,foam:0})}}
+  /* the boats on screen are the town's real fleet (c.boats): a new one is launched from the shore, a lost one goes down where it is */
+  const real=c.boats!=null?c.boats:(typeof fishBoats==='function'?fishBoats(n,c):2),cnt=Math.min(real,G.spots.length+1,5);
+  const mk=b=>{const h=G.homes[b%G.homes.length],ph=hash(c.x*31+c.y*7+b*13);return{x:h.x+(ph-.5)*.12,z:h.z+(hash(ph*91)-.5)*.12,hd:ph*6.28,st:'home',b,ph,wait:ph*6,h,s:G.spots[b%G.spots.length],ox:(hash(b*5.1+c.x)-.5)*.5,oz:(hash(b*8.3+c.y)-.5)*.5,mv:0,foam:0}};
+  if(!c._fbs||c._fbs.era!==n.era){c._fbs=[];c._fbs.era=n.era;for(let b=0;b<cnt;b++)c._fbs.push(mk(b))}
+  while(c._fbs.length<cnt){const used=new Set(c._fbs.map(B=>B.b));let b=0;while(used.has(b))b++;c._fbs.push(mk(b))}
+  while(c._fbs.length>cnt){/* lose a boat that is out at sea if there is one */let k=c._fbs.findIndex(B=>B.st!=='home');if(k<0)k=c._fbs.length-1;const B=c._fbs.splice(k,1)[0];
+    if(B.st!=='home'){B.sinkT=0;(c._fbsk||(c._fbsk=[])).push(B);if(typeof emit==='function')emit('spray',B.x,(B.by||waterY)+.01,B.z,0,0)}}
+  if(c._fbsk&&c._fbsk.length){const type0=fbType(n.era);c._fbsk=c._fbsk.filter(B=>{B.sinkT+=dt;if(B.sinkT>4)return false;const t=B.sinkT,by=seaY(B.x,B.z)+.006-t*t*.004,roll=Math.min(1.2,t*.45);
+      const L=type0==='canoe'?[.075,.018,.022]:type0==='row'?[.09,.024,.034]:type0==='sail'?[.1,.026,.036]:[.12,.03,.044];add('fbHull',B.x,by,B.z,L[0],L[1],L[2],-B.hd,type0==='canoe'?0x7a5434:0xd8d0c4,roll);return true})}
   const type=fbType(n.era),sp=FB_SPEED[n.era]||.15;
   for(const B of c._fbs){const day=nightF<.3&&fishingNow(B.x,B.z);
     if(B.st==='home'&&day){B.wait-=dt;if(B.wait<=0)B.st='go'}else if(B.st==='home')B.wait=B.ph*6;

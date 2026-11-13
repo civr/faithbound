@@ -26,17 +26,44 @@ function seaNear(c){if(c._snV===terrVer&&c._sn)return c._sn;const out=[];for(let
 function fishGrounds(c){if(c._fgV===terrVer&&c._fgN!=null)return c._fgN;let g=0;const coast=seaNear(c).length,riv=!!river[c.y*W+c.x];
   if(coast)for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))g+=biome[j]===1?1:.4}
   if(riv)g+=coast?3:4;c._fgV=terrVer;c._fgN=Math.min(1,g/12);return c._fgN}
+/* how many boats a town's harbour can keep: more for bigger towns */
 function fishBoats(n,c){const lv=typeof townLevel==='function'?townLevel(n,c===n.cities[0]):6;return clamp(1+Math.floor(lv/3.5),1,5)}
-function fishTick(n){let tot=0,k=0;const eF=FISH_ERA[n.era]||1;
-  for(const c of n.cities){const g=fishGrounds(c);if(!g)continue;k++;if(c.fishStock==null)c.fishStock=1;const take=g*eF*Math.min(1,fishBoats(n,c)/3);
+/* ---------- the fishing fleets ----------
+   Every fishing town has a real fleet (c.boats). Boats are built one a year from timber (steel hulls from the modern age need none), and
+   they are lost: to the sea itself now and then, far more often when a storm sweeps the grounds, to pirates and Viking raiders who take
+   them, and to enemy warships, whose blockade also keeps the rest in port. Only the boats afloat and able to sail bring in the catch, so a
+   town that loses its fleet goes hungry until the shipwrights have rebuilt it, and a land short of timber cannot rebuild at all. */
+const BOAT_WOOD=[1,1,1,2,2,3,0,0],BOAT_RISK=[.03,.025,.02,.018,.015,.012,.006,.004];
+function fishHazard(n,c){const x=wx(c.x),z=wz(c.y);let storm=0,raid=null,block=null;
+  if(typeof storms!=='undefined')for(const S of storms){if(S.kind==='shower')continue;if(Math.hypot(S.x-x,S.z-z)<S.r+3)storm=Math.max(storm,S.kind==='hurricane'?1:.6)}
+  if(typeof ships!=='undefined')for(const s of ships){if(s.sink||s.owner===n.id||Math.hypot(s.x-x,s.z-z)>4)continue;
+    if(s.kind==='pirate'||(s.kind==='viking'&&!s.homeward))raid=raid||s;else if(s.kind==='war'&&s.owner>=0&&n.wars.has(s.owner))block=block||s}
+  return{storm,raid,block}}
+function fishTick(n){let tot=0,k=0,boats=0;const eF=FISH_ERA[n.era]||1;
+  for(const c of n.cities){const g=fishGrounds(c);if(!g)continue;k++;if(c.fishStock==null)c.fishStock=1;
+    const cap=fishBoats(n,c);if(c.boats==null)c.boats=Math.min(2,cap);
+    /* the shipwrights: one new boat a year while the harbour has room and there is timber */
+    c.noTimber=0;if(c.boats<cap){const w=BOAT_WOOD[n.era]||0;if(!w||(n.wood??30)>=w){if(w)n.wood=(n.wood??30)-w;c.boats++}else c.noTimber=1}
+    const Z=fishHazard(n,c),risk=(BOAT_RISK[n.era]||.01)*(1+Z.storm*9)+(Z.raid?.22:0)+(Z.block?.12:0);let lost=0;
+    for(let b=0;b<c.boats;b++)if(rng()<risk)lost++;
+    if(lost){c.boats-=lost;const why=Z.raid?(Z.raid.kind==='viking'?'Viking raiders':'pirates'):Z.block?'enemy warships':Z.storm?(Z.storm>=1?'a hurricane':'a storm'):'the sea';
+      c.lost=c.lost&&c.lost.why===why&&year-c.lost.year<=5?{n:c.lost.n+lost,why,year}:{n:lost,why,year};n.boatsLost=(n.boatsLost||0)+lost;
+      if((important(n)||n.id===selected)&&(Z.raid||Z.block||Z.storm||lost>1)&&year-(n._boatLog||-99)>6){n._boatLog=year;
+        log(Z.raid?`${Z.raid.kind==='viking'?'Viking raiders':'Pirates'} took ${lost} fishing boat${lost>1?'s':''} off ${c.name}.`:Z.block?`Enemy warships sank ${lost} fishing boat${lost>1?'s':''} off ${c.name}; the rest stay in port.`:`${Z.storm>=1?'A hurricane':Z.storm?'A storm':'The sea'} sank ${lost} fishing boat${lost>1?'s':''} off ${c.name}.`,Z.raid||Z.block?'war':'life')}}
+    /* only the boats that can put to sea fish: a storm keeps most in port, a blockade nearly all, raiders half */
+    const work=(1-.7*Z.storm)*(Z.block?.3:1)*(Z.raid?.5:1),take=g*eF*Math.min(1,c.boats/3)*work;boats+=c.boats;
     /* heavy trawling settles the grounds around half their old wealth; the careful future takes far less */
     if(n.era>=6)c.fishStock=Math.max(.15,c.fishStock-.0035*take*(n.era>=7?.4:1));
     c.fishStock=Math.min(1,c.fishStock+.006*(1-c.fishStock)+(n.era<6?.005:0));
     if(c.fishStock<.35&&!c.fishedOut&&important(n)){c.fishedOut=1;log(`The fishing grounds off ${c.name} are fished out; the boats come home with half-empty nets.`,'era')}
-    if(c.fishStock>.7)c.fishedOut=0;tot+=take*c.fishStock}
-  n.fishTowns=k;n.fishCatch=tot}
+    if(c.fishStock>.7)c.fishedOut=0;c.catch=take*c.fishStock;tot+=c.catch}
+  n.fishTowns=k;n.fishCatch=tot;n.fishBoatsN=boats}
 function fishWord(n){if(!n.fishTowns)return 'None';const per=n.fishCatch/n.fishTowns;const out=n.cities.some(c=>c.fishStock!=null&&c.fishStock<.4);
-  return `${n.fishTowns} town${n.fishTowns>1?'s':''} · ${per>.9?'rich':per>.55?'good':per>.3?'modest':'poor'} catch${out?' (fished out in places)':''}`}
+  return `${n.fishBoatsN??0} boat${n.fishBoatsN===1?'':'s'} · ${per>.9?'rich':per>.55?'good':per>.3?'modest':per>0?'poor':'no'} catch${out?', fished out in places':''}`}
+/* what has happened to the fleets lately, for a line under the nation card */
+function fishNote(n){if(!n.fishTowns)return '';const L=n.cities.filter(c=>c.lost&&year-c.lost.year<=5).sort((a,b)=>b.lost.year-a.lost.year)[0],idle=n.cities.filter(c=>c.noTimber);
+  const p=[];if(L)p.push(`lost ${L.lost.n} boat${L.lost.n>1?'s':''} to ${L.lost.why} off ${esc(L.name)}`);if(idle.length)p.push(`no timber to build boats${idle.length===1?' at '+esc(idle[0].name):''}`);
+  return p.length?`<p class="note" style="margin:2px 0"><b>Fishing fleets:</b> ${p.join(' · ')}</p>`:''}
 function harvestTick(){if(typeof wxPattern==='function')wxPattern();
   for(const n of nations)if(n.alive&&n.cities.length)try{fishTick(n)}catch(e){}
   /* heavy rain years on a river land can end in a flood */
