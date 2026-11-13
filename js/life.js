@@ -151,7 +151,7 @@ function fishFleet(n,c,dt,now){if(!seaNear(c).length)return;const G=fbGrounds(c)
     if(B.st==='go'&&d<.06){B.st='fish';B.t=0}if(B.st==='back'&&d<.04)B.st='home';
     /* draw: a hull for each age, rolling with the swell */
     const by=waterY+.006+Math.sin(now/500+B.ph*6)*.003,roll=Math.sin(now/700+B.ph*6)*(B.mv?.03:.05),R=-B.hd;
-    if(type==='canoe'){add('fbHull',B.x,by-.006,B.z,.075,.016,.02,R,0x6a4a2e,roll)}
+    if(type==='canoe'){add('fbHull',B.x,by-.001,B.z,.075,.018,.022,R,0x7a5434,roll)}
     else if(type==='row'){add('fbHull',B.x,by,B.z,.09,.024,.034,R,[0xffffff,0xf2e6d6,0xdfe8f2,0xf0dcd0][B.b%4],roll);if(n.era>=2&&B.b%2&&B.st!=='home')add('fbSail',B.x,by,B.z,.08,.026,.08,R,0xf2ead8,roll)}
     else if(type==='sail'){if(fishBoatModel())addM('m_boatwsail',B.x,by-.012,B.z,.5,R,null,null,null,null,roll);else{add('fbHull',B.x,by,B.z,.1,.026,.036,R,[0xffffff,0xf2e6d6,0xdfe8f2][B.b%3],roll);add('fbSail',B.x,by,B.z,.1,.034,.1,R,0xffffff,roll)}}
     else{const col=[0x2a4a6a,0x8a2a22,0x2a5a3a,0x3a3a42][B.b%4],ca=Math.cos(B.hd),sa=Math.sin(B.hd);add('fbHull',B.x,by,B.z,.12,.03,.044,R,col,roll);
@@ -262,8 +262,14 @@ function drawBoatCrews(R2){if(camDist>=14||settings.people===false)return;const 
       const ca=Math.cos(B.hd),sa=Math.sin(B.hd),y=sea+.003+Math.sin(now*2+B.ph*6)*.003,fwd=-B.hd+Math.PI/2,fishing=B.st==='fish';
       const nCrew=type==='canoe'?1:type==='motor'?(fishing?2:1):2;
       const crew=B.crew&&B.crew.length===nCrew&&B.crew.era===n.era?B.crew:(B.crew=Array.from({length:nCrew},(_,q)=>{const w={seed:(c.x*97+B.b*13+q*7)|0,t:q*2,ph:0,moving:false,wait:1,act:'chat',x:0,z:0,dir:0};dressFolk(w,n);w.kid=false;w.pack=0;w.tool=false;return w}),B.crew.era=n.era,B.crew);
-      crew.forEach((w,q)=>{const off=type==='motor'?(q?.034:.012):nCrew===1?0:(q?-.024:.018);w.x=B.x+ca*off;w.z=B.z+sa*off;w.y=y;w.t=now+q*1.7;w.wait=1;
-        w.act=fishing&&q===(nCrew-1)?'farm':'chat';w.dir=fishing&&q===(nCrew-1)?fwd+Math.PI/2:fwd;drawFolk(w)});
+      /* seated in canoes, rowing and sailing boats: the rower faces the stern and pulls, the paddler kneels forward; out on the grounds one hauls
+         the net over the side. On a trawler's deck the crew stands to work, as deckhands do. */
+      const sit=type!=='motor';
+      crew.forEach((w,q)=>{const off=type==='motor'?(q?.034:.012):nCrew===1?0:(q?-.026:.02);w.x=B.x+ca*off;w.z=B.z+sa*off;w.y=sit?y-.004:y;w.t=now+q*1.7;w.wait=1;w.sit=sit;w.moving=false;
+        const hauler=fishing&&q===(nCrew-1);
+        if(sit){w.act=hauler?'haul':B.mv?(type==='canoe'?'paddle':type==='row'&&q===0?'row':'chat'):'chat';w.dir=hauler?fwd+Math.PI/2:w.act==='row'?fwd+Math.PI:fwd}
+        else{w.act=hauler?'farm':'chat';w.dir=hauler?fwd+Math.PI/2:fwd}
+        drawFolk(w)});
       /* paddle or oars while under way */
       if(B.mv&&type==='canoe'){const s=Math.sin(now*4+B.ph*9),side=s>0?1:-1,px=B.x-sa*.012*side,pz=B.z+ca*.012*side;segR([px,y+.02,pz],[px-ca*.02*s,sea-.002,pz-sa*.02*s],.0008,0x6a4a2a)}
       if(B.mv&&type==='row'){const s=Math.sin(now*3+B.ph*9);for(const side of [-1,1]){const px=B.x+ca*.004-sa*.016*side,pz=B.z+sa*.004+ca*.016*side;segR([px,y+.012,pz],[px-sa*.045*side+ca*.018*s,sea-.001+Math.max(0,s)*.008,pz+ca*.045*side+sa*.018*s],.0007,0x7a5a3a)}}

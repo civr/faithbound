@@ -1653,19 +1653,24 @@ function updateGondolas(dt,R2){
     addR('pStick',sx+Math.cos(h)*.008,wy+.04,sz-Math.sin(h)*.008,.0012,.06,.0012,h,.35+Math.sin(w.t*1.6)*.15,0,0x6a4a2a)}}
 function drawFolk(w){
   const sc=w.kid?.68:1,ry=w.dir,c=Math.cos(ry),s=Math.sin(ry),gy=w.y??groundY(w.x,w.z);
-  if(typeof drawFolkModel==='function'&&drawFolkModel(w,gy))return;
+  /* seated people (in boats) are always drawn as figures: the people models only stand */
+  if(typeof drawFolkModel==='function'&&!w.sit&&drawFolkModel(w,gy))return;
   const L=(lx,ly,lz)=>[w.x+lx*c+lz*s,gy+ly,w.z-lx*s+lz*c];
   let leg=0,arm=0,bend=0,armR=0,bob=0,lean=0;
   if(w.moving){leg=Math.sin(w.ph)*.7;arm=-leg*.9;bob=Math.abs(Math.cos(w.ph))*.0016*sc}
   else if(w.act==='farm'&&w.wait>0){bend=.55;const q=Math.sin(w.t*5);armR=-.9-q*.5;arm=armR}
   else if(w.act==='fish'){arm=w.armR??-1.25;armR=arm;lean=Math.sin(w.t*.4)*.02}
+  /* in a boat: pulling on the oars, a paddle stroke, or hauling in the net hand over hand */
+  else if(w.act==='row'){const q=Math.sin(w.t*3);arm=armR=-1.15-q*.45;bend=.12+q*.14}
+  else if(w.act==='paddle'){const q=Math.sin(w.t*4);arm=-1.1+q*.5;armR=-.7-q*.5;bend=.18}
+  else if(w.act==='haul'){const q=Math.sin(w.t*2.6);arm=-1.35+q*.35;armR=-1.35-q*.35;bend=.32+Math.abs(q)*.1}
   else if(w.act==='chat'&&w.wait>0){arm=Math.sin(w.t*2.3)*.12;armR=-.35+Math.sin(w.t*3.1)*.3;lean=Math.sin(w.t*.7)*.05}
   else{arm=Math.sin(w.t*1.3)*.05}
   if(w.sol&&w.moving)armR=-.15;
-  const legL=.0165*sc,hipY=legL+bob,hx=.0026*sc;
+  const legL=.0165*sc,hipY=w.sit?legL*.42:legL+bob,hx=.0026*sc;
   const lw=.0044*sc,ld=.0048*sc,th=legL*.52,shn=legL*.5,sw=w.moving?1:0,legCol=w.dress&&w.long?0x3a2a1a:w.bot;
   /* two-part legs: the knee bends as the foot swings forward, and the shoe follows */
-  for(const sd of [-1,1]){const a=sd<0?leg:-leg,kb=sw*Math.max(0,(sd<0?-1:1)*Math.cos(w.ph))*.85+bend*.5,a2=a+kb;
+  for(const sd of [-1,1]){const a=w.sit?-1.45:sd<0?leg:-leg,kb=w.sit?1.25:sw*Math.max(0,(sd<0?-1:1)*Math.cos(w.ph))*.85+bend*.5,a2=a+kb;/* seated: thighs forward, shins down */
     const ky=hipY-Math.cos(a)*th,kz=-Math.sin(a)*th,ay=ky-Math.cos(a2)*shn,az=kz-Math.sin(a2)*shn;
     addR('pLeg',...L(sd*hx,hipY,0),lw,th+.0006,ld,ry,a,0,legCol);addR('pShin',...L(sd*hx,ky,kz),lw,shn,ld,ry,a2,0,legCol);
     addR('pShoe',...L(sd*hx,Math.max(0,ay-.0008),az+.0008),lw*1.15,.0034*sc,.0072*sc,ry,0,0,w.shoe||0x2a2018)}
