@@ -855,7 +855,7 @@ function cityCenter(n,c,cx,cy,cz,e,cap,i0){
   else if(e<=5){add('cyl',cx,cy,cz,.09,.018,.09,0,0xd8d2c6);add('pool',cx,cy+.004,cz,.078,.016,.078);add('cyl',cx,cy,cz,.012,.05,.012,0,0xd8d2c6);emitters.push({x:cx,y:cy+.05,z:cz,fountain:true,rate:6})}
   else if(e===6){add('pool',cx,cy-.008,cz,r*1.7,.012,r*1.7,0,0x4f8a3a);for(let k=0;k<4;k++){const a=k*1.57+.4;add('townTree',cx+Math.cos(a)*.08,cy,cz+Math.sin(a)*.08,.4,.4,.4,0,0x4f8a3a)}}
   else{/* a green square: a pond among trees and flowers */add('pool',cx,cy-.008,cz,r*1.4,.012,r*1.4,0);for(let k=0;k<6;k++){const a=k/6*6.283+.3;add('townTree',cx+Math.cos(a)*r*.85,cy,cz+Math.sin(a)*r*.85,.32,.36,.32,0,0x4f8a3a);add('bloom',cx+Math.cos(a+.5)*r*.75,cy-.004,cz+Math.sin(a+.5)*r*.75,.03,.02,.03,0,BLOOMS[k%5])}}
-  if(e>=1&&e<=5){const stalls=2+((hash(i0*3.3)*4)|0);for(let k=0;k<stalls;k++){const a=k/stalls*6.283+hash(i0+k),sx=cx+Math.cos(a)*r*.72,sz=cz+Math.sin(a)*r*.72,rt=-a;
+  c._stalls=[];if(e>=1&&e<=5){const stalls=2+((hash(i0*3.3)*4)|0);for(let k=0;k<stalls;k++){const a=k/stalls*6.283+hash(i0+k),sx=cx+Math.cos(a)*r*.72,sz=cz+Math.sin(a)*r*.72,rt=-a;c._stalls.push({x:sx,z:sz,a});
     P('box',sx,cy,sz,rt,0,0,0,.035,.016,.022,0x7a5a3a);P('cyl',sx,cy,sz,rt,-.015,.009,0,.003,.04,.003,0x5a4632);P('cyl',sx,cy,sz,rt,.015,.009,0,.003,.04,.003,0x5a4632);
     P('awning',sx,cy+.035,sz,rt,0,0,0,.042,.014,.03,AWN[(hash(i0*7+k)*AWN.length)|0])}}
   if(e>=4&&e<=5)for(let k=0;k<6;k++){const a=k/6*6.283+.3,lx=cx+Math.cos(a)*(r+.02),lz=cz+Math.sin(a)*(r+.02);add('cyl',lx,cy,lz,.004,.075,.004,0,0x2e2e2e);add('lamp',lx,cy+.072,lz,.012,.014,.012)}
@@ -1204,7 +1204,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       if(n.faith>=0&&(cap||hash(i0*3)<.35)){const [tx,tz]=dryOff(-.32*CO,.2*CO,cap?.2:.15);solid(()=>sacredSite(faiths[n.faith],n,tx,surfY(tx,tz),tz,e,hash(i0)*3,cap),tx,tz,0,false,undefined,'big');KO.push([tx,tz,cap?.26:.2])}
       if(c.dike)dikeRing(c,cx,cz);
       MCTX={lvl,cap,tall:[],w:.12,cu:cultOf(n),n};const lagoon=isLagoon(n,c,e);MCTX.lagoon=lagoon;const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+Math.min(TOWN_MAX,townLevel(n,cap)+(gold?1.5:0))*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?3.4:3.2):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
-      if(plan.metro)plan.streets.forEach((st,si)=>{if(st.main&&st.base<=plan.pr+.01)reach.set(si,.5)});let k=0,placed=0;const HP=[];CUR_GREEN=c._green=[];c._poi={pts:[],plaza:[cx,cz],r:plan.pr};
+      if(plan.metro)plan.streets.forEach((st,si)=>{if(st.main&&st.base<=plan.pr+.01)reach.set(si,.5)});let k=0,placed=0;const HP=[];CUR_GREEN=c._green=[];c._poi={pts:[],plaza:[cx,cz],r:plan.pr};c._doors=[];
       const far=Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.3+2.5;MCTX.far=far;
       if(e>=2&&e<=4&&!plan.metro&&!lagoon&&count>=(cap?14:18)){const ds=[];for(const sl of slots){if(ds.length>=count)break;const t=tileAt(sl.x,sl.z);if(t<0||(owner[t]>=0&&owner[t]!==n.id))continue;ds.push(Math.hypot(sl.x-cx,sl.z-cz))}
         /* a big town with a dense core is a walled city: the wall runs just outside the packed streets, with the market and the church inside;
@@ -1239,7 +1239,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         },sl.x,sl.z,sl.rot,false,sl.terr?-.016:undefined);
         if(!up)continue;placed++;HP.push([sl.x,sl.z,Math.max(sl.w,sl.d)*.62+(sl.pd||0)*.9]);occupied.add(ti);(MCTX.dists||(MCTX.dists=[])).push(Math.hypot(sl.x-cx,sl.z-cz));bareRect(sl.x,sl.z,sl.rot,sl.w*1.15,sl.d*1.2);
         if(sl.st>=0)reach.set(sl.st,Math.max(reach.get(sl.st)||0,sl.at+.12));
-        if(!lagoon||groundY(sl.fx,sl.fz)>waterY+.02)c._poi.pts.push([sl.fx,sl.fz]);
+        if(!lagoon||groundY(sl.fx,sl.fz)>waterY+.02){c._poi.pts.push([sl.fx,sl.fz]);c._doors.push([sl.fx,sl.fz,sl.x,sl.z])}
         if(!far&&e>=1&&e<=5&&hk<.24)smokeAt(sl.x,y+.13*(1+sl.core*.6),sl.z,false,.25)}
       /* a walled city is packed: every open patch inside the wall fills with houses, each facing the nearest lane, wall to wall with its neighbours */
       if(plan.wallR>.3&&e>=2&&e<=4&&!plan.metro&&!lagoon)packInside(n,plan,cx,cz,plan.wallR+.05,e,KO,HP,k);
@@ -1599,6 +1599,7 @@ function rebuildTrees0(){
 }
 
 /* ---------- people: articulated figures with era clothing, tools and simple animation ---------- */
+const WORK_POSE={hammer:1,saw:1,chop:1,knead:1,wash:1,draw:1,sell:1,hang:1,pot:1};
 let walkers=[];
 const SKIN=[0xf1c6a0,0xd9a07a,0xa86e4b,0x7a4a30,0xe8b890,0xc68c64];
 const FHAIR=[0x2a1d14,0x3b2a1c,0x5a3c22,0x8a6a3a,0xc9a45a,0x1a1a1a,0x6e3a1e,0x9a9a96];
@@ -1648,12 +1649,12 @@ function cityPoint(c,near,fest){const P_=c._poi;if(!P_||!P_.pts.length){const a=
 function fieldPoint(c){const cx=c.x,cy=c.y;for(let q=0;q<10;q++){const X=cx+((rng()*5)|0)-2,Y=cy+((rng()*5)|0)-2;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(fieldTiles.has(j))return[wx(X)+(rng()-.5)*.7,wz(Y)+(rng()-.5)*.7]}return null}
 function updateWalkers(dt,yrs){
   if(!settings.people){for(const k of FIG_KITS)KITS[k].mesh.count=0;return}
-  const cap=settings.quality==='high'?900:settings.quality==='medium'?550:250;
+  const cap=settings.quality==='high'?1100:settings.quality==='medium'?650:280;
   /* towns near the camera fill up with people: walkers far away move to the town you are looking at */
   if(camDist<16&&(updateWalkers._t=(updateWalkers._t||0)-dt)<=0){updateWalkers._t=.4;const RR=(camDist*1.2+2)**2,loc=[];
     for(const n of nations){if(!n.alive||n.era<1)continue;for(const c of n.cities){const ex=wx(c.x)-camT.x,ez=wz(c.y)-camT.z;if(ex*ex+ez*ez<RR)loc.push([n,c])}}
     if(loc.length){const have=new Map();for(const w of walkers)have.set(w.ci,(have.get(w.ci)||0)+1);
-      for(const [n,c] of loc){const want=Math.min(90,Math.round(Math.sqrt(n.pop/Math.max(1,n.cities.length))*2.4*(settings.quality==='low'?.5:1)));let h=have.get(c)||0;
+      for(const [n,c] of loc){const want=Math.min(150,Math.round(Math.sqrt(n.pop/Math.max(1,n.cities.length))*3.4*(settings.quality==='low'?.5:1)));/* a busy town: plenty of people about */let h=have.get(c)||0;
         for(let q=0;q<8&&h<want;q++){let w=null;
           if(walkers.length<cap){w={x:0,z:0,wait:rng()*2,sol:false,t:rng()*10,ph:rng()*6,dir:rng()*6.28,act:'idle',seed:(rng()*1e9)|0};walkers.push(w)}
           else{for(let t=0;t<12;t++){const v=walkers[(rng()*walkers.length)|0];if(v.sol||loc.some(l=>l[1]===v.ci))continue;w=v;break}if(!w)break;const on=nations[w.nid];if(on)on._walk=(on._walk||1)-1}
@@ -1673,13 +1674,14 @@ function updateWalkers(dt,yrs){
         if(w.sol){const f=n.front[(rng()*n.front.length)|0];w.tx=wx(f%W)+(rng()-.5)*.6;w.tz=wz((f/W)|0)+(rng()-.5)*.6;w.act='march'}
         else{const sn=typeof seasonName==='function'&&settings.seasons!==false?seasonName():'Summer',night=typeof nightF!=='undefined'&&nightF>.55;
           if(w.sheaf){w.sheaf=false;w.pack=w._pk||0}
+          if(typeof townGoal==='function'&&townGoal(w,n,c,night,sn))continue;
           if(w.act==='farm'&&sn==='Autumn'&&!w.kid){w._pk=w.pack;w.pack=0xd8b860;w.sheaf=true}
           const fp=!night&&!w.kid&&n.era>=1&&n.era<6&&rng()<({Spring:.35,Summer:.3,Autumn:.5,Winter:.04}[sn]||.3)?fieldPoint(c):null;
           if(night&&rng()<.75){const p=cityPoint(c,[w.x,w.z]);w.tx=p[0];w.tz=p[1];w.act='home'}
           else if(fp){w.tx=fp[0];w.tz=fp[1];w.act='farm'}else{const p=cityPoint(c,[w.x,w.z],n.festival>0);w.tx=p[0];w.tz=p[1];w.act=rng()<.5?'chat':'idle'}}}
       continue}
     const dx=w.tx-w.x,dz=w.tz-w.z,d=Math.hypot(dx,dz),spd=(w.sol?.15:w.kid?.14:.11)*(.85+Math.min(3,yrs/dt||1)*.15),sp=spd*dt;
-    if(d<.012){w.wait=w.act==='home'?8+rng()*10:w.act==='farm'?3+rng()*4:w.sol?.6+rng()*1.6:w.act==='chat'?1+rng()*2.2:.3+rng()*1.4;w.moving=false;
+    if(d<.012){if(w.workT){w.wait=w.workT;w.workT=0;w.moving=false;if(w.face!=null)w.dir=w.face;continue}w.wait=w.act==='home'?8+rng()*10:w.act==='farm'?3+rng()*4:w.sol?.6+rng()*1.6:w.act==='chat'?1+rng()*2.2:.3+rng()*1.4;w.moving=false;
       if(w.sol&&n.wars.size&&rng()<.45){const gy=groundY(w.x,w.z),fx=w.x+Math.sin(w.dir)*.02,fz=w.z+Math.cos(w.dir)*.02;
         if(n.era>=4){emit('flash',fx,gy+.022,fz,0,0);for(let q=0;q<3;q++)emit('smoke',fx+(rng()-.5)*.02,gy+.025,fz+(rng()-.5)*.02);if(typeof sfx==='function'&&Math.hypot(w.x-camT.x,w.z-camT.z)<camDist*.6)sfx('cannon',{near:.25})}
         else emit('dust',w.x,gy+.01,w.z);
@@ -1719,7 +1721,7 @@ function updateGondolas(dt,R2){
 function drawFolk(w){
   const sc=w.kid?.68:1,ry=w.dir,c=Math.cos(ry),s=Math.sin(ry),gy=w.y??groundY(w.x,w.z);
   /* seated people (in boats) are always drawn as figures: the people models only stand */
-  if(typeof drawFolkModel==='function'&&!w.sit&&drawFolkModel(w,gy))return;
+  if(typeof drawFolkModel==='function'&&!w.sit&&!(w.wait>0&&WORK_POSE[w.act])&&drawFolkModel(w,gy))return;
   const L=(lx,ly,lz)=>[w.x+lx*c+lz*s,gy+ly,w.z-lx*s+lz*c];
   let leg=0,arm=0,bend=0,armR=0,bob=0,lean=0;
   if(w.moving){leg=Math.sin(w.ph)*.7;arm=-leg*.9;bob=Math.abs(Math.cos(w.ph))*.0016*sc}
@@ -1729,6 +1731,16 @@ function drawFolk(w){
   else if(w.act==='row'){const q=Math.sin(w.t*3);arm=armR=-1.15-q*.45;bend=.12+q*.14}
   else if(w.act==='paddle'){const q=Math.sin(w.t*4);arm=-1.1+q*.5;armR=-.7-q*.5;bend=.18}
   else if(w.act==='haul'){const q=Math.sin(w.t*2.6);arm=-1.35+q*.35;armR=-1.35-q*.35;bend=.32+Math.abs(q)*.1}
+  /* at work: the smith's hammer, the saw, the axe, kneading dough, scrubbing washing, hauling the well rope, a stall keeper calling out, hanging cloth */
+  else if(w.act==='hammer'&&w.wait>0){const q=Math.abs(Math.sin(w.t*4));armR=-2.3+q*1.5;arm=-.7;bend=.22}
+  else if(w.act==='saw'&&w.wait>0){const q=Math.sin(w.t*5);arm=armR=-1.0+q*.35;bend=.38}
+  else if(w.act==='chop'&&w.wait>0){const q=Math.abs(Math.sin(w.t*2.5));arm=armR=-2.6+q*1.9;bend=.15+q*.3}
+  else if(w.act==='knead'&&w.wait>0){const q=Math.sin(w.t*4);arm=armR=-1.15+q*.22;bend=.35+q*.06}
+  else if(w.act==='wash'&&w.wait>0){const q=Math.sin(w.t*5);arm=-1.35+q*.3;armR=-1.35-q*.3;bend=.95}
+  else if(w.act==='draw'&&w.wait>0){const q=Math.sin(w.t*3);arm=-1.9+q*.6;armR=-1.9-q*.6;bend=.08}
+  else if(w.act==='sell'&&w.wait>0){armR=-.7+Math.sin(w.t*2.1)*.45;arm=-.25+Math.sin(w.t*1.3)*.1;lean=Math.sin(w.t*.8)*.04}
+  else if(w.act==='hang'&&w.wait>0){arm=armR=-2.5+Math.sin(w.t*2)*.18}
+  else if(w.act==='pot'&&w.wait>0){arm=armR=-1.25+Math.sin(w.t*6)*.08;bend=.32}
   else if(w.act==='chat'&&w.wait>0){arm=Math.sin(w.t*2.3)*.12;armR=-.35+Math.sin(w.t*3.1)*.3;lean=Math.sin(w.t*.7)*.05}
   else{arm=Math.sin(w.t*1.3)*.05}
   if(w.sol&&w.moving)armR=-.15;
