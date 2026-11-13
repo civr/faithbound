@@ -15,7 +15,7 @@ function harvestOf(n){
      crops, so a fishing people is hit far less by drought, frost and rot */
   {const fs=clamp(n.fishShare||0,0,.6);if(fs>0)H=H*(1-fs)+Math.max(H,1)*fs}
   /* orchards: fruit carries a town through a lean year */
-  {const o=n.cities.length?n.cities.filter(c=>c.orchard).length/n.cities.length:0;if(o)H+=.05*o*(H<.9?1.5:1)}
+  {const o=n.cities.length&&typeof grovesOf==='function'?n.cities.filter(c=>grovesOf(c).some(g=>g.kind==='fruit')).length/n.cities.length:0;if(o)H+=.05*o*(H<.9?1.5:1)}
   if(n.wars.size)H-=.04*n.wars.size+(n.front&&n.front.length>20?.08:0);
   if(n.famine>0)H-=.25;if(n.sick)H-=.08;if(n.bless>0)H+=.22;if(n.festival>0)H+=.04;
   return clamp(H,.3,1.4)}

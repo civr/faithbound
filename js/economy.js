@@ -18,11 +18,12 @@ function nearDeposit(j,r){const x=j%W,y=(j/W)|0;for(const d of deposits)if(Math.
 /* ---------- woodcutting: towns fell the forest around them for timber; the stumps stay a while and the wood grows back ---------- */
 /* CUTY holds the year each tile was last felled (0: never). A felled tile is stumps and log piles at first, then saplings, then young woodland; after
    REGROW years it is forest again. Woodcutters work outward from each town, nearest mature forest first, on their own or unclaimed land. */
-let CUTY=null;const REGROW=90;
+let CUTY=null;const REGROW=60;
 /* tiles of forest a town fells every five years at full size, by age: shipbuilding in the Age of Sail wants the most, the modern world little */
 const WOOD_USE=[.5,.7,.9,1,1.3,1.1,.45,0];
 const cutArr=()=>{if(!CUTY||CUTY.length!==N)CUTY=new Float32Array(N);return CUTY};
-function forestGrowth(i){if(!CUTY||CUTY.length!==N||!CUTY[i])return 1;return clamp((year-CUTY[i])/REGROW,0,1)}
+/* from the industrial age foresters replant what is felled, and the woods come back sooner */
+function forestGrowth(i){if(!CUTY||CUTY.length!==N||!CUTY[i])return 1;const o=owner[i],fo=o>=0&&nations[o]&&nations[o].era>=5?.6:1;return clamp((year-CUTY[i])/(REGROW*fo),0,1)}
 const isForest=i=>biome[i]===5||biome[i]===6;
 /* ---------- felled land is farmed: near a town, on the nation's own ground, a clearing becomes fields and stays open as long as it is worked ---------- */
 /* FARMT marks farmed clearings: they always carry a field, count as open land (more food, so the towns grow into them) and do not grow back.
@@ -31,8 +32,10 @@ let FARMT=null;
 const farmArr=()=>{if(!FARMT||FARMT.length!==N)FARMT=new Uint8Array(N);return FARMT};
 const farmReach=n=>3+(n.era>=3?1:0)+(n.era>=4?1:0);
 function farmTick(n){if(n.era<1||!CUTY)return;const F=farmArr(),C=CUTY,r=farmReach(n);let got=0;
-  for(const c of n.cities)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const i=Y*W+X;
-    if(F[i]||owner[i]!==n.id||!C[i]||!isForest(i)||forestGrowth(i)>.5||Math.hypot(dx,dy)>r+.5)continue;F[i]=1;hab[i]=Math.max(hab[i],BIOMES[4].hab);got++}
+  /* only a people that needs more land for food ploughs its clearings; otherwise the felled woods grow back */
+  let have=0;for(let i=0;i<N;i++)if(F[i]&&owner[i]===n.id)have++;const room=n.pop>n.cap*.75?Math.max(0,n.cities.length*(4+n.era)-have):0;
+  if(room)for(const c of n.cities)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const i=Y*W+X;
+    if(got>=room||F[i]||owner[i]!==n.id||!C[i]||!isForest(i)||forestGrowth(i)>.5||Math.hypot(dx,dy)>r+.5)continue;F[i]=1;hab[i]=Math.max(hab[i],BIOMES[4].hab);got++}
   /* worked fields hold the forest back */
   for(let i=0;i<N;i++)if(F[i]&&owner[i]===n.id)C[i]=year||1;
   if(got)propsDirty=true}
@@ -49,6 +52,7 @@ function logTick(n){if(n.wood==null)n.wood=30;const use=WOOD_USE[n.era]||0;if(!u
       if(dd>reach+.5||!isForest(i)||forestGrowth(i)<.85)continue;if(owner[i]>=0&&owner[i]!==n.id)continue;if(typeof occupied!=='undefined'&&occupied.has(i))continue;cand.push([dd+hash(i*1.7+year*.01)*1.2,i])}
     cand.sort((a,b)=>a[0]-b[0]);let got=0;for(const [,i] of cand){if(got>=k)break;C[i]=year||1;got++;c._lumber={i,y:year}}cut+=got;
     /* told once per town, not every time the regrown wood is cut again */
+    if(got&&c.bareWoods){c.bareWoods=0;if(important(n)||n.id===selected)log(`The woods around ${c.name} have grown back; its woodcutters are at work again.`,'life')}
     if(!got&&!c.bareWoods&&c._lumber&&important(n)){c.bareWoods=1;log(`The woods around ${c.name} have all been cut for timber; its woodcutters must wait for them to grow back.`,'era')}}
   /* every felled tile yields timber; towns burn and build with most of what they need */
   n.wood=clamp(n.wood+cut*10-want*9,0,200);

@@ -509,7 +509,7 @@ function tick(){if(typeof farmAbandonTick==='function')farmAbandonTick();
     if(!n.cities.length&&year-(n.born||0)>5){for(let i=0;i<N;i++)if(owner[i]===n.id)claim(i,-1);log(`With its last town gone, ${n.name} broke apart.`,'doom');fall(n);continue}
     const t=ten(n),e=ERAS[n.era];
     /* the sea feeds people too: a rich fishing town brings in as much food as a wide stretch of good farmland (FISH_TILES fields per unit of catch) */
-    {const fishT=FISH_TILES*(n.fishCatch||0),orchT=2*n.cities.filter(c=>c.orchard).length,land=(capA[n.id]||0)+orchT;n.fishShare=fishT/Math.max(1,land+fishT);n.cap=Math.max(5,(land+fishT)*e.cap*30)}
+    {const fishT=FISH_TILES*(n.fishCatch||0),orchT=2*(typeof fruitGroves==='function'?fruitGroves(n):0),land=(capA[n.id]||0)+orchT;n.fishShare=fishT/Math.max(1,land+fishT);n.cap=Math.max(5,(land+fishT)*e.cap*30)}
     /* (orchards: each feeds about as many as two fields) */if(!isFinite(n.pop))n.pop=10;if(!isFinite(n.tech))n.tech=0;
     n.pop+=n.pop*.035*[.6,.68,.76,.82,.88,.95,1,1][n.era]*t.grow*stabGrow(n)*(.85+.3*(n.happy??.6))*(n.bless>0?1.8:1)*(n.festival>0?1.25:1)*(1-n.pop/n.cap);
     /* settlers: a people with room to spare sends families out to found small villages inside its own lands */

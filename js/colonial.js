@@ -101,20 +101,34 @@ function slaveTick(n){
   if(n.era>=5&&others&&n.cities.length>=3&&rng()<.008){const c=n.cities[1+((rng()*(n.cities.length-1))|0)];const before=nations.length;
     try{rebel(n,c,'free',`The quarrel over slavery split ${n.name}: ${c.name} and the lands around it broke away.`)}catch(e){}if(nations.length>before&&rng()<.5)abolish(n)}}
 
-/* ---------- orchards ---------- */
+/* ---------- orchards and timber groves ----------
+   A town plants groves outside its houses, more as it grows (up to four): fruit orchards that feed people and carry them through lean
+   years, and timber groves of poplar or pine planted in rows, felled every generation and planted again, so a town keeps its timber
+   when the wild woods around it are gone. */
 const ORCH_FRUIT={4:['apple','pear','cherry'],5:['apple','plum'],8:['orange','olive','fig'],6:['mango','orange'],3:['olive']};
+const WOOD_OK=new Set([3,4,5,6,8,9]);
+function grovesOf(c){if(c.orchard){c.groves=[Object.assign({kind:'fruit'},c.orchard)];delete c.orchard}return c.groves||(c.groves=[])}
+const fruitGroves=n=>n.cities.reduce((s,c)=>s+grovesOf(c).filter(g=>g.kind==='fruit').length,0);
+const woodGroves=n=>n.cities.reduce((s,c)=>s+grovesOf(c).filter(g=>g.kind==='wood').length,0);
 function orchardTick(n){if(n.era<1)return;
-  for(const c of n.cities){if(c.orchard){/* a sacked town loses trees to fire and axes */if(c.plundered===year&&rng()<.3)delete c.orchard;continue}
-    const F=ORCH_FRUIT[biome[c.y*W+c.x]];if(!F||(typeof coldAt==='function'&&coldAt(c.x,c.y)>0))continue;
-    const lv=typeof townLevel==='function'?townLevel(n,c===n.cities[0]):3;if(lv<1.4||rng()>.05)continue;
-    const o=orchardSpot(c);if(!o)continue;c.orchard={a:o.a,r:o.r,fruit:F[(rng()*F.length)|0],year};
-    if(!n._orch&&watchedC(n)){n._orch=1;log(`The people of ${c.name} planted ${c.orchard.fruit} orchards outside the town.`,'life')}}}
-function orchardSpot(c){const cx=wx(c.x),cz=wz(c.y);let best=null,bs=-1;
-  for(let k=0;k<10;k++){const a=k/10*6.283+hash(c.x*7+c.y)*.6,r=hash(c.x+c.y*13+k)*.1;let ok=0;
+  for(const c of n.cities){const G=grovesOf(c);
+    /* a sacked town loses trees to fire and axes */if(G.length&&c.plundered===year&&rng()<.3)G.splice((rng()*G.length)|0,1);
+    /* the timber groves: grown, felled and planted again */
+    for(const g of G){if(g.kind!=='wood')continue;const age=year-(g.cut??g.year);if(age>=12)n.wood=Math.min(200,(n.wood??30)+.15);if(age>=25&&rng()<.15){g.cut=year;n.wood=Math.min(200,(n.wood??30)+4)}}
+    const B=biome[c.y*W+c.x],cold=typeof coldAt==='function'&&coldAt(c.x,c.y)>0,F=cold?null:ORCH_FRUIT[B];
+    const lv=typeof townLevel==='function'?townLevel(n,c===n.cities[0]):3,max=clamp(1+Math.floor(lv/3),1,4);if(lv<1.4||G.length>=max||rng()>.05)continue;
+    const needWood=(n.wood??30)<60||!!c.bareWoods,wood=WOOD_OK.has(B)&&(!F||needWood&&rng()<.65||rng()<.25);if(!wood&&!F)continue;
+    const o=orchardSpot(c,G);if(!o)continue;
+    const g=wood?{a:o.a,r:o.r,kind:'wood',tree:B===9||B===5&&climate.temp<.5?'pine':'poplar',year,cut:year}:{a:o.a,r:o.r,kind:'fruit',fruit:F[(rng()*F.length)|0],year};G.push(g);
+    if(watchedC(n)){if(!wood&&!n._orch){n._orch=1;log(`The people of ${c.name} planted ${g.fruit} orchards outside the town.`,'life')}
+      else if(wood&&!n._grove){n._grove=1;log(`The people of ${c.name} planted a timber grove of ${g.tree}s, to fell for wood in years to come.`,'life')}}}}
+const GROVE_GRID={fruit:[3,4,.062],wood:[4,5,.05]};
+function orchardSpot(c,G){const cx=wx(c.x),cz=wz(c.y);let best=null,bs=-1;
+  for(let k=0;k<12;k++){const a=k/12*6.283+hash(c.x*7+c.y)*.5,r=hash(c.x+c.y*13+k)*.1;if((G||[]).some(g=>Math.abs(Math.atan2(Math.sin(a-g.a),Math.cos(a-g.a)))<.75))continue;let ok=0;
     for(let i=0;i<3;i++)for(let j=0;j<4;j++){const [x,z]=orchardTree(cx,cz,{a,r},i,j,c);const g=groundY(x,z);if(g>waterY+.02&&!(typeof inBuilding==='function'&&inBuilding(x,z)))ok++}
     if(ok>bs){bs=ok;best={a,r}}}return bs>=9?best:null}
-/* the orchard lies just beyond the last houses (the town's reach, measured when it was built), so it moves out as the town grows; o.r is only a little extra */
-function orchardTree(cx,cz,o,i,j,c){const R=(c&&c._townR||.45)+.1+Math.min(o.r,.12),ox=cx+Math.cos(o.a)*R,oz=cz+Math.sin(o.a)*R,ca=Math.cos(o.a+1.57),sa=Math.sin(o.a+1.57),u=(j-1.5)*.062,v=(i-1)*.062;return [ox+ca*u+Math.cos(o.a)*v,oz+sa*u+Math.sin(o.a)*v]}
+/* a grove lies just beyond the last houses (the town's reach, measured when it was built), so it moves out as the town grows; o.r is only a little extra */
+function orchardTree(cx,cz,o,i,j,c){const [ni,nj,sp]=GROVE_GRID[o.kind]||GROVE_GRID.fruit,R=(c&&c._townR||.45)+.1+Math.min(o.r,.12)+(ni-1)*sp*.5,ox=cx+Math.cos(o.a)*R,oz=cz+Math.sin(o.a)*R,ca=Math.cos(o.a+1.57),sa=Math.sin(o.a+1.57),u=(j-(nj-1)/2)*sp,v=(i-(ni-1)/2)*sp;return [ox+ca*u+Math.cos(o.a)*v,oz+sa*u+Math.sin(o.a)*v]}
 
 /* ---------- railways ----------
    With the Railroads discovery a nation lays track from its capital out to its towns, one line every few years, for timber. A town on
@@ -144,9 +158,19 @@ function colonialFrame(R2){const sn=typeof seasonName==='function'&&settings.sea
         for(let i=0;i<5;i++)for(let j=0;j<7;j++){const u=(j-3)*.035,v=(i-2)*.04,x=ox+ca*u+Math.cos(a)*v,z=oz+sa*u+Math.sin(a)*v,g=groundY(x,z);if(g<waterY+.01||typeof inBuilding==='function'&&inBuilding(x,z))continue;
           if(c.plant==='cotton'){add('colBall',x,g,z,.018,.016,.018,0,0x5a7a3a);add('colBall',x,g+.012,z,.008,.008,.008,0,col)}else add('gwCone',x,g,z,.018,c.plant==='sugar'?.035:.022,.018,i,col)}
         const hx=ox+Math.cos(a)*.13,hz=oz+Math.sin(a)*.13,hg=groundY(hx,hz);if(hg>waterY+.01&&!(typeof inBuilding==='function'&&inBuilding(hx,hz))){add('gwBox',hx,hg,hz,.075,.05,.055,a,0xf4f0e6);add('gwCone',hx,hg+.05,hz,.09,.035,.07,a+.785,0x6a3a2a)}}
-      /* orchards: rows of fruit trees, white and pink in spring, green in summer, heavy with fruit in autumn, bare in winter */
-      if(c.orchard){const o=c.orchard,fc=FRUIT_COL[o.fruit]||0xc8342a;
-        for(let i=0;i<3;i++)for(let j=0;j<4;j++){const [x,z]=orchardTree(cx,cz,o,i,j,c),g=groundY(x,z);if(g<waterY+.015||typeof inBuilding==='function'&&inBuilding(x,z))continue;const k=hash(i*7+j*3+c.x),sz=.036+k*.01;
+      /* orchards: rows of fruit trees, white and pink in spring, green in summer, heavy with fruit in autumn, bare in winter.
+         Timber groves: straight rows of poplars or pines of one age; felled, they are stumps for a year or two, then saplings again */
+      for(const o of grovesOf(c)){const [ni,nj]=GROVE_GRID[o.kind]||GROVE_GRID.fruit;
+        if(o.kind==='wood'){const age=year-(o.cut??o.year),f=clamp((age-2)/12,0,1),pine=o.tree==='pine';
+          for(let i=0;i<ni;i++)for(let j=0;j<nj;j++){const [x,z]=orchardTree(cx,cz,o,i,j,c),g=groundY(x,z);if(g<waterY+.015||typeof inBuilding==='function'&&inBuilding(x,z))continue;const k=hash(i*5+j*9+c.y);
+            if(age<2){add('gwCyl',x,g-.002,z,.014,.012,.014,0,0x8a6a44);continue}
+            const hgt=(.03+.09*f)*(.9+k*.2);add('gwBox',x,g,z,.005,hgt*.35,.005,0,0x5a4030);
+            if(pine)add('gwCone',x,g+hgt*.2,z,.03*(.5+.5*f),hgt,.03*(.5+.5*f),k*3,k<.5?0x2e5434:0x35603a);
+            else if(sn==='Winter')add('colBall',x,g+hgt*.3,z,.012,hgt*.7,.012,0,0x7a6a5a);
+            else add('colBall',x,g+hgt*.25,z,.02*(.5+.5*f),hgt*.85,.02*(.5+.5*f),k*3,sn==='Autumn'?(k<.5?0xc8a838:0xb89030):k<.5?0x4a7a34:0x56843a)}
+          continue}
+        const fc=FRUIT_COL[o.fruit]||0xc8342a;
+        for(let i=0;i<ni;i++)for(let j=0;j<nj;j++){const [x,z]=orchardTree(cx,cz,o,i,j,c),g=groundY(x,z);if(g<waterY+.015||typeof inBuilding==='function'&&inBuilding(x,z))continue;const k=hash(i*7+j*3+c.x),sz=.036+k*.01;
           add('gwBox',x,g,z,.006,.028,.006,0,0x5a4030);
           if(sn==='Winter'){add('colBall',x,g+.022,z,sz*.8,sz*.55,sz*.8,0,0x7a6a5a);continue}
           const crown=sn==='Spring'?(k<.5?0xf6eef0:0xf2c8d8):sn==='Autumn'?0x7a8a3a:0x4a7a34;add('colBall',x,g+.022,z,sz,sz*.8,sz,k*3,crown);
@@ -154,13 +178,13 @@ function colonialFrame(R2){const sn=typeof seasonName==='function'&&settings.sea
 {const _bf=banditFrame;banditFrame=function(R2){_bf.apply(this,arguments);try{colonialFrame(R2)}catch(e){console.warn('colonial draw',e)}}}
 
 /* ---------- the nation card ---------- */
-function colonialNote(n){const C=n.company,cols=n.cities.filter(c=>c.colony||c.company),orch=n.cities.filter(c=>c.orchard).length,p=[];
+function colonialNote(n){const C=n.company,cols=n.cities.filter(c=>c.colony||c.company),orch=fruitGroves(n),wg=woodGroves(n),p=[];
   if(C){const ruled=C.posts.filter(P=>P.ruled).length,sea=ships.filter(s=>s.owner===n.id&&s.kind==='company'&&!s.sink).length;
     p.push(`<p class="note" style="margin:2px 0"><b>${esc(capF(C.name))}</b> · ${C.posts.length} trading post${C.posts.length===1?'':'s'}${ruled?` · rules ${ruled} of them`:''} · ${sea} ship${sea===1?'':'s'} at sea · since ${C.founded}</p>`)}
   else if(n.companyPast)p.push(`<p class="note" style="margin:2px 0">${esc(capF(n.companyPast.name))}, ${n.companyPast.from}–${n.companyPast.to}</p>`);
   if(cols.length)p.push(`<p class="note" style="margin:2px 0"><b>Colonies:</b> ${cols.slice(0,6).map(c=>esc(c.name)+(c.plant?` (${c.plant})`:'')).join(', ')}${cols.length>6?` and ${cols.length-6} more`:''}</p>`);
   if(n.slavery)p.push(`<p class="note" style="margin:2px 0;color:#a8382a"><b>Slavery</b> on its plantations since ${n.slavery}</p>`);else if(n.abolished)p.push(`<p class="note" style="margin:2px 0"><b>Slavery</b> abolished in ${n.abolished}</p>`);
-  if(orch)p.push(`<p class="note" style="margin:2px 0"><b>Orchards</b> in ${orch} town${orch===1?'':'s'}</p>`);
+  if(orch||wg)p.push(`<p class="note" style="margin:2px 0"><b>Groves:</b> ${[orch?`${orch} fruit orchard${orch===1?'':'s'}`:'',wg?`${wg} timber grove${wg===1?'':'s'}`:''].filter(Boolean).join(', ')}</p>`);
   {const rl=n.cities.filter(c=>c.rail&&c!==n.cities[0]).length;if(rl)p.push(`<p class="note" style="margin:2px 0"><b>Railways</b> link ${rl} of ${n.cities.length-1} towns to ${esc(n.cities[0].name)}</p>`)}
   return p.length?`<div><span class="lab">Trade, land and railways</span>${p.join('')}</div>`:''}
 {const _rn=renderNationCard;renderNationCard=function(){_rn.apply(this,arguments);const n=nations[selected];if(!n||!n.alive)return;const el=$('#nationCard');if(!el||el.querySelector('[data-colnote]'))return;
