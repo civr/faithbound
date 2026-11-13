@@ -12,11 +12,11 @@ const TOSCENE=`uniform float uPL,uPE;vec3 toScene(vec3 c){if(uPL<.5)return c;c=c
 const POST={rt:null,size:new THREE.Vector2(),scene:new THREE.Scene(),cam:new THREE.OrthographicCamera(-1,1,1,-1,0,1),ok:true};
 const postU={tCol:{value:null},tDep:{value:null},uRes:{value:new THREE.Vector2(1,1)},uNear:{value:.02},uFar:{value:900},uExp:{value:1},uTime:{value:0},
   uSat:{value:1},uCon:{value:1},uLift:{value:new THREE.Vector3()},uGain:{value:new THREE.Vector3(1,1,1)},uVig:{value:0},uTilt:{value:0},uLine:{value:0},
-  uPoster:{value:0},uPaper:{value:0},uBloom:{value:0},uGrain:{value:0},uBars:{value:0},uPx:{value:1},uNoAA:{value:0},uPix:{value:0},
+  uPoster:{value:0},uPaper:{value:0},uBloom:{value:0},uGrain:{value:0},uBars:{value:0},uPx:{value:1},uNoAA:{value:0},uPix:{value:0},uSplit:{value:0},
   uAO:{value:0},uP00:{value:1},uP11:{value:1},uCamW:{value:new THREE.Matrix4()},uWaterY:{value:0},uMist:{value:0},uMistCol:{value:new THREE.Color()}};
 const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrite:false,
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
-  fragmentShader:`precision highp float;varying vec2 vUv;uniform sampler2D tCol,tDep;uniform vec2 uRes;uniform float uPix,uNoAA,uNear,uFar,uExp,uTime,uSat,uCon,uVig,uTilt,uLine,uPoster,uPaper,uBloom,uGrain,uBars,uPx,uAO,uP00,uP11,uWaterY,uMist;uniform vec3 uLift,uGain,uMistCol;uniform mat4 uCamW;
+  fragmentShader:`precision highp float;varying vec2 vUv;uniform sampler2D tCol,tDep;uniform vec2 uRes;uniform float uPix,uSplit,uNoAA,uNear,uFar,uExp,uTime,uSat,uCon,uVig,uTilt,uLine,uPoster,uPaper,uBloom,uGrain,uBars,uPx,uAO,uP00,uP11,uWaterY,uMist;uniform vec3 uLift,uGain,uMistCol;uniform mat4 uCamW;
   float lin(float d){float z=d*2.-1.;return 2.*uNear*uFar/(uFar+uNear-z*(uFar-uNear));}
   float dep(vec2 uv){return lin(texture2D(tDep,uv).x);}
   vec3 aces(vec3 c){c*=uExp*.6;return clamp((c*(2.51*c+.03))/(c*(2.43*c+.59)+.14),0.,1.);}
@@ -49,6 +49,8 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
     float lum=dot(col,vec3(.299,.587,.114));
     if(uPoster>0.){float q=floor(lum*uPoster+.5)/uPoster;col*=mix(1.,q/max(lum,.02),.7);lum=dot(col,vec3(.299,.587,.114));}
     col=mix(vec3(lum),col,uSat);col=(col-.5)*uCon+.5;col=col*uGain+uLift*(1.-col);
+    /* daylight split toning: shade takes the cool blue of the open sky, sunlit ground the warmth of the sun */
+    if(uSplit>0.){float l2=dot(col,vec3(.299,.587,.114));col+=uSplit*mix(vec3(-.018,-.004,.03),vec3(.028,.012,-.02),smoothstep(.15,.75,l2));}
     if(uLine>0.){float e=0.;vec2 o=uPix>0.?px:px*uPx*1.2;float dn=dep(uv+vec2(0,o.y)),ds=dep(uv-vec2(0,o.y)),de=dep(uv+vec2(o.x,0)),dw=dep(uv-vec2(o.x,0));
       e=max(max(abs(dn-d0),abs(ds-d0)),max(abs(de-d0),abs(dw-d0)))/d0;float ink=smoothstep(.025,.06,e)*(1.-smoothstep(150.,400.,d0));
       vec3 cn=fetch(uv+vec2(0,o.y)),ce=fetch(uv+vec2(o.x,0));float ce2=length(cn-fetch(uv))+length(ce-fetch(uv));if(uPix<=0.)ink=max(ink,smoothstep(.35,.7,ce2)*.6);/* in pixel art only the outlines of things, not the grain of sand and water */
@@ -93,9 +95,10 @@ function renderFrame0(){/* the near clipping plane follows the zoom: zoomed out,
   const P=LK.post;
   postU.tCol.value=POST.rt.texture;postU.tDep.value=POST.rt.depthTexture;postU.uRes.value.set(w,h);postU.uNear.value=cam.near;postU.uFar.value=cam.far;
   postU.uExp.value=renderer.toneMappingExposure*(POST.flt?1:.8);postU.uTime.value=performance.now()/1000;postU.uPx.value=renderer.getPixelRatio();
-  postU.uAO.value=settings.quality==='low'?0:(P.ao??0);postU.uP00.value=cam.projectionMatrix.elements[0];postU.uP11.value=cam.projectionMatrix.elements[5];postU.uCamW.value.copy(cam.matrixWorld);
+  /* in pixel art the picture has a quarter of the pixels, so ambient occlusion costs little there and grounds houses and trees */
+  postU.uAO.value=settings.quality==='low'?0:(P.ao||(pixN?(P.pixAO||0)*(1-smooth(4.5,11,camDist)):0));/* fades out as you zoom out, where it would only muddy whole towns */postU.uSplit.value=P.split||0;postU.uP00.value=cam.projectionMatrix.elements[0];postU.uP11.value=cam.projectionMatrix.elements[5];postU.uCamW.value.copy(cam.matrixWorld);
   postU.uWaterY.value=waterY;postU.uMist.value=(P.mist??.5)*(1-.7*smooth(.02,.3,Math.sin(dayT*6.283)-.1)+.2*(typeof weatherDim!=='undefined'?weatherDim:0));postU.uMistCol.value.copy(scene.fog.color);
-  postU.uSat.value=P.sat*(pixN&&P.pixSat?P.pixSat:1);postU.uCon.value=P.con;postU.uLift.value.fromArray(P.lift||[0,0,0]);postU.uGain.value.fromArray(P.gain||[1,1,1]);postU.uVig.value=P.vig||0;
+  postU.uSat.value=P.sat*(pixN&&P.pixSat?P.pixSat:1);postU.uCon.value=P.con*(pixN&&P.pixCon?P.pixCon:1);postU.uLift.value.fromArray(P.lift||[0,0,0]);postU.uGain.value.fromArray(P.gain||[1,1,1]);postU.uVig.value=P.vig||0;
   postU.uTilt.value=(P.tilt||0)*(P.tiltFar?smooth(9,34,camDist):1-smooth(20,60,camDist));postU.uNoAA.value=pixN?1:0;postU.uPix.value=pixN?(P.pixL||18):0;postU.uLine.value=P.line||(pixN?(P.pixLine==null?.5:P.pixLine):0);postU.uPoster.value=P.poster||0;postU.uPaper.value=P.paper||0;postU.uBloom.value=POST.flt?(P.bloom||0):0;postU.uGrain.value=P.grain||0;postU.uBars.value=P.bars||0;
   PLU.uPL.value=1;PLU.uPE.value=postU.uExp.value;renderer.setRenderTarget(POST.rt);renderer.render(scene,cam);renderer.setRenderTarget(null);
   try{renderer.render(POST.scene,POST.cam)}catch(e){POST.ok=false;throw e}}
