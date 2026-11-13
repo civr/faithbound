@@ -92,7 +92,7 @@ const MAT={
   plaza:stdMat({map:TX.plaza,roughness:.95}),
   dirtPlaza:stdMat({map:TX.dirt,roughness:1}),
   water:new THREE.MeshStandardMaterial({color:0x4aa0c8,roughness:.1,metalness:.1})};
-function setNight(f){for(const m of winMats)m.emissiveIntensity=f*(m===MAT.lamp?3:1.7)}
+function setNight(f){for(const m of winMats)m.emissiveIntensity=f*(m===MAT.lamp?3.6:2.2)}
 
 /* ---------- geometry helpers ---------- */
 const unitBox=()=>{const g=new THREE.BoxGeometry(1,1,1);g.translate(0,.5,0);return g};
@@ -408,7 +408,8 @@ function marshAt(i){if(!MARSH||MARSH.length!==N||marshVer!==terrVer){MARSH=new U
   return MARSH[i]===1}
 
 /* ---------- building recipes ---------- */
-const ROOF_RED=[0xa04a32,0x8e3f2c,0xb3593a,0x7c3a2b],ROOF_SLATE=[0x5d6672,0x4f5864,0x6a707a];
+/* roofs in warm, weathered colours: red tiles, warm grey slate with a little moss, and old brown shingle, for a cozy village */
+const ROOF_RED=[0xa04a32,0x8e3f2c,0xb3593a,0x7c3a2b,0x9a5236],ROOF_SLATE=[0x6c6462,0x5e5856,0x76706a,0x6a6e52,0x7a5e4a];
 function house(x,y,z,rot,w,d,hh,wall,wallTint,roof,roofTint,chim,o){
   const hk=o?o.hk:.5,floors=hh>.075?2:1,gableFront=hk>.45&&roof!=='thatch';
   if(floors===2&&wall==='plaster'&&hk<.75){/* jettied upper floor: stone or plaster below, timber-framed above and overhanging */
@@ -659,8 +660,8 @@ function terraceHouse0(n,sl,y,e,hk){const cu=cultOf(n),x=sl.x,z=sl.z,rot=sl.rot,
     facade(x,y,z,rot,w,d,h2,hk,1,true);return}
   if(cu==='meso'){flat('stone',pick([0xd8ccb4,0xcfc2a8,0xe0d4bc],3.3),hh*.8,.012,0xb8a88c);facade(x,y,z,rot,w,d,hh*.8,hk,1,true);return}
   if(cu==='east'){/* wooden townhouses with deep dark tile roofs, ridges along the street */
-    house(x,y,z,rot,w,d,hh*.85,'plaster',pick([0xd8c4a4,0xccb490,0xe0ceb0],3.3),'tiles',pick([0x5a5e66,0x646870,0x52565e],2.2),false,{hk:hk*.44});return}
-  if(cu==='nordic'){house(x,y,z,rot,w,d,hh,'timber',pick([0x8a6040,0x7a5236,0x9a704c,0x6e4a30],3.3),hash(hk*5.7)<.6?'thatch':'tiles',hash(hk*5.7)<.6?0xffffff:0x4a4a42,hash(hk*8.8)<.4,{hk:hk*.44});return}
+    house(x,y,z,rot,w,d,hh*.85,'plaster',pick([0xd8c4a4,0xccb490,0xe0ceb0],3.3),'tiles',pick([0x5e5654,0x6a605a,0x544c4a,0x7a4a38],2.2),false,{hk:hk*.44});return}
+  if(cu==='nordic'){house(x,y,z,rot,w,d,hh,'timber',pick([0x8a6040,0x7a5236,0x9a704c,0x6e4a30],3.3),hash(hk*5.7)<.6?'thatch':'tiles',hash(hk*5.7)<.6?0xffffff:0x5a4a3e,hash(hk*8.8)<.4,{hk:hk*.44});return}
   /* the west and the Mediterranean: plaster and timber-framed fronts, thatch, tile or slate; Mediterranean in warm stucco and red tile */
   const med=cu==='med',hh2=e<=1?hh*.85:hh;
   const walls=med?[0xe8dcc4,0xdcc8a8,0xeee4d0,0xd8c09c]:[0xe6dcc8,0xd8ccb4,0xcfc2a6,0xe0d4bc,0xbfae92],wc=walls[(hash(hk*3.3)*walls.length)|0];
@@ -680,6 +681,20 @@ function townInfill(n,plan,cx,cz,HP,i0,KO){const ds=HP.map(h=>Math.hypot(h[0]-cx
     else if(r<.8){for(let q=0;q<2;q++){const a=hv*6+q*2.1,bx=x+Math.cos(a)*.02,bz=z+Math.sin(a)*.02;greenAdd('bush',bx,groundY(bx,bz)-.01,bz,.22+q*.04,.19+q*.04,.22+q*.04,a,q%2?0x44622e:0x50703a)}}
     else if(r<.94){const rot=hash(hv*2.2)*3.14;add('bed',x,y-.004,z,.07,.008,.05,rot,0xe0d0c0);bareRect(x,z,rot,.075,.055)}
     else{add('hay',x,y,z,.04,.045,.04,0,0xe8d8a8)}}}
+/* the small things that make a street homely: flower boxes under the front windows or a bed of flowers by the door, barrels and
+   crates, a bench by the wall, and from the Middle Ages a lantern beside the door that glows warm at night */
+const COZY_FL=[0xd8504a,0xf0c040,0xf0ecf4,0xd070b0,0xf08a40,0x9a6ad0,0xe84a6a];
+function cozyBits(sl,y,e,hk){const fx=Math.sin(sl.rot),fz=Math.cos(sl.rot),rx=Math.cos(sl.rot),rz=-Math.sin(sl.rot);
+  const F=(along,out)=>[sl.x+fx*(sl.d/2+out)+rx*along,sl.z+fz*(sl.d/2+out)+rz*along],fl=q=>COZY_FL[(hash(hk*7.7+q)*COZY_FL.length)|0];
+  const h1=hash(hk*61+5);
+  if(h1<.42){for(const sd of [-1,1]){const [x,z]=F(sd*sl.w*.27,.006);add('box',x,y+.02,z,.026,.005,.007,sl.rot,0x6a4a2e);
+      for(let q=0;q<3;q++){const [bx,bz]=F(sd*sl.w*.27+(q-1)*.008,.007);add('bloom',bx,y+.025,bz,.008,.008,.008,0,fl(q+sd*5))}}}
+  else if(h1<.68){for(let q=0;q<5;q++){const [x,z]=F(sl.w*.26+(q-2)*.011,.016+(q%2)*.006);const g=groundY(x,z);if(g>waterY+.01)add('bloom',x,g+.003,z,.009,.009,.009,0,fl(q))}}
+  const h2=hash(hk*29+11);
+  if(h2<.22){const [x,z]=F(-sl.w*.34,.018),g=groundY(x,z);add('cyl',x,g,z,.014,.02,.014,0,0x7a5434);add('cyl',x+rx*.017,g,z+rz*.017,.012,.017,.012,0,0x6a4a2e)}
+  else if(h2<.36){const [x,z]=F(-sl.w*.3,.018),g=groundY(x,z);add('box',x,g,z,.018,.016,.018,sl.rot+.3,0x9a7a4e);add('box',x,g+.016,z,.013,.011,.013,sl.rot-.2,0x8a6a40)}
+  else if(h2<.48){const [x,z]=F(-sl.w*.08,.014),g=groundY(x,z);add('box',x,g+.009,z,.036,.004,.011,sl.rot,0x7a5a3a);for(const sd of [-1,1])add('box',x+rx*sd*.015,g,z+rz*sd*.015,.003,.009,.009,sl.rot,0x5a4430)}
+  if(e>=3&&hash(hk*13+7)<.3){const [x,z]=F(sl.w*.16,.004);add('lamp',x,y+.03,z,.008,.011,.008,sl.rot)}}
 function yard(x,z,rot,w,d,pd,pw,hk){const c=Math.cos(rot),s=Math.sin(rot);
   const L=(name,lx,lz,dy,sx,sy,sz,col,er)=>{const X=x+lx*c+lz*s,Z=z-lx*s+lz*c,Y=groundY(X,Z);if(Y<waterY+.02)return;add(name,X,Y+dy,Z,sx,sy,sz,rot+(er||0),col);if(name==='bed'||name==='timber'||name==='hay')bareRect(X,Z,rot+(er||0),sx,sz)};
   const z0=-d/2-.008,z1=z0-pd,zc=(z0+z1)/2,fc=0x7d6c55;
@@ -689,6 +704,9 @@ function yard(x,z,rot,w,d,pd,pw,hk){const c=Math.cos(rot),s=Math.sin(rot);
   if(LK.pixel){const G=(k,lx,lz,dy,sx,sy,sz,col,er)=>{const X=x+lx*c+lz*s,Z=z-lx*s+lz*c,Y=groundY(X,Z);if(Y<waterY+.02)return;greenAdd(k,X,Y+dy,Z,sx,sy,sz,rot+(er||0),col)};
     const nh=Math.max(2,Math.round(pw/.035));for(let q=0;q<nh;q++){const hv=hash(hk*17+q*3.1);if(hv<.25)continue;G('bush',-pw/2+pw*(q+.5)/nh,z1-.006,-.008,.2+hv*.06,.16+hv*.05,.2+hv*.06,0x44622e,hv*6)}
     if(hash(hk*53+2)<.12){const fx=(hash(hk*5)<.5?-1:1)*pw*.3;G(natKit('broad',hash(hk*3)),fx,z1+pd*.3,-.01,.17,.17,.17,0x4e6a32,hash(hk)*6)}}
+  /* now and then a washing line across the garden */
+  if(hash(hk*71+3)<.2&&pd>.06){const zl=z0-pd*.62;L('fence',-pw*.36,zl,0,.004,.036,.004,0x6a5034);L('fence',pw*.36,zl,0,.004,.036,.004,0x6a5034);L('fence',0,zl,.034,pw*.72,.0015,.0015,0xe8e8e0);
+    for(let q=0;q<4;q++){if(hash(hk*5+q)<.25)continue;L('box',(q-1.5)*pw*.16,zl,.02,.016,.014,.002,[0xf0ece4,0x8aa0c8,0xd86a5a,0xe8d890,0xa8c8a0][(hash(hk*9+q)*5)|0])}}
   const h2=hash(hk*91+7),nb=1+((h2*3)|0),bw=pw*.8/nb;
   for(let b=0;b<nb;b++){const bx=-pw*.4+bw*(b+.5),bl=pd*(.45+hash(hk*13+b)*.25);L('bed',bx,z1+.012+bl/2,-.004,bw*.82,.008,bl,[0xffffff,0xe0d0c0,0xd8e0c8][b%3])}
   const ex=hash(hk*29+1),zx=z0-pd*.22,xx=(hash(hk*7)<.5?-1:1)*pw*.28;
@@ -803,7 +821,7 @@ function townFlag(n,x,y,z,cap,e){const ht=cap?.2:.13,pc=e>=5?0xb8bcc0:0x6a5236;a
   const m=new THREE.Mesh(FLAGGEO,flagMat(n));const s=cap?.075:.055;m.scale.set(s,s*.66,s);m.position.set(x,y+ht-s*.36,z);m.userData.ph=hash(x*13+z*7)*6.28;m.castShadow=true;scene.add(m);townFlags.push(m)}
 const ARCH={classic:{label:'Old World',desc:'Timber, plaster, red and slate roofs',walls:[0xffffff,0xf3e6c8,0xf0d9b8,0xe8d6d0,0xdfe6ea,0xf6efe0],red:ROOF_RED,slate:ROOF_SLATE,roofH:.85},
   mediterranean:{label:'Sun Coast',desc:'Whitewash, terracotta and low roofs',walls:[0xfbf8f2,0xf4eee2,0xf0e4cc,0xf6f0e6],red:[0xc0603a,0xb5532f,0xc9704a,0xd07a52],slate:[0xc0603a,0xb5532f],roofH:.42},
-  nordic:{label:'Northland',desc:'Falu red, ochre and steep dark roofs',walls:[0x8e2f25,0xb36b2a,0x34403f,0xe8e0cc,0x7a2a22,0x8e2f25],red:[0x2f3436,0x3a3f40,0x4a3a2e],slate:[0x2f3436,0x3a3f40],roofH:1.2},
+  nordic:{label:'Northland',desc:'Falu red, ochre and steep dark roofs',walls:[0x8e2f25,0xb36b2a,0x34403f,0xe8e0cc,0x7a2a22,0x8e2f25],red:[0x4a3e36,0x564a3e,0x5a3a2e],slate:[0x4a4440,0x544a42],roofH:1.2},
   harbour:{label:'Harbour Town',desc:'Bright painted fronts and gabled rows',walls:[0xe9b44c,0x6fa8c8,0xd9786a,0x8fbf8a,0xf0e6d8,0xc79ad1],red:[0x8e3f2c,0x7c3a2b],slate:[0x4f5864,0x3f4652],roofH:.95}};
 const AR=()=>ARCH[settings.arch]||ARCH.classic;
 const AWN=[0xc0392b,0xe0b030,0x2e6fb0,0x3f8f4a,0xe8e2d4,0x9b4fa0];
@@ -1215,13 +1233,14 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         if(e===5&&sl.core<.4&&inD&&hk<.55&&(MCTX.fac|0)<(cap?7:3+lvl)){MCTX.fac=(MCTX.fac|0)+1;factory(sl.x,y,sl.z,sl.rot,true)}
         else if(sl.terr&&e>=1&&!wet)terraceHouse(n,sl,y,e,hk);
         else dwelling(n,sl.x,y,sl.z,sl.rot,e,hk,k,sl.core);
+        if(!far&&!wet&&!sl.terr&&!sl.metro&&e>=1&&e<=5)cozyBits(sl,y,e,hk);
         if(sl.pd>0&&e>=1&&e<=4&&cultOf(n)!=='mideast'&&cultOf(n)!=='africa'&&!(plan.wallR>.3&&Math.hypot(sl.x-cx,sl.z-cz)<plan.wallR+.05))yard(sl.x,sl.z,sl.rot,sl.w,sl.d,sl.pd,sl.pw,hk);
         if(plan.metro&&e>=5&&e<=6&&sl.core<.5&&hk>.35)frontGarden(sl.x,y,sl.z,sl.rot,Math.min(sl.w,.075),Math.min(sl.d,.075),hk);
         },sl.x,sl.z,sl.rot,false,sl.terr?-.016:undefined);
         if(!up)continue;placed++;HP.push([sl.x,sl.z,Math.max(sl.w,sl.d)*.62+(sl.pd||0)*.9]);occupied.add(ti);(MCTX.dists||(MCTX.dists=[])).push(Math.hypot(sl.x-cx,sl.z-cz));bareRect(sl.x,sl.z,sl.rot,sl.w*1.15,sl.d*1.2);
         if(sl.st>=0)reach.set(sl.st,Math.max(reach.get(sl.st)||0,sl.at+.12));
         if(!lagoon||groundY(sl.fx,sl.fz)>waterY+.02)c._poi.pts.push([sl.fx,sl.fz]);
-        if(!far&&e>=3&&e<=5&&hk<.16)smokeAt(sl.x,y+.13*(1+sl.core*.6),sl.z,false,.25)}
+        if(!far&&e>=1&&e<=5&&hk<.24)smokeAt(sl.x,y+.13*(1+sl.core*.6),sl.z,false,.25)}
       /* a walled city is packed: every open patch inside the wall fills with houses, each facing the nearest lane, wall to wall with its neighbours */
       if(plan.wallR>.3&&e>=2&&e<=4&&!plan.metro&&!lagoon)packInside(n,plan,cx,cz,plan.wallR+.05,e,KO,HP,k);
       /* the painted look: the green between the lanes fills with orchards, garden shrubs, vegetable plots and haystacks, as in an old village */

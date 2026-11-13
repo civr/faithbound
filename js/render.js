@@ -160,8 +160,8 @@ function updateSky(dt,now){
     const pr=camT.dot(rt),pu=camT.dot(up),pf=camT.dot(fw),sr=Math.round(pr/tx)*tx,su=Math.round(pu/tx)*tx;SNAPT.copy(rt).multiplyScalar(sr).addScaledVector(up,su).addScaledVector(fw,pf);
     sunL.position.copy(SNAPT).addScaledVector(ld,150);sunL.target.position.copy(SNAPT)}
   if(el>0){sunL.color.set(LK.sun).lerp(C_DUSKSUN,1-smooth(.02,.35,el));sunL.intensity=LK.sunI*smooth(0,.12,el)}
-  else{sunL.color.copy(C_MOON);sunL.intensity=.7*smooth(0,.15,-el)}
-  hemi.intensity=LK.hemiI*(.4+.6*day)*(1-.35*weatherDim)+flashT*9;sunL.intensity*=1-.7*weatherDim;
+  else{sunL.color.copy(C_MOON);sunL.intensity=1.1*smooth(0,.15,-el)}/* a soft moonlit night: the village stays visible round its lit windows */
+  hemi.intensity=LK.hemiI*(.55+.45*day)*(1-.35*weatherDim)+flashT*9;sunL.intensity*=1-.7*weatherDim;
   if(flashT>0)flashT=Math.max(0,flashT-dt);hemi.color.copy(skyU.top.value).lerp(new THREE.Color(1,1,1),.4);
   renderer.toneMappingExposure=LK.exposure*(.9+.1*day);
   if(weatherDim>0){const g=tmpC.setRGB(.42,.45,.5);skyU.top.value.lerp(g,weatherDim*.7);skyU.hor.value.lerp(g,weatherDim*.6);skyU.sunCol.value.multiplyScalar(1-weatherDim)}
