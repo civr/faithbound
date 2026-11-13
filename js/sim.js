@@ -285,7 +285,7 @@ function warTick(){siegeCleanup();
       makePeace(A,B,false);if(win)log(`${lose.name} ceded land to ${win.name} in the peace treaty.`,'war');delete warData[key]}}}}
 function makePeace(a,b,god){if(a.wars.has(b.id))noteWarEnd(a,b,god?'forced':'peace');a.wars.delete(b.id);b.wars.delete(a.id);bordersDirty=true;if(typeof consolidate==='function')consolidate();log(god?`You forced peace between ${a.name} and ${b.name}.`:`${a.name} and ${b.name} made peace.`,'life')}
 function fall(n,quiet){n.alive=false;for(const o of nations)if(o.allies)o.allies=o.allies.filter(x=>x!==n.id);n.allies=[];for(const o of nations)o.wars.delete(n.id);n.wars.clear();if(warFrom===n.id)warFrom=-1;if(!quiet)log(`${n.name} has fallen.`,'doom');propsDirty=true;bordersDirty=true}
-function rebel(n,forced,why){
+function rebel(n,forced,why,msgOver){
   const cands=n.cities.slice(1);if(!cands.length)return;const c=forced||cands[(rng()*cands.length)|0];
   const maxD=Math.max(3,Math.round(Math.sqrt(n.tiles)*.45)),limit=Math.floor(n.tiles*.45),start=c.y*W+c.x;if(owner[start]!==n.id)return;
   const seen=new Uint8Array(N),q=[start],region=[];seen[start]=1;let head=0;/* the capital itself never goes with the rebels */if(n.cities[0]&&n.cities[0]!==c)seen[n.cities[0].y*W+n.cities[0].x]=1;
@@ -299,7 +299,7 @@ function rebel(n,forced,why){
   R_.pop=n.pop*share;n.pop-=R_.pop;R_.tech=0;R_.era=n.era;R_.eraY=n.eraY??n.born;R_.techs=(n.techs||[]).slice();R_.faith=rng()<.5?n.faith:-1;R_.aggr=.6+rng()*.3;R_.gov=n.gov;if(!govOptions(R_).includes(R_.gov))R_.gov=govOptions(R_)[0]||n.gov;
   R_.known=n.known.slice();R_.known.push(n.id);n.known.push(R_.id);const gv=per(c.governor);if(gv&&gv.died==null&&gv.id!==n.ruler&&!gv.machine){gv.nation=R_.id;R_.house=gv.house;crown(R_,gv,'rebel')}
   if(why){/* a town that grew into a country of its own */
-    const msg=why==='colony'?`The colony of ${c.name} declared independence from ${n.name}.`:why==='conquered'?`The people of ${c.name} rose up and threw off the rule of ${n.name}.`:`${c.name} declared itself a free country, no longer ruled by ${n.name}.`;
+    const msg=msgOver||(why==='colony'?`The colony of ${c.name} declared independence from ${n.name}.`:why==='conquered'?`The people of ${c.name} rose up and threw off the rule of ${n.name}.`:`${c.name} declared itself a free country, no longer ruled by ${n.name}.`);
     if(rng()<.5&&warRoom(1)){startWar(R_,n,'rebel');log(msg+' War follows.','war')}else{log(msg+` ${n.name} let it go in peace.`,'life')}
     milestone('indep','A new country','A town broke away and became a nation of its own.');c.unrest=0;return}
   startWar(R_,n,'rebel');log(`${R_.name} broke away from ${n.name}${gv&&R_.ruler===gv.id?' under '+gv.name:''}. Civil war follows.`,'war');milestone('rebel','Civil war','An empire split in two.');
