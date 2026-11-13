@@ -674,8 +674,9 @@ function townInfill(n,plan,cx,cz,HP,i0,KO){const ds=HP.map(h=>Math.hypot(h[0]-cx
     let ok=true;for(const h of HP)if(Math.hypot(h[0]-x,h[1]-z)<h[2]+.05){ok=false;break}if(!ok)continue;
     for(const q of SP)if(Math.hypot(q[0]-x,q[1]-z)<.055){ok=false;break}if(!ok)continue;
     if(KO&&KO.some(q=>Math.hypot(x-q[0],z-q[1])<q[2]+.05))continue;
-    const r=inW?.32+hash(hv*3.7)*.62:hash(hv*3.7);/* inside the walls: courtyard gardens and shrubs, no orchards */
-    if(r<.32)greenAdd(natKit('broad',hv),x,y-.01,z,.28+hv*.1,.27+hv*.1,.28+hv*.1,hv*6,hv<.5?0x4e6a32:0x5a7236);/* fruit tree */
+    /* inside the walls and in the heart of the town: courtyard gardens and shrubs; a few small fruit trees only out at the edge */
+    const r=inW||d<RT*.78?.32+hash(hv*3.7)*.62:hash(hv*3.7);
+    if(r<.2)greenAdd(natKit('broad',hv),x,y-.01,z,.17+hv*.05,.17+hv*.05,.17+hv*.05,hv*6,hv<.5?0x4e6a32:0x5a7236);/* fruit tree */
     else if(r<.8){for(let q=0;q<2;q++){const a=hv*6+q*2.1,bx=x+Math.cos(a)*.02,bz=z+Math.sin(a)*.02;greenAdd('bush',bx,groundY(bx,bz)-.01,bz,.22+q*.04,.19+q*.04,.22+q*.04,a,q%2?0x44622e:0x50703a)}}
     else if(r<.94){const rot=hash(hv*2.2)*3.14;add('bed',x,y-.004,z,.07,.008,.05,rot,0xe0d0c0);bareRect(x,z,rot,.075,.055)}
     else{add('hay',x,y,z,.04,.045,.04,0,0xe8d8a8)}}}
@@ -687,14 +688,14 @@ function yard(x,z,rot,w,d,pd,pw,hk){const c=Math.cos(rot),s=Math.sin(rot);
   /* the painted look: gardens end in a low hedge, and some have a fruit tree */
   if(LK.pixel){const G=(k,lx,lz,dy,sx,sy,sz,col,er)=>{const X=x+lx*c+lz*s,Z=z-lx*s+lz*c,Y=groundY(X,Z);if(Y<waterY+.02)return;greenAdd(k,X,Y+dy,Z,sx,sy,sz,rot+(er||0),col)};
     const nh=Math.max(2,Math.round(pw/.035));for(let q=0;q<nh;q++){const hv=hash(hk*17+q*3.1);if(hv<.25)continue;G('bush',-pw/2+pw*(q+.5)/nh,z1-.006,-.008,.2+hv*.06,.16+hv*.05,.2+hv*.06,0x44622e,hv*6)}
-    if(hash(hk*53+2)<.3){const fx=(hash(hk*5)<.5?-1:1)*pw*.3;G(natKit('broad',hash(hk*3)),fx,z1+pd*.3,-.01,.3,.29,.3,0x4e6a32,hash(hk)*6)}}
+    if(hash(hk*53+2)<.12){const fx=(hash(hk*5)<.5?-1:1)*pw*.3;G(natKit('broad',hash(hk*3)),fx,z1+pd*.3,-.01,.17,.17,.17,0x4e6a32,hash(hk)*6)}}
   const h2=hash(hk*91+7),nb=1+((h2*3)|0),bw=pw*.8/nb;
   for(let b=0;b<nb;b++){const bx=-pw*.4+bw*(b+.5),bl=pd*(.45+hash(hk*13+b)*.25);L('bed',bx,z1+.012+bl/2,-.004,bw*.82,.008,bl,[0xffffff,0xe0d0c0,0xd8e0c8][b%3])}
   const ex=hash(hk*29+1),zx=z0-pd*.22,xx=(hash(hk*7)<.5?-1:1)*pw*.28;
   if(ex<.28){L('hay',xx,zx,0,.045,.05,.045,0xe8d8a8);L('hay',xx+.04,zx-.02,0,.035,.04,.035,0xe8d8a8)}
   else if(ex<.48){L('timber',xx,zx,0,.06,.022,.022,0xb09070)}
   else if(ex<.68){L('timber',xx,zx,-.01,.05,.04,.045,0xd0c8c0);L('hipThatch',xx,zx,.028,.064,.04,.065,0xe0d8cc)}
-  else if(ex<.85){L('townTree',xx,zx,-.01,.13,.13,.13,0x5e8a3a)}}
+  else if(ex<.75){L('townTree',xx,zx,-.01,.09,.09,.09,0x5e8a3a)}}
 /* ---------- regional architecture ---------- */
 const PASTEL=[0xe8a8a0,0x9ec8e0,0xf0d070,0xa8d8a0,0xf0c090,0xe8e0f0];
 function flatHouse(x,y,z,rot,w,d,hh,col,hk,opt){/* flat-roofed house: parapet, small windows, sometimes a dome or a wind tower */
@@ -1216,6 +1217,8 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       /* a walled city is packed: every open patch inside the wall fills with houses, each facing the nearest lane, wall to wall with its neighbours */
       if(plan.wallR>.3&&e>=2&&e<=4&&!plan.metro&&!lagoon)packInside(n,plan,cx,cz,plan.wallR+.05,e,KO,HP,k);
       /* the painted look: the green between the lanes fills with orchards, garden shrubs, vegetable plots and haystacks, as in an old village */
+      /* how far the houses reach: orchards and plantations are laid out beyond it */
+      {const ds=HP.map(h=>Math.hypot(h[0]-cx,h[1]-cz)+h[2]).sort((a,b)=>a-b);c._townR=Math.max(plan.pr,plan.wallR>.3?plan.wallR+.06:0,ds.length?ds[Math.floor(ds.length*.9)]:0)}
       if(LK.pixel&&e>=1&&e<=4&&!plan.metro&&!lagoon&&HP.length>4)townInfill(n,plan,cx,cz,HP,i0,KO);
       if(e===7&&typeof windTurbine==='function'){/* wind turbines on the open ground beyond the town */const R2=(plan.metro||(cap?1.1:.7))+.45;for(let k=0;k<(cap?5:3);k++){const a=hash(i0*3.1+k)*6.283,x=cx+Math.cos(a)*R2,z=cz+Math.sin(a)*R2,t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id)continue;windTurbine(x,groundY(x,z),z,.34,hash(i0)*6.28)}}
       if(MCTX.fac>0){/* smog: a brown haze hangs over the mill towns */const R_=(plan.metro||(cap?1.1:.7))*1.05+.3;add('smog',cx,cy+.05,cz,R_*2,.3+MCTX.fac*.02,R_*2,0,0x6a5a48);

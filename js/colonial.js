@@ -110,10 +110,11 @@ function orchardTick(n){if(n.era<1)return;
     const o=orchardSpot(c);if(!o)continue;c.orchard={a:o.a,r:o.r,fruit:F[(rng()*F.length)|0],year};
     if(!n._orch&&watchedC(n)){n._orch=1;log(`The people of ${c.name} planted ${c.orchard.fruit} orchards outside the town.`,'life')}}}
 function orchardSpot(c){const cx=wx(c.x),cz=wz(c.y);let best=null,bs=-1;
-  const R0=(c._poi&&c._poi.r)||.3;for(let k=0;k<10;k++){const a=k/10*6.283+hash(c.x*7+c.y)*.6,r=R0+.14+hash(c.x+c.y*13+k)*.14;let ok=0;
-    for(let i=0;i<3;i++)for(let j=0;j<4;j++){const [x,z]=orchardTree(cx,cz,{a,r},i,j);const g=groundY(x,z);if(g>waterY+.02&&!(typeof inBuilding==='function'&&inBuilding(x,z)))ok++}
+  for(let k=0;k<10;k++){const a=k/10*6.283+hash(c.x*7+c.y)*.6,r=hash(c.x+c.y*13+k)*.1;let ok=0;
+    for(let i=0;i<3;i++)for(let j=0;j<4;j++){const [x,z]=orchardTree(cx,cz,{a,r},i,j,c);const g=groundY(x,z);if(g>waterY+.02&&!(typeof inBuilding==='function'&&inBuilding(x,z)))ok++}
     if(ok>bs){bs=ok;best={a,r}}}return bs>=9?best:null}
-function orchardTree(cx,cz,o,i,j){const ox=cx+Math.cos(o.a)*o.r,oz=cz+Math.sin(o.a)*o.r,ca=Math.cos(o.a+1.57),sa=Math.sin(o.a+1.57),u=(j-1.5)*.062,v=(i-1)*.062;return [ox+ca*u+Math.cos(o.a)*v,oz+sa*u+Math.sin(o.a)*v]}
+/* the orchard lies just beyond the last houses (the town's reach, measured when it was built), so it moves out as the town grows; o.r is only a little extra */
+function orchardTree(cx,cz,o,i,j,c){const R=(c&&c._townR||.45)+.1+Math.min(o.r,.12),ox=cx+Math.cos(o.a)*R,oz=cz+Math.sin(o.a)*R,ca=Math.cos(o.a+1.57),sa=Math.sin(o.a+1.57),u=(j-1.5)*.062,v=(i-1)*.062;return [ox+ca*u+Math.cos(o.a)*v,oz+sa*u+Math.sin(o.a)*v]}
 
 /* ---------- railways ----------
    With the Railroads discovery a nation lays track from its capital out to its towns, one line every few years, for timber. A town on
@@ -139,13 +140,13 @@ function colonialFrame(R2){const sn=typeof seasonName==='function'&&settings.sea
       add('gwBox',x+.04,y,z-.04,.005,.17,.005,0,0x5a4430);add('gwBox',x+.065,y+.14,z-.04,.05,.03,.004,0,nc);add('gwBox',x+.065,y+.15,z-.04,.05,.006,.0045,0,0xf0f0f0)}
     for(const c of n.cities){const cx=wx(c.x),cz=wz(c.y),ex=cx-camT.x,ez=cz-camT.z;if(ex*ex+ez*ez>R2*2)continue;
       /* plantation rows and the planter's house */
-      if(c.plant){const a=hash(c.x*3+c.y*5)*6.283,pr=((c._poi&&c._poi.r)||.3)+.3,ox=cx+Math.cos(a)*pr,oz=cz+Math.sin(a)*pr,ca=Math.cos(a+1.57),sa=Math.sin(a+1.57),col=CROP_COL[c.plant]||0x6a8a3a;
+      if(c.plant){const a=hash(c.x*3+c.y*5)*6.283,pr=(c._townR||.45)+.2,ox=cx+Math.cos(a)*pr,oz=cz+Math.sin(a)*pr,ca=Math.cos(a+1.57),sa=Math.sin(a+1.57),col=CROP_COL[c.plant]||0x6a8a3a;
         for(let i=0;i<5;i++)for(let j=0;j<7;j++){const u=(j-3)*.035,v=(i-2)*.04,x=ox+ca*u+Math.cos(a)*v,z=oz+sa*u+Math.sin(a)*v,g=groundY(x,z);if(g<waterY+.01||typeof inBuilding==='function'&&inBuilding(x,z))continue;
           if(c.plant==='cotton'){add('colBall',x,g,z,.018,.016,.018,0,0x5a7a3a);add('colBall',x,g+.012,z,.008,.008,.008,0,col)}else add('gwCone',x,g,z,.018,c.plant==='sugar'?.035:.022,.018,i,col)}
         const hx=ox+Math.cos(a)*.13,hz=oz+Math.sin(a)*.13,hg=groundY(hx,hz);if(hg>waterY+.01&&!(typeof inBuilding==='function'&&inBuilding(hx,hz))){add('gwBox',hx,hg,hz,.075,.05,.055,a,0xf4f0e6);add('gwCone',hx,hg+.05,hz,.09,.035,.07,a+.785,0x6a3a2a)}}
       /* orchards: rows of fruit trees, white and pink in spring, green in summer, heavy with fruit in autumn, bare in winter */
       if(c.orchard){const o=c.orchard,fc=FRUIT_COL[o.fruit]||0xc8342a;
-        for(let i=0;i<3;i++)for(let j=0;j<4;j++){const [x,z]=orchardTree(cx,cz,o,i,j),g=groundY(x,z);if(g<waterY+.015||typeof inBuilding==='function'&&inBuilding(x,z))continue;const k=hash(i*7+j*3+c.x),sz=.036+k*.01;
+        for(let i=0;i<3;i++)for(let j=0;j<4;j++){const [x,z]=orchardTree(cx,cz,o,i,j,c),g=groundY(x,z);if(g<waterY+.015||typeof inBuilding==='function'&&inBuilding(x,z))continue;const k=hash(i*7+j*3+c.x),sz=.036+k*.01;
           add('gwBox',x,g,z,.006,.028,.006,0,0x5a4030);
           if(sn==='Winter'){add('colBall',x,g+.022,z,sz*.8,sz*.55,sz*.8,0,0x7a6a5a);continue}
           const crown=sn==='Spring'?(k<.5?0xf6eef0:0xf2c8d8):sn==='Autumn'?0x7a8a3a:0x4a7a34;add('colBall',x,g+.022,z,sz,sz*.8,sz,k*3,crown);
