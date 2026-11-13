@@ -221,11 +221,19 @@ let VW,VH,VY,detail,terrainMesh=null,skirtMesh=null,waterMesh=null,waterSide=nul
    waterY stays the mean level (towns, harbours and the land are laid out against it); TIDE is how far the sea stands above it now. */
 let TIDE=0,tideT=.1;const TIDE_A=.0095,TIDEU={uTide:{value:0},uSeaY:{value:0}};
 const seaNow=()=>waterY+TIDE;
+/* the height of the sea surface at (x,z) right now, exactly as the water shader draws it: the tide plus the swell, which
+   fades out over the shallows. The shader moves the vertices of a half-tile grid, so sample the swell at the four grid
+   corners around the point and blend, the way the triangles in between do. Anything afloat sits on this. */
+function swellV(px,pz,t){let d=clamp((waterY-groundY(px,pz))*2,0,1);if(d>0&&biome[clamp(Math.floor(pz+H/2),0,H-1)*W+clamp(Math.floor(px+W/2),0,W-1)]===2)d*=1-iceEdge(px,pz);return d>0?(Math.sin(px*1.7+t*1.1)*.03+Math.cos(pz*1.4+t*1.35)*.026)*d:0}
+function seaY(x,z){const t=waterU.uTime.value,fx=(x+W/2)*2,fz=(z+H/2)*2,i=Math.floor(fx),j=Math.floor(fz),u=fx-i,v=fz-j,X0=i/2-W/2,Z0=j/2-H/2,X1=X0+.5,Z1=Z0+.5;
+  const a=swellV(X0,Z0,t),b=swellV(X1,Z0,t),c=swellV(X0,Z1,t),d=swellV(X1,Z1,t);return waterY+TIDE+(a+(b-a)*u)*(1-v)+(c+(d-c)*u)*v}
+/* ships riding at anchor (the pirate coves) bob on it too */
+function rideAnchored(){if(typeof coveShips==='undefined')return;for(const g of coveShips){const p=g.position;p.y=seaY(p.x,p.z)}}
 function tideRange(){return TIDE_A*(.72+.28*Math.cos(tideT/7.4*6.283))}
 function tideTick(dt){if(typeof playing!=='undefined'&&playing&&!(typeof speedIdx!=='undefined'&&speedIdx===0))tideT+=dt/DAYLEN;
   const want=settings.tides!==false?tideRange()*Math.sin(tideT*1.93*6.283):0;TIDE+=(want-TIDE)*Math.min(1,dt*2);
   TIDEU.uTide.value=TIDE;TIDEU.uSeaY.value=waterY;if(typeof terrU!=='undefined'){terrU.uTide.value=TIDE;terrU.uTideA.value=settings.tides!==false?tideRange():0}
-  if(waterMesh){waterMesh.position.y=waterY+TIDE;if(typeof ocean!=='undefined'&&ocean)ocean.position.y=waterY+TIDE;if(waterSide)waterSide.scale.y=Math.max(.01,waterY+TIDE-BASE-.03)}}
+  if(waterMesh){waterMesh.position.y=waterY+TIDE;if(typeof ocean!=='undefined'&&ocean)ocean.position.y=waterY+TIDE;if(waterSide)waterSide.scale.y=Math.max(.01,waterY+TIDE-BASE-.03)}rideAnchored()}
 function tideWord(){if(settings.tides===false)return '';const r=tideRange(),f=TIDE/Math.max(1e-4,r),rising=Math.cos(tideT*1.93*6.283)>0,spring=Math.cos(tideT/7.4*6.283)>.6?'spring ':Math.cos(tideT/7.4*6.283)<-.6?'neap ':'';
   return f>.8?`High ${spring}tide`:f<-.8?`Low ${spring}tide`:rising?'Tide rising':'Tide falling'}
 const shapeH=v=>{const d=v-SEA0;return d>=0?SEA0*HS+d*HS*(.5+d*2.9+Math.max(0,d-.32)*2.4):SEA0*HS+d*HS*1.4};
