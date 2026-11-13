@@ -118,7 +118,8 @@ function leafTree(seed,kind){const r=mulberry32(seed),pos=[],nor=[],col=[];
   const push=(g,cf,smooth)=>{if(smooth&&g.index)g.computeVertexNormals();g=g.index?g.toNonIndexed():g;if(!smooth)g.computeVertexNormals();const a=g.attributes.position.array,n=g.attributes.normal.array;for(let i=0;i<a.length;i+=3){pos.push(a[i],a[i+1],a[i+2]);nor.push(n[i],n[i+1],n[i+2]);const c=cf(a[i],a[i+1],a[i+2]);col.push(c[0],c[1],c[2])}};
   const trunk=new THREE.CylinderGeometry(.022,.04,kind==='con'?.2:.24,6);trunk.translate(0,kind==='con'?.1:.12,0);push(trunk,()=>TRUNK);
   if(kind==='con'){for(let t=0;t<5;t++){const cg=new THREE.ConeGeometry(.2-t*.033,.16,9,1);const p=cg.attributes.position;for(let i=0;i<p.count;i++){if(p.getY(i)<0){const k=.85+r()*.3;p.setX(i,p.getX(i)*k);p.setZ(i,p.getZ(i)*k);p.setY(i,p.getY(i)-r()*.02)}}
-    cg.translate(0,.12+t*.072,0);push(cg,(x,y,z)=>{const ao=.55+.45*clamp((y-.04)/.42,0,1)*(.8+.2*Math.hypot(x,z)/.2);return[ao*.85,ao*.95,ao*.85]},true)}}
+    /* each tier of branches is lit at its outer edge and shaded towards the trunk under the tier above, so the tiers read */
+    const rw=.2-t*.033;cg.translate(0,.12+t*.072,0);push(cg,(x,y,z)=>{const h=clamp((y-.04)/.42,0,1),edge=clamp(Math.hypot(x,z)/rw,0,1),ao=(.55+.6*edge*edge)*(.86+.22*h);return[ao*(.86+.08*h),ao*.98,ao*(.92-.08*h)]},true)}}
   else{/* soft, rounded leaf clumps: smooth normals and a lumpy surface that stays closed (shared corners move together) */
     const n=6+((r()*3)|0),sd=r()*100;for(let b=0;b<n;b++){const ig=new THREE.IcosahedronGeometry(.5,b<3?1:0),P=ig.attributes.position,N=ig.attributes.normal;
     for(let i=0;i<P.count;i++){const x=P.getX(i),y=P.getY(i),z=P.getZ(i),l=Math.hypot(x,y,z)||1;const k=.84+.3*(Math.sin(x*9.1+sd+b)*Math.cos(z*8.3-sd)*.5+.5);P.setXYZ(i,x*k,y*k,z*k);N.setXYZ(i,x/l,y/l,z/l)}
@@ -210,17 +211,23 @@ kit('broad',leafTree(7,'broad'),treeMat,32000);
 /* the painted countryside's broadleaf tree: a slim dark trunk and a full, round crown of many leaf clumps, dark underneath and lit on top */
 function hamTree(seed,tall){const r=mulberry32(seed),pos=[],nor=[],col=[];
   const push=(g,cf)=>{g=g.index?g.toNonIndexed():g;const a=g.attributes.position.array,n=g.attributes.normal.array;for(let i=0;i<a.length;i+=3){pos.push(a[i],a[i+1],a[i+2]);nor.push(n[i],n[i+1],n[i+2]);const c=cf(a[i],a[i+1],a[i+2]);col.push(c[0],c[1],c[2])}};
-  const th=tall?.34:.28,trunk=new THREE.CylinderGeometry(.014,.026,th,6);trunk.translate(0,th/2,0);push(trunk,()=>[.22,.15,.09]);
-  for(const s of [-1,1]){const br=new THREE.CylinderGeometry(.006,.011,.12,4);br.rotateZ(s*.7);br.translate(s*.04,th*.78,0);push(br,()=>[.22,.15,.09])}
-  const cy=th+(tall?.14:.1),R=tall?.17:.2,n=9+((r()*3)|0),sd=r()*100;/* low-poly clumps (about 250 triangles a tree), so many more trees can stay real before they turn into simple stand-ins */
-  for(let b=0;b<n;b++){const ig=new THREE.IcosahedronGeometry(.5,0),P=ig.attributes.position,N=ig.attributes.normal;
-    const a=r()*6.283,el=(r()-.35)*1.6,d=b===0?0:R*(.45+r()*.5),s=b===0?R*.95:R*(.42+r()*.3);
-    const ox=Math.cos(a)*Math.cos(el)*d,oy=Math.sin(el)*d*(tall?1.5:1)+(b===0?0:.01),oz=Math.sin(a)*Math.cos(el)*d;
-    for(let i=0;i<P.count;i++){const x=P.getX(i),y=P.getY(i),z=P.getZ(i),k=.86+.26*(Math.sin(x*11.1+sd+b)*Math.cos(z*9.3-sd)*.5+.5);
-      const px=x*k*s+ox,py=y*k*s*(tall?1.25:.92)+cy+oy,pz=z*k*s+oz;P.setXYZ(i,px,py,pz);
+  /* a sturdy mid-brown trunk that disappears into the crown, not a long dark stick */
+  const th=tall?.3:.24,bark=()=>[.36,.26,.17],trunk=new THREE.CylinderGeometry(.02,.034,th,6);trunk.translate(0,th/2,0);push(trunk,bark);
+  for(const s of [-1,1]){const br=new THREE.CylinderGeometry(.008,.014,.11,4);br.rotateZ(s*.7);br.translate(s*.04,th*.82,0);push(br,bark)}
+  const cy=th+(tall?.08:.05),R=tall?.17:.2,sd=r()*100;
+  /* a round core and many smaller, lumpy clumps around it, so the outline reads as leaves rather than as one big many-sided ball
+     (about 250 triangles a tree, as before; far away the simple stand-ins take over) */
+  const clump=(det,s,ox,oy,oz,b)=>{const ig=new THREE.IcosahedronGeometry(.5,det),P=ig.attributes.position,N=ig.attributes.normal;
+    for(let i=0;i<P.count;i++){const x=P.getX(i),y=P.getY(i),z=P.getZ(i),k=.8+.38*(Math.sin(x*13.1+sd+b*1.7)*Math.cos(z*11.3-sd+b)*.5+.5)+(Math.sin(y*17.+b*3.1)*.06);
+      const px=x*k*s+ox,py=y*k*s*(tall?1.2:.9)+cy+oy,pz=z*k*s+oz;P.setXYZ(i,px,py,pz);
       /* normals point out from the crown's centre, so the whole crown shades as one soft ball */
       const nx=px,ny=(py-cy)*(tall?.8:1.1),nz=pz,l=Math.hypot(nx,ny,nz)||1;N.setXYZ(i,nx/l,ny/l,nz/l)}
-    const tone=.8+r()*.2;push(ig,(x,y,z)=>{const ao=(.35+.65*clamp((y-(cy-R*.9))/(R*1.9),0,1))*tone*(.85+.15*clamp(Math.hypot(x,z)/R,0,1));return[ao,ao,ao]})}
+    const tone=.9+r()*.1;
+    /* lit from above: warm, yellow-green tops; cool, darker undersides */
+    push(ig,(x,y,z)=>{const t=clamp((y-(cy-R*.9))/(R*1.9),0,1),ao=(.48+.54*t)*tone*(.86+.14*clamp(Math.hypot(x,z)/R,0,1));return[ao*(.94+.1*t),ao*(.98+.04*t),ao*(1.04-.16*t)]})};
+  clump(0,R*.8,0,0,0,0);
+  const n=10+((r()*3)|0);for(let b=1;b<=n;b++){const a=r()*6.283,el=(r()-.3)*1.5,d=R*(.46+r()*.38),s=R*(.34+r()*.22);
+    clump(0,s,Math.cos(a)*Math.cos(el)*d,Math.sin(el)*d*(tall?1.45:1),Math.sin(a)*Math.cos(el)*d,b)}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));return g}
 kit('hamA',hamTree(17,false),treeMat,40000);kit('hamB',hamTree(29,true),treeMat,30000);
 kit('palm',palmGeo(5),treeMat,8000);
@@ -1501,7 +1508,7 @@ function rebuildTrees0(){
       if(type==='mount'){if(y<shapeH(.8))add('conifer',x,y-.01,z,s*.85,s*.95,s*.85,hv*6,0x2f4a30);continue}
       if((type==='mix'||type==='conifer'||type==='jungle')&&hv<.45&&lod>.5)add('bush',x+.04,y-.01,z+.03,s*.9,s*.7,s*.9,hv*6,type==='jungle'?0x3f6a2a:0x45602e);
       let k=type;if(type==='mix')k=hv<(LK.pixel?(lat<.35?.5:.12):.4)?'conifer':'broad';if(type==='jungle')k=hv<.35?'palm':'broad';if(type==='acacia')k='broad';
-      const col=k==='conifer'?(hv<.5?0x27412a:0x31502f):k==='palm'?0x5d8a3a:type==='jungle'?(hv<.5?0x2f6a32:0x3d7a35):(hv<.25?0x3a6428:hv<.5?0x46702e:hv<.75?0x527a32:0x5e7f30);
+      const col=k==='conifer'?(hv<.5?0x2e5434:0x3a6338):k==='palm'?0x5d8a3a:type==='jungle'?(hv<.5?0x2f6a32:0x3d7a35):(hv<.25?0x3a6428:hv<.5?0x46702e:hv<.75?0x527a32:0x5e7f30);
       if(type==='acacia'){const ak=natKit('acacia',hv);if(ak==='broad')add('broad',x,y-.01,z,s*1.2,s*.55,s*1.2,hv*6,0x7a8a3c);else add(ak,x,y-.01,z,s,s,s,hv*6,0x7a8a3c)}else add(k==='broad'?natKit('broad',hv):k,x,y-.01,z,s,s,s,hv*6,col);
       if(hv>.8&&k!=='palm')add('bush',x+.06,y-.01,z+.04,s,s,s,0,0x4f7a36)}}
   /* woodcutters' camps where a town is felling now: a hut, a chopping block and stacked logs; a sawmill with a chimney from the Industrial age */

@@ -437,17 +437,44 @@ const LOD_KITS=['lodBox'];
    every tree on screen into a stand-in at an ordinary zoom. Trees within about the camera's distance plus a margin are always the full ones. */
 const camD=()=>typeof camDist==='number'?camDist:10,perfK=()=>typeof PERF!=='undefined'&&perfOn()?Math.max(.75,PERF.lodK):1;
 const treeLodDist=()=>Math.max(7,lodDist()*.75*(LK.pixel?1.45:1),Math.min(camD()*1.35+5,22)*perfK());/* far out a tree is a few pixels, so the reach stops growing */
-function makeTreeLo(name){const K=KITS[name];if(!K||K.lodP)return;const lo='lo_'+name;kit(lo,loTreeGeo(K.mesh.geometry,TREE_LO[name]),modelTreeMat(),K.max,false);KITS[lo].pn=0;K.lodP=lo;LOD_KITS.push(lo)}
+/* ---------- trees dissolve between their versions instead of jumping ---------- */
+/* Around each switching distance both versions are drawn, and a 4x4 ordered-dither pattern hands the pixels over from one to the other as the
+   distance changes: full trees dissolve into their stand-ins, and forest blocks dissolve in over the trees they replace. In pixel art the
+   dither is in the big pixels, so it reads as part of the style. The distances are set once per cull, so the shader and the cull agree. */
+const LODU={uLodD:{value:20},uLodB:{value:5},uCanD:{value:30},uCanB:{value:6}};
+const FADE_MATS=new Map();
+function fadeMat(base,mode){const key=base.uuid+'|'+mode;if(FADE_MATS.has(key))return FADE_MATS.get(key);const m=base.clone();
+  m.onBeforeCompile=function(sh,r){if(base.onBeforeCompile)base.onBeforeCompile.call(base,sh,r);Object.assign(sh.uniforms,LODU);
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying float vLodD;').replace('#include <begin_vertex>',`#include <begin_vertex>
+      #ifdef USE_INSTANCING
+      vLodD=distance((modelMatrix*instanceMatrix*vec4(0.,0.,0.,1.)).xyz,cameraPosition);
+      #else
+      vLodD=distance((modelMatrix*vec4(0.,0.,0.,1.)).xyz,cameraPosition);
+      #endif`);
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>',`#include <common>
+      varying float vLodD;uniform float uLodD,uLodB,uCanD,uCanB;
+      float lodBay(vec2 p){p=floor(p);vec2 a=floor(p*.5);return fract(dot(a,vec2(.5,a.y*.75)))*.25+fract(dot(p,vec2(.5,p.y*.75)));}`).replace('void main() {',`void main() {
+      {float bay=lodBay(gl_FragCoord.xy);
+      ${mode===1?'float a=1.-smoothstep(uLodD-uLodB,uLodD,vLodD);if(bay>=a)discard;':
+        mode===2?'float a=smoothstep(uLodD-uLodB,uLodD,vLodD);if(bay<1.-a)discard;':
+        'float a=smoothstep(uCanD-uCanB,uCanD,vLodD);if(bay<1.-a)discard;'}}`)};
+  const bk=base.customProgramCacheKey?base.customProgramCacheKey.bind(base):null;m.customProgramCacheKey=()=>(bk?bk():'tree')+'|lod'+mode;
+  FADE_MATS.set(key,m);return m}
+/* both versions are drawn inside the band: the full trees up to the switching distance, the stand-ins from the start of the band */
+const lodBand=d=>Math.max(1.4,d*.15);
+function lodUniforms(){const LD=treeLodDist(),CD=canopyDist();LODU.uLodD.value=LD;LODU.uLodB.value=lodBand(LD);LODU.uCanD.value=CD;LODU.uCanB.value=Math.max(2,CD*.15)}
+function makeTreeLo(name){const K=KITS[name];if(!K||K.lodP)return;const lo='lo_'+name;kit(lo,loTreeGeo(K.mesh.geometry,TREE_LO[name]),fadeMat(modelTreeMat(),2),K.max,false);KITS[lo].pn=0;K.lodP=lo;LOD_KITS.push(lo);
+  K.mesh.material=fadeMat(K.mesh.material,1)}
 TREE_LO.hamA=TREE_LO.hamB='round';for(const n of ['hamA','hamB','conifer','broad','townTree','palm','bush'])makeTreeLo(n);
 {const _ps=prepStatic;prepStatic=function(name,g){const r=_ps.apply(this,arguments);if(TREE_LO['s_'+name])makeTreeLo('s_'+name);return r}}
 /* trees switch to their simple crowns closer in than buildings do, since a forest is thousands of them */
 {const _ck2=cullKit;cullKit=function(K,P,margin){if(!K.lodP)return _ck2(K,P,margin);
-  const LK=KITS[K.lodP];if(LK.stamp!==CULLK.last){LK.stamp=CULLK.last;LK.pn=0}kitGrow(LK,Math.min(LK.max,LK.pn+K.n));const LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,LD2=treeLodDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
+  const LK=KITS[K.lodP];if(LK.stamp!==CULLK.last){LK.stamp=CULLK.last;LK.pn=0}kitGrow(LK,Math.min(LK.max,LK.pn+K.n));const LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,LDd=treeLodDist(),LD2=LDd**2,LB2=Math.max(0,LDd-lodBand(LDd))**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
   const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
   const NC=cullCands(K,P,margin),CL=K._cl;for(let j=0;j<NC;j++){const i=CL[j],x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
     for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}
     if(!ok)continue;if((cs[i*4+3]*cs[i*4+3])<CULLK.k2*((x-CULLK.cx)**2+(y-CULLK.cy)**2+(z-CULLK.cz)**2))continue;
-    if((x-cx)**2+(y-cy)**2+(z-cz)**2>LD2){if(LK.pn<LK.cap){copy16(LA,LK.pn*16,M,i*16);if(MC)copy3(LC,LK.pn*3,MC,i*3);LK.pn++}continue}
+    {const d2=(x-cx)**2+(y-cy)**2+(z-cz)**2;if(d2>LB2&&LK.pn<LK.cap){copy16(LA,LK.pn*16,M,i*16);if(MC)copy3(LC,LK.pn*3,MC,i*3);LK.pn++}if(d2>LD2)continue}
     copy16(A,v*16,M,i*16);if(C&&MC)copy3(C,v*3,MC,i*3);v++}
   K.mesh.count=v;const IM=K.mesh.instanceMatrix;IM.needsUpdate=true;if(IM.updateRange){IM.updateRange.offset=0;IM.updateRange.count=v*16}
   if(K.mesh.instanceColor){const IC=K.mesh.instanceColor;IC.needsUpdate=true;if(IC.updateRange){IC.updateRange.offset=0;IC.updateRange.count=v*3}}}}
@@ -524,13 +551,13 @@ function canopyGeo(cone,few){const P=[],C=[],put=(g,col)=>{g=g.index?g.toNonInde
   const NR=[];for(const [x,z,hh,sh] of spots){let g;const n0=P.length,rw=(cone?.13:.17+hh*.05)*(few?1.55:1);if(cone){g=new THREE.ConeGeometry(rw,hh,6,1);g.translate(x,hh/2,z)}else{g=new THREE.IcosahedronGeometry(.5,0);g.scale(rw*2,hh*.6,rw*2);g.translate(x,hh*.66,z)}put(g,[sh,sh,sh]);
     const cy=cone?hh*.35:hh*.66,sx=rw,sy=cone?hh*.7:hh*.3;for(let i=n0;i<P.length;i+=3){let nx=(P[i]-x)/(sx*sx),ny=(P[i+1]-cy)/(sy*sy)+(cone?.8/sy:0),nz=(P[i+2]-z)/(sx*sx);const l=Math.hypot(nx,ny,nz)||1;NR.push(nx/l,ny/l,nz/l)}}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(NR,3));return g}
-kit('canopyR',canopyGeo(false),modelTreeMat(),12000,false);kit('canopyC',canopyGeo(true),modelTreeMat(),12000,false);
+kit('canopyR',canopyGeo(false),fadeMat(modelTreeMat(),3),12000,false);kit('canopyC',canopyGeo(true),fadeMat(modelTreeMat(),3),12000,false);
 KITS.canopyR.revLod=KITS.canopyC.revLod=true;TREE_KITS.push('canopyR','canopyC');
 /* from high above a forest block is a few pixels: it swaps to a version with a third of the crowns */
 const CANOPY_G={R:[KITS.canopyR.mesh.geometry,canopyGeo(false,true)],C:[KITS.canopyC.mesh.geometry,canopyGeo(true,true)],far:false};
 function canopySwap(){const far=CANOPY_G.far?camDist>24:camDist>28;if(far===CANOPY_G.far)return;CANOPY_G.far=far;const k=far?1:0;
   KITS.canopyR.mesh.geometry=CANOPY_G.R[k];KITS.canopyC.mesh.geometry=CANOPY_G.C[k]}
-{const _ctc=cullTick;cullTick=function(){try{canopySwap()}catch(e){}return _ctc.apply(this,arguments)}}
+{const _ctc=cullTick;cullTick=function(){try{canopySwap()}catch(e){}if(CULLK.dirty||performance.now()-CULLK.last>80)try{lodUniforms()}catch(e){}return _ctc.apply(this,arguments)}}
 let CANOPY=new Uint8Array(1);
 const CANOPY_SRC=['hamA','hamB','conifer','broad','palm','s_tree_a','s_tree_b','s_tree_c','s_tree_d','s_bush_a','s_bush_b','s_bush_c'];
 const canopyDist=()=>Math.max(13,lodDist()*1.45,treeLodDist()*1.5+4);
@@ -545,7 +572,7 @@ function buildCanopies(){if(CANOPY.length!==N)CANOPY=new Uint8Array(N);else CANO
 {const _rt=rebuildTrees;rebuildTrees=function(){const r=_rt.apply(this,arguments);if(!TREE_LIGHT)try{buildCanopies()}catch(e){console.warn('canopy',e)}return r}}
 /* in the cull: trees on a blocked tile vanish beyond the canopy distance, and the canopy itself only shows out there */
 {const _ck3=cullKit;cullKit=function(K,P,margin){
-  if(K.revLod){const D2=canopyDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z,A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
+  if(K.revLod){const CDd=canopyDist(),D2=Math.max(0,CDd-Math.max(2,CDd*.15))**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z,A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
     const NC=cullCands(K,P,margin),CL=K._cl;for(let j=0;j<NC;j++){const i=CL[j],x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2];if((x-cx)**2+(y-cy)**2+(z-cz)**2<D2)continue;const r=-(cs[i*4+3]+margin);let ok=true;
       for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}if(!ok)continue;
       copy16(A,v*16,M,i*16);if(MC)copy3(C,v*3,MC,i*3);v++}

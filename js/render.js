@@ -54,6 +54,8 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
     if(uLine>0.){float e=0.;vec2 o=uPix>0.?px:px*uPx*1.2;float dn=dep(uv+vec2(0,o.y)),ds=dep(uv-vec2(0,o.y)),de=dep(uv+vec2(o.x,0)),dw=dep(uv-vec2(o.x,0));
       e=max(max(abs(dn-d0),abs(ds-d0)),max(abs(de-d0),abs(dw-d0)))/d0;float ink=smoothstep(.025,.06,e)*(1.-smoothstep(150.,400.,d0));
       vec3 cn=fetch(uv+vec2(0,o.y)),ce=fetch(uv+vec2(o.x,0));float ce2=length(cn-fetch(uv))+length(ce-fetch(uv));if(uPix<=0.)ink=max(ink,smoothstep(.35,.7,ce2)*.6);/* in pixel art only the outlines of things, not the grain of sand and water */
+      /* leaves get only a faint outline: inked edges around every leaf clump made crowns look like piles of hexagons */
+      vec3 c0=fetch(uv);ink*=1.-.75*smoothstep(.02,.1,c0.g-max(c0.r,c0.b));
       col=mix(col,uPaper>0.?vec3(.23,.15,.08):col*.25,clamp(ink*uLine,0.,.85));}
     if(uPaper>0.){float fib=vn(uv*uRes/3.)*.5+vn(uv*uRes/11.)*.3+vn(uv*vec2(6,9))*.6;vec3 paper=vec3(.92,.85,.69)*(.9+fib*.12);vec3 ink=vec3(.32,.22,.12);
       float l2=dot(col,vec3(.299,.587,.114));vec3 tone=mix(ink,paper,smoothstep(.05,.95,l2));
