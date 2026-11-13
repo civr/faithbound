@@ -1386,6 +1386,14 @@ function brooks(){const out=[],src=[];for(let i=0;i<N;i++){if(isWater(i)||river[
       if(best<0)break;path.push(best);cur=best;if(isWater(best)||river[best]||taken[best]||marshAt(best))break}
     if(path.length<4)continue;for(const t of path)taken[t]=1;out.push(path)}
   return out}
+/* the drawn rivers and brooks as line segments [x0,z0,x1,z1,half width,water height], filed under the tiles they touch, for the bridges */
+let RSEG=null,RSEGK='';
+function riverSegs(){const key=terrVer+'|'+rivers.length;if(RSEG&&RSEGK===key)return RSEG;RSEG=new Map();RSEGK=key;
+  const put=(p,q,w,y)=>{const g=[p[0],p[1],q[0],q[1],w,y];for(const ti of new Set([tileAt(p[0],p[1]),tileAt(q[0],q[1]),tileAt((p[0]+q[0])/2,(p[1]+q[1])/2)])){if(ti<0)continue;let L=RSEG.get(ti);if(!L)RSEG.set(ti,L=[]);L.push(g)}};
+  const run=(pts,wf,lift)=>{for(let k=0;k<pts.length-1;k++){const p=pts[k],q=pts[k+1],w=wf(p),y=Math.max(Math.min(groundY(p[0],p[1]),groundY(q[0],q[1]))+lift,waterY-.02);put(p,q,w,y)}};
+  for(const r of rivers)run(chaikin(r.tiles.map(t=>[wx(t%W)+(hash(t)-.5)*.3,wz((t/W)|0)+(hash(t*3)-.5)*.3,river[t]||1]),2),p=>.045+.03*p[2],.03);
+  for(const path of brooks())run(chaikin(path.map((t,k)=>[wx(t%W)+(hash(t*2.1)-.5)*.5,wz((t/W)|0)+(hash(t*4.7)-.5)*.5,k/path.length]),2),p=>.012+.02*p[2],.008);
+  return RSEG}
 function rebuildRivers(){const pos=[],uv=[],idx=[];let base=0;
   for(const r of rivers){const pts=chaikin(r.tiles.map(t=>[wx(t%W)+(hash(t)-.5)*.3,wz((t/W)|0)+(hash(t*3)-.5)*.3,river[t]||1]),2);let v=0;
     for(let k=0;k<pts.length;k++){const p=pts[k],q=pts[Math.min(k+1,pts.length-1)],o=pts[Math.max(k-1,0)];let dx=q[0]-o[0],dz=q[1]-o[1];const L=Math.hypot(dx,dz)||1;dx/=L;dz/=L;
@@ -1424,18 +1432,30 @@ const RIBC=new Map();let ribcVer=-1;
 /* when only the ground under some towns was re-flattened, only the road pieces there are worked out again */
 let ribcBase=-1,RIB_DIRTY=[];
 let ROAD_LINES=[];
-function rebuildRoads(){roadBare.clear();grassAt.x=1e9;
+let BRIDGES=[];
+function rebuildRoads(){roadBare.clear();grassAt.x=1e9;BRIDGES=[];
   if(ribcVer!==terrVer){if(ribcBase===terrBase&&RIB_DIRTY.length<40){for(const [k,c] of RIBC)if(RIB_DIRTY.some(r=>c.x1>=r[0]&&c.x0<=r[1]&&c.z1>=r[2]&&c.z0<=r[3]))RIBC.delete(k)}else RIBC.clear();ribcVer=terrVer;ribcBase=terrBase;RIB_DIRTY=[]}
   const P3=[[],[],[]],U3=[[],[],[]],C3=[[],[],[]];
   kitReset(['bridge']);const bridged=new Set();
   const rib=(ax,az,bx,bz,w,t)=>{const L=Math.hypot(bx-ax,bz-az);if(L<1e-4)return;const S=Math.max(1,Math.ceil(L/.1)),nx=-(bz-az)/L*w/2,nz=(bx-ax)/L*w/2,rep=t===2?3:t===1?w*40:2;
-    for(let s=0;s<=S;s++){const x=lerp(ax,bx,s/S),z=lerp(az,bz,s/S),ti=tileAt(x,z);if(ti>=0&&river[ti]&&!bridged.has(ti)&&groundY(x,z)>waterY){bridged.add(ti);const rot=Math.atan2(bx-ax,bz-az),y=groundY(x,z)+.04,len=.24+.05*river[ti],col=t===0?0x6b4a2e:t===1?0xb8b0a2:0x9a9a96;
-      add('bridge',x,y,z,w*1.5,.02,len,rot,col);add('bridge',x+Math.cos(rot)*w*.75,y+.015,z-Math.sin(rot)*w*.75,.006,.02,len,rot,col);add('bridge',x-Math.cos(rot)*w*.75,y+.015,z+Math.sin(rot)*w*.75,.006,.02,len,rot,col)}}
+    /* bridges stand where the road really crosses the water: the river (or brook) as it is drawn, not the tile it belongs to */
+    {const R=riverSegs(),seen=new Set(),dX=bx-ax,dZ=bz-az;for(let s=0;s<=S;s+=2){const ti=tileAt(lerp(ax,bx,s/S),lerp(az,bz,s/S));const L_=R.get(ti);if(!L_)continue;
+      for(const g of L_){if(seen.has(g))continue;seen.add(g);const eX=g[2]-g[0],eZ=g[3]-g[1],den=dX*eZ-dZ*eX;if(Math.abs(den)<1e-9)continue;
+        const u=((g[0]-ax)*eZ-(g[1]-az)*eX)/den,v=((g[0]-ax)*dZ-(g[1]-az)*dX)/den;if(u<0||u>1||v<0||v>1)continue;
+        const x=ax+dX*u,z=az+dZ*u,key=Math.round(x*20)+','+Math.round(z*20);if(bridged.has(key)||g[5]<waterY-.005)continue;bridged.add(key);
+        const sin=Math.abs(den)/(L*Math.hypot(eX,eZ)),len=Math.min(.5,2*g[4]/Math.max(.35,sin)+.07),rot=Math.atan2(dX,dZ),ux=dX/L,uz=dZ/L;
+        const y=Math.max(g[5]+.035,groundY(x-ux*len/2,z-uz*len/2)+.012,groundY(x+ux*len/2,z+uz*len/2)+.012),col=t===0?0x6b4a2e:t===1?0xb8b0a2:0x9a9a96,bw=w*1.5;
+        add('bridge',x,y-.02,z,bw,.02,len,rot,col);add('bridge',x+Math.cos(rot)*bw*.5,y-.005,z-Math.sin(rot)*bw*.5,.006,.02,len,rot,col);add('bridge',x-Math.cos(rot)*bw*.5,y-.005,z+Math.sin(rot)*bw*.5,.006,.02,len,rot,col);
+        BRIDGES.push({x,z,y:y+.002,h:len/2})}}}
     {const D=discOff(Math.ceil((w*.5+.012)/BC)),st=Math.max(1,Math.round(w/BC*.5));for(let s=0;s<=S;s+=st){const X=Math.floor(lerp(ax,bx,s/S)/BC),Z=Math.floor(lerp(az,bz,s/S)/BC);for(const [a,b] of D)roadBare.add((X+a)*100003+Z+b)}}
     for(let s=0;s<S;s++){const t0=s/S,t1=(s+1)/S,x0=lerp(ax,bx,t0),z0=lerp(az,bz,t0),x1=lerp(ax,bx,t1),z1=lerp(az,bz,t1);
-      const b0=tileAt(x0,z0),b1=tileAt(x1,z1),y0=groundY(x0,z0)+(b0>=0&&river[b0]?.06:.018),y1=groundY(x1,z1)+(b1>=0&&river[b1]?.06:.018),v0=t0*L*rep/(w*8),v1=t1*L*rep/(w*8);
-      P3[t].push(x0+nx,y0,z0+nz,x1-nx,y1,z1-nz,x0-nx,y0,z0-nz, x0+nx,y0,z0+nz,x1+nx,y1,z1+nz,x1-nx,y1,z1-nz);
+      /* each corner of the road lies on the ground under it, so the road follows a slope across it as well as along it; it rises onto the
+         deck only right at a bridge, with a short ramp either side, instead of hovering over the whole river tile */
+      const v0=t0*L*rep/(w*8),v1=t1*L*rep/(w*8),ya=roadY(x0+nx,z0+nz),yb=roadY(x1-nx,z1-nz),yc=roadY(x0-nx,z0-nz),yd=roadY(x1+nx,z1+nz);
+      P3[t].push(x0+nx,ya,z0+nz,x1-nx,yb,z1-nz,x0-nx,yc,z0-nz, x0+nx,ya,z0+nz,x1+nx,yd,z1+nz,x1-nx,yb,z1-nz);
       U3[t].push(0,v0,1,v1,1,v0, 0,v0,0,v1,1,v1)}};
+  const roadY=(x,z)=>{const g=groundY(x,z)+.01,ti=tileAt(x,z);let best=g;
+    for(const B of BRIDGES){const d=Math.hypot(x-B.x,z-B.z);if(d>B.h+.1)continue;if(d<B.h)best=Math.max(best,B.y);else best=Math.max(best,lerp(B.y,g,(d-B.h)/.1))}return best};
   /* roads: towns link to their nearest connected neighbour along the easiest ground (valleys, fords, existing roads) */
   const used=new Uint8Array(N),lines=[];
   for(const n of nations){if(!n.alive||n.cities.length<2)continue;const e=n.era,t=e<4?0:e<6?1:2,w=e<3?.055:e<5?.07:.1;
