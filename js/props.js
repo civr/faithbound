@@ -1320,12 +1320,15 @@ function rebuildFields(){
       if(owner[i]!==n.id||occupied.has(i)||fieldTiles.has(i))continue;const b=biome[i];if(!fm&&!(b===4||b===8||(b===5&&n.era>=3)))continue;
       if(!fm&&hash(i*5.3)>(n.era>=5?.8:LK.pixel?.82:.62))continue;
       const X0=X-W/2,Z0=Y-H/2;if(groundY(X0+.5,Z0+.5)<waterY+.08)continue;
+      /* no fields on steep ground: a hillside or the foot of a mountain stays grass or woods */
+      if(tslope.length===N&&tslope[i]>.24)continue;
       fieldTiles.add(i);fsig+=i+(n.famine>0?'f':'')+n.id+(n.era>=6?'m':'')+',';work.push(()=>{
       /* the painted countryside: neighbouring tiles form one large field of a single crop (ripe wheat, ploughed rows, young green or hay),
          its rows running straight on across the whole field */
       if(LK.pixel){const pk=hash(Math.floor(X/2+hash(Y*.37)*.9)*7.31+Math.floor(Y/2)*13.7+n.id*3.1),crop=n.famine>0?[132,104,70]:CROPS_H[(pk*CROPS_H.length*.999)|0],cc=crop.map(v=>LIN[v|0]),alongP=hash(pk*9.1)<.5,M=3;
         for(let q=0;q<M;q++)for(let r2=0;r2<M;r2++){const a0=q/M,a1=(q+1)/M,b0=r2/M,b1=(r2+1)/M,P=(a,b)=>[X0+a,Z0+b],U=(x,z)=>alongP?[x*2.4,z*1.1]:[z*2.4,x*1.1];
           const p00=P(a0,b0),p10=P(a1,b0),p01=P(a0,b1),p11=P(a1,b1),u00=U(...p00),u10=U(...p10),u01=U(...p01),u11=U(...p11);
+          /* a patch that runs up a slope is left as grass */{const hs=[p00,p10,p01,p11].map(q=>groundY(q[0],q[1]));if(Math.max(...hs)-Math.min(...hs)>.07)continue}
           vtx(p00[0],p00[1],u00[0],u00[1],cc);vtx(p01[0],p01[1],u01[0],u01[1],cc);vtx(p11[0],p11[1],u11[0],u11[1],cc);
           vtx(p00[0],p00[1],u00[0],u00[1],cc);vtx(p11[0],p11[1],u11[0],u11[1],cc);vtx(p10[0],p10[1],u10[0],u10[1],cc)}
         return}
@@ -1334,6 +1337,7 @@ function rebuildFields(){
         for(let q=0;q<3;q++){const b0=q/3+.02*(q===0),b1=(q+1)/3-.02*(q===2);
           const pt=(a,b)=>along?[X0+a,Z0+b]:[X0+b,Z0+a];
           const p00=pt(a0,b0),p10=pt(a1,b0),p01=pt(a0,b1),p11=pt(a1,b1),L=strips*1.2;
+          {const hs=[p00,p10,p01,p11].map(q=>groundY(q[0],q[1]));if(Math.max(...hs)-Math.min(...hs)>.07)continue}
           vtx(p00[0],p00[1],0,b0*3,cc);vtx(p01[0],p01[1],0,b1*3,cc);vtx(p11[0],p11[1],L/strips,b1*3,cc);
           vtx(p00[0],p00[1],0,b0*3,cc);vtx(p11[0],p11[1],L/strips,b1*3,cc);vtx(p10[0],p10[1],L/strips,b0*3,cc)}}})}}
   /* the same farmland as last time: the field meshes stand as they are */
@@ -1419,6 +1423,7 @@ let riverVer=-1;
 const RIBC=new Map();let ribcVer=-1;
 /* when only the ground under some towns was re-flattened, only the road pieces there are worked out again */
 let ribcBase=-1,RIB_DIRTY=[];
+let ROAD_LINES=[];
 function rebuildRoads(){roadBare.clear();grassAt.x=1e9;
   if(ribcVer!==terrVer){if(ribcBase===terrBase&&RIB_DIRTY.length<40){for(const [k,c] of RIBC)if(RIB_DIRTY.some(r=>c.x1>=r[0]&&c.x0<=r[1]&&c.z1>=r[2]&&c.z0<=r[3]))RIBC.delete(k)}else RIBC.clear();ribcVer=terrVer;ribcBase=terrBase;RIB_DIRTY=[]}
   const P3=[[],[],[]],U3=[[],[],[]],C3=[[],[],[]];
@@ -1437,9 +1442,16 @@ function rebuildRoads(){roadBare.clear();grassAt.x=1e9;
     const conn=[n.cities[0]],rest=n.cities.slice(1);
     while(rest.length){let bi=0,bj=0,bd=1e9;for(let i=0;i<rest.length;i++)for(let j=0;j<conn.length;j++){const d=Math.hypot(rest[i].x-conn[j].x,rest[i].y-conn[j].y);if(d<bd){bd=d;bi=i;bj=j}}
       const a=rest.splice(bi,1)[0],b=conn[bj];conn.push(a);if(bd>22)continue;
-      const path=roadPath(a,b,n.id,used);if(path)lines.push({path,w,t})}}
+      const path=roadPath(a,b,n.id,used);if(path)lines.push({path,w,t,nid:n.id})}}
   for(const n of nations){if(!n.alive||!n.cities.length)continue;for(const m of n.trade){const B=nations[m];if(!B||!B.alive||m<n.id||!B.cities.length||!n.nb.has(m))continue;
-    const path=roadPath(n.cities[0],B.cities[0],-1,used);if(path){const e=Math.min(n.era,B.era);lines.push({path,w:e<3?.05:e<5?.065:.09,t:e<4?0:e<6?1:2})}}}
+    const path=roadPath(n.cities[0],B.cities[0],-1,used);if(path){const e=Math.min(n.era,B.era);lines.push({path,w:e<3?.05:e<5?.065:.09,t:e<4?0:e<6?1:2,nid:n.id})}}}
+  /* trading partners that can be reached over land are joined where their towns lie nearest, so the two road networks meet */
+  {const done=new Set();for(const n of nations){if(!n.alive||!n.cities.length)continue;for(const m of n.trade||[]){const B=nations[m];if(!B||!B.alive||!B.cities.length)continue;const key=Math.min(n.id,m)+':'+Math.max(n.id,m);if(done.has(key))continue;done.add(key);
+      let a=null,b=null,bd=1e9;for(const p of n.cities)for(const q of B.cities){const d=Math.hypot(p.x-q.x,p.y-q.y);if(d<bd){bd=d;a=p;b=q}}if(!a||bd>34)continue;
+      const path=roadPath(a,b,-1,used);if(path){const e=Math.min(n.era,B.era);lines.push({path,w:e<3?.05:e<5?.065:.09,t:e<4?0:e<6?1:2,nid:n.id,trade:m})}}}}
+  /* the roads as they are drawn, for the travellers on them */
+  ROAD_LINES=lines.map(L=>{const pts=chaikin2(L.path.map(j=>[wx(j%W)+(hash(j*3.1)-.5)*.25,wz((j/W)|0)+(hash(j*7.3)-.5)*.25]),3);let len=0;const acc=[0];for(let k=1;k<pts.length;k++){len+=Math.hypot(pts[k][0]-pts[k-1][0],pts[k][1]-pts[k-1][1]);acc.push(len)}
+    let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;for(const q of pts){x0=Math.min(x0,q[0]);x1=Math.max(x1,q[0]);z0=Math.min(z0,q[1]);z1=Math.max(z1,q[1])}return{pts,acc,len,nid:L.nid,trade:L.trade,box:[x0,x1,z0,z1]}});
   const cached=(key,t,fn)=>{let c=RIBC.get(key);const K=KITS.bridge;
     if(!c){const p0=P3[t].length,u0=U3[t].length,b0=K.k,bare=[];roadBare.add=v=>{bare.push(v);return BitGrid.prototype.add.call(roadBare,v)};try{fn()}finally{delete roadBare.add}
       c={P:new Float32Array(P3[t].slice(p0)),U:new Float32Array(U3[t].slice(u0)),bi:roadBare.idxs(bare),bn:K.k-b0,bm:K.mesh.instanceMatrix.array.slice(b0*16,K.k*16),bc:K.mesh.instanceColor?K.mesh.instanceColor.array.slice(b0*3,K.k*3):null};{let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;const P=c.P;for(let i=0;i<P.length;i+=3){if(P[i]<x0)x0=P[i];if(P[i]>x1)x1=P[i];if(P[i+2]<z0)z0=P[i+2];if(P[i+2]>z1)z1=P[i+2]}if(K.k>b0){x0=-1e9;x1=1e9;z0=-1e9;z1=1e9}Object.assign(c,{x0,x1,z0,z1})}if(RIBC.size>5000)RIBC.clear();RIBC.set(key,c);return}
