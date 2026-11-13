@@ -521,7 +521,7 @@ function packInside(n,plan,cx,cz,R,e,KO,HP,k0){const SP=[];for(const st of plan.
   const nearSt=(x,z)=>{const gx=Math.floor(x/.15),gz=Math.floor(z/.15);let b=null,bd=9;for(let a=-2;a<=2;a++)for(let c=-2;c<=2;c++){const L=G.get((gx+a)+','+(gz+c));if(L)for(const q of L){const d=Math.hypot(q[0]-x,q[1]-z);if(d<bd){bd=d;b=q}}}return [b,bd]};
   const st=.086;let kk=k0;
   for(let gx=-R;gx<=R;gx+=st)for(let gz=-R;gz<=R;gz+=st){const x=cx+gx,z=cz+gz,d=Math.hypot(gx,gz);if(d>R*.97||d<plan.pr*.75)continue;
-    const t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id||river[t])continue;
+    const t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id||river[t]||riverNear(x,z,.065))continue;
     if(KO.some(q=>Math.hypot(x-q[0],z-q[1])<q[2]+.03))continue;
     const [q,sd]=nearSt(x,z);if(!q||sd<.075||sd>.5)continue;/* keep the lanes clear; deep inside a block, face the nearest lane anyway */
     const rot=Math.atan2(q[0]-x,q[1]-z),hk=hash(x*91.7+z*53.3),w=.082+hash(hk*3)*.016,dd=.074+hash(hk*5)*.012;
@@ -1012,12 +1012,14 @@ function townPlan(n,c,cap,e){
     /* future cities leave their forests standing as green belts */
     if(e>=6&&(biome[t]===5||biome[t]===6)&&Math.hypot(x-cx,z-cz)>Math.max(.5,MR*.45))return true;
     return Math.abs(groundY(x+.05,z)-groundY(x-.05,z))+Math.abs(groundY(x,z+.05)-groundY(x,z-.05))>.075};
+  /* a house must keep clear of the river and the brooks as they are drawn, by its own size and a little more */
+  const badH=(x,z,r)=>bad(x,z)||riverNear(x,z,(r||.05)+.015);
   const streets=[],slots=[],grid=new Map(),gk=(x,z)=>Math.floor(x/.09)+'_'+Math.floor(z/.09);
   const free=(x,z,r)=>{const gx=Math.floor(x/.09),gz=Math.floor(z/.09);for(let a=-2;a<=2;a++)for(let b=-2;b<=2;b++){const L=grid.get((gx+a)+'_'+(gz+b));if(L)for(const o of L)if(Math.hypot(o[0]-x,o[1]-z)<r+o[2])return false}return true};
   const mark=(x,z,r)=>{const k=gk(x,z);if(!grid.has(k))grid.set(k,[]);grid.get(k).push([x,z,r])};
   if(band===0){/* a loose camp: huts gather in little clusters around the fire */
     const huts=[[cx+.09,cz]];for(let k=0;k<70;k++){const b=huts[(R_()*huts.length)|0],a=R_()*6.283,d=.085+R_()*.05,x=b[0]+Math.cos(a)*d,z=b[1]+Math.sin(a)*d;
-      if(Math.hypot(x-cx,z-cz)<.07||bad(x,z)||!free(x,z,.04))continue;mark(x,z,.04);huts.push([x,z]);{const hr=R_()*6.283;slots.push({x,z,rot:hr,w:.1,d:.1,core:0,st:-1,at:0,fx:x+Math.sin(hr)*.075,fz:z+Math.cos(hr)*.075,dd:Math.hypot(x-cx,z-cz)+R_()*.15})}}
+      if(Math.hypot(x-cx,z-cz)<.07||badH(x,z,.04)||!free(x,z,.04))continue;mark(x,z,.04);huts.push([x,z]);{const hr=R_()*6.283;slots.push({x,z,rot:hr,w:.1,d:.1,core:0,st:-1,at:0,fx:x+Math.sin(hr)*.075,fz:z+Math.cos(hr)*.075,dd:Math.hypot(x-cx,z-cz)+R_()*.15})}}
     slots.sort((a,b)=>a.dd-b.dd);return c._plan={key,streets,slots,pr}}
   if(mb)return c._plan=organicMetro(c,cap,e,mb,key,R_,cx,cz,pr,bad,free,mark);
   const straight=band>=2?.65:1,len=gf*(cap?2.1:1.4)*(e>=3&&e<=4?(cap?1.15:.85):1)*(band>=2?1.25:1)*(band===3?1.4:1)*Math.sqrt(clamp(W/112,.6,1.4));
@@ -1038,7 +1040,7 @@ function townPlan(n,c,cap,e){
   /* plaza frontage first, then plots along every street, both sides */
   const hs=band===1?[.1,.075]:band===2?[.12,.08]:[.11,.1];
   const ring=pr>.5?0:Math.max(5,Math.round(pr*6.283/(hs[0]+.02)));for(let k=0;k<ring;k++){const a=k/ring*6.283+.2,r=pr+hs[1]/2+.03,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;
-    if(bad(x,z)||!free(x,z,Math.max(hs[0],.1)*.66))continue;mark(x,z,Math.max(hs[0],.1)*.66);slots.push({x,z,rot:Math.atan2(-Math.cos(a),-Math.sin(a)),w:hs[0],d:hs[1],core:1,st:-1,at:0,fx:cx+Math.cos(a)*pr*.8,fz:cz+Math.sin(a)*pr*.8,dd:pr*.5})}
+    if(badH(x,z,Math.max(hs[0],.1)*.66)||!free(x,z,Math.max(hs[0],.1)*.66))continue;mark(x,z,Math.max(hs[0],.1)*.66);slots.push({x,z,rot:Math.atan2(-Math.cos(a),-Math.sin(a)),w:hs[0],d:hs[1],core:1,st:-1,at:0,fx:cx+Math.cos(a)*pr*.8,fz:cz+Math.sin(a)*pr*.8,dd:pr*.5})}
   for(const st of streets)for(const q of st.pts)mark(q[0],q[1],st.main?.035:.025);
   streets.forEach((st,si)=>{const sw=st.main?.035:.025;
     const fine=band>=1&&dens>.25;const PT=fine?(()=>{const o=[];st.pts.forEach((q,i)=>{if(!i){o.push(q);return}const a=st.pts[i-1];for(let k=1;k<=6;k++){const t=k/6;o.push([a[0]+(q[0]-a[0])*t,a[1]+(q[1]-a[1])*t,a[2]+(q[2]-a[2])*t])}});return o})():st.pts;
@@ -1051,7 +1053,7 @@ function townPlan(n,c,cap,e){
         let w=hs[0]*(.85+R_()*.35),d=hs[1]*(.85+R_()*.3),off=sw+d/2+(rural?.02+R_()*.04:.008+R_()*.012);
         if(terr){w=hs[0]*(.92+(w/hs[0]-.85)*.3);d=hs[1]*(1.05+(d/hs[1]-.85)*.4);off=sw+w*.5+.004}
         const nx=-Math.sin(h)*side,nz=Math.cos(h)*side,x=p1[0]+nx*off,z=p1[1]+nz*off;
-        const rr=terr?w*.5+.001:rural?Math.max(w,d,.1)*.7:Math.max(w,d,.1)*.66+.003;if(bad(x,z)||!free(x,z,rr))continue;
+        const rr=terr?w*.5+.001:rural?Math.max(w,d,.1)*.7:Math.max(w,d,.1)*.66+.003;if(badH(x,z,rr)||!free(x,z,rr))continue;
         let pd=terr?0:band===1?(rural?.11+R_()*.15:LK.pixel?.05+R_()*.04:.05+R_()*.04):0;const pw=w*(1.05+R_()*.45),bx=x+nx*(d/2+pd/2),bz=z+nz*(d/2+pd/2);
         if(pd>0&&(bad(bx,bz)||!free(bx,bz,pd*.42)))pd=0;
         mark(x,z,rr);if(pd>0){mark(bx,bz,pd*.45);mark(x+nx*(d/2+pd*.9),z+nz*(d/2+pd*.9),pw*.4)}
@@ -1097,7 +1099,7 @@ function organicMetro(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[]
       for(const side of [1,-1]){if(R_()<(row?.05:kind===2?.25:kind===1?.18:.32))continue;
         let w=kind===2?.15:kind===1?.12+R_()*.03:.07+R_()*.015,d=kind===2?.13:kind===1?.1:.062;if(row){w=e===5?.085+R_()*.012:.1+R_()*.02;d=e===5?.075:.09}
         const rr=row?w*.5+.001:Math.hypot(w,d)*.5+.004,off=row?sw+rr+.004:sw+rr+(kind===0?.012+R_()*.02:.006),nx=-Math.sin(h)*side,nz=Math.cos(h)*side,x=p1[0]+nx*off,z=p1[1]+nz*off;
-        if(bad(x,z)||!free(x,z,rr))continue;mark(x,z,rr);
+        if(bad(x,z)||riverNear(x,z,rr+.015)||!free(x,z,rr))continue;mark(x,z,rr);
         slots.push({x,z,rot:Math.atan2(-nx,-nz),w,d,pd:0,pw:0,core,st:si,at:p1[2],fx:p1[0],fz:p1[1],dd:dist+R_()*(row?.03:.15),metro:1,terr:row})}}});
   slots.sort((a,b)=>a.dd-b.dd);return {key,streets,slots,pr,metro:MR}}
 /* a metropolis: a street grid of blocks out to a ragged edge; towers crowd the middle, flats and villas spread outward */
@@ -1115,7 +1117,7 @@ function metroPlan(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[],sl
     const hs=Math.min(inner*.24,.062),mw=Math.min(inner*.42,.12),spots=big?[[0,0,Math.min(inner*.72,.2)]]:mid?[[-.25,-.25,mw],[.25,-.25,mw],[-.25,.25,mw],[.25,.25,mw]].filter(()=>R_()>.2):
       [[-.34,-.34,hs],[.34,-.34,hs],[-.34,.34,hs],[.34,.34,hs],[0,-.36,hs],[0,.36,hs]].filter(()=>R_()>.15);
     if(big&&R_()<.45)spots.splice(0,1,[-.22,0,inner*.5],[.22,0,inner*.5]);
-    for(const [du,dv,w] of spots){const u=u0+du*inner,v=v0+dv*inner,[x,z]=toW(u,v);if(bad(x,z)||!free(x,z,w*.45))continue;mark(x,z,w*.45);
+    for(const [du,dv,w] of spots){const u=u0+du*inner,v=v0+dv*inner,[x,z]=toW(u,v);if(bad(x,z)||riverNear(x,z,w*.45+.015)||!free(x,z,w*.45))continue;mark(x,z,w*.45);
       const fu=Math.abs(du)>=Math.abs(dv)?Math.sign(du||1):0,fv=fu?0:Math.sign(dv||1),rot=Math.atan2(fu*ca-fv*sa,fu*sa+fv*ca);
       slots.push({x,z,rot,w,d:w,pd:0,pw:0,core,st:-1,at:0,fx:x,fz:z,dd:dist+R_()*.1,metro:1})}}
   slots.sort((a,b)=>a.dd-b.dd);return {key,streets,slots,pr,metro:MR}}
@@ -1174,9 +1176,14 @@ function buildOne(n,c,ci,e,gold,lvl,key){const L0={em:emitters.length,hd:herds.l
 function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),cap=ci===0;occupied.add(i0);
       const cy=surfY(cx,cz);
       if(e>=1)bareMark(cx,cz,(cap?.3:.15)*.95);cityCenter(n,c,cx,cy,cz,e,cap,i0);
-      const KO=[],lag0=isLagoon(n,c,e);if(cap){solid(()=>{if(lag0&&e>=3)lagoonCapital(n,cx,cy,cz,e);else landmark(n,cx,cy,cz,e)},cx,cz,0,true);KO.push([cx,cz,lag0&&e>=3?.32:e===0?.3:e<=2?.46:e<=4?.7:e===5?.32:.2])}
-      const CO=cap&&e>=3&&e<=4?2.3:1;if(cap&&n.wonder){const wx_=cx+.42*CO,wz_=cz-.3*CO;solid(()=>wonder(n,wx_,surfY(wx_,wz_),wz_,n.wonder),wx_,wz_,0,false,undefined,'big');occupied.add(Math.floor(wz_+H/2)*W+Math.floor(wx_+W/2));KO.push([wx_,wz_,.3])}
-      if(n.faith>=0&&(cap||hash(i0*3)<.35)){const tx=cx-.32*CO,tz=cz+.2*CO;solid(()=>sacredSite(faiths[n.faith],n,tx,surfY(tx,tz),tz,e,hash(i0)*3,cap),tx,tz,0,false,undefined,'big');KO.push([tx,tz,cap?.26:.2])}
+      const KO=[],lag0=isLagoon(n,c,e);if(cap){/* the palace or castle stands on dry ground: a capital built on a river puts it a little to one side */
+        const kr=lag0&&e>=3?.32:e===0?.3:e<=2?.46:e<=4?.7:e===5?.32:.2;let lx=cx,lz=cz;if(!lag0&&riverNear(cx,cz,kr*.35)){let best=null;for(const r of [.15,.3,.45])for(let q=0;q<8&&!best;q++){const x=cx+Math.cos(q*.785)*r,z=cz+Math.sin(q*.785)*r;if(!riverNear(x,z,kr*.35)&&groundY(x,z)>waterY+.04)best=[x,z]}if(best){lx=best[0];lz=best[1]}}
+        const ly=lx===cx&&lz===cz?cy:surfY(lx,lz);solid(()=>{if(lag0&&e>=3)lagoonCapital(n,cx,cy,cz,e);else landmark(n,lx,ly,lz,e)},lx,lz,0,true);KO.push([lx,lz,kr])}
+      const CO=cap&&e>=3&&e<=4?2.3:1;
+      /* the wonder and the temple stand clear of rivers and brooks: if their usual spot is wet, they move round the centre */
+      const dryOff=(ox,oz,r)=>{for(let q=0;q<8;q++){const a=q*.785,x=cx+ox*Math.cos(a)-oz*Math.sin(a),z=cz+ox*Math.sin(a)+oz*Math.cos(a);if(!riverNear(x,z,r)&&groundY(x,z)>waterY+.03)return [x,z]}return [cx+ox,cz+oz]};
+      if(cap&&n.wonder){const [wx_,wz_]=dryOff(.42*CO,-.3*CO,.2);solid(()=>wonder(n,wx_,surfY(wx_,wz_),wz_,n.wonder),wx_,wz_,0,false,undefined,'big');occupied.add(Math.floor(wz_+H/2)*W+Math.floor(wx_+W/2));KO.push([wx_,wz_,.3])}
+      if(n.faith>=0&&(cap||hash(i0*3)<.35)){const [tx,tz]=dryOff(-.32*CO,.2*CO,cap?.2:.15);solid(()=>sacredSite(faiths[n.faith],n,tx,surfY(tx,tz),tz,e,hash(i0)*3,cap),tx,tz,0,false,undefined,'big');KO.push([tx,tz,cap?.26:.2])}
       if(c.dike)dikeRing(c,cx,cz);
       MCTX={lvl,cap,tall:[],w:.12,cu:cultOf(n),n};const lagoon=isLagoon(n,c,e);MCTX.lagoon=lagoon;const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+Math.min(TOWN_MAX,townLevel(n,cap)+(gold?1.5:0))*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?3.4:3.2):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
       if(plan.metro)plan.streets.forEach((st,si)=>{if(st.main&&st.base<=plan.pr+.01)reach.set(si,.5)});let k=0,placed=0;const HP=[];CUR_GREEN=c._green=[];c._poi={pts:[],plaza:[cx,cz],r:plan.pr};
@@ -1193,6 +1200,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         if(e>=1){/* two towns that meet never build on the same spot */const bk=Math.round(sl.x*12)+','+Math.round(sl.z*12);if(bgrid.has(bk))continue;bgrid.add(bk)}
         const ti=tileAt(sl.x,sl.z);if(ti<0||(owner[ti]>=0&&owner[ti]!==n.id))continue;
         if(KO.some(q=>Math.hypot(sl.x-q[0],sl.z-q[1])<q[2]+Math.max(sl.w,sl.d)*.6))continue;/* never on top of the temple, the palace or a wonder */
+        if(!lagoon&&riverNear(sl.x,sl.z,Math.hypot(sl.w,sl.d)*.5+(sl.pd||0)+.01))continue;/* nor in a river or a brook, house and garden */
         const hw=sl.w/2,hd=sl.d/2,ca=Math.cos(sl.rot),sa=Math.sin(sl.rot);let mn=1e9,mx=-1e9;
         for(const [a,b] of [[-hw,-hd],[hw,-hd],[-hw,hd],[hw,hd],[0,0]]){const y=groundY(sl.x+a*ca+b*sa,sl.z-a*sa+b*ca);if(y<mn)mn=y;if(y>mx)mx=y}
         const wet=lagoon&&mn<waterY+.03;if((!wet&&mn<waterY+.03)||(!wet&&mx-mn>.09))continue;
@@ -1386,6 +1394,9 @@ function brooks(){const out=[],src=[];for(let i=0;i<N;i++){if(isWater(i)||river[
       if(best<0)break;path.push(best);cur=best;if(isWater(best)||river[best]||taken[best]||marshAt(best))break}
     if(path.length<4)continue;for(const t of path)taken[t]=1;out.push(path)}
   return out}
+function riverNear(x,z,r){const R=riverSegs(),t=tileAt(x,z);if(t<0)return false;const X=t%W,Y=(t/W)|0;
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(X+dx<0||X+dx>=W||Y+dy<0||Y+dy>=H)continue;const L=R.get((Y+dy)*W+X+dx);if(!L)continue;
+    for(const g of L){const ex=g[2]-g[0],ez=g[3]-g[1],l2=ex*ex+ez*ez||1e-9,u=clamp(((x-g[0])*ex+(z-g[1])*ez)/l2,0,1),d=Math.hypot(x-g[0]-ex*u,z-g[1]-ez*u);if(d<g[4]+r)return true}}return false}
 /* the drawn rivers and brooks as line segments [x0,z0,x1,z1,half width,water height], filed under the tiles they touch, for the bridges */
 let RSEG=null,RSEGK='';
 function riverSegs(){const key=terrVer+'|'+rivers.length;if(RSEG&&RSEGK===key)return RSEG;RSEG=new Map();RSEGK=key;
