@@ -107,10 +107,12 @@ function tradeTrainRoutes(){const out=[],dummy=new Uint8Array(N);
       let L=0;const acc=[0];for(let k=1;k<pts.length;k++){L+=Math.hypot(pts[k][0]-pts[k-1][0],pts[k][1]-pts[k-1][1]);acc.push(L)}
       const old=tradeTrains.find(c=>c.a===n.id&&c.b===m);out.push({a:n.id,b:m,pts,acc,L,t:old?old.t:rng()*L,dir:old?old.dir:1})}}
   /* inside a realm too: from the capital to its towns */
-  for(const n of nations){if(!n.alive||n.cities.length<2||n.era<1)continue;for(let k=1;k<Math.min(n.cities.length,3);k++){const path=roadPath(n.cities[0],n.cities[k],n.id,dummy);if(!path||path.length<3)continue;
+  /* (in the railway age: every town on the railway, so the trains run where the track was really laid) */
+  for(const n of nations){if(!n.alive||n.cities.length<2||n.era<1)continue;const railed=n.era>=5&&n.cities.some((c,k)=>k&&c.rail);const ks=railed?n.cities.map((c,k)=>k).filter(k=>k&&n.cities[k].rail).slice(0,8):[1,2].filter(k=>k<n.cities.length);
+    for(const k of ks){const path=roadPath(n.cities[0],n.cities[k],n.id,dummy);if(!path||path.length<3)continue;
       const pts=chaikin2(path.map(j=>[wx(j%W)+(hash(j*3.1)-.5)*.25,wz((j/W)|0)+(hash(j*7.3)-.5)*.25]),3);let L=0;const acc=[0];for(let q=1;q<pts.length;q++){L+=Math.hypot(pts[q][0]-pts[q-1][0],pts[q][1]-pts[q-1][1]);acc.push(L)}
       const old=tradeTrains.find(c=>c.a===n.id&&c.b===-k);out.push({a:n.id,b:-k,pts,acc,L,t:old?old.t:rng()*L,dir:old?old.dir:1})}}
-  tradeTrains=out.slice(0,30)}
+  tradeTrains=out.slice(0,48)}
 function tradeTrainAt(c){let lo=0,hi=c.acc.length-1;while(lo<hi-1){const m=(lo+hi)>>1;if(c.acc[m]<=c.t)lo=m;else hi=m}const s=c.acc[hi]-c.acc[lo]||1,f=(c.t-c.acc[lo])/s,a=c.pts[lo],b=c.pts[hi];return [lerp(a[0],b[0],f),lerp(a[1],b[1],f),Math.atan2(b[1]-a[1],b[0]-a[0])]}
 
 /* ---------- animals, birds, seaWhales and fishing boats near the camera ---------- */

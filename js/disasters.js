@@ -185,7 +185,7 @@ function disasterTick(){
   const L=dLevel();
   if(scorched&&year%2===0)for(let i=0;i<N;i++)if(scorched[i]>0){scorched[i]=Math.max(0,scorched[i]-2);if(scorched[i]===0){colorDirty=true}}
   for(const n of nations){if(!n.alive)continue;
-    if(n.famine>0){n.famine--;/* those who live from the sea still eat */n.pop*=1-.025*(1-clamp(n.fishShare||0,0,.6));if(n.famine===0){log(`The famine in ${n.name} is over.`,'life');propsDirty=true}}
+    if(n.famine>0){n.famine--;/* those who live from the sea still eat */n.pop*=1-.025*(1-clamp(n.fishShare||0,0,.6))*(1-.4*(n.railShare||0));/* and grain comes by train */if(n.famine===0){log(`The famine in ${n.name} is over.`,'life');propsDirty=true}}
     else if(L>0){const p=L*(n.era>=6?.25:1);
       /* frost and drought kill the crops, not the fish: a people that lives from the sea starves less often */const sea_=1-clamp(n.fishShare||0,0,.7);
       if(n.pop>n.cap*1.02&&rng()<.01*p)startFamine(n,'hunger');else if(climate.temp<.32&&rng()<.008*p*sea_)startFamine(n,'cold');else if(dryCapital(n)&&rng()<.03*p*sea_)startFamine(n,'drought')}

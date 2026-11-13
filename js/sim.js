@@ -306,7 +306,7 @@ function rebel(n,forced,why,msgOver){
 }
 
 function independenceTick(n,t){if(n.cities.length<2)return;const cap=n.cities[0];
-  for(const c of n.cities.slice(1)){const d=Math.hypot(c.x-cap.x,c.y-cap.y);
+  for(const c of n.cities.slice(1)){/* a town on the railway is close to the capital, however far */const d=Math.hypot(c.x-cap.x,c.y-cap.y)*(c.rail?.35:1);
     let u=Math.max(0,d-7)*.00045;
     const conquered=c.origin!=null&&c.origin!==n.id;if(conquered)u+=.0045*Math.exp(-(year-(c.conq||year))/180);
     if(c.colony)u+=n.era>=SAIL?.0035:.0015;
@@ -440,14 +440,14 @@ function arrive(s){
    while it is at sea. How many years are still ahead: the route left, at this ship's speed, in years at the chosen pace of time. */
 function shipLeft(s){const WP=s.wp||(s.wp=shipRoute(s.path));let d=0,px=s.x,pz=s.z;for(let k=s.seg+1;k<WP.length;k++){d+=Math.hypot(WP[k][0]-px,WP[k][1]-pz);px=WP[k][0];pz=WP[k][1]}return d}
 function shipYears(s){const v=(SHIPSPEED[s.era]||.8)*SHIP_PACE;return shipLeft(s)/v*paceInfo().yearRate}
-const VOY_LABEL={colony:'Colonists',war:'War fleet',trade:'Merchants',explore:'Explorers'};
+const VOY_LABEL={colony:'Colonists',war:'War fleet',trade:'Merchants',explore:'Explorers',company:'Company ship'};
 function voyageHtml(n){if(!n.alive)return '';const own=[],foe=[];
   ships.forEach((s,i)=>{if(s.sink||s.escort)return;
     if(s.owner===n.id&&VOY_LABEL[s.kind])own.push([i,s]);
     else if(s.foe===n.id&&(s.kind==='war'||s.kind==='viking'))foe.push([i,s])});
   if(!own.length&&!foe.length)return '';
   const when=s=>{if(s.fight)return 'fighting at sea';if(s.hold>0)return 'waiting';const y=shipYears(s);return y<1?'landing now':`lands in ~${Math.max(1,Math.round(y))} year${Math.round(y)>1?'s':''}`};
-  const dest=s=>s.kind==='colony'?'new land':s.kind==='explore'?'the open sea':nations[s.foe]?esc(nations[s.foe].name):'?';
+  const dest=s=>s.kind==='company'?(s.homeward?'home, laden':'a trading post in '+(nations[s.foe]?esc(nations[s.foe].name):'an empty land')):s.kind==='colony'?'new land':s.kind==='explore'?'the open sea':nations[s.foe]?esc(nations[s.foe].name):'?';
   const row=(i,html)=>`<p class="note" data-ship="${i}" style="margin:2px 0;cursor:pointer" title="Click to watch">${html}</p>`;
   return `<div><span class="lab">At sea</span>${own.map(([i,s])=>row(i,`<b>${VOY_LABEL[s.kind]}</b> → ${dest(s)} · ${when(s)}`)).join('')}${foe.map(([i,s])=>row(i,`<b style="color:#f0a196">${s.kind==='viking'?'Viking longships':'Enemy fleet of '+esc(nations[s.owner]?nations[s.owner].name:'?')}</b> bound for these shores · ${when(s)}`)).join('')}</div>`}
 function updateShips(dy,dt,now){
@@ -485,7 +485,7 @@ function updateShips(dy,dt,now){
     /* circle the enemy with the guns turned toward it, keeping a cannon shot away, instead of sliding sideways */
     const dx=f.x-s_.x,dz=f.z-s_.z,d=Math.hypot(dx,dz)||1;s_.orb=s_.orb||(rng()<.5?1:-1);const ox=-dz/d*s_.orb,oz=dx/d*s_.orb;s_.head=Math.atan2(-oz,ox);
     const want=s_.kind==='war'?.55:.9,mv=(d-want)*dt*.4,v=(s_.kind==='war'?.09:.12)*dt,nx=s_.x+ox*v+dx/d*mv,nz=s_.z+oz*v+dz/d*mv,ti=tileAt(nx,nz);if(ti>=0&&isWater(ti)){s_.x=nx;s_.z=nz}else s_.orb=-s_.orb
-    if(s_.kind==='colony'||s_.kind==='trade'||s_.kind==='explore')continue;/* unarmed ships only flee */
+    if(s_.kind==='colony'||s_.kind==='trade'||s_.kind==='explore'||s_.kind==='company')continue;/* unarmed ships only flee */
     s_.gun=(s_.gun??rng()*.6)-dt;if(s_.gun>0)continue;s_.gun=(s_.era>=6?.35:s_.era>=5?.6:.9)+rng()*.5;
     const sx=s_.x+dx/d*.08,sz=s_.z+dz/d*.08;emit('flash',sx,waterY+.06,sz);emit(s_.era>=5?'dark':'smoke',sx,waterY+.06,sz);
     const hit=rng()<.45+s_.era*.03,tx=f.x+(hit?0:(rng()-.5)*.5),tz=f.z+(hit?0:(rng()-.5)*.5);
@@ -509,7 +509,8 @@ function tick(){if(typeof farmAbandonTick==='function')farmAbandonTick();
     if(!n.cities.length&&year-(n.born||0)>5){for(let i=0;i<N;i++)if(owner[i]===n.id)claim(i,-1);log(`With its last town gone, ${n.name} broke apart.`,'doom');fall(n);continue}
     const t=ten(n),e=ERAS[n.era];
     /* the sea feeds people too: a rich fishing town brings in as much food as a wide stretch of good farmland (FISH_TILES fields per unit of catch) */
-    {const fishT=FISH_TILES*(n.fishCatch||0),land=capA[n.id]||0;n.fishShare=fishT/Math.max(1,land+fishT);n.cap=Math.max(5,(land+fishT)*e.cap*30)}if(!isFinite(n.pop))n.pop=10;if(!isFinite(n.tech))n.tech=0;
+    {const fishT=FISH_TILES*(n.fishCatch||0),orchT=2*n.cities.filter(c=>c.orchard).length,land=(capA[n.id]||0)+orchT;n.fishShare=fishT/Math.max(1,land+fishT);n.cap=Math.max(5,(land+fishT)*e.cap*30)}
+    /* (orchards: each feeds about as many as two fields) */if(!isFinite(n.pop))n.pop=10;if(!isFinite(n.tech))n.tech=0;
     n.pop+=n.pop*.035*[.6,.68,.76,.82,.88,.95,1,1][n.era]*t.grow*stabGrow(n)*(.85+.3*(n.happy??.6))*(n.bless>0?1.8:1)*(n.festival>0?1.25:1)*(1-n.pop/n.cap);
     /* settlers: a people with room to spare sends families out to found small villages inside its own lands */
     if(n.tiles/Math.max(1,n.cities.length)>=30&&n.pop>n.cities.length*40&&rng()<.012){const c0=n.cities[(rng()*n.cities.length)|0];
@@ -523,7 +524,7 @@ function tick(){if(typeof farmAbandonTick==='function')farmAbandonTick();
     emis+=n.pop*e.emit*t.emit;n.nb=new Set();n.front=[];
     if(n.era>=1&&n.wonder<n.era&&n.cities.length>=2&&rng()<.004){n.wonder=n.era;propsDirty=true;const wd=WONDERS[n.era];
       log(`${n.name} completed the ${wd.name}.`,'era');milestone('wonder','A wonder of the world',`${n.name} built the ${wd.name}.`)}
-    if(n.era>=SAIL){let col=0,war=0;for(const s of ships)if(s.owner===n.id&&!s.sink)s.kind==='colony'?col++:war++;
+    if(n.era>=SAIL){let col=0,war=0;for(const s of ships)if(s.owner===n.id&&!s.sink){if(s.kind==='colony')col++;else if(s.kind==='war')war++}
       if(col<2&&rng()<.02*t.exp*t.sea)launch(n,'colony');
       if(n.wars.size&&war<2+(n.era-SAIL)&&rng()<.05){const foes=[...n.wars];launch(n,'war',nations[foes[(rng()*foes.length)|0]])}}
     if(n.era===7&&n.techs&&n.techs.includes('starships')&&rng()<.004)launchRocket(n);
