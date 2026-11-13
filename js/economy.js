@@ -24,6 +24,22 @@ const WOOD_USE=[.5,.7,.9,1,1.3,1.1,.45,0];
 const cutArr=()=>{if(!CUTY||CUTY.length!==N)CUTY=new Float32Array(N);return CUTY};
 function forestGrowth(i){if(!CUTY||CUTY.length!==N||!CUTY[i])return 1;return clamp((year-CUTY[i])/REGROW,0,1)}
 const isForest=i=>biome[i]===5||biome[i]===6;
+/* ---------- felled land is farmed: near a town, on the nation's own ground, a clearing becomes fields and stays open as long as it is worked ---------- */
+/* FARMT marks farmed clearings: they always carry a field, count as open land (more food, so the towns grow into them) and do not grow back.
+   Land nobody works any more (no town of its owner within reach) is left to the forest again. */
+let FARMT=null;
+const farmArr=()=>{if(!FARMT||FARMT.length!==N)FARMT=new Uint8Array(N);return FARMT};
+const farmReach=n=>3+(n.era>=3?1:0)+(n.era>=4?1:0);
+function farmTick(n){if(n.era<1||!CUTY)return;const F=farmArr(),C=CUTY,r=farmReach(n);let got=0;
+  for(const c of n.cities)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const i=Y*W+X;
+    if(F[i]||owner[i]!==n.id||!C[i]||!isForest(i)||forestGrowth(i)>.5||Math.hypot(dx,dy)>r+.5)continue;F[i]=1;hab[i]=Math.max(hab[i],BIOMES[4].hab);got++}
+  /* worked fields hold the forest back */
+  for(let i=0;i<N;i++)if(F[i]&&owner[i]===n.id)C[i]=year||1;
+  if(got)propsDirty=true}
+/* every 25 years: farmland whose owner is gone, or with no town of its owner near, goes back to the wild and starts to grow over */
+function farmAbandonTick(){if(!FARMT||year%25)return;const F=FARMT;for(let i=0;i<N;i++){if(!F[i])continue;const o=owner[i],n=o>=0?nations[o]:null;let kept=false;
+    if(n&&n.alive&&n.era>=1){const x=i%W,y=(i/W)|0,r=farmReach(n)+.5;for(const c of n.cities)if(Math.hypot(c.x-x,c.y-y)<=r){kept=true;break}}
+    if(!kept){F[i]=0;if(CUTY)CUTY[i]=year||1;hab[i]=BIOMES[biome[i]].hab}}}
 function logTick(n){if(n.wood==null)n.wood=30;const use=WOOD_USE[n.era]||0;if(!use||!n.cities.length)return;const C=cutArr();
   const f=n.faith>=0&&faiths[n.faith]?faiths[n.faith]:null,green=!!(f&&(f.tenets||[f.tenet]).includes('nature'));
   const lvl=clamp(cityLevel(n)/14,.15,1),reach=4+(n.era>=4?2:0)+(n.era>=5?1:0);let want=0,cut=0;
@@ -39,7 +55,7 @@ function logTick(n){if(n.wood==null)n.wood=30;const use=WOOD_USE[n.era]||0;if(!u
   /* a shortage is told at most once an age */
   const short=n.wood<1&&cut<want*.5;if(short&&n.woodShortEra!==n.era&&n.era>=1&&n.era<=4&&important(n)){n.woodShortEra=n.era;log(`${n.name} is running short of timber.`,'era')}n._woodShort=short}
 /* every few years each nation counts what it holds and what it gets through trade */
-function resourceTick(n){if(year%5!==n.id%5)return;logTick(n);const has={wood:0,stone:0,iron:0,gold:0,oil:0};
+function resourceTick(n){if(year%5!==n.id%5)return;logTick(n);farmTick(n);const has={wood:0,stone:0,iron:0,gold:0,oil:0};
   /* timber is what the woodcutters have stacked, not the forest standing */
   has.wood=n.wood>=5?1:0;
   for(let i=0;i<N;i++){if(owner[i]!==n.id)continue;if(biome[i]===11)has.stone++}

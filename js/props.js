@@ -1301,10 +1301,12 @@ let FIELD_SIG='';
 function rebuildFields(){
   const pos=[],uv=[],col=[];fieldTiles.clear();let fsig=terrVer+'|'+(LK.pixel?1:0)+'|';const work=[];
   const vtx=(x,z,u,v,c)=>{pos.push(x,groundY(x,z)+.012,z);uv.push(u,v);col.push(c[0],c[1],c[2])};
-  for(const n of nations){if(!n.alive||n.era<1)continue;const rad=(n.era>=4?3:2)+(LK.pixel?1:0);
-    for(const c of n.cities)for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const i=Y*W+X;
-      if(owner[i]!==n.id||occupied.has(i)||fieldTiles.has(i))continue;const b=biome[i];if(!(b===4||b===8||(b===5&&n.era>=3)))continue;
-      if(hash(i*5.3)>(n.era>=5?.8:LK.pixel?.82:.62))continue;
+  for(const n of nations){if(!n.alive||n.era<1)continue;const rad=(n.era>=4?3:2)+(LK.pixel?1:0),R2=Math.max(rad,typeof farmReach==='function'?farmReach(n):0);
+    for(const c of n.cities)for(let dy=-R2;dy<=R2;dy++)for(let dx=-R2;dx<=R2;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const i=Y*W+X;
+      /* clearings the woodcutters left are always farmed */
+      const fm=typeof FARMT!=='undefined'&&FARMT&&FARMT[i];if(!fm&&(Math.abs(dx)>rad||Math.abs(dy)>rad))continue;
+      if(owner[i]!==n.id||occupied.has(i)||fieldTiles.has(i))continue;const b=biome[i];if(!fm&&!(b===4||b===8||(b===5&&n.era>=3)))continue;
+      if(!fm&&hash(i*5.3)>(n.era>=5?.8:LK.pixel?.82:.62))continue;
       const X0=X-W/2,Z0=Y-H/2;if(groundY(X0+.5,Z0+.5)<waterY+.08)continue;
       fieldTiles.add(i);fsig+=i+(n.famine>0?'f':'')+n.id+(n.era>=6?'m':'')+',';work.push(()=>{
       /* the painted countryside: neighbouring tiles form one large field of a single crop (ripe wheat, ploughed rows, young green or hay),
@@ -1461,7 +1463,7 @@ let FCACHE=null,greenDirty=false,TREE_LIGHT=false;
 const forestSig=()=>[terrBase,terrBio,waterY,settings.quality,typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1,!!LK.pixel,settings.models!==false,N].join('|');
 function replayForest(){const D=LAYDIRTY&&LAYOLD&&LAYOLD.length===VY.length?LAYDIRTY:null;
   for(const name in FCACHE.k){const K=KITS[name],a=FCACHE.k[name],cnt=a.length/20;kitGrow(K,Math.min(K.max,K.k+cnt));const M=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array;
-  for(let i=0;i<cnt&&K.k<K.max;i++){const o=i*20,t=a[o+19];if(t>=0&&(occupied.has(t)||(scorched&&scorched[t]>0)||fires.has(t)))continue;
+  for(let i=0;i<cnt&&K.k<K.max;i++){const o=i*20,t=a[o+19];if(t>=0&&(occupied.has(t)||fieldTiles.has(t)||(scorched&&scorched[t]>0)||fires.has(t)))continue;
     if(D){const x=a[o+12],z=a[o+14],ti=tileAt(x,z);if(D.has(ti))a[o+13]+=groundY(x,z)-groundYIn(LAYOLD,x,z)}/* the ground under a growing town was flattened: the tree moves with it */
     M.set(a.subarray(o,o+16),K.k*16);C.set(a.subarray(o+16,o+19),K.k*3);K.k++}}
   if(D){LAYOLD=null;LAYDIRTY=null}}
@@ -1484,10 +1486,10 @@ function rebuildTrees0(){
     if(owner[i]>=0&&nations[owner[i]].era>=3&&type!=='rock')n=Math.round(n*.45);
     /* felled forest: stumps and log piles at first, then saplings growing into young woodland */
     let grow=1;if((b===5||b===6)&&typeof forestGrowth==='function'){grow=forestGrowth(i);if(grow<1){const age=typeof CUTY!=='undefined'&&CUTY?year-CUTY[i]:99;
-      if(grow<.45){const ns=Math.round((LK.pixel?6:9)*(1-grow*1.6));for(let t=0;t<ns;t++){const x=x0+.08+hash(i*3.1+t)*.84,z=z0+.08+hash(i*7.7+t)*.84,y=groundY(x,z);if(y<waterY+.04)continue;
+      if(grow<.45){const ns=Math.round((LK.pixel?4:6)*(1-grow*1.6));for(let t=0;t<ns;t++){const x=x0+.08+hash(i*3.1+t)*.84,z=z0+.08+hash(i*7.7+t)*.84,y=groundY(x,z);if(y<waterY+.04)continue;
           const r=.03+hash(i*2.3+t)*.02;add('stump',x,y-.008,z,r,.03+hash(i+t*4)*.02,r,0,hash(i*5+t)<.5?0x7a5a38:0x8a6a44)}
         for(let t=0;t<5;t++){const x=x0+.1+hash(i*4.1+t*3)*.8,z=z0+.1+hash(i*8.3+t)*.8,y=groundY(x,z);if(y>waterY+.04)add('tuft',x,y-.004,z,.018,.024+hash(i+t)*.012,.018,hash(i*t),0x6a8a3a)}}
-      if(age<14&&hash(i*6.7)<.55){/* a stack of logs waiting for the cart */const x=x0+.3+hash(i*1.9)*.4,z=z0+.3+hash(i*9.1)*.4,y=groundY(x,z),ro=hash(i*3.3)*3.14;
+      if(age<8&&hash(i*6.7)<.25){/* a stack of logs waiting for the cart */const x=x0+.3+hash(i*1.9)*.4,z=z0+.3+hash(i*9.1)*.4,y=groundY(x,z),ro=hash(i*3.3)*3.14;
         if(y>waterY+.04)for(let r=0;r<3;r++)for(let q=0;q<3-r;q++){const off=(q-(2-r)/2)*.026;add('logs',x+Math.sin(ro)*off,y+.012+r*.021,z+Math.cos(ro)*off,.12,.024,.024,ro,r===2?0x9a7448:0x8a6440)}}
       n=Math.round(n*grow*grow)}}
     const lod=1;n=Math.round(n*dens*TGS);
