@@ -978,9 +978,11 @@ function updateLife(dt,now){
       const px=fx+ox*c-oz*s,pz=fz+ox*s+oz*c,flap=.6+Math.abs(Math.sin(now/120+k))*.8;add('bird',px,y+Math.sin(now/700+k)*.03,pz,.035,.035*flap,.035,-dir+Math.PI/2)}}
   kitCommit(['animal','bird','aBody','aHead','aLeg']);if(updateLife.ak&&updateLife.ak.length)mcommit(updateLife.ak)}
 const occupied=new Set();
-function cityLevel(n){return clamp(Math.sqrt(n.pop/Math.max(1,n.cities.length))/2.3,1,14)}
+/* fewer towns, so each can grow larger: the size scale goes to 18 */
+const TOWN_MAX=18;
+function cityLevel(n){return clamp(Math.sqrt(n.pop/Math.max(1,n.cities.length))/2.3,1,TOWN_MAX)}
 /* one great city per country: the capital draws people in and grows well beyond the rest, which stay market towns and villages */
-function townLevel(n,cap){const l=cityLevel(n);return cap?Math.min(14,l*1.35+1.5):Math.max(1,l*.68)}
+function townLevel(n,cap){const l=cityLevel(n);return cap?Math.min(TOWN_MAX,l*1.35+1.5):Math.max(1,l*.8)}
 /* ---------- town plans: every town grows its own street network from a centre ---------- */
 function chaikin2(p,it){for(let k=0;k<it;k++){const o=[p[0]];for(let i=0;i<p.length-1;i++){const a=p[i],b=p[i+1];o.push([a[0]*.75+b[0]*.25,a[1]*.75+b[1]*.25],[a[0]*.25+b[0]*.75,a[1]*.25+b[1]*.75])}o.push(p[p.length-1]);p=o}return p}
 /* how far a city sprawls: from the Industrial age big cities grow into metropolises that cover many miles */
@@ -991,7 +993,7 @@ function isLagoon(n,c,e){if(e<2||e>5||!n)return false;if(c._lagT===terrVer)retur
   const lucky=hash(c.x*7.3+c.y*13.1)<(cultOf(n)==='med'?.85:.22);c._lagT=terrVer;return c._lag=w>=2&&w<=17&&lucky}
 function townPlan(n,c,cap,e){
   const MR=metroRadius(n,c,cap,e),mb=MR>.75?Math.round(MR*4)/4:0;
-  const band=e===0?0:e<5?1:e<6?2:3,tl=townLevel(n,cap),gf=clamp(.8+tl*.055,.9,1.6),dens=clamp((tl-6)/6,0,1),key=band+'|'+flatSig.length+'|'+(cap?1:0)+'|'+mb+'|'+(isLagoon(n,c,e)?1:0)+'|'+Math.round(gf*5)+'|'+Math.round(dens*4);if(c._plan&&c._plan.key===key)return c._plan;
+  const band=e===0?0:e<5?1:e<6?2:3,tl=townLevel(n,cap),gf=clamp(.8+tl*.055,.9,1.9),dens=clamp((tl-6)/6,0,1),key=band+'|'+flatSig.length+'|'+(cap?1:0)+'|'+mb+'|'+(isLagoon(n,c,e)?1:0)+'|'+Math.round(gf*5)+'|'+Math.round(dens*4);if(c._plan&&c._plan.key===key)return c._plan;
   const R_=mulberry32((c.x*73856093^c.y*19349663^(cap?777:0))>>>0),cx=wx(c.x),cz=wz(c.y),pr=e===0?.06:cap&&e>=3&&e<=4&&!isLagoon(n,c,e)?.66:cap?.24:.1;
   /* never build up a mountain: not much higher than the town square, and not on a steep slope */
   /* a lagoon town, like Venice: houses rise straight out of the shallow water and the streets become canals */
@@ -1138,13 +1140,13 @@ function rebuildCities(){patchSets();RB0=performance.now();for(const n of nation
 /* when every town, lair, ruin and mine would come out exactly as it is now, the whole rebuild is skipped */
 let RC_SIG='';
 const cityModelsSame=h=>typeof mdlSame!=='function'||mdlSame(h.mu);
-function rcSig(){let s=terrBase+'/'+settings.quality+'/'+(settings.models!==false)+'/'+(typeof MDL_VER!=='undefined'?MDL_VER:0)+'/'+lookKey+'/'+settings.arch+'/';for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(14,cityLevel(n)+(gold?1.5:0))*2)/2;
+function rcSig(){let s=terrBase+'/'+settings.quality+'/'+(settings.models!==false)+'/'+(typeof MDL_VER!=='undefined'?MDL_VER:0)+'/'+lookKey+'/'+settings.arch+'/';for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(TOWN_MAX,cityLevel(n)+(gold?1.5:0))*2)/2;
     n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);s+=(hit&&hit.key===key&&cityModelsSame(hit)?'=':'!')+c.x+','+c.y+';'})}
   s+='|'+coves.map(c=>c.x+','+c.y).join(';')+'|'+ruins.map(r=>r.x+','+r.y+':'+Math.floor((year-r.year)/10)).join(';')+'|'+deposits.map(d=>d.i+d.k+':'+owner[d.i]+':'+(owner[d.i]>=0&&nations[owner[d.i]]?nations[owner[d.i]].era:-1)).join(';');return s}
 function rebuildCities0(){{const sig=rcSig();if(sig===RC_SIG&&!sig.includes('!'))return;RC_SIG=sig}{let s='';for(const n of nations)if(n.alive&&n.era>=5&&n.era<=6)s+=n.id+':'+n.era+':'+n.cities.length+';';if(s!==sootSig){sootSig=s;if(typeof colorDirty!=='undefined')colorDirty=true}}
   for(const m of townFlags)scene.remove(m);townFlags=[];airports=[];spaceports=[];bgrid.clear();FOOT.clear();kitReset(BUILD_KITS);occupied.clear();bare.clear();grassAt.x=1e9;emitters=[];herds=[];cityStreets=[];for(const g of windmills)scene.remove(g);windmills=[];
   const stale=[];
-  for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(14,cityLevel(n)+(gold?1.5:0))*2)/2;
+  for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(TOWN_MAX,cityLevel(n)+(gold?1.5:0))*2)/2;
     n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);
       if(hit&&hit.key===key&&cityModelsSame(hit)){replayCity(hit);return}
       if(!hit){buildOne(n,c,ci,e,gold,lvl,key);return}
@@ -1168,7 +1170,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       const CO=cap&&e>=3&&e<=4?2.3:1;if(cap&&n.wonder){const wx_=cx+.42*CO,wz_=cz-.3*CO;solid(()=>wonder(n,wx_,surfY(wx_,wz_),wz_,n.wonder),wx_,wz_,0,false,undefined,'big');occupied.add(Math.floor(wz_+H/2)*W+Math.floor(wx_+W/2));KO.push([wx_,wz_,.3])}
       if(n.faith>=0&&(cap||hash(i0*3)<.35)){const tx=cx-.32*CO,tz=cz+.2*CO;solid(()=>sacredSite(faiths[n.faith],n,tx,surfY(tx,tz),tz,e,hash(i0)*3,cap),tx,tz,0,false,undefined,'big');KO.push([tx,tz,cap?.26:.2])}
       if(c.dike)dikeRing(c,cx,cz);
-      MCTX={lvl,cap,tall:[],w:.12,cu:cultOf(n),n};const lagoon=isLagoon(n,c,e);MCTX.lagoon=lagoon;const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+Math.min(14,townLevel(n,cap)+(gold?1.5:0))*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?3.4:3.2):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
+      MCTX={lvl,cap,tall:[],w:.12,cu:cultOf(n),n};const lagoon=isLagoon(n,c,e);MCTX.lagoon=lagoon;const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+Math.min(TOWN_MAX,townLevel(n,cap)+(gold?1.5:0))*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?3.4:3.2):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
       if(plan.metro)plan.streets.forEach((st,si)=>{if(st.main&&st.base<=plan.pr+.01)reach.set(si,.5)});let k=0,placed=0;const HP=[];CUR_GREEN=c._green=[];c._poi={pts:[],plaza:[cx,cz],r:plan.pr};
       const far=Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.3+2.5;MCTX.far=far;
       if(e>=2&&e<=4&&!plan.metro&&!lagoon&&count>=(cap?14:18)){const ds=[];for(const sl of slots){if(ds.length>=count)break;const t=tileAt(sl.x,sl.z);if(t<0||(owner[t]>=0&&owner[t]!==n.id))continue;ds.push(Math.hypot(sl.x-cx,sl.z-cz))}
