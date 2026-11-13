@@ -119,6 +119,46 @@ function spawnHerd(){for(let t=0;t<30;t++){const x=camT.x+(rng()-.5)*(camDist*1.
     const n=owner[i]>=0?nations[owner[i]]:null,tame=n&&n.era>=1&&b!==5&&rng()<.6;const kind=b===9?'reindeer':b===7?'camel':b===8?(tame?'cattle':'zebra'):tame?(rng()<.5?'sheep':'cattle'):'deer';
     const m=[];for(let k=0;k<5+((rng()*6)|0);k++)m.push({dx:(rng()-.5)*.4,dz:(rng()-.5)*.4,a:rng()*6.28,ph:rng()*6.28});wildHerds.push({x,z,kind,m,t:0,vx:(rng()-.5)*.02,vz:(rng()-.5)*.02});return}}
 const BEAST={deer:[0x8a5a34,.024,.014],reindeer:[0x8a7a68,.024,.015],camel:[0xc8a060,.028,.02],zebra:[0xe8e4dc,.026,.016],sheep:[0xf0ece2,.02,.012],cattle:[0x6a4a30,.028,.016]};
+/* ---------- fishing boats ----------
+   Every coastal town has its boats, more for bigger towns: dugout canoes in the Stone Age, rowing boats (some with a small sail) from the
+   Bronze Age, sailing smacks in the Age of Sail, small motor trawlers with a wheelhouse in the modern world. They put out in the morning to
+   fishing grounds a few tiles off the coast (shallow water first), drift there while the crew works the nets, and come home in the
+   evening; at night and in storms they lie at the shore. */
+const FB_SPEED=[.1,.13,.13,.14,.2,.22,.32,.34];
+const fbType=e=>e===0?'canoe':e<=3?'row':e<=5?'sail':'motor';
+function lineWater(x0,z0,x1,z1){const L=Math.hypot(x1-x0,z1-z0),n=Math.max(2,Math.ceil(L/.18));for(let q=1;q<=n;q++){const t=q/n,ti=tileAt(x0+(x1-x0)*t,z0+(z1-z0)*t);if(ti<0||!isWater(ti))return false}return true}
+function fbGrounds(c){if(c._fbgV===terrVer&&c._fbg)return c._fbg;const homes=[],spots=[];const cx=wx(c.x),cz=wz(c.y);
+  for(const j of seaNear(c)){const tx=wx(j%W),tz=wz((j/W)|0),d=Math.hypot(cx-tx,cz-tz)||1,pull=Math.min(.32,.45/d);homes.push({x:tx+(cx-tx)*pull,z:tz+(cz-tz)*pull})}
+  if(homes.length){const h=homes[0];const cand=[];
+    for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(!isWater(j))continue;const x=wx(X),z=wz(Y),d=Math.hypot(x-h.x,z-h.z);
+      if(d<1.4||d>5.2||!lineWater(h.x,h.z,x,z))continue;cand.push({x,z,s:(biome[j]===1?1.5:1)+hash(j*3.7)*.6-d*.06})}
+    cand.sort((a,b)=>b.s-a.s);for(const q of cand){if(spots.every(o=>Math.hypot(o.x-q.x,o.z-q.z)>.9))spots.push(q);if(spots.length>=6)break}}
+  c._fbgV=terrVer;c._fbg={homes,spots};return c._fbg}
+function fishFleet(n,c,dt,now){if(!seaNear(c).length)return;const G=fbGrounds(c);if(!G.homes.length||!G.spots.length){c._fbs=null;return}
+  const cnt=Math.min(typeof fishBoats==='function'?fishBoats(n,c):2,G.spots.length+1,5);
+  if(!c._fbs||c._fbs.era!==n.era||c._fbs.length!==cnt){c._fbs=[];c._fbs.era=n.era;for(let b=0;b<cnt;b++){const h=G.homes[b%G.homes.length],ph=hash(c.x*31+c.y*7+b*13);
+      c._fbs.push({x:h.x+(ph-.5)*.12,z:h.z+(hash(ph*91)-.5)*.12,hd:ph*6.28,st:'home',b,ph,wait:ph*6,h,s:G.spots[b%G.spots.length],ox:(hash(b*5.1+c.x)-.5)*.5,oz:(hash(b*8.3+c.y)-.5)*.5,mv:0,foam:0})}}
+  const type=fbType(n.era),sp=FB_SPEED[n.era]||.15;
+  for(const B of c._fbs){const day=nightF<.3&&fishingNow(B.x,B.z);
+    if(B.st==='home'&&day){B.wait-=dt;if(B.wait<=0)B.st='go'}else if(B.st==='home')B.wait=B.ph*6;
+    if((B.st==='go'||B.st==='fish')&&!day)B.st='back';
+    let tx=B.x,tz=B.z;if(B.st==='go'){tx=B.s.x+B.ox;tz=B.s.z+B.oz}else if(B.st==='back'){tx=B.h.x;tz=B.h.z}else if(B.st==='fish'){B.t=(B.t||0)+dt;tx=B.s.x+B.ox+Math.cos(B.t*.05+B.ph*6)*.18;tz=B.s.z+B.oz+Math.sin(B.t*.05+B.ph*6)*.18}
+    const dx=tx-B.x,dz=tz-B.z,d=Math.hypot(dx,dz);B.mv=0;
+    if(d>.02&&dt>0){const want=Math.atan2(dz,dx);let da=want-B.hd;da=Math.atan2(Math.sin(da),Math.cos(da));B.hd+=clamp(da,-1.6*dt,1.6*dt);
+      const v=(B.st==='fish'?.03:sp)*(Math.abs(da)>1.2?.35:1)*dt,nx=B.x+Math.cos(B.hd)*Math.min(v,d),nz=B.z+Math.sin(B.hd)*Math.min(v,d),ti=tileAt(nx,nz);
+      /* never onto land: if the bow points at the shore, slip straight towards the goal along the open water */
+      if(ti>=0&&isWater(ti)){B.x=nx;B.z=nz}else{B.x+=dx/d*Math.min(v,d);B.z+=dz/d*Math.min(v,d)}B.mv=B.st==='fish'?0:1}
+    if(B.st==='go'&&d<.06){B.st='fish';B.t=0}if(B.st==='back'&&d<.04)B.st='home';
+    /* draw: a hull for each age, rolling with the swell */
+    const by=waterY+.006+Math.sin(now/500+B.ph*6)*.003,roll=Math.sin(now/700+B.ph*6)*(B.mv?.03:.05),R=-B.hd;
+    if(type==='canoe'){add('fbHull',B.x,by-.006,B.z,.075,.016,.02,R,0x6a4a2e,roll)}
+    else if(type==='row'){add('fbHull',B.x,by,B.z,.09,.024,.034,R,[0xffffff,0xf2e6d6,0xdfe8f2,0xf0dcd0][B.b%4],roll);if(n.era>=2&&B.b%2&&B.st!=='home')add('fbSail',B.x,by,B.z,.08,.026,.08,R,0xf2ead8,roll)}
+    else if(type==='sail'){if(fishBoatModel())addM('m_boatwsail',B.x,by-.012,B.z,.5,R,null,null,null,null,roll);else{add('fbHull',B.x,by,B.z,.1,.026,.036,R,[0xffffff,0xf2e6d6,0xdfe8f2][B.b%3],roll);add('fbSail',B.x,by,B.z,.1,.034,.1,R,0xffffff,roll)}}
+    else{const col=[0x2a4a6a,0x8a2a22,0x2a5a3a,0x3a3a42][B.b%4],ca=Math.cos(B.hd),sa=Math.sin(B.hd);add('fbHull',B.x,by,B.z,.12,.03,.044,R,col,roll);
+      /* the wheelhouse aft, the deck forward free for the crew */
+      add('beast',B.x-ca*.034,by+.02,B.z-sa*.034,.03,.026,.026,R,0xf0ece4);add('beast',B.x-ca*.034,by+.035,B.z-sa*.034,.034,.005,.03,R,col)}
+    /* a wake behind a boat under way; motor boats churn more */
+    if(B.mv&&dt>0){B.foam-=dt;if(B.foam<=0){B.foam=type==='motor'?.12:.3;emit('foam',B.x-Math.cos(B.hd)*.06,waterY+.008,B.z-Math.sin(B.hd)*.06,0,0)}}}}
 function updateLiving(dt,k,now){
   const near=(x,z,f)=>Math.hypot(x-camT.x,z-camT.z)<camDist*f+6;
   tradeTrainT-=dt;if(tradeTrainT<=0){tradeTrainT=6;try{tradeTrainRoutes()}catch(e){tradeTrains=[]}}
@@ -145,12 +185,8 @@ function updateLiving(dt,k,now){
   for(let q=seaWhales.length-1;q>=0;q--){const w=seaWhales[q];w.t+=dt;w.x+=Math.cos(w.a)*dt*.06;w.z+=Math.sin(w.a)*dt*.06;if(w.t>30||!near(w.x,w.z,2)){seaWhales.splice(q,1);continue}
     const up=Math.max(0,Math.sin(w.t*.6));if(typeof drawWhaleModel==='function'&&drawWhaleModel(w,up,now)){if(up>.9&&rng()<dt*6)emit('spray',w.x,waterY+.04,w.z,0,0)}else if(up>.2){add('beast',w.x,waterY-.02+up*.015,w.z,.12,.03,.04,-w.a,0x3a4650);if(up>.9&&rng()<dt*6)emit('spray',w.x,waterY+.04,w.z,0,0)}
     else if(up<.05&&Math.sin(w.t*.6+.3)<0)add('beast',w.x-Math.cos(w.a)*.08,waterY+.01,w.z-Math.sin(w.a)*.08,.02,.02,.06,-w.a,0x3a4650,.6)}
-  /* fishing boats off the coasts of older towns */
-  for(const n of nations){if(!n.alive||n.era<1||n.era>5)continue;for(const c of n.cities){const cx=wx(c.x),cz=wz(c.y);if(!near(cx,cz,1.3))continue;const cw=typeof coastWater==='function'?coastWater(c):[];if(!cw.length)continue;
-    for(let b=0;b<Math.min(2,cw.length);b++){const j=cw[(b*7+c.x)%cw.length],ph=hash(j+b)*6.28,x=wx(j%W)+Math.sin(now/4000+ph)*.25,z=wz((j/W)|0)+Math.cos(now/5000+ph)*.25,ti=tileAt(x,z);if(ti<0||!isWater(ti))continue;
-      const by=waterY+.006+Math.sin(now/500+ph)*.003,tint=[0xffffff,0xf2e6d6,0xdfe8f2,0xf0dcd0][(j+b)%4];
-      if(fishBoatModel()){addM('m_boatwsail',x,by-.012,z,.5,ph,null,null,null,null,Math.sin(now/700+ph)*.04);continue}
-      add('fbHull',x,by,z,.09,.024,.034,ph,tint,Math.sin(now/700+ph)*.04);if((j+b)%2)add('fbSail',x,by,z,.09,.03,.09,ph,0xffffff,Math.sin(now/700+ph)*.04)}}}
+  /* fishing boats: out to the fishing grounds in the morning, home in the evening */
+  for(const n of nations){if(!n.alive)continue;for(const c of n.cities){if(!near(wx(c.x),wz(c.y),1.3))continue;try{fishFleet(n,c,dt*(k>0?1:0),now)}catch(e){c._fbs=null}}}
   for(const nm of LIFE_KITS){const K=KITS[nm];kitUp(K,K.k)}
   drawAvatars(dt,now)}
 
@@ -218,17 +254,26 @@ function drawFishers(R2){if(!fishers.length)return;const now=performance.now()/1
 function drawFolkFisher(f){const m=f.moving,a=f.act;f.moving=false;f.act='fish';drawFolk(f);f.moving=m;f.act=a}
 {const _da=drawArmyFolk;drawArmyFolk=function(R2){_da.apply(this,arguments);try{drawFishers(R2);drawBoatCrews(R2)}catch(e){console.warn('fishers',e)}}}
 {const _ul=updateLiving;updateLiving=function(dt,k,now){const r=_ul.apply(this,arguments);try{updateFishers(dt*(k>0?1:0))}catch(e){fishers=[]}return r}}
-/* the crews of the fishing boats: one rows or steers, one hauls the net over the side */
+/* the crews of the fishing boats: a paddler in a canoe, rowers at the oars, and out on the grounds one hauls the net over the side
+   while another steers; gulls wheel over the trawlers */
 function drawBoatCrews(R2){if(camDist>=14||settings.people===false)return;const now=performance.now()/1000,sea=waterY+(typeof TIDE!=='undefined'?TIDE:0);
-  for(const n of nations){if(!n.alive||n.era<1||n.era>5)continue;for(const c of n.cities){const cw=coastWater(c);if(!cw.length)continue;
-    for(let b=0;b<Math.min(2,cw.length);b++){const j=cw[(b*7+c.x)%cw.length],ph=hash(j+b)*6.28,x=wx(j%W)+Math.sin(now*1000/4000+ph)*.25,z=wz((j/W)|0)+Math.cos(now*1000/5000+ph)*.25;
-      const ex=x-camT.x,ez=z-camT.z;if(ex*ex+ez*ez>R2)continue;const ti=tileAt(x,z);if(ti<0||!isWater(ti)||!fishingNow(x,z))continue;
-      const crew=(c._crew||(c._crew={}))[b]||(c._crew[b]=[0,1].map(q=>{const w={seed:(j*13+q*7)|0,t:q*2,ph:0,moving:false,wait:1,act:q?'farm':'chat',x:0,z:0,dir:0};dressFolk(w,n);w.kid=false;w.pack=0;w.tool=false;return w}));
-      const y=sea+.003+Math.sin(now*2+ph)*.003,dir=ph+Math.PI/2,cs=Math.cos(ph),sn=Math.sin(ph);
-      crew.forEach((w,q)=>{const off=(q?-.024:.018);w.x=x+cs*off;w.z=z-sn*off;w.y=y;w.dir=q?dir+Math.PI/2:dir;w.t=now+q*1.7;w.wait=1;w.act=q?'farm':'chat';drawFolk(w)});
-      /* the net over the side: a few floats in a curve on the water */
-      for(let q=0;q<5;q++){const t=(q-2)/2,nx=x+Math.cos(dir)*(.05+.012*Math.abs(t))+Math.sin(dir)*t*.025,nz=z-Math.sin(dir)*(.05+.012*Math.abs(t))+Math.cos(dir)*t*.025;
-        addR('pHand',nx,sea+.0012+Math.sin(now*1.6+q)*.0007,nz,.0024,.0018,.0024,0,0,0,q%2?0xe8d8a0:0xc84a2a)}}}}}
+  for(const n of nations){if(!n.alive)continue;const type=fbType(n.era);for(const c of n.cities){if(!c._fbs)continue;
+    for(const B of c._fbs){if(B.st==='home')continue;const ex=B.x-camT.x,ez=B.z-camT.z;if(ex*ex+ez*ez>R2)continue;
+      const ca=Math.cos(B.hd),sa=Math.sin(B.hd),y=sea+.003+Math.sin(now*2+B.ph*6)*.003,fwd=-B.hd+Math.PI/2,fishing=B.st==='fish';
+      const nCrew=type==='canoe'?1:type==='motor'?(fishing?2:1):2;
+      const crew=B.crew&&B.crew.length===nCrew&&B.crew.era===n.era?B.crew:(B.crew=Array.from({length:nCrew},(_,q)=>{const w={seed:(c.x*97+B.b*13+q*7)|0,t:q*2,ph:0,moving:false,wait:1,act:'chat',x:0,z:0,dir:0};dressFolk(w,n);w.kid=false;w.pack=0;w.tool=false;return w}),B.crew.era=n.era,B.crew);
+      crew.forEach((w,q)=>{const off=type==='motor'?(q?.034:.012):nCrew===1?0:(q?-.024:.018);w.x=B.x+ca*off;w.z=B.z+sa*off;w.y=y;w.t=now+q*1.7;w.wait=1;
+        w.act=fishing&&q===(nCrew-1)?'farm':'chat';w.dir=fishing&&q===(nCrew-1)?fwd+Math.PI/2:fwd;drawFolk(w)});
+      /* paddle or oars while under way */
+      if(B.mv&&type==='canoe'){const s=Math.sin(now*4+B.ph*9),side=s>0?1:-1,px=B.x-sa*.012*side,pz=B.z+ca*.012*side;segR([px,y+.02,pz],[px-ca*.02*s,sea-.002,pz-sa*.02*s],.0008,0x6a4a2a)}
+      if(B.mv&&type==='row'){const s=Math.sin(now*3+B.ph*9);for(const side of [-1,1]){const px=B.x+ca*.004-sa*.016*side,pz=B.z+sa*.004+ca*.016*side;segR([px,y+.012,pz],[px-sa*.045*side+ca*.018*s,sea-.001+Math.max(0,s)*.008,pz+ca*.045*side+sa*.018*s],.0007,0x7a5a3a)}}
+      if(type==='motor'){const mx=B.x-ca*.018,mz=B.z-sa*.018;segR([mx,y+.03,mz],[mx,y+.1,mz],.0012,0xd8d8d0);segR([mx,y+.085,mz],[mx+ca*.05,y+.04,mz+sa*.05],.0007,0xd8d8d0)}
+      /* the net out over the side: floats in a curve on the water */
+      if(fishing)for(let q=0;q<5;q++){const t=(q-2)/2,a=B.hd+Math.PI/2,nx=B.x+Math.cos(a)*(.05+.012*Math.abs(t))+ca*t*.025,nz=B.z+Math.sin(a)*(.05+.012*Math.abs(t))+sa*t*.025;
+        addR('pHand',nx,sea+.0012+Math.sin(now*1.6+q)*.0007,nz,.0024,.0018,.0024,0,0,0,q%2?0xe8d8a0:0xc84a2a)}
+      /* gulls over the trawlers and over boats coming home with a catch */
+      if(type==='motor'||(B.st==='back'&&type!=='canoe'))for(let g=0;g<(type==='motor'?4:2);g++){const a=now*(.7+g*.13)+g*1.7+B.ph*5,r=.05+g*.012,gy=y+.07+Math.sin(now*1.3+g)*.012;
+        addR('pPack',B.x+Math.cos(a)*r,gy,B.z+Math.sin(a)*r,.009,.0012,.0032,-a,Math.sin(now*9+g)*.5,0,0xf4f4f0)}}}}}
 
 /* ---------- farmhands ----------
    The fields near you are worked through the year. In spring one ploughs behind an ox (a horse from the age of

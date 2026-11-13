@@ -10,13 +10,35 @@ function harvestOf(n){
   /* the weather pattern over this land: drought starves the fields, good rains fill the barns, endless rain rots them */
   const A=rainAnom(n);n.rainA=A;n.harvWhy=null;
   if(A<-.38){H-=.3*Math.min(1,(-A-.38)/.4);n.harvWhy='drought'}else if(A>.7){H-=.12;n.harvWhy='endless rain'}else if(A>.25){H+=.1*Math.min(1,(A-.25)/.3);n.harvWhy='good rains'}
-  /* fishermen: towns by the sea and on rivers bring in fish, which matters most when the fields fail */
-  {let fc=0;for(const c of n.cities)if((typeof coastWater==='function'&&coastWater(c).length)||river[c.y*W+c.x])fc++;n.fishTowns=fc;const fs=n.cities.length?fc/n.cities.length:0;
-   H+=fs*(H<.9?.12:.05)*(n.era>=1?1:.6)}
+  /* fishermen: what the boats bring in feeds the towns, and matters most when the fields fail */
+  {const fs=n.cities.length?(n.fishCatch||0)/n.cities.length:0;H+=Math.min(.18,fs*(H<.9?.16:.07))}
   if(n.wars.size)H-=.04*n.wars.size+(n.front&&n.front.length>20?.08:0);
   if(n.famine>0)H-=.25;if(n.sick)H-=.08;if(n.bless>0)H+=.22;if(n.festival>0)H+=.04;
   return clamp(H,.3,1.4)}
+/* ---------- fishing grounds ----------
+   A town's catch depends on its waters (shallow sea is richest, deep sea gives less, a river helps), on its boats (more for bigger towns) and on
+   the age: nets, then sails, then motor trawlers. From the modern age the trawlers can take more than the sea gives: the grounds thin out
+   and recover only slowly. */
+const FISH_ERA=[.6,.8,.9,1,1.1,1.2,1.5,1.4];
+/* the sea a town can fish from: water within two tiles of it, nearest first */
+function seaNear(c){if(c._snV===terrVer&&c._sn)return c._sn;const out=[];for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))out.push([Math.hypot(dx,dy),j])}
+  out.sort((a,b)=>a[0]-b[0]);c._snV=terrVer;c._sn=out.slice(0,4).map(q=>q[1]);return c._sn}
+function fishGrounds(c){if(c._fgV===terrVer&&c._fgN!=null)return c._fgN;let g=0;const coast=seaNear(c).length,riv=!!river[c.y*W+c.x];
+  if(coast)for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))g+=biome[j]===1?1:.4}
+  if(riv)g+=coast?3:4;c._fgV=terrVer;c._fgN=Math.min(1,g/12);return c._fgN}
+function fishBoats(n,c){const lv=typeof townLevel==='function'?townLevel(n,c===n.cities[0]):6;return clamp(1+Math.floor(lv/3.5),1,5)}
+function fishTick(n){let tot=0,k=0;const eF=FISH_ERA[n.era]||1;
+  for(const c of n.cities){const g=fishGrounds(c);if(!g)continue;k++;if(c.fishStock==null)c.fishStock=1;const take=g*eF*Math.min(1,fishBoats(n,c)/3);
+    /* heavy trawling settles the grounds around half their old wealth; the careful future takes far less */
+    if(n.era>=6)c.fishStock=Math.max(.15,c.fishStock-.0035*take*(n.era>=7?.4:1));
+    c.fishStock=Math.min(1,c.fishStock+.006*(1-c.fishStock)+(n.era<6?.005:0));
+    if(c.fishStock<.35&&!c.fishedOut&&important(n)){c.fishedOut=1;log(`The fishing grounds off ${c.name} are fished out; the boats come home with half-empty nets.`,'era')}
+    if(c.fishStock>.7)c.fishedOut=0;tot+=take*c.fishStock}
+  n.fishTowns=k;n.fishCatch=tot}
+function fishWord(n){if(!n.fishTowns)return 'None';const per=n.fishCatch/n.fishTowns;const out=n.cities.some(c=>c.fishStock!=null&&c.fishStock<.4);
+  return `${n.fishTowns} town${n.fishTowns>1?'s':''} · ${per>.9?'rich':per>.55?'good':per>.3?'modest':'poor'} catch${out?' (fished out in places)':''}`}
 function harvestTick(){if(typeof wxPattern==='function')wxPattern();
+  for(const n of nations)if(n.alive&&n.cities.length)try{fishTick(n)}catch(e){}
   /* heavy rain years on a river land can end in a flood */
   for(const n of nations){if(!n.alive||!n.cities.length||typeof riverFlood!=='function')continue;const A=rainAnom(n);
     if(A>.6&&rng()<.012*(A-.5)*10*dLevel()){const c=n.cities[(rng()*n.cities.length)|0];if(c&&riverFlood(c.y*W+c.x)){n.pop*=.99}}}
