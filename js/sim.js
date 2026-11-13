@@ -375,6 +375,7 @@ function holdFestival(n,god){n.festival=6;n.devotion=clamp((n.devotion??.3)+.2,0
 /* ---------- fleets ---------- */
 /* a town's harbour waters: the sea within two tiles of it, nearest first. Towns stand back from the waterline on firm ground, so a port is
    the town with the sea at its doorstep, not only the one built on the very beach; its ships, raiders and fishermen sail from here. */
+const FISH_TILES=25;
 function coastWater(c){const out=[];for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){if(!dx&&!dy)continue;const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))out.push([dx*dx+dy*dy,j])}
   out.sort((a,b)=>a[0]-b[0]);return out.slice(0,4).map(q=>q[1])}
 /* how deep the sea is here. Water under about a tenth of a unit is drawn see-through over the sandy bottom, with surf on it, and dries out
@@ -507,7 +508,8 @@ function tick(){if(typeof farmAbandonTick==='function')farmAbandonTick();
     if(n.tiles<=0){fall(n);continue}
     if(!n.cities.length&&year-(n.born||0)>5){for(let i=0;i<N;i++)if(owner[i]===n.id)claim(i,-1);log(`With its last town gone, ${n.name} broke apart.`,'doom');fall(n);continue}
     const t=ten(n),e=ERAS[n.era];
-    n.cap=Math.max(5,(capA[n.id]||0)*e.cap*30);if(!isFinite(n.pop))n.pop=10;if(!isFinite(n.tech))n.tech=0;
+    /* the sea feeds people too: a rich fishing town brings in as much food as a wide stretch of good farmland (FISH_TILES fields per unit of catch) */
+    {const fishT=FISH_TILES*(n.fishCatch||0),land=capA[n.id]||0;n.fishShare=fishT/Math.max(1,land+fishT);n.cap=Math.max(5,(land+fishT)*e.cap*30)}if(!isFinite(n.pop))n.pop=10;if(!isFinite(n.tech))n.tech=0;
     n.pop+=n.pop*.035*[.6,.68,.76,.82,.88,.95,1,1][n.era]*t.grow*stabGrow(n)*(.85+.3*(n.happy??.6))*(n.bless>0?1.8:1)*(n.festival>0?1.25:1)*(1-n.pop/n.cap);
     /* settlers: a people with room to spare sends families out to found small villages inside its own lands */
     if(n.tiles/Math.max(1,n.cities.length)>=30&&n.pop>n.cities.length*40&&rng()<.012){const c0=n.cities[(rng()*n.cities.length)|0];

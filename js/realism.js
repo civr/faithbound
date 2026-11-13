@@ -11,7 +11,9 @@ function harvestOf(n){
   const A=rainAnom(n);n.rainA=A;n.harvWhy=null;
   if(A<-.38){H-=.3*Math.min(1,(-A-.38)/.4);n.harvWhy='drought'}else if(A>.7){H-=.12;n.harvWhy='endless rain'}else if(A>.25){H+=.1*Math.min(1,(A-.25)/.3);n.harvWhy='good rains'}
   /* fishermen: what the boats bring in feeds the towns, and matters most when the fields fail */
-  {const fs=n.cities.length?(n.fishCatch||0)/n.cities.length:0;H+=Math.min(.18,fs*(H<.9?.16:.07))}
+  /* the catch does not fail with the fields: the share of the food that comes from the sea is a fair harvest whatever the weather does to the
+     crops, so a fishing people is hit far less by drought, frost and rot */
+  {const fs=clamp(n.fishShare||0,0,.6);if(fs>0)H=H*(1-fs)+Math.max(H,1)*fs}
   if(n.wars.size)H-=.04*n.wars.size+(n.front&&n.front.length>20?.08:0);
   if(n.famine>0)H-=.25;if(n.sick)H-=.08;if(n.bless>0)H+=.22;if(n.festival>0)H+=.04;
   return clamp(H,.3,1.4)}
@@ -43,7 +45,7 @@ function fishTick(n){let tot=0,k=0,boats=0;const eF=FISH_ERA[n.era]||1;
   for(const c of n.cities){const g=fishGrounds(c);if(!g)continue;k++;if(c.fishStock==null)c.fishStock=1;
     const cap=fishBoats(n,c);if(c.boats==null)c.boats=Math.min(2,cap);
     /* the shipwrights: one new boat a year while the harbour has room and there is timber */
-    c.noTimber=0;if(c.boats<cap){const w=BOAT_WOOD[n.era]||0;if(!w||(n.wood??30)>=w){if(w)n.wood=(n.wood??30)-w;c.boats++}else c.noTimber=1}
+    c.noTimber=0;if(c.boats<cap){const w=BOAT_WOOD[n.era]||0;if(!w||(n.wood??30)>=w){if(w)n.wood=(n.wood??30)-w;c.boats++}else{/* no timber in the stores: the fishermen still build now and then from driftwood and the last trees nearby, only slowly */c.noTimber=1;if(rng()<.3)c.boats++}}
     const Z=fishHazard(n,c),risk=(BOAT_RISK[n.era]||.01)*(1+Z.storm*9)+(Z.raid?.22:0)+(Z.block?.12:0);let lost=0;
     for(let b=0;b<c.boats;b++)if(rng()<risk)lost++;
     if(lost){c.boats-=lost;const why=Z.raid?(Z.raid.kind==='viking'?'Viking raiders':'pirates'):Z.block?'enemy warships':Z.storm?(Z.storm>=1?'a hurricane':'a storm'):'the sea';
@@ -59,10 +61,10 @@ function fishTick(n){let tot=0,k=0,boats=0;const eF=FISH_ERA[n.era]||1;
     if(c.fishStock>.7)c.fishedOut=0;c.catch=take*c.fishStock;tot+=c.catch}
   n.fishTowns=k;n.fishCatch=tot;n.fishBoatsN=boats}
 function fishWord(n){if(!n.fishTowns)return 'None';const per=n.fishCatch/n.fishTowns;const out=n.cities.some(c=>c.fishStock!=null&&c.fishStock<.4);
-  return `${n.fishBoatsN??0} boat${n.fishBoatsN===1?'':'s'} · ${per>.9?'rich':per>.55?'good':per>.3?'modest':per>0?'poor':'no'} catch${out?', fished out in places':''}`}
+  const fs=Math.round((n.fishShare||0)*100);return `${n.fishBoatsN??0} boat${n.fishBoatsN===1?'':'s'} · ${per>.9?'rich':per>.55?'good':per>.3?'modest':per>0?'poor':'no'} catch${out?', fished out in places':''}${fs>=1?` · ${fs}% of the food`:''}`}
 /* what has happened to the fleets lately, for a line under the nation card */
 function fishNote(n){if(!n.fishTowns)return '';const L=n.cities.filter(c=>c.lost&&year-c.lost.year<=5).sort((a,b)=>b.lost.year-a.lost.year)[0],idle=n.cities.filter(c=>c.noTimber);
-  const p=[];if(L)p.push(`lost ${L.lost.n} boat${L.lost.n>1?'s':''} to ${L.lost.why} off ${esc(L.name)}`);if(idle.length)p.push(`no timber to build boats${idle.length===1?' at '+esc(idle[0].name):''}`);
+  const p=[];if(L)p.push(`lost ${L.lost.n} boat${L.lost.n>1?'s':''} to ${L.lost.why} off ${esc(L.name)}`);if(idle.length)p.push(`short of timber, boats are built slowly${idle.length===1?' at '+esc(idle[0].name):''}`);
   return p.length?`<p class="note" style="margin:2px 0"><b>Fishing fleets:</b> ${p.join(' · ')}</p>`:''}
 function harvestTick(){if(typeof wxPattern==='function')wxPattern();
   for(const n of nations)if(n.alive&&n.cities.length)try{fishTick(n)}catch(e){}
