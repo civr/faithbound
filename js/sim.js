@@ -377,18 +377,31 @@ function holdFestival(n,god){n.festival=6;n.devotion=clamp((n.devotion??.3)+.2,0
    the town with the sea at its doorstep, not only the one built on the very beach; its ships, raiders and fishermen sail from here. */
 function coastWater(c){const out=[];for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){if(!dx&&!dy)continue;const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))out.push([dx*dx+dy*dy,j])}
   out.sort((a,b)=>a[0]-b[0]);return out.slice(0,4).map(q=>q[1])}
+/* how deep the sea is here. Water under about a tenth of a unit is drawn see-through over the sandy bottom, with surf on it, and dries out
+   at low tide: a ship there looks as if it sails over the beach. */
+const seaDepth=(x,z)=>waterY-groundY(x,z),SHIP_DEEP=.1;
+/* the cheapest way by sea: every step costs one, a step into shallows far more, so fleets keep to deep water and only come in over the
+   shallows at the start and end of a voyage, or where there is no other way */
 function seaPath(starts,goal){
-  const prev=new Int32Array(N).fill(-2),q=[];for(const s of starts){prev[s]=-1;q.push(s)}let head=0;
-  while(head<q.length&&head<8000){const j=q[head++],x=j%W,y=(j/W)|0;const t=goal(x,y);
+  const prev=new Int32Array(N).fill(-2),cost=new Float32Array(N).fill(1e9),hp=[],hc=[];
+  const push=(j,c)=>{let i=hp.length;hp.push(j);hc.push(c);while(i>0){const u=(i-1)>>1;if(hc[u]<=c)break;hp[i]=hp[u];hc[i]=hc[u];i=u}hp[i]=j;hc[i]=c};
+  const pop=()=>{const j=hp[0],L=hp.length-1,lj=hp[L],lc=hc[L];hp.length=L;hc.length=L;if(L){let i=0;for(;;){let m=2*i+1;if(m>=L)break;if(m+1<L&&hc[m+1]<hc[m])m++;if(hc[m]>=lc)break;hp[i]=hp[m];hc[i]=hc[m];i=m}hp[i]=lj;hc[i]=lc}return j};
+  const step=k=>{const d=seaDepth(wx(k%W),wz((k/W)|0));return 1+(d<SHIP_DEEP?6:d<.2?1.5:0)};
+  for(const s0 of starts){prev[s0]=-1;cost[s0]=0;push(s0,0)}let pops=0;
+  while(hp.length&&pops<20000){const c0=hc[0],j=pop();if(c0>cost[j])continue;pops++;const x=j%W,y=(j/W)|0;const t=goal(x,y);
     if(t>=0){const path=[];let k=j;while(k!==-1){path.push(k);k=prev[k]}path.reverse();return{path,target:t}}
-    for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(prev[k]===-2&&isWater(k)&&!occupied.has(k)){prev[k]=j;q.push(k)}}}
+    for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(!isWater(k)||occupied.has(k))continue;const c=c0+step(k);if(c<cost[k]){cost[k]=c;prev[k]=j;push(k,c)}}}
   return null}
 /* a sailing route: the tile path pulled tight into straight legs over open water, then rounded at the corners */
-function clearSea(x0,z0,x1,z1){const d=Math.hypot(x1-x0,z1-z0),n=Math.ceil(d/.12);for(let k=1;k<n;k++){const t=k/n,i=tileAt(lerp(x0,x1,t),lerp(z0,z1,t));if(i<0||!isWater(i)||occupied.has(i))return false}return true}
+function clearSea(x0,z0,x1,z1){const d=Math.hypot(x1-x0,z1-z0),n=Math.ceil(d/.1),need=Math.min(SHIP_DEEP,seaDepth(x0,z0)-.01,seaDepth(x1,z1)-.01);
+  for(let k=1;k<n;k++){const t=k/n,x=lerp(x0,x1,t),z=lerp(z0,z1,t),i=tileAt(x,z);if(i<0||!isWater(i)||occupied.has(i)||seaDepth(x,z)<need)return false}return true}
 function shipRoute(path){const P=path.map(t=>[wx(t%W),wz((t/W)|0)]),out=[P[0]];let i=0;
   while(i<P.length-1){let j=Math.min(P.length-1,i+60);while(j>i+1&&!clearSea(P[i][0],P[i][1],P[j][0],P[j][1]))j--;out.push(P[j]);i=j}
+  /* round the corners, but only where the cut-off corner is still deep water: otherwise keep the corner as it is */
   let r=out;for(let it=0;it<3;it++){if(r.length<3)break;const q=[r[0]];for(let k=0;k<r.length-1;k++){const a=r[k],b=r[k+1];
-      for(const f of [.25,.75]){const x=lerp(a[0],b[0],f),z=lerp(a[1],b[1],f),ti=tileAt(x,z);q.push(ti>=0&&isWater(ti)?[x,z]:(f<.5?a:b))}}q.push(r[r.length-1]);r=q}
+      for(const f of [.25,.75]){const x=lerp(a[0],b[0],f),z=lerp(a[1],b[1],f),ti=tileAt(x,z);q.push(ti>=0&&isWater(ti)?[x,z]:(f<.5?a:b))}}q.push(r[r.length-1]);
+    /* the new legs at each corner: from .75 of one leg to .25 of the next */const fix=[q[0]];for(let k=1;k<q.length;k++){const A=fix[fix.length-1],B=q[k];
+      if(k%2===1&&k>1&&!clearSea(A[0],A[1],B[0],B[1])){/* the corner between them is shallow or dry: go round it by the old corner point */fix.push(r[(k-1)/2])}fix.push(B)}r=fix}
   return r}
 function launch(n,kind,foe){
   const coastal=n.cities.filter(c=>coastWater(c).length);if(!coastal.length)return;
@@ -442,7 +455,7 @@ function updateShips(dy,dt,now){
     if(s.owner>=0&&!nations[s.owner].alive){s.sink=.01;continue}
     if(!s.wp)s.wp=shipRoute(s.path);const WP=s.wp;
     /* ships move at sailing speed on screen, whatever the speed of the years */let rem=dy>0?SHIPSPEED[s.era]*dt*SHIP_PACE*clamp(dy/(dt*Math.max(.8,paceInfo().yearRate)),1,3):0;if(s.fight)rem=0;if(s.hold>0){s.hold-=dt;rem=0}
-    if(s.hunt&&!s.fight&&!s.hunt.sink){const h=s.hunt,ddx=h.x-s.x,ddz=h.z-s.z,d=Math.hypot(ddx,ddz)||1,st=Math.min(d,rem),nx=s.x+ddx/d*st,nz=s.z+ddz/d*st,ti=tileAt(nx,nz);if(ti>=0&&isWater(ti)){s.x=nx;s.z=nz;s.head=Math.atan2(-ddz,ddx);rem=0}else s.hunt=null}
+    if(s.hunt&&!s.fight&&!s.hunt.sink){const h=s.hunt,ddx=h.x-s.x,ddz=h.z-s.z,d=Math.hypot(ddx,ddz)||1,st=Math.min(d,rem),nx=s.x+ddx/d*st,nz=s.z+ddz/d*st,ti=tileAt(nx,nz);if(ti>=0&&isWater(ti)&&seaDepth(nx,nz)>.04){s.x=nx;s.z=nz;s.head=Math.atan2(-ddz,ddx);rem=0}else s.hunt=null}
     if(s.wasOff&&!s.fight&&!s.hunt){/* back from a fight or a chase: rejoin the route at the nearest point ahead */let bi=s.seg,bd=1e9;for(let q2=s.seg;q2<WP.length;q2++){const d2=Math.hypot(WP[q2][0]-s.x,WP[q2][1]-s.z);if(d2<bd){bd=d2;bi=q2}}s.seg=Math.max(s.seg,bi-1);s.wasOff=false}
     if(s.fight||s.hunt)s.wasOff=true;
     /* steer for a point a little way ahead on the route, so the ship sweeps round bends instead of jerking at each corner */
@@ -451,7 +464,7 @@ function updateShips(dy,dt,now){
         if(s.seg+2<WP.length){const B_=WP[s.seg+2];if(Math.hypot(B_[0]-s.x,B_[1]-s.z)<Math.hypot(B_[0]-A_[0],B_[1]-A_[1])&&clearSea(s.x,s.z,B_[0],B_[1])){s.seg++;continue}}break}
       if(s.seg<WP.length-1){let la=.38,px=s.x,pz=s.z,j=s.seg+1,tx=WP[j][0],tz=WP[j][1],d=Math.hypot(tx-px,tz-pz);
         while(d<la&&j<WP.length-1){la-=d;px=tx;pz=tz;j++;tx=WP[j][0];tz=WP[j][1];d=Math.hypot(tx-px,tz-pz)}
-        const f=Math.min(1,la/(d||1));let gx=px+(tx-px)*f,gz=pz+(tz-pz)*f,ddx=gx-s.x,ddz=gz-s.z,D=Math.hypot(ddx,ddz)||1,st=Math.min(rem,D),nx=s.x+ddx/D*st,nz=s.z+ddz/D*st,ti=tileAt(nx,nz);
+        const f=Math.min(1,la/(d||1));let gx=px+(tx-px)*f,gz=pz+(tz-pz)*f;if(j>s.seg+1&&!clearSea(s.x,s.z,gx,gz)){gx=WP[s.seg+1][0];gz=WP[s.seg+1][1]}let ddx=gx-s.x,ddz=gz-s.z,D=Math.hypot(ddx,ddz)||1,st=Math.min(rem,D),nx=s.x+ddx/D*st,nz=s.z+ddz/D*st,ti=tileAt(nx,nz);
         if(ti<0||!isWater(ti)){gx=WP[s.seg+1][0];gz=WP[s.seg+1][1];ddx=gx-s.x;ddz=gz-s.z;D=Math.hypot(ddx,ddz)||1;st=Math.min(rem,D);nx=s.x+ddx/D*st;nz=s.z+ddz/D*st;const t2=tileAt(nx,nz);if(t2>=0&&!isWater(t2)&&isWater(tileAt(s.x,s.z))){s.seg++;nx=s.x;nz=s.z}}
         s.x=nx;s.z=nz;s.head=Math.atan2(-ddz,ddx)}}
     if(s.head!=null){const turn=Math.atan2(Math.sin(s.head-s.g.rotation.y),Math.cos(s.head-s.g.rotation.y));s.g.rotation.y+=turn*Math.min(1,dt*3);s.lean=lerp(s.lean||0,clamp(turn*.25,-.12,.12),Math.min(1,dt*3))}

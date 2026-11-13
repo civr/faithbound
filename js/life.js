@@ -137,7 +137,7 @@ function fbGrounds(c){if(c._fbgV===terrVer&&c._fbg)return c._fbg;const homes=[],
 function fishFleet(n,c,dt,now){if(!seaNear(c).length)return;const G=fbGrounds(c);if(!G.homes.length||!G.spots.length){c._fbs=null;return}
   /* the boats on screen are the town's real fleet (c.boats): a new one is launched from the shore, a lost one goes down where it is */
   const real=c.boats!=null?c.boats:(typeof fishBoats==='function'?fishBoats(n,c):2),cnt=Math.min(real,G.spots.length+1,5);
-  const mk=b=>{const h=G.homes[b%G.homes.length],ph=hash(c.x*31+c.y*7+b*13);return{x:h.x+(ph-.5)*.12,z:h.z+(hash(ph*91)-.5)*.12,hd:ph*6.28,st:'home',b,ph,wait:ph*6,h,s:G.spots[b%G.spots.length],ox:(hash(b*5.1+c.x)-.5)*.5,oz:(hash(b*8.3+c.y)-.5)*.5,mv:0,foam:0}};
+  const mk=b=>{const h=G.homes[b%G.homes.length],ph=hash(c.x*31+c.y*7+b*13);const sp_=[...G.spots.slice(b%G.spots.length),...G.spots.slice(0,b%G.spots.length)].find(q=>lineWater(h.x,h.z,q.x,q.z))||G.spots[b%G.spots.length];return{x:h.x+(ph-.5)*.12,z:h.z+(hash(ph*91)-.5)*.12,hd:ph*6.28,st:'home',b,ph,wait:ph*6,h,s:sp_,ox:(hash(b*5.1+c.x)-.5)*.5,oz:(hash(b*8.3+c.y)-.5)*.5,mv:0,foam:0}};
   if(!c._fbs||c._fbs.era!==n.era){c._fbs=[];c._fbs.era=n.era;for(let b=0;b<cnt;b++)c._fbs.push(mk(b))}
   while(c._fbs.length<cnt){const used=new Set(c._fbs.map(B=>B.b));let b=0;while(used.has(b))b++;c._fbs.push(mk(b))}
   while(c._fbs.length>cnt){/* lose a boat that is out at sea if there is one */let k=c._fbs.findIndex(B=>B.st!=='home');if(k<0)k=c._fbs.length-1;const B=c._fbs.splice(k,1)[0];
@@ -153,7 +153,7 @@ function fishFleet(n,c,dt,now){if(!seaNear(c).length)return;const G=fbGrounds(c)
     if(d>.02&&dt>0){const want=Math.atan2(dz,dx);let da=want-B.hd;da=Math.atan2(Math.sin(da),Math.cos(da));B.hd+=clamp(da,-1.6*dt,1.6*dt);
       const v=(B.st==='fish'?.03:sp)*(Math.abs(da)>1.2?.35:1)*dt,nx=B.x+Math.cos(B.hd)*Math.min(v,d),nz=B.z+Math.sin(B.hd)*Math.min(v,d),ti=tileAt(nx,nz);
       /* never onto land: if the bow points at the shore, slip straight towards the goal along the open water */
-      if(ti>=0&&isWater(ti)){B.x=nx;B.z=nz}else{B.x+=dx/d*Math.min(v,d);B.z+=dz/d*Math.min(v,d)}B.mv=B.st==='fish'?0:1}
+      if(ti>=0&&isWater(ti)){B.x=nx;B.z=nz}else{const sx=B.x+dx/d*Math.min(v,d),sz=B.z+dz/d*Math.min(v,d),t2=tileAt(sx,sz);if(t2>=0&&isWater(t2)){B.x=sx;B.z=sz}else if(B.st==='go'){/* no clear way out: stay in and fish closer to home */B.st='fish';B.t=0;B.s={x:B.x,z:B.z};B.ox=B.oz=0}}B.mv=B.st==='fish'?0:1}
     if(B.st==='go'&&d<.06){B.st='fish';B.t=0}if(B.st==='back'&&d<.04)B.st='home';
     /* draw: a hull for each age, rolling with the swell */
     const by=(B.by=seaY(B.x,B.z)+.006+Math.sin(now/500+B.ph*6)*.0015),roll=Math.sin(now/700+B.ph*6)*(B.mv?.03:.05),R=-B.hd;
