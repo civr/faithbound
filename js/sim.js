@@ -24,7 +24,7 @@ function genWorld(seedIn){
   buildTerrain();computeTerrain();layoutTerrain();
   seedCultures();seedDeposits();indexDeposits();CUTY=null;FARMT=null;annals=[];endedWars=[];hist=[];snaps=[];worldWars=[];colonies=[];planets={moon:{terra:0,life:0},mars:{terra:0,life:0}};
   let placed=0,tries=0;
-  while(placed<S.tribes&&tries<6000){tries++;const i=(rng()*N)|0;if(hab[i]<.7||owner[i]>=0||(tries<4000&&siteScore(i)<.6))continue;
+  while(placed<S.tribes&&tries<6000){tries++;const i=(rng()*N)|0;if(hab[i]<.6||owner[i]>=0||(tries<3000&&siteScore(i)<1.2)||(tries<4800&&siteScore(i)<.9)||(tries<5600&&siteScore(i)<.5))continue;
     const x=i%W,y=(i/W)|0;let ok=true;for(const n of nations){const c=n.cities[0];if(Math.hypot(c.x-x,c.y-y)<W/(S.tribes>5?5.5:4.2)){ok=false;break}}
     if(ok){newNation(x,y,{});placed++}}
   log(`A new world rose from the deep. ${placed} tribes wander its shores.`,'era');
@@ -131,8 +131,35 @@ function nearCity(x,y,d){for(const n of nations){if(!n.alive)continue;for(const 
 const SL_CITY=.5;
 const flatOk=j=>tslope.length===N?tslope[j]<SL_CITY:true;
 function rugged(j){const x=j%W,y=(j/W)|0;let m=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(h[q]>sea)m=Math.max(m,Math.abs(h[q]-h[j]))}return m}
-function siteScore(j){if(hab[j]<.45||!flatOk(j)||biome[j]>=10||h[j]-sea>.2||rugged(j)>.045)return -1;let s=hab[j]-(tslope.length===N?tslope[j]:0)*.8;if(river[j])s+=.35;if(deposits.length&&nearDeposit(j,2.5))s+=.3;
-  const x=j%W,y=(j/W)|0;for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X>=0&&Y>=0&&X<W&&Y<H&&isWater(Y*W+X)){s+=.25;break}}return s}
+/* a town site as people have always chosen one: fresh water first (a river, best where two rivers meet or where a river reaches the sea), a
+   sheltered harbour rather than an open shore, good farmland all around and not just underfoot, dry ground a little above the water
+   rather than the flood meadow, wood and stone or ore near, a hill to fall back on. Dry land far from any water is a poor place, and the
+   desert has towns only at its rivers and oases. siteInfo gives the score and the reason. */
+let BROOKS_=null,BROOKSK='';
+/* tiles a brook runs through: fresh water too */
+function brookTiles(){const k=typeof terrVer!=='undefined'?terrVer:0;if(BROOKS_&&BROOKSK===k)return BROOKS_;BROOKS_=new Set();BROOKSK=k;if(typeof brooks==='function')try{for(const p of brooks())for(const t of p)BROOKS_.add(t)}catch(e){}return BROOKS_}
+const SITE_WHY={brook:'by a brook',near:'near the water',mouth:'at the mouth of the river',confluence:'where two rivers meet',harbour:'by a sheltered harbour',river:'on the river',riverside:'by the river',coast:'on the coast',lake:'on the lakeshore',mines:'beside the mines',farm:'among good farmland',plain:'on the open plain'};
+function siteInfo(j){if(isWater(j)||hab[j]<.3||!flatOk(j)||biome[j]>=10||h[j]-sea>.2||rugged(j)>.045)return null;
+  const x=j%W,y=(j/W)|0;let farm=0,fn=0,riv=0,riv3=0,wat2=0,sea2=0,forest=0,hill=0,coast4=false;
+  for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d>3.2)continue;const q=Y*W+X;
+    if(isWater(q)){if(d<=2.3){wat2++;if(biome[q]===0)sea2++}if(d<=1)coast4=true;continue}
+    farm+=hab[q];fn++;if(d<=1.5&&river[q])riv++;if(d<=1.5&&river[q]&&(Math.abs(dx)+Math.abs(dy)>0))riv3++;if(biome[q]===5||biome[q]===6)forest++;if(d<=2.3&&h[q]-h[j]>.035)hill=1}
+  const fert=fn?farm/fn:0;let s=fert*1.2-(tslope.length===N?tslope[j]:0)*.8,why=fert>.7?'farm':'plain',wb=0;
+  const onR=river[j]>0,nearR=riv>0,conf=riv3>=4&&onR;
+  if((onR||nearR)&&coast4&&sea2>0){wb=.6;why='mouth'}
+  else if(conf){wb=.55;why='confluence'}
+  else if(coast4&&wat2>=4&&wat2<=12){wb=.45;why=sea2?'harbour':'lake'}
+  else if(onR){wb=.45;why='river'}
+  else if(nearR){wb=.35;why='riverside'}
+  else if(coast4){wb=.2;why=sea2?'coast':'lake'}
+  else if((()=>{const B=brookTiles();for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X>=0&&Y>=0&&X<W&&Y<H&&B.has(Y*W+X))return true}return false})()){wb=.3;why='brook'}
+  else if(wat2){wb=.1;why='near'}
+  s+=wb;
+  if(!wb){if(biome[j]===7)return null;s-=.75}/* no water near: a poor place for a town, only the richest land makes up for it */
+  if(onR&&h[j]-sea<.015)s-=.15;/* the flood meadow: better a little higher up */
+  if(hill)s+=.08;if(forest>=3)s+=.08;if(deposits.length&&nearDeposit(j,2.5)){s+=.25;if(!wb&&why!=='farm')why='mines'}
+  return{s,why}}
+function siteScore(j){const r=siteInfo(j);return r?r.s:-1}
 function bestSite(A,x,y,r){let best=-1,bs=-1;for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
   if(owner[j]!==A.id)continue;const sc=siteScore(j);if(sc>bs){bs=sc;best=j}}return best}
 /* rivers and ridges slow a nation down, so borders tend to settle on them */
@@ -140,9 +167,10 @@ function terrFactor(i,j){let f=1;if((river[i]>0)!==(river[j]>0))f*=.3;if(tslope.
 /* towns stand well apart and are founded rarely, so there are fewer of them and each grows larger */
 /* towns stand well apart, with farms, woods and open country between them, as on a real island */
 const TOWN_GAP=12;
-function maybeCity(A,x,y,j){if(rng()>.012)return;j=bestSite(A,x,y,1);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,TOWN_GAP))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year});propsDirty=true;
+/* a new town looks for the best site in a wide stretch of the nation's land around where its people are spreading */
+function maybeCity(A,x,y,j){if(rng()>.012)return;j=bestSite(A,x,y,5);if(j<0||siteScore(j)<.7)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,TOWN_GAP))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year,site:siteInfo(j).why});propsDirty=true;
   if(!milestones.has('city2')){milestone('city2','A second city rises','The '+A.name+' founded a new town.')}}
-function foundTown(A,x,y,j){if((A.tiles/Math.max(1,A.cities.length))<80)return;j=bestSite(A,x,y,2);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,TOWN_GAP))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year});propsDirty=true}
+function foundTown(A,x,y,j){if((A.tiles/Math.max(1,A.cities.length))<80)return;j=bestSite(A,x,y,6);if(j<0||siteScore(j)<.65)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,TOWN_GAP))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year,site:siteInfo(j).why});propsDirty=true}
 const mil=n=>n.pop/Math.max(1,n.tiles)*ERAS[n.era].mil*ten(n).mil*(n.gpMil||1)*(n.bless>0?1.3:1)*(n.hero&&n.hero.until>year?1.6:1);
 /* ---------- alliances: sworn friends join each other's wars ---------- */
 const allied=(a,b)=>!!(a.allies&&a.allies.includes(b.id));
@@ -423,13 +451,15 @@ function launch(n,kind,foe){
 }
 function arrive(s){
   if(s.kind==='pirate'){pirateRaid(s);return}
-  const n=nations[s.owner],L=s.target,X=L%W,Y=(L/W)|0;if(!n.alive)return;
+  const n=nations[s.owner];let L=s.target,X=L%W,Y=(L/W)|0;if(!n.alive)return;
   if(s.kind==='explore'){exploreArrive(n,X,Y);return}
   if(s.kind==='trade'){const B=nations[s.foe];if(B&&B.alive&&n.trade.includes(B.id)){n.tech+=TECHCOST[n.era]*.04;B.tech+=TECHCOST[B.era]*.04;if(n.sick&&rng()<.3)infect(B,n.sick,n);if(rng()<.15&&(important(n)||important(B)))log(`Merchants of ${n.name} reached ${B.name} with full holds.`,'life')}return}
-  if(s.kind==='colony'){if(owner[L]<0&&hab[L]>=.1){claim(L,n.id);
+  if(s.kind==='colony'){/* the colonists look along the shore near their landing for the best place to build */
+    {let bs=siteScore(L);for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const x=X+dx,y=Y+dy;if(x<0||y<0||x>=W||y>=H)continue;const q=y*W+x;if(owner[q]>=0||nearCity(x,y,10))continue;const sc=siteScore(q);if(sc>bs){bs=sc;L=q}}X=L%W;Y=(L/W)|0}
+    if(owner[L]<0&&hab[L]>=.1){claim(L,n.id);
       for(let d=0;d<4;d++){const x=X+DX[d],y=Y+DY[d];if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]<0&&hab[j]>=.1)claim(j,n.id)}
-      const name=cultureName(cultOf(n));n.cities.push({x:X,y:Y,name,origin:n.id,colony:true,born:year});n.pop+=3;fx(L,'bless');propsDirty=true;
-      log(`Colonists from ${n.name} founded ${name} across the sea.`,'life');milestone('colony','New World','The first overseas colony was founded.')}}
+      const name=cultureName(cultOf(n)),si=siteInfo(L);n.cities.push({x:X,y:Y,name,origin:n.id,colony:true,born:year,site:si?si.why:'coast'});n.pop+=3;fx(L,'bless');propsDirty=true;
+      log(`Colonists from ${n.name} founded ${name} across the sea${si&&SITE_WHY[si.why]?', '+SITE_WHY[si.why]:''}.`,'life');milestone('colony','New World','The first overseas colony was founded.')}}
   else{if(s.escort)return;const B=nations[s.foe];if(!B||!B.alive||!n.wars.has(B.id)||owner[L]!==B.id)return;
     const lim=3+(s.era-SAIL)*2,q=[L],seen=new Set([L]);let took=0,head=0;
     while(head<q.length&&took<lim){const j=q[head++];if(owner[j]!==B.id)continue;const moved=B.pop/Math.max(1,B.tiles);B.pop=Math.max(2,B.pop-moved*.6);claim(j,n.id);took++;
@@ -515,7 +545,7 @@ function tick(){if(typeof farmAbandonTick==='function')farmAbandonTick();
     n.pop+=n.pop*.035*[.6,.68,.76,.82,.88,.95,1,1][n.era]*t.grow*stabGrow(n)*(.85+.3*(n.happy??.6))*(n.bless>0?1.8:1)*(n.festival>0?1.25:1)*(1-n.pop/n.cap);
     /* settlers: a people with room to spare sends families out to found small villages inside its own lands */
     if(n.tiles/Math.max(1,n.cities.length)>=60&&n.pop>n.cities.length*60&&rng()<.012){const c0=n.cities[(rng()*n.cities.length)|0];
-      for(let q=0;q<8;q++){const x=c0.x+Math.round((rng()-.5)*30),y=c0.y+Math.round((rng()-.5)*30);if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]===n.id&&!nearCity(x,y,TOWN_GAP)&&hab[j]>.3){const k=n.cities.length;foundTown(n,x,y,j);if(n.cities.length>k){if(rng()<.25)log(`Settlers from ${c0.name} founded ${n.cities[k].name}.`,'');break}}}}
+      for(let q=0;q<8;q++){const x=c0.x+Math.round((rng()-.5)*30),y=c0.y+Math.round((rng()-.5)*30);if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]===n.id&&!nearCity(x,y,TOWN_GAP)&&hab[j]>.3){const k=n.cities.length;foundTown(n,x,y,j);if(n.cities.length>k){const nc=n.cities[k];if(rng()<.25)log(`Settlers from ${c0.name} founded ${nc.name} ${SITE_WHY[nc.site]||''}.`.replace(' .','.'),'');break}}}}
     if(n.plague>0){n.plague--;n.pop*=.975}
     if(n.wars.size)n.pop*=1-.002*n.wars.size;
     n.pop=Math.max(2,n.pop);worldPop+=n.pop;
