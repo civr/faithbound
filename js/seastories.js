@@ -143,14 +143,14 @@ function legendWatch(){const now=new Map();for(const n of nations){if(!n.alive)c
   for(const [c,info] of CITYSEEN)if(!now.has(c)&&(info.lv>=6||info.cap&&info.lv>=4)){const j=info.y*W+info.x;addLegend({name:info.name,x:info.x,y:info.y,kind:isWater(j)?'drowned':'fallen',lv:info.lv,nation:info.nation})}
   CITYSEEN=now}
 const GRAND=['golden roofs','silver gates','hanging gardens','a hundred temples','streets paved with marble'];
-const standing=L=>L.kind==='fallen'&&nations.some(n=>n.alive&&n.cities.some(c=>c.name===L.name));
+const standing=L=>(L.kind==='fallen'||L.kind==='abandoned')&&nations.some(n=>n.alive&&n.cities.some(c=>c.name===L.name));
 function legendYear(){const S=T();for(const L of S.legends){if(standing(L))continue;if(L.told<3&&year>=L.next){const o=nations.filter(n=>n.alive&&n.name!==L.nation);if(!o.length)continue;const n=tp(o),k=Math.round(L.lv*10*Math.pow(1.9,L.told+1));
       log(L.kind==='atlantis'?`Sailors in ${n.name} tell of Atlantis, the island beyond the sea, so wise that ${tp(['its ships needed no wind','its lamps burned without oil','it knew the paths of the stars','its people never fell ill'])}, until the gods drowned it for its pride.`
         :L.kind==='drowned'?`In ${n.name} they tell of ${L.name}, a city of ${k} towers that the sea swallowed in a single night${L.told?', for the pride of its rulers':''}. On still days, they say, you can hear its bells under the water.`
-        :`Bards in ${n.name} sing of ${L.name}, a city of ${tp(GRAND)}, ${k} thousand strong, burned in a single day.`,'sky');
+        :L.kind==='abandoned'?`Travellers in ${n.name} tell of ${L.name}, a city of ${tp(GRAND)} that the ${L.why==='dry'?'desert':L.why==='ice'?'ice':'wilderness'} swallowed${L.told?' when its people forgot the gods':''}.`:`Bards in ${n.name} sing of ${L.name}, a city of ${tp(GRAND)}, ${k} thousand strong, burned in a single day.`,'sky');
       L.told++;L.next=year+150+((rng()*250)|0);if(!milestones.has('legend'))milestone('legend','Legends','A lost city became a legend.')}
     if(!L.found&&L.told>=1&&L.kind!=='atlantis'&&topEra()>=6&&rng()<.008){const t=nearestNation(L.x,L.y,n=>n.era>=6);if(!t)continue;L.found=year;t.n.tech+=TECHCOST[t.n.era]*.15;
-      log(`Archaeologists of ${t.n.name} found the ruins of ${L.name}. The tales spoke of ${L.kind==='drowned'?'a city of towers under the sea':'a city of '+tp(GRAND)}; they found ${L.kind==='drowned'?`the foundations of a town of some ${Math.round(L.lv*40)} houses under the silt, and a church bell`:`burnt walls, a market square and the foundations of some ${Math.round(L.lv*40)} houses`}.`,'era')}}}
+      log(`Archaeologists of ${t.n.name} found the ruins of ${L.name}. The tales spoke of ${L.kind==='drowned'?'a city of towers under the sea':'a city of '+tp(GRAND)}; they found ${L.kind==='drowned'?`the foundations of a town of some ${Math.round(L.lv*40)} houses under the silt, and a church bell`:L.kind==='abandoned'?`streets and wells under the ${L.why==='dry'?'sand':'soil'}, and the foundations of some ${Math.round(L.lv*40)} houses`:`burnt walls, a market square and the foundations of some ${Math.round(L.lv*40)} houses`}.`,'era')}}}
 
 /* ---------- the year ---------- */
 const TALE_WIN={seapeoples:[1,2,.006,taleSeaPeoples],nomads:[0,5,.005,taleNomads],republic:[4,5,.012,taleRepublic],flood:[2,6,.004,taleFlood],atlantis:[0,2,.02,taleAtlantis],

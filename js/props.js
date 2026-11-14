@@ -1657,7 +1657,7 @@ function updateWalkers(dt,yrs){
   if(camDist<16&&(updateWalkers._t=(updateWalkers._t||0)-dt)<=0){updateWalkers._t=.4;const RR=(camDist*1.2+2)**2,loc=[];
     for(const n of nations){if(!n.alive||n.era<1)continue;for(const c of n.cities){const ex=wx(c.x)-camT.x,ez=wz(c.y)-camT.z;if(ex*ex+ez*ez<RR)loc.push([n,c])}}
     if(loc.length){const have=new Map();for(const w of walkers)have.set(w.ci,(have.get(w.ci)||0)+1);
-      for(const [n,c] of loc){const want=Math.min(150,Math.round(Math.sqrt(n.pop/Math.max(1,n.cities.length))*3.4*(settings.quality==='low'?.5:1)));/* a busy town: plenty of people about */let h=have.get(c)||0;
+      for(const [n,c] of loc){const want=Math.min(150,Math.round(Math.sqrt(n.pop/Math.max(1,n.cities.length))*3.4*(settings.quality==='low'?.5:1)*(1-Math.min(.85,c.decay||0))));/* a busy town: plenty of people about */let h=have.get(c)||0;
         for(let q=0;q<8&&h<want;q++){let w=null;
           if(walkers.length<cap){w={x:0,z:0,wait:rng()*2,sol:false,t:rng()*10,ph:rng()*6,dir:rng()*6.28,act:'idle',seed:(rng()*1e9)|0};walkers.push(w)}
           else{for(let t=0;t<12;t++){const v=walkers[(rng()*walkers.length)|0];if(v.sol||loc.some(l=>l[1]===v.ci))continue;w=v;break}if(!w)break;const on=nations[w.nid];if(on)on._walk=(on._walk||1)-1}
