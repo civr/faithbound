@@ -51,7 +51,7 @@ function drawArmies(now){
   if(!armies.length){if(armyDrawn){kitReset(ARMY_KITS);armyCommitNow();armyDrawn=false}return}
   kitReset(ARMY_KITS);armyDrawn=true;const lim=camDist*2+8;
   for(const a of armies){if(Math.hypot(a.x-camT.x,a.z-camT.z)>lim)continue;const A=nations[a.n];if(!A)continue;const e=Math.min(7,A.era),L=ARMY_LOOK[e],nc=parseInt(A.color.slice(1),16);
-    const fade=a.mode==='home'?Math.max(0,a.str*2-.0):1,men=Math.max(6,Math.round(48*Math.min(1,a.str)*fade)),walk=a.mode==='march'||a.mode==='home',f=a.face,c=Math.cos(f),sn=Math.sin(f);
+    const fade=a.mode==='home'?Math.max(0,a.str*2-.0):1,men=Math.max(6,Math.round(48*Math.min(1,a.str)*fade*(A.doc==='land'?1.4:A.doc==='peaceful'?.6:1))),walk=a.mode==='march'||a.mode==='home',f=a.face,c=Math.cos(f),sn=Math.sin(f);
     if(a.mode==='siege'&&a.c){/* camp: a ring of tents and the engines facing the walls */const cx=wx(a.c.x),cz=wz(a.c.y),ang0=Math.atan2(a.z-cz,a.x-cx);
       for(let t=0;t<7;t++){const an=ang0+(t-3)*.16,r=.95+(t%2)*.12,x=cx+Math.cos(an)*r,z=cz+Math.sin(an)*r,y=groundY(x,z);if(y<waterY+.02)continue;add('tent',x,y-.005,z,.05,.05,.05,an,t%3?0xe8dcc0:nc)}
       for(let t=0;t<3;t++){const an=ang0+(t-1)*.22,x=cx+Math.cos(an)*.75,z=cz+Math.sin(an)*.75,y=groundY(x,z),face=Math.atan2(cz-z,cx-x);if(y<waterY+.02)continue;siegeEngine(e,x,y,z,face,nc)}}

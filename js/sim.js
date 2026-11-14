@@ -160,17 +160,17 @@ function siteInfo(j){if(isWater(j)||hab[j]<.3||!flatOk(j)||biome[j]>=10||h[j]-se
   if(hill)s+=.08;if(forest>=3)s+=.08;if(deposits.length&&nearDeposit(j,2.5)){s+=.25;if(!wb&&why!=='farm')why='mines'}
   return{s,why}}
 function siteScore(j){const r=siteInfo(j);return r?r.s:-1}
-function bestSite(A,x,y,r){let best=-1,bs=-1;for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
-  if(owner[j]!==A.id)continue;const sc=siteScore(j);if(sc>bs){bs=sc;best=j}}return best}
+function bestSite(A,x,y,r,gap){let best=-1,bs=-1;for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
+  if(owner[j]!==A.id||gap&&nearCity(X,Y,gap))continue;const sc=siteScore(j);if(sc>bs){bs=sc;best=j}}return best}
 /* rivers and ridges slow a nation down, so borders tend to settle on them */
 function terrFactor(i,j){let f=1;if((river[i]>0)!==(river[j]>0))f*=.3;if(tslope.length===N)f*=clamp(1.25-tslope[j]*.9,.2,1);if(biome[j]===11||biome[j]===12)f*=.35;return f}
 /* towns stand well apart and are founded rarely, so there are fewer of them and each grows larger */
 /* towns stand well apart, with farms, woods and open country between them, as on a real island */
-const TOWN_GAP=12;
+const TOWN_GAP=10;
 /* a new town looks for the best site in a wide stretch of the nation's land around where its people are spreading */
-function maybeCity(A,x,y,j){if(rng()>.012)return;j=bestSite(A,x,y,5);if(j<0||siteScore(j)<.7)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,TOWN_GAP))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year,site:siteInfo(j).why});propsDirty=true;
+function maybeCity(A,x,y,j){if(rng()>.012)return;j=bestSite(A,x,y,5,TOWN_GAP);if(j<0||siteScore(j)<.7)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,TOWN_GAP))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year,site:siteInfo(j).why});propsDirty=true;
   if(!milestones.has('city2')){milestone('city2','A second city rises','The '+A.name+' founded a new town.')}}
-function foundTown(A,x,y,j){if((A.tiles/Math.max(1,A.cities.length))<80)return;j=bestSite(A,x,y,6);if(j<0||siteScore(j)<.65)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,TOWN_GAP))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year,site:siteInfo(j).why});propsDirty=true}
+function foundTown(A,x,y,j){if((A.tiles/Math.max(1,A.cities.length))<80)return;j=bestSite(A,x,y,6,TOWN_GAP);if(j<0||siteScore(j)<.65)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,TOWN_GAP))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year,site:siteInfo(j).why});propsDirty=true}
 const mil=n=>n.pop/Math.max(1,n.tiles)*ERAS[n.era].mil*ten(n).mil*(n.gpMil||1)*(n.bless>0?1.3:1)*(n.hero&&n.hero.until>year?1.6:1);
 /* ---------- alliances: sworn friends join each other's wars ---------- */
 const allied=(a,b)=>!!(a.allies&&a.allies.includes(b.id));
@@ -444,7 +444,9 @@ function launch(n,kind,foe){
   const res=seaPath(starts,goal);if(!res||res.path.length<2)return;const p0=res.path[0];
   const s={owner:n.id,kind,foe:foe?foe.id:-1,era:n.era,path:res.path,wp:shipRoute(res.path),seg:0,target:res.target,x:wx(p0%W),z:wz((p0/W)|0),sink:0,g:makeShip(n.era,kind,n.color,ensureFlag(n)),foamT:0};
   s.g.position.set(s.x,waterY,s.z);ships.push(s);
-  if(kind==='war'){/* warships sail as a small squadron */const extra=n.era>=6?2:1;for(let e_=0;e_<extra;e_++){const o={...s,g:makeShip(n.era,kind,n.color,ensureFlag(n)),x:s.x+(rng()-.5)*.3,z:s.z+(rng()-.5)*.3,foamT:0,escort:true};
+  if(kind==='war'){/* warships sail as a squadron: a sea power sends a bigger one, and in the modern age a submarine sails with it */const extra=(n.era>=6?2:1)+(n.doc==='naval'?2:0)-(n.doc==='peaceful'?1:0);
+    if(n.era>=6&&(n.doc==='naval'||n.doc==='balanced'&&rng()<.5)&&typeof makeSub==='function'){const o={...s,g:makeSub(n.color),x:s.x+(rng()-.5)*.3,z:s.z+(rng()-.5)*.3,foamT:0,escort:true,sub:true};o.g.position.set(o.x,waterY,o.z);ships.push(o)}
+    for(let e_=0;e_<extra;e_++){const o={...s,g:makeShip(n.era,kind,n.color,ensureFlag(n)),x:s.x+(rng()-.5)*.3,z:s.z+(rng()-.5)*.3,foamT:0,escort:true};
       const ti=tileAt(o.x,o.z);if(ti<0||!isWater(ti)){o.x=s.x;o.z=s.z}o.g.position.set(o.x,waterY,o.z);ships.push(o)}}
   if(kind==='war'&&(important(n)||important(foe)||n.id===selected||foe.id===selected)){const y=Math.max(1,Math.round(shipYears(s)));log(`A war fleet of ${n.name} sets sail for ${foe.name}. Landfall in about ${y} year${y>1?'s':''}.`,'war')}
   if(kind==='colony'&&!flags.sail){flags.sail=true;log(`The first colony ships of ${n.name} set sail.`,'era');milestone('sail','Across the sea','Colonists set sail for distant shores.')}
@@ -483,8 +485,10 @@ function voyageHtml(n){if(!n.alive)return '';const own=[],foe=[];
   return `<div><span class="lab">At sea</span>${own.map(([i,s])=>row(i,`<b>${VOY_LABEL[s.kind]}</b> → ${dest(s)} · ${when(s)}`)).join('')}${foe.map(([i,s])=>row(i,`<b style="color:#f0a196">${s.kind==='viking'?'Viking longships':'Enemy fleet of '+esc(nations[s.owner]?nations[s.owner].name:'?')}</b> bound for these shores · ${when(s)}`)).join('')}</div>`}
 function updateShips(dy,dt,now){
   for(let k=ships.length-1;k>=0;k--){const s=ships[k];
-    if(s.sink>0){s.sink+=dt;s.g.position.y=seaNow()-s.sink*.15;s.g.rotation.z=s.sink*.4;if(rng()<dt*8)emit('dark',s.x,waterY+.05,s.z);if(s.sink>2){disposeShip(s);ships.splice(k,1)}continue}
+    if(s.sink>0){s.sink+=dt;s.g.position.y=seaNow()-s.sink*.15;s.g.rotation.z=s.sink*.4;if(rng()<dt*8)emit('dark',s.x,waterY+.05,s.z);if(s.burn>0&&s.sink<1.4&&rng()<dt*14)emit('fire',s.x+(rng()-.5)*.1,waterY+.05,s.z+(rng()-.5)*.1);if(s.sink>2){disposeShip(s);ships.splice(k,1)}continue}
     if(s.owner>=0&&!nations[s.owner].alive){s.sink=.01;continue}
+    /* a ship on fire burns on, and the fire can finish her */
+    if(s.burn>0){s.burn-=dt;s.hp=(s.hp??2)-dt*.12;if(rng()<dt*16){const a=s.g.rotation.y,o=(rng()-.5)*.16;emit('fire',s.x+Math.cos(a)*o,waterY+.07+rng()*.05,s.z-Math.sin(a)*o)}if(rng()<dt*6)emit('dark',s.x,waterY+.14,s.z);if(s.hp<=0){s.sink=.01;continue}}
     if(!s.wp)s.wp=shipRoute(s.path);const WP=s.wp;
     /* ships move at sailing speed on screen, whatever the speed of the years */let rem=dy>0?SHIPSPEED[s.era]*dt*SHIP_PACE*clamp(dy/(dt*Math.max(.8,paceInfo().yearRate)),1,3):0;if(s.fight)rem=0;if(s.hold>0){s.hold-=dt;rem=0}
     if(s.hunt&&!s.fight&&!s.hunt.sink){const h=s.hunt,ddx=h.x-s.x,ddz=h.z-s.z,d=Math.hypot(ddx,ddz)||1,st=Math.min(d,rem),nx=s.x+ddx/d*st,nz=s.z+ddz/d*st,ti=tileAt(nx,nz);if(ti>=0&&isWater(ti)&&seaDepth(nx,nz)>.04){s.x=nx;s.z=nz;s.head=Math.atan2(-ddz,ddx);rem=0}else s.hunt=null}
@@ -501,14 +505,14 @@ function updateShips(dy,dt,now){
         s.x=nx;s.z=nz;s.head=Math.atan2(-ddz,ddx)}}
     if(s.head!=null){const turn=Math.atan2(Math.sin(s.head-s.g.rotation.y),Math.cos(s.head-s.g.rotation.y));s.g.rotation.y+=turn*Math.min(1,dt*3);s.lean=lerp(s.lean||0,clamp(turn*.25,-.12,.12),Math.min(1,dt*3))}
     {/* ride the same swell the sea shader draws, so hulls neither sink into the waves nor float above them */const T=waterU.uTime.value,wa=s.x*1.7+T*1.1,wb=s.z*1.4+T*1.35,deep=clamp((waterY-groundY(s.x,s.z))*2,0,1);
-      s.g.position.set(s.x,seaY(s.x,s.z)+(s.era>=7?.06:0),s.z);s.g.rotation.x=Math.cos(wa)*.05*deep+(s.lean||0);s.g.rotation.z=-Math.sin(wb)*.04*deep}
+      s.g.position.set(s.x,seaY(s.x,s.z)+(s.era>=7?.06:0)-(s.sub?.03:0),s.z);s.g.rotation.x=Math.cos(wa)*.05*deep+(s.lean||0);s.g.rotation.z=-Math.sin(wb)*.04*deep}
     if(dy>0){s.foamT+=dt;if(s.foamT>.12){s.foamT=0;const a=s.g.rotation.y;emit('foam',s.x-Math.cos(a)*.2,waterY+.01,s.z+Math.sin(a)*.2,0,0)}
       if(s.era===5&&rng()<dt*3)emit('dark',s.x,waterY+.2,s.z)}
     if(s.seg>=WP.length-1){arrive(s);disposeShip(s);ships.splice(k,1)}}
   if(dy<=0)return;
   /* naval war: warships hunt enemy ships they sight, close in, trade broadsides until one sinks */
   for(const a of ships){if(a.calm>0)a.calm-=dt;if(a.sink||a.kind!=='war'||a.fight||a.calm>0)continue;const A=nations[a.owner];if(!A)continue;let best=null,bd=3.2;
-    for(const b of ships){if(b===a||b.sink||b.owner===a.owner||(b.kind!=='pirate'&&!A.wars.has(b.owner)))continue;const d=Math.hypot(a.x-b.x,a.z-b.z);if(d<bd&&clearSea(a.x,a.z,b.x,b.z)){bd=d;best=b}}
+    for(const b of ships){if(b===a||b.sink||b.owner===a.owner||(b.kind!=='pirate'&&!A.wars.has(b.owner)))continue;const d=Math.hypot(a.x-b.x,a.z-b.z);if(b.sub&&d>.7&&!a.sub)continue;/* a submarine is only found close by */if(d<bd&&clearSea(a.x,a.z,b.x,b.z)){bd=d;best=b}}
     if(best){if(bd<.9){a.fight=best;if(!best.fight)best.fight=a}else a.hunt=best}else a.hunt=null}
   for(const s_ of ships){if(s_.sink)continue;s_.hp=s_.hp??(s_.kind==='war'?3+s_.era*.6:s_.kind==='pirate'?2.5:1.2);
     const f=s_.fight;if(f){s_.fT=(s_.fT||0)+dt;const A_=nations[s_.owner],still=f.owner<0||s_.owner<0||(A_&&A_.wars.has(f.owner));
@@ -517,10 +521,13 @@ function updateShips(dy,dt,now){
     const dx=f.x-s_.x,dz=f.z-s_.z,d=Math.hypot(dx,dz)||1;s_.orb=s_.orb||(rng()<.5?1:-1);const ox=-dz/d*s_.orb,oz=dx/d*s_.orb;s_.head=Math.atan2(-oz,ox);
     const want=s_.kind==='war'?.55:.9,mv=(d-want)*dt*.4,v=(s_.kind==='war'?.09:.12)*dt,nx=s_.x+ox*v+dx/d*mv,nz=s_.z+oz*v+dz/d*mv,ti=tileAt(nx,nz);if(ti>=0&&isWater(ti)){s_.x=nx;s_.z=nz}else s_.orb=-s_.orb
     if(s_.kind==='colony'||s_.kind==='trade'||s_.kind==='explore'||s_.kind==='company')continue;/* unarmed ships only flee */
+    if(s_.sub){/* a submarine fires torpedoes, slowly */s_.gun=(s_.gun??1.5)-dt;if(s_.gun>0)continue;s_.gun=2.6+rng();if(typeof fireTorpedo==='function')fireTorpedo(s_,f);continue}
     s_.gun=(s_.gun??rng()*.6)-dt;if(s_.gun>0)continue;s_.gun=(s_.era>=6?.35:s_.era>=5?.6:.9)+rng()*.5;
     const sx=s_.x+dx/d*.08,sz=s_.z+dz/d*.08;emit('flash',sx,waterY+.06,sz);emit(s_.era>=5?'dark':'smoke',sx,waterY+.06,sz);
     const hit=rng()<.45+s_.era*.03,tx=f.x+(hit?0:(rng()-.5)*.5),tz=f.z+(hit?0:(rng()-.5)*.5);
-    for(let q=0;q<(hit?2:4);q++)emit(hit?'fire':'spray',tx,waterY+.04,tz,(rng()-.5)*.06,(rng()-.5)*.06);
+    for(let q=0;q<(hit?2:4);q++)emit(hit&&!f.sub?'fire':'spray',tx,waterY+.04,tz,(rng()-.5)*.06,(rng()-.5)*.06);
+    /* a hit can set her afire: wooden ships burn readily, steel ones from their fuel and magazines */
+    if(hit&&!f.sub&&rng()<(f.era<=5?.35:.22))f.burn=Math.max(f.burn||0,5+rng()*7);
     if(hit){f.hp-=ERAS[s_.era].mil/ERAS[f.era].mil*(s_.owner<0?.6:1)*(.6+rng()*.6);if(f.era>=5||rng()<.5)emit('dark',f.x,waterY+.08,f.z)}
     if(Math.hypot(s_.x-camT.x,s_.z-camT.z)<camDist*.8&&typeof sfx==='function')sfx('cannon');
     if(f.hp<=0){const win=s_,lose=f;lose.sink=.01;win.fight=null;for(let q=0;q<6;q++)emit('fire',lose.x,waterY+.06,lose.z);
@@ -557,7 +564,7 @@ function tick(){if(typeof farmAbandonTick==='function')farmAbandonTick();
       log(`${n.name} completed the ${wd.name}.`,'era');milestone('wonder','A wonder of the world',`${n.name} built the ${wd.name}.`)}
     if(n.era>=SAIL){let col=0,war=0;for(const s of ships)if(s.owner===n.id&&!s.sink){if(s.kind==='colony')col++;else if(s.kind==='war')war++}
       if(col<2&&rng()<.02*t.exp*t.sea)launch(n,'colony');
-      if(n.wars.size&&war<2+(n.era-SAIL)&&rng()<.05){const foes=[...n.wars];launch(n,'war',nations[foes[(rng()*foes.length)|0]])}}
+      if(n.wars.size&&war<(n.doc==='peaceful'?1:2+(n.era-SAIL)+(n.doc==='naval'?2:n.doc==='land'?-1:0))&&rng()<(n.doc==='naval'?.09:.05)){const foes=[...n.wars];launch(n,'war',nations[foes[(rng()*foes.length)|0]])}}
     if(n.era===7&&n.techs&&n.techs.includes('starships')&&rng()<.004)launchRocket(n);
     if(year%5===n.id%5)tradeTick(n);
     if(year%3===n.id%3)allianceTick(n);independenceTick(n,t);devotionTick(n);politicsTick(n);heroTick(n);terraformTick(n);resourceTick(n);winterTick(n);nukeTick(n);if(!n.alive)continue;if(!n.alive)continue;

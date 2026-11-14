@@ -44,17 +44,18 @@ const wwPeace=(A,B)=>{const ww=curWW();if(!ww||year-ww.start>25)return 1;const i
 
 /* ---------- the bomb ---------- */
 const hasBomb=n=>n&&n.techs&&n.techs.includes('atomic')&&(n.nukes||0)>0;
-function nukeTick(n){if(!n.techs||!n.techs.includes('atomic'))return;if(!n.bombYear){n.bombYear=year;log(`${n.name} tested its first atomic bomb. The world holds its breath.`,'doom');milestone('atom','The atomic age','A nation built the bomb.')}
+function nukeTick(n){if(!n.techs||!n.techs.includes('atomic'))return;if(!n.bombYear){n.bombYear=year;log(`${n.name} tested its first atomic bomb. The world holds its breath; from now on a war with ${n.name} could cost a nation its cities.`,'doom');milestone('atom','The atomic age','A nation built the bomb.')}
   if(year%8===n.id%8&&(n.nukes||0)<12)n.nukes=(n.nukes||0)+1;
   if(!n.wars.size||!(n.nukes>0))return;for(const id of n.wars){const B=nations[id];if(!B||!B.alive)continue;const w=warData[warKey(n,B)]||{score:0},losing=(n.id<B.id?-w.score:w.score)>4;
-    const p=.0035*(losing?4:1)*(n.aggr+.2)*(hasBomb(B)?.4:1)*(GOVS[n.gov]&&GOVS[n.gov].war>1.5?1.6:1)*(n.gov==='democracy'||n.gov==='federation'?.4:1);if(rng()<p){const c=B.cities.length>1&&rng()<.7?B.cities[1+((rng()*(B.cities.length-1))|0)]:B.cities[0];if(c)nuke(n,B,c,false);return}}}
+    /* rare: a bomb on the enemy can mean a bomb on your own cities; after the first one falls the world says never again */const taboo=GODW&&GODW.lastNuke&&year-GODW.lastNuke<150?.3:1;
+    const p=.0009*taboo*(losing?4:1)*(n.aggr+.2)*(hasBomb(B)?.12:1)*(GOVS[n.gov]&&GOVS[n.gov].war>1.5?1.6:1)*(n.gov==='democracy'||n.gov==='federation'?.4:1);if(rng()<p){const c=B.cities.length>1&&rng()<.7?B.cities[1+((rng()*(B.cities.length-1))|0)]:B.cities[0];if(c)nuke(n,B,c,false);return}}}
 function nuke(A,B,c,god){if(!c||!A||!B)return;A.nukes=Math.max(0,(A.nukes||0)-1);const i0=c.y*W+c.x,x=wx(c.x),z=wz(c.y);
   const k=B.cities.indexOf(c);if(k>=0){if(k===0&&B.cities.length>1){B.cities.splice(0,1)}else B.cities.splice(k,1)}ruins.push({x:c.x,y:c.y,year,name:c.name,nuke:true});
   B.pop*=.72;B.stab=Math.max(0,stabOf(B)-.25);A.stab=Math.max(0,stabOf(A)-.08);
   if(!window.fallout||fallout.length!==N)window.fallout=new Uint8Array(N);
   brush(i0,1.8,(j,d)=>{fallout[j]=Math.max(fallout[j],Math.round(60*(1-d/2.2)));if(scorched)scorched[j]=Math.max(scorched[j],30);h[j]=Math.max(0,h[j]-.012*(1-d/3))});
   terrainDirty=true;colorDirty=true;propsDirty=true;bordersDirty=true;nukeLog.push(year);nukeFx(x,surfY(x,z),z);
-  log(`${god?'At your sign, ':''}${A.name} dropped an atomic bomb on ${c.name}. The city of ${B.name} is gone.`,'doom');milestone('nuke','The flash','A city was destroyed by an atomic bomb.');
+  if(typeof GODW!=='undefined')GODW.lastNuke=year;log(`${god?'At your sign, ':''}${A.name} dropped an atomic bomb on ${c.name}. The city of ${B.name} is gone.`,'doom');milestone('nuke','The flash','A city was destroyed by an atomic bomb.');
   for(const n of nations)if(n.alive){n.devotion=clamp((n.devotion??.3)+.03,0,1);if(n!==A&&n!==B&&rivalry(n,A)<2)addRival(n,A,.5)}
   const recent=nukeLog.filter(y=>year-y<25).length;if(recent>=3&&!nukeLog.winter){climate.temp=Math.max(.1,climate.temp-.1);terrainDirty=true;nukeLog.winter=year;
     log('Ash from the burning cities darkens the sky. A nuclear winter falls on the world.','doom');for(const n of nations)if(n.alive&&rng()<.5)startFamine(n,'cold',false)}
