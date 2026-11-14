@@ -236,7 +236,8 @@ function tideTick(dt){if(typeof playing!=='undefined'&&playing&&!(typeof speedId
   if(waterMesh){waterMesh.position.y=waterY+TIDE;if(typeof ocean!=='undefined'&&ocean)ocean.position.y=waterY+TIDE;if(waterSide)waterSide.scale.y=Math.max(.01,waterY+TIDE-BASE-.03)}rideAnchored()}
 function tideWord(){if(settings.tides===false)return '';const r=tideRange(),f=TIDE/Math.max(1e-4,r),rising=Math.cos(tideT*1.93*6.283)>0,spring=Math.cos(tideT/7.4*6.283)>.6?'spring ':Math.cos(tideT/7.4*6.283)<-.6?'neap ':'';
   return f>.8?`High ${spring}tide`:f<-.8?`Low ${spring}tide`:rising?'Tide rising':'Tide falling'}
-const shapeH=v=>{const d=v-SEA0;return d>=0?SEA0*HS+d*HS*(.5+d*2.9+Math.max(0,d-.32)*2.4):SEA0*HS+d*HS*1.4};
+/* land rises gently from the shore; hills and mountains are about a third lower than before, in scale with an island of villages */
+const shapeH=v=>{const d=v-SEA0;return d>=0?SEA0*HS+d*HS*(.5+d*1.9+Math.max(0,d-.32)*1.2):SEA0*HS+d*HS*1.4};
 /* towns flatten the ground they stand on, like a real settlement on a terrace */
 let flatSpots=[],flatSig='',tslope=new Float32Array(1);
 function cityRadius(n,cap){return (cap?.62:.42)+Math.min(.9,Math.floor(cityLevel(n))*.05)}

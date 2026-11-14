@@ -1006,7 +1006,8 @@ function updateLife(dt,now){
 const occupied=new Set();
 /* fewer towns, so each can grow larger: the size scale goes to 18 */
 const TOWN_MAX=18;
-function cityLevel(n){return clamp(Math.sqrt(n.pop/Math.max(1,n.cities.length))/2.3,1,TOWN_MAX)}
+/* (towns stand further apart now, so each holds more people: the divisor keeps them about the size they were) */
+function cityLevel(n){return clamp(Math.sqrt(n.pop/Math.max(1,n.cities.length))/3.5,1,TOWN_MAX)}
 /* one great city per country: the capital draws people in and grows well beyond the rest, which stay market towns and villages */
 function townLevel(n,cap){const l=cityLevel(n);return cap?Math.min(TOWN_MAX,l*1.35+1.5):Math.max(1,l*.8)}
 /* ---------- town plans: every town grows its own street network from a centre ---------- */

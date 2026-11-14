@@ -138,10 +138,11 @@ function bestSite(A,x,y,r){let best=-1,bs=-1;for(let dy=-r;dy<=r;dy++)for(let dx
 /* rivers and ridges slow a nation down, so borders tend to settle on them */
 function terrFactor(i,j){let f=1;if((river[i]>0)!==(river[j]>0))f*=.3;if(tslope.length===N)f*=clamp(1.25-tslope[j]*.9,.2,1);if(biome[j]===11||biome[j]===12)f*=.35;return f}
 /* towns stand well apart and are founded rarely, so there are fewer of them and each grows larger */
-const TOWN_GAP=8;
+/* towns stand well apart, with farms, woods and open country between them, as on a real island */
+const TOWN_GAP=12;
 function maybeCity(A,x,y,j){if(rng()>.012)return;j=bestSite(A,x,y,1);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,TOWN_GAP))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year});propsDirty=true;
   if(!milestones.has('city2')){milestone('city2','A second city rises','The '+A.name+' founded a new town.')}}
-function foundTown(A,x,y,j){if((A.tiles/Math.max(1,A.cities.length))<40)return;j=bestSite(A,x,y,2);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,TOWN_GAP))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year});propsDirty=true}
+function foundTown(A,x,y,j){if((A.tiles/Math.max(1,A.cities.length))<80)return;j=bestSite(A,x,y,2);if(j<0)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,TOWN_GAP))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year});propsDirty=true}
 const mil=n=>n.pop/Math.max(1,n.tiles)*ERAS[n.era].mil*ten(n).mil*(n.gpMil||1)*(n.bless>0?1.3:1)*(n.hero&&n.hero.until>year?1.6:1);
 /* ---------- alliances: sworn friends join each other's wars ---------- */
 const allied=(a,b)=>!!(a.allies&&a.allies.includes(b.id));
@@ -409,7 +410,7 @@ function launch(n,kind,foe){
   const c=coastal[(rng()*coastal.length)|0],starts=coastWater(c);
   const goal=kind==='colony'
     ?(x,y)=>{for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const L=Y*W+X;
-        if(owner[L]<0&&hab[L]>=.4&&flatOk(L)&&Math.max(Math.abs(X-c.x),Math.abs(Y-c.y))>=6&&!nearCity(X,Y,6))return L}return -1}
+        if(owner[L]<0&&hab[L]>=.4&&flatOk(L)&&Math.max(Math.abs(X-c.x),Math.abs(Y-c.y))>=9&&!nearCity(X,Y,10))return L}return -1}
     :kind==='explore'?(()=>{let T=-1;for(let q=0;q<60;q++){const j=(rng()*N)|0;if(isWater(j)&&Math.hypot(j%W-c.x,((j/W)|0)-c.y)>Math.max(W,H)*.35){T=j;break}}return (x,y)=>y*W+x===T?T:-1})()
     :(x,y)=>{for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const L=Y*W+X;if(owner[L]===foe.id)return L}return -1};
   const res=seaPath(starts,goal);if(!res||res.path.length<2)return;const p0=res.path[0];
@@ -513,8 +514,8 @@ function tick(){if(typeof farmAbandonTick==='function')farmAbandonTick();
     /* (orchards: each feeds about as many as two fields) */if(!isFinite(n.pop))n.pop=10;if(!isFinite(n.tech))n.tech=0;
     n.pop+=n.pop*.035*[.6,.68,.76,.82,.88,.95,1,1][n.era]*t.grow*stabGrow(n)*(.85+.3*(n.happy??.6))*(n.bless>0?1.8:1)*(n.festival>0?1.25:1)*(1-n.pop/n.cap);
     /* settlers: a people with room to spare sends families out to found small villages inside its own lands */
-    if(n.tiles/Math.max(1,n.cities.length)>=30&&n.pop>n.cities.length*40&&rng()<.012){const c0=n.cities[(rng()*n.cities.length)|0];
-      for(let q=0;q<6;q++){const x=c0.x+Math.round((rng()-.5)*16),y=c0.y+Math.round((rng()-.5)*16);if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]===n.id&&!nearCity(x,y,TOWN_GAP)&&hab[j]>.3){const k=n.cities.length;foundTown(n,x,y,j);if(n.cities.length>k){if(rng()<.25)log(`Settlers from ${c0.name} founded ${n.cities[k].name}.`,'');break}}}}
+    if(n.tiles/Math.max(1,n.cities.length)>=60&&n.pop>n.cities.length*60&&rng()<.012){const c0=n.cities[(rng()*n.cities.length)|0];
+      for(let q=0;q<8;q++){const x=c0.x+Math.round((rng()-.5)*30),y=c0.y+Math.round((rng()-.5)*30);if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]===n.id&&!nearCity(x,y,TOWN_GAP)&&hab[j]>.3){const k=n.cities.length;foundTown(n,x,y,j);if(n.cities.length>k){if(rng()<.25)log(`Settlers from ${c0.name} founded ${n.cities[k].name}.`,'');break}}}}
     if(n.plague>0){n.plague--;n.pop*=.975}
     if(n.wars.size)n.pop*=1-.002*n.wars.size;
     n.pop=Math.max(2,n.pop);worldPop+=n.pop;
