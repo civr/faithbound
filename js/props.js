@@ -1204,6 +1204,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       if(cap&&n.wonder){const [wx_,wz_]=dryOff(.42*CO,-.3*CO,.2);solid(()=>wonder(n,wx_,surfY(wx_,wz_),wz_,n.wonder),wx_,wz_,0,false,undefined,'big');occupied.add(Math.floor(wz_+H/2)*W+Math.floor(wx_+W/2));KO.push([wx_,wz_,.3])}
       if(n.faith>=0&&(cap||hash(i0*3)<.35)){const [tx,tz]=dryOff(-.32*CO,.2*CO,cap?.2:.15);solid(()=>sacredSite(faiths[n.faith],n,tx,surfY(tx,tz),tz,e,hash(i0)*3,cap),tx,tz,0,false,undefined,'big');KO.push([tx,tz,cap?.26:.2])}
       if(c.dike)dikeRing(c,cx,cz);
+      if(c.mayor&&typeof mayorBuild==='function')try{mayorBuild(n,c,cx,cz,e,cap,KO,dryOff,i0)}catch(err){console.warn('mayor build',err)}
       MCTX={lvl,cap,tall:[],w:.12,cu:cultOf(n),n};const lagoon=isLagoon(n,c,e);MCTX.lagoon=lagoon;const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+Math.min(TOWN_MAX,townLevel(n,cap)+(gold?1.5:0))*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?3.4:3.2):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
       if(plan.metro)plan.streets.forEach((st,si)=>{if(st.main&&st.base<=plan.pr+.01)reach.set(si,.5)});let k=0,placed=0;const HP=[];CUR_GREEN=c._green=[];c._poi={pts:[],plaza:[cx,cz],r:plan.pr};c._doors=[];
       const far=Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.3+2.5;MCTX.far=far;
@@ -1213,6 +1214,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         const tight=plan.wallR>.3,wR=tight?plan.wallR+.05:0;
         if(tight){WALL_TIGHT=true;try{townWall(n,plan,cx,cz,wR,e,false,i0)}finally{WALL_TIGHT=false}innerCity(n,plan,cx,cy,cz,e,cap,i0,wR,KO)}
         else if(ds.length>=(cap?14:18)){ds.sort((a,b)=>a-b);townWall(n,plan,cx,cz,ds[Math.floor(ds.length*.8)]+.09,e,false,i0)}}
+      else if(c.mayor&&c.mayor.b&&c.mayor.b.walls&&e<=4&&!plan.metro&&!lagoon){/* the council paid for walls: they stand even round a small town */const ds=[];for(const sl of slots){if(ds.length>=count)break;ds.push(Math.hypot(sl.x-cx,sl.z-cz))}if(ds.length>3){ds.sort((a,b)=>a-b);townWall(n,plan,cx,cz,Math.max(.32,ds[Math.floor(ds.length*.85)]+.09),e,false,i0)}}
       if(e>=1)solid(()=>harbour(c,cx,cz,e,i0,lvl),cx,cz,0,true,undefined,'big');
       c._canals=[];
       for(const sl of slots){if(placed>=count)break;k++;MCTX.w=sl.metro?sl.w:.12;
