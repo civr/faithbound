@@ -497,7 +497,8 @@ body.ui-clay .glass .seg{background:#f6ead9;border:0;border-radius:14px}body.ui-
     <h2>New world</h2>
     <div class="sec"><label class="lab" for="worldName">World name</label><input type="text" id="worldName" maxlength="40"></div>
     <div class="sec"><span class="lab">World size</span>
-      <div class="seg" id="sizeSeg"><button data-size="tiny">Tiny</button><button data-size="small">Small</button><button data-size="medium">Medium</button><button data-size="large">Large</button></div></div>
+      <div class="seg" id="sizeSeg"><button data-size="tiny">Tiny</button><button data-size="small">Small</button><button data-size="medium">Medium</button><button data-size="large">Large</button><button data-size="huge">Huge</button><button data-size="custom">Custom</button></div>
+      <div class="sliders" id="customSize" hidden></div><p class="note" id="sizeNote"></p></div>
     <div class="sec"><span class="lab">Land and water</span><div class="sliders" id="worldSliders"></div></div>
     <div class="sec"><span class="lab">Starting climate</span>
       <div class="seg" id="climSeg"><button data-c=".32">Ice age</button><button data-c=".5">Temperate</button><button data-c=".64">Hothouse</button></div></div>
@@ -548,6 +549,8 @@ body.ui-clay .glass .seg{background:#f6ead9;border:0;border-radius:14px}body.ui-
 <script src="js/legacy.js"></script>
 <script src="js/mayor.js"></script>
 <script src="js/decline.js"></script>
+<script src="js/cultures.js"></script>
+<script src="js/rundown.js"></script>
 <script src="js/endtimes.js"></script>
 <script src="js/history.js"></script>
 <script src="js/coop.js"></script>

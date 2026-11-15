@@ -635,9 +635,17 @@ function openSetup(){renderWorldSliders();$('#titleMain').hidden=true;$('#setup'
   renderPaceBox('#paceBox');
   $('#maxEra').innerHTML=ERAS.map((e,i)=>`<option value="${i}" ${i===worldOpts.maxEra?'selected':''}>${e.name}${i===7?' (no limit)':''}</option>`).join('');
   $$('#disSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.dis===(settings.disasters||'normal')));$$('#moodSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mood===(settings.mood||'calm')));
-  $$('#sizeSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.size===sizeKey));renderLooks('#looks');renderArchs('#archs');
+  $$('#sizeSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.size===sizeKey));renderCustomSize();renderLooks('#looks');renderArchs('#archs');
   $$('#climSeg button').forEach(b=>b.setAttribute('aria-pressed',Math.abs(+b.dataset.c-climate.temp)<.02))}
-$('#sizeSeg').onclick=e=>{const b=e.target.closest('[data-size]');if(!b)return;sizeKey=b.dataset.size;genWorld();updateHUD();openSetup()};
+$('#sizeSeg').onclick=e=>{const b=e.target.closest('[data-size]');if(!b)return;sizeKey=b.dataset.size;if(sizeKey==='custom')setCustomSize(worldOpts.cw||SIZES.custom.W,worldOpts.ch||SIZES.custom.H);genWorld();updateHUD();openSetup()};
+/* a custom world: pick its width and height */
+function renderCustomSize(){const box=$('#customSize'),note=$('#sizeNote');if(!box)return;const S=SIZES[sizeKey];box.hidden=sizeKey!=='custom';
+  note.textContent=`${S.W} by ${S.H} tiles, about ${S.tribes} peoples at the start.${S.W*S.H>40000?' Very large worlds can be slow on phones and older computers.':''}`;
+  if(sizeKey!=='custom')return;const C=SIZES.custom;
+  box.innerHTML=[['cw','Width',48,288,8,C.W,'Narrow','Wide'],['ch','Height',36,216,4,C.H,'Short','Tall']].map(([k,l,mn,mx,st,v,a,b])=>`<label class="sl"><span>${l}</span><input type="range" min="${mn}" max="${mx}" step="${st}" value="${v}" data-cs="${k}"><b id="csv_${k}">${v}</b><span class="ends"><span>${a}</span><span>${b}</span></span></label>`).join('')}
+let csTimer=0;
+if($('#customSize'))$('#customSize').addEventListener('input',e=>{const k=e.target.dataset.cs;if(!k)return;const v=+e.target.value;worldOpts[k]=v;$('#csv_'+k).textContent=v;
+  clearTimeout(csTimer);csTimer=setTimeout(()=>{setCustomSize(worldOpts.cw||SIZES.custom.W,worldOpts.ch||SIZES.custom.H);const t=climate.temp;genWorld();climate.temp=t;terrainDirty=true;updateHUD();const n=$('#sizeNote'),S=SIZES.custom;if(n)n.textContent=`${S.W} by ${S.H} tiles, about ${S.tribes} peoples at the start.${S.W*S.H>40000?' Very large worlds can be slow on phones and older computers.':''}`},350)});
 if($('#looks'))$('#looks').onclick=e=>{const b=e.target.closest('[data-look]');if(b){applyLook(b.dataset.look);renderLooks('#looks')}};
 $('#climSeg').onclick=e=>{const b=e.target.closest('[data-c]');if(!b)return;climate.temp=+b.dataset.c;terrainDirty=true;openSetup()};
 /* ---------- pace controls (setup and World panel) ---------- */

@@ -25,7 +25,7 @@ function genWorld(seedIn){
   seedCultures();seedDeposits();indexDeposits();CUTY=null;FARMT=null;annals=[];endedWars=[];hist=[];snaps=[];worldWars=[];colonies=[];planets={moon:{terra:0,life:0},mars:{terra:0,life:0}};
   let placed=0,tries=0;
   while(placed<S.tribes&&tries<6000){tries++;const i=(rng()*N)|0;if(hab[i]<.6||owner[i]>=0||(tries<3000&&siteScore(i)<1.2)||(tries<4800&&siteScore(i)<.9)||(tries<5600&&siteScore(i)<.5))continue;
-    const x=i%W,y=(i/W)|0;let ok=true;for(const n of nations){const c=n.cities[0];if(Math.hypot(c.x-x,c.y-y)<W/(S.tribes>5?5.5:4.2)){ok=false;break}}
+    const x=i%W,y=(i/W)|0;let ok=true;for(const n of nations){const c=n.cities[0];if(Math.hypot(c.x-x,c.y-y)<Math.min(W/(S.tribes>5?5.5:4.2),Math.sqrt(W*H/S.tribes)*.62)){ok=false;break}}
     if(ok){newNation(x,y,{});placed++}}
   log(`A new world rose from the deep. ${placed} tribes wander its shores.`,'era');
   seedClouds();camT.set(0,0,0);camDistT=camDist=Math.max(W,H)*(innerWidth<innerHeight?1.25:.85);camYawT=camYaw=.7;
@@ -36,7 +36,7 @@ let worldSeed=0,bordersDirty=true,eruptions=[];
 /* rivers: least-cost paths from wet highlands to the sea, carved into the land */
 let rivers=[],river=null;
 function genRivers(){river=new Uint8Array(N);rivers=[];
-  const want=Math.round(({tiny:6,small:9,medium:13,large:18}[sizeKey]||9)*(worldOpts.rivers??1)),src=[];
+  const want=Math.round(({tiny:6,small:9,medium:13,large:18}[sizeKey]||Math.max(4,Math.round(13*W*H/15552)))*(worldOpts.rivers??1)),src=[];
   for(let q=0;q<4000&&src.length<want*4;q++){const i=(rng()*N)|0;if(h[i]>sea+.16&&h[i]<sea+.42&&baseMoist[i]>.38)src.push(i)}
   const used=[];
   for(const s of src){if(rivers.length>=want)break;const sx=s%W,sy=(s/W)|0;if(used.some(u=>Math.hypot(u%W-sx,((u/W)|0)-sy)<7))continue;
@@ -719,7 +719,7 @@ function loadGame(){let d;try{d=JSON.parse(localStorage.getItem('faithbound.save
 function applySave(d){
 
   for(const s of ships)disposeShip(s);ships=[];for(const r of rockets)scene.remove(r.g);rockets=[];walkers=[];parts=[];eruptions=[];
-  sizeKey=Object.keys(SIZES).find(k=>SIZES[k].W===d.W)||d.sizeKey;W=d.W;H=d.H;N=W*H;worldSeed=d.worldSeed;hseed=(worldSeed%9973)/7;
+  sizeKey=Object.keys(SIZES).find(k=>k!=='custom'&&SIZES[k].W===d.W&&SIZES[k].H===d.H)||(setCustomSize(d.W,d.H),'custom');W=d.W;H=d.H;N=W*H;worldSeed=d.worldSeed;hseed=(worldSeed%9973)/7;
   h=unb64(d.h,Float32Array);baseMoist=unb64(d.bm,Float32Array);moistD=unb64(d.md,Float32Array);warmD=d.wd?unb64(d.wd,Float32Array):null;owner=unb64(d.owner16||d.owner,Int16Array);
   biome=new Uint8Array(N);hab=new Float32Array(N);resetDisasters();
   worldOpts=Object.assign({pace:'standard',customN:1,customUnit:'weeks',calendar:false,anchorReal:0,anchorYear:0,maxEra:7},d.worldOpts||{});if(!PACES[worldOpts.pace])worldOpts.pace='standard';worldOpts.slot=d.slot||worldOpts.slot||null;worldOpts.name=d.worldName||worldOpts.name||'Unnamed world';if(!PACES[worldOpts.pace])worldOpts.pace='quick';
