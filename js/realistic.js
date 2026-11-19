@@ -8,7 +8,7 @@
 
 LOOKS.real={label:'Realistic',desc:'Natural colours and real photo materials, drawn smooth at full resolution',pixel:0,soft:1,
   ground:{3:[170,154,118],4:[70,92,40],5:[46,64,30],6:[42,64,30],7:[176,152,110],8:[124,120,78],9:[52,66,40],10:[118,116,98],11:[86,94,58],12:[118,114,106]},
-  sat:.96,exposure:.88,tint:[64,80,46,.05],sun:0xffecd6,sunI:3.05,hemiI:.46,fog:.8,lock:-1,skyTop:0x6a96c8,skyHor:0xc6d4de,shallow:0x2c7276,deep:0x0e3044,
+  sat:.96,exposure:.88,tint:[64,80,46,.05],sun:0xffecd6,sunI:3.05,hemiI:.46,fog:.8,lock:-1,skyTop:0x6a96c8,skyHor:0xc6d4de,shallow:0x356a64,deep:0x0b2a38,
   post:{sat:.95,con:1.15,lift:[0,.004,.012],gain:[1.04,1,.94],vig:.3,tilt:.85,tiltFar:1,ao:.7,mist:.24,bloom:.22,grain:0,split:.9}};
 
 const REAL={on:false,ready:null,mats:{},swapped:[],trees:[],U:{uTime:null}};
@@ -28,7 +28,7 @@ function realNormal(hc,k){const w=hc.width,h=hc.height,src=hc.getContext('2d').g
 
 /* house fronts, one storey of about 6.4 by 2.9 metres: the photo wall with real-size windows, a relief map, and a mask of window
    panes that glow at night */
-function realFacade(kind,P){const W=1024,H=512,[c,x]=realCanvas(W,H),[hc,hx]=realCanvas(W,H),[ec,ex]=realCanvas(W,H);let s=kind.length*7+3;const r=()=>((s=(s*16807)%2147483647)/2147483647);
+function realFacade(kind,P){if(kind==='office'||kind==='glassw')return realModern(kind,P);const W=1024,H=512,[c,x]=realCanvas(W,H),[hc,hx]=realCanvas(W,H),[ec,ex]=realCanvas(W,H);let s=kind.length*7+3;const r=()=>((s=(s*16807)%2147483647)/2147483647);
   ex.fillStyle='#000';ex.fillRect(0,0,W,H);hx.fillStyle='#808080';hx.fillRect(0,0,W,H);
   const solid=kind==='stone'||kind==='brick';
   if(solid){x.fillStyle=realPattern(x,kind==='stone'?P.stone:P.brick,kind==='stone'?400:300);x.fillRect(0,0,W,H);
@@ -53,11 +53,33 @@ function realFacade(kind,P){const W=1024,H=512,[c,x]=realCanvas(W,H),[hc,hx]=rea
     hx.fillStyle='#1a1a1a';hx.fillRect(cx-w/2,cy-h/2,w,h);ex.fillStyle='#fff';ex.fillRect(cx-w/2+5,cy-h/2+5,w-10,h-10);
     if(kind==='half'||kind==='planks'){const col=['#4a5a4c','#55606a','#5e4438','#6a6458','#3e4a44'][(r()*5)|0];
       for(const sd of [-1,1]){const sx=sd<0?cx-w/2-14-w*.42:cx+w/2+14;x.fillStyle=col;x.fillRect(sx,cy-h/2-4,w*.42,h+8);x.fillStyle='rgba(0,0,0,.2)';for(let q=0;q<4;q++)x.fillRect(sx,cy-h/2+q*h/4,w*.42,2)}}};
+  if(kind==='half'){/* the same front without the oak frame, for tall houses and flats */
+    const [c2,x2]=realCanvas(W,H);x2.fillStyle=realPattern(x2,P.plaster,512);x2.fillRect(0,0,W,H);x2.globalCompositeOperation='multiply';x2.fillStyle='#f0ebe2';x2.fillRect(0,0,W,H);x2.globalCompositeOperation='source-over';
+    {const g=x2.createLinearGradient(0,H,0,H*.7);g.addColorStop(0,'rgba(70,60,46,.3)');g.addColorStop(1,'rgba(70,60,46,0)');x2.fillStyle=g;x2.fillRect(0,H*.7,W,H*.3)}
+    for(const cx of [263,761]){const cy=232,w=140,h=180;x2.fillStyle='#d8d2c6';x2.fillRect(cx-w/2-12,cy-h/2-12,w+24,h+24);const gr=x2.createLinearGradient(cx-w/2,cy-h/2,cx+w/2,cy+h/2);gr.addColorStop(0,'#74838c');gr.addColorStop(.45,'#2e3a42');gr.addColorStop(1,'#161d22');
+      x2.fillStyle=gr;x2.fillRect(cx-w/2,cy-h/2,w,h);x2.fillStyle='#e8e4dc';x2.fillRect(cx-3,cy-h/2,6,h);x2.fillRect(cx-w/2,cy-4,w,8);x2.fillStyle='#cfc8bb';x2.fillRect(cx-w/2-14,cy+h/2+8,w+28,14)}
+    REAL.halfTall=realTex(c2,true)}
   if(kind==='stone'){win(263,240,58,120);win(761,240,58,120)}
   else if(kind==='adobe'){win(300,250,96,96);win(780,250,96,96)}
   else if(kind==='planks')win(512,240,110,110);
   else{win(263,232,140,180);win(761,232,140,180)}
   return {map:realTex(c,true),normal:realTex(realNormal(hc,solid?2.2:1.5)),emissive:realTex(ec,true)}}
+
+/* modern fronts. Offices: board-marked concrete with a band of aluminium windows on every floor (one tile is two bays, about
+   6 by 3.5 metres). Glass towers: a curtain wall of tinted panes in a metal grid, with a dark band at each floor (3 by 3.5 metres). */
+function realModern(kind,P){const W=1024,H=512,[c,x]=realCanvas(W,H),[hc,hx]=realCanvas(W,H),[ec,ex]=realCanvas(W,H);
+  ex.fillStyle='#000';ex.fillRect(0,0,W,H);hx.fillStyle='#808080';hx.fillRect(0,0,W,H);
+  const glass=(x0,y0,w,h,tint)=>{const g=x.createLinearGradient(x0,y0,x0+w*.6,y0+h);g.addColorStop(0,tint[0]);g.addColorStop(.5,tint[1]);g.addColorStop(1,tint[2]);x.fillStyle=g;x.fillRect(x0,y0,w,h);
+    x.fillStyle='rgba(255,255,255,.07)';x.beginPath();x.moveTo(x0,y0);x.lineTo(x0+w*.35,y0);x.lineTo(x0,y0+h*.6);x.fill();hx.fillStyle='#606060';hx.fillRect(x0,y0,w,h);ex.fillStyle='#fff';ex.fillRect(x0+6,y0+6,w-12,h-12)};
+  if(kind==='office'){x.fillStyle=realPattern(x,P.conc,512);x.fillRect(0,0,W,H);
+    {const g=x.createLinearGradient(0,H,0,H*.75);g.addColorStop(0,'rgba(50,48,44,.3)');g.addColorStop(1,'rgba(50,48,44,0)');x.fillStyle=g;x.fillRect(0,H*.75,W,H*.25)}
+    for(const bx of [40,552]){x.fillStyle='#5c6166';x.fillRect(bx-8,112,448,276);glass(bx,120,432,260,['#8a9aa4','#3c4a54','#1c252c']);
+      x.fillStyle='#62676c';for(const mx of [bx+142,bx+286])x.fillRect(mx-4,120,8,260);x.fillRect(bx,236,432,6);hx.fillStyle='#c0c0c0';hx.fillRect(bx-8,112,448,8);hx.fillRect(bx-8,380,448,8)}
+    x.fillStyle='rgba(30,30,30,.25)';x.fillRect(0,0,W,6)}
+  else{glass(0,0,W,H,['#c2d0d8','#7890a0','#3c505e']);
+    x.fillStyle='#2a2f34';x.fillRect(0,420,W,92);hx.fillStyle='#404040';hx.fillRect(0,420,W,92);ex.fillStyle='#000';ex.fillRect(0,414,W,98);
+    x.fillStyle='#7a8086';hx.fillStyle='#e0e0e0';for(const mx of [0,512,1024]){x.fillRect(mx-10,0,20,H);hx.fillRect(mx-10,0,20,H)}x.fillRect(0,414,W,10);x.fillRect(0,0,W,8);hx.fillRect(0,414,W,10)}
+  return {map:realTex(c,true),normal:realTex(realNormal(hc,1.2)),emissive:realTex(ec,true)}}
 
 /* texture size in world units, from the size of each copy: every house shows windows, stones and tiles at their real size.
    Shapes: box (walls), roof (gable and hipped roofs), cyl (round towers), cone (round and pointed roofs) */
@@ -65,39 +87,46 @@ function realScaledUV(m,tw,th,mode,win){const prev=m.onBeforeCompile;
   m.onBeforeCompile=function(sh,rr){if(prev)prev.call(this,sh,rr);
     const fs=mode==='roof'?'abs(normal.x)>.5?vec2(sz,sy):vec2(sx,length(vec2(sz*.5,sy)))':mode==='cyl'?'abs(normal.y)>.5?vec2(sx,sz):vec2(3.1416*sx,sy)':mode==='cone'?'abs(normal.y)>.9?vec2(sx,sz):vec2(3.1416*sx,length(vec2(sx*.5,sy)))':
       'abs(normal.x)>.5?vec2(sz,sy):abs(normal.y)>.5?vec2(sx,sz):vec2(sx,sy)';
-    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vRWin;').replace('#include <uv_vertex>',`#include <uv_vertex>
+    if(m.userData.tall){sh.uniforms.tTall={value:m.userData.tall};sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D tTall;varying float vRSy;')
+      .replace('#include <map_fragment>','#ifdef USE_MAP\n vec4 texelColor=vRSy>.205?texture2D(tTall,vUv):texture2D(map,vUv);texelColor=mapTexelToLinear(texelColor);diffuseColor*=texelColor;\n#endif')}
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vRWin;varying float vRSy;').replace('#include <uv_vertex>',`#include <uv_vertex>
 #ifdef USE_UV
 {vec2 tuv;vec3 seed=vec3(0.);
 #ifdef USE_INSTANCING
- float sx=length(instanceMatrix[0].xyz),sy=length(instanceMatrix[1].xyz),sz=length(instanceMatrix[2].xyz);tuv=uv*(${fs});seed=instanceMatrix[3].xyz;
+ float sx=length(instanceMatrix[0].xyz),sy=length(instanceMatrix[1].xyz),sz=length(instanceMatrix[2].xyz);tuv=uv*(${fs});seed=instanceMatrix[3].xyz;vRSy=sy;
 #else
- vec3 wp=(modelMatrix*vec4(position,1.)).xyz;vec3 wn=normalize(mat3(modelMatrix)*normal);tuv=abs(wn.y)>.72?wp.xz:abs(wn.x)>abs(wn.z)?vec2(wp.z,wp.y):vec2(wp.x,wp.y);
+ vRSy=0.;vec3 wp=(modelMatrix*vec4(position,1.)).xyz;vec3 wn=normalize(mat3(modelMatrix)*normal);tuv=abs(wn.y)>.72?wp.xz:abs(wn.x)>abs(wn.z)?vec2(wp.z,wp.y):vec2(wp.x,wp.y);
 #endif
  tuv/=vec2(${tw.toFixed(4)},${th.toFixed(4)});vUv=tuv;vRWin=vec3(tuv,fract(dot(seed.xz,vec2(17.31,24.17)))*97.+floor(normal.x*2.+normal.z*3.)*13.);}
 #endif`);
     if(win)sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vRWin;').replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
   {vec2 cell=floor(vRWin.xy*vec2(2.,1.));float hw=fract(sin(dot(cell+vRWin.z,vec2(12.9898,78.233)))*43758.5453);totalEmissiveRadiance*=step(hw,.5)*(.4+hw);}`)};
-  m.customProgramCacheKey=()=>'real|'+mode+'|'+tw+'|'+th+(win?'w':'');return m}
+  m.customProgramCacheKey=()=>'real|'+mode+'|'+tw+'|'+th+(win?'w':'')+(m.userData.tall?'t':'');return m}
 
-const REAL_TILE={half:[.194,.088],stone:[.194,.088],brick:[.194,.088],planks:[.194,.088],adobe:[.194,.088],rubble:[.11,.11],tiles:[.08,.08],thatch:[.1,.1]};
+const REAL_TILE={office:[.182,.106],glassw:[.09,.106],half:[.194,.088],stone:[.194,.088],brick:[.194,.088],planks:[.194,.088],adobe:[.194,.088],rubble:[.11,.11],tiles:[.08,.08],thatch:[.1,.1]};
 /* which real material each of the game's materials becomes; a few kits take a plain variant (no windows on bridges and steps) */
-const REAL_OF={plaza:'cobble',plaster:'half',stone:'stone',brick:'brick',timber:'planks',adobe:'adobe',tiles:'tiles',thatch:'thatch',thatch2:'thatch2'};
+const REAL_OF={office:'office',glass:'glassw',dirtPlaza:'dirt',conc:'conc',plaza:'cobble',plaster:'half',stone:'stone',brick:'brick',timber:'planks',adobe:'adobe',tiles:'tiles',thatch:'thatch',thatch2:'thatch2'};
+const REAL_KIT_BYNAME={hedge:'hedge'};
 const REAL_KIT_OVERRIDE={bridge:'rubble',stP:'rubble',pyr:'rubble'};
 
 async function realLoad(){
-  const files={plaster:'r_plaster.jpg',wood:'r_wood.jpg',planks:'r_planks.jpg',stone:'r_stone.jpg',brick:'r_brick.jpg',tiles:'r_tiles.jpg',thatch:'r_thatch.jpg',cobble:'r_cobble.jpg',
+  const files={plaster:'r_plaster.jpg',wood:'r_wood.jpg',planks:'r_planks.jpg',stone:'r_stone.jpg',brick:'r_brick.jpg',tiles:'r_tiles.jpg',thatch:'r_thatch.jpg',cobble:'r_cobble.jpg',leaf:'../t_leaf.jpg',dirt:'r_dirt.jpg',asphalt:'r_asphalt.jpg',conc:'r_conc.jpg',conc2:'r_conc2.jpg',
     stoneN:'r_stone_n.jpg',brickN:'r_brick_n.jpg',tilesN:'r_tiles_n.jpg',thatchN:'r_thatch_n.jpg',planksN:'r_planks_n.jpg',impB:'imp_broadleaf.webp',impF:'imp_fir.webp'};
   const P={};await Promise.all(Object.entries(files).map(async([k,f])=>{P[k]=await realImg(f)}));
-  const F={};for(const k of ['half','stone','brick','planks','adobe'])F[k]=realFacade(k,P);
-  REAL.F=F;REAL.P=P;REAL.T={stone:realTex(P.stone,true),stoneN:realTex(P.stoneN),tiles:realTex(P.tiles,true),tilesN:realTex(P.tilesN),thatch:realTex(P.thatch,true),thatchN:realTex(P.thatchN),cobble:realTex(P.cobble,true),
+  const F={};for(const k of ['half','stone','brick','planks','adobe','office','glassw'])F[k]=realFacade(k,P);
+  REAL.F=F;REAL.P=P;REAL.T={stone:realTex(P.stone,true),stoneN:realTex(P.stoneN),tiles:realTex(P.tiles,true),tilesN:realTex(P.tilesN),thatch:realTex(P.thatch,true),thatchN:realTex(P.thatchN),cobble:realTex(P.cobble,true),leaf:realTex(P.leaf,true),dirt:realTex(P.dirt,true),asphalt:realTex(P.asphalt,true),conc2:realTex(P.conc2,true),
     impB:realTex(P.impB,true),impF:realTex(P.impF,true)};
   for(const t of [REAL.T.impB,REAL.T.impF]){t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=4}}
 
 /* one material per kind of surface and shape, made when first needed */
 function realMat(kind,mode,orig){const key=kind+'|'+mode;if(REAL.mats[key])return REAL.mats[key];const F=REAL.F,T=REAL.T;let m,tile;
   if(F[kind]){m=new THREE.MeshStandardMaterial({map:F[kind].map,normalMap:F[kind].normal,emissiveMap:F[kind].emissive,emissive:new THREE.Color(1,.56,.22),emissiveIntensity:0,roughness:.9,metalness:0});tile=REAL_TILE[kind];
-    m=realScaledUV(m,tile[0],tile[1],mode==='roof'||mode==='cone'?'box':mode,true);if(typeof winMats!=='undefined')winMats.push(m)}
+    if(kind==='half'&&REAL.halfTall)m.userData.tall=REAL.halfTall;m=realScaledUV(m,tile[0],tile[1],mode==='roof'||mode==='cone'?'box':mode,true);if(typeof winMats!=='undefined')winMats.push(m);
+    if(kind==='glassw'){m.roughness=.06;m.metalness=.55;m.envMapIntensity=1.1;m.emissive.setRGB(1,.78,.5).multiplyScalar(.32)}else if(kind==='office'){m.roughness=.75;m.emissive.setRGB(1,.8,.52).multiplyScalar(.42)}}
   else if(kind==='rubble'){m=realScaledUV(new THREE.MeshStandardMaterial({map:T.stone,normalMap:T.stoneN,roughness:.95,color:0xe6e4de}),.11,.11,mode,false)}
+  else if(kind==='conc'){m=realScaledUV(new THREE.MeshStandardMaterial({map:T.conc2,roughness:.85}),.12,.12,mode,false)}
+  else if(kind==='hedge'){m=realScaledUV(new THREE.MeshStandardMaterial({map:T.leaf,roughness:.95,color:0x9aa88a}),.05,.05,mode,false)}
+  else if(kind==='dirt'){m=realScaledUV(new THREE.MeshStandardMaterial({map:T.dirt,roughness:1}),.1,.1,mode,false)}
   else if(kind==='cobble'){m=realScaledUV(new THREE.MeshStandardMaterial({map:T.cobble,roughness:.9}),.12,.12,mode,false)}
   else if(kind==='tiles'){m=realScaledUV(new THREE.MeshStandardMaterial({map:T.tiles,normalMap:T.tilesN,roughness:.8,side:THREE.DoubleSide}),.08,.08,mode==='box'?'roof':mode,false)}
   else{/* thatch, and the weathered grey-brown thatch of hipped cottage roofs */
@@ -152,9 +181,9 @@ function realTreeSwap(on){
 
 /* ---------- swapping the kits' materials ---------- */
 function realSwap(on){
-  if(on){const byMat=new Map();for(const k in REAL_OF)if(MAT[k])byMat.set(MAT[k],k);
-    for(const name in KITS){const K=KITS[name];if(!K||!K.mesh||K._realM)continue;const base=name.replace(/^g_/,'');let k=byMat.get(K.mesh.material);if(!k)continue;
-      const kind=REAL_KIT_OVERRIDE[base]||REAL_OF[k];const m=realMat(kind,realMode(K.mesh.geometry),K.mesh.material);K._realM=K.mesh.material;K.mesh.material=m;REAL.swapped.push(K)}
+  if(on){const byMat=new Map();for(const k in REAL_OF)if(MAT[k])byMat.set(MAT[k],k);if(typeof MAT_CONC!=='undefined')byMat.set(MAT_CONC,'conc');
+    for(const name in KITS){const K=KITS[name];if(!K||!K.mesh||K._realM)continue;const base=name.replace(/^g_/,'');let k=byMat.get(K.mesh.material);if(!k&&!REAL_KIT_BYNAME[base])continue;
+      const kind=REAL_KIT_BYNAME[base]||REAL_KIT_OVERRIDE[base]||REAL_OF[k];const m=realMat(kind,realMode(K.mesh.geometry),K.mesh.material);K._realM=K.mesh.material;K.mesh.material=m;REAL.swapped.push(K)}
     realTreeSwap(true)}
   else{for(const K of REAL.swapped){if(K._realM){K.mesh.material=K._realM;delete K._realM}}REAL.swapped.length=0;realTreeSwap(false)}}
 
@@ -189,12 +218,64 @@ if(typeof SMODEL_MAT!=='undefined'){const prev=SMODEL_MAT.onBeforeCompile,pk=SMO
       .replace('texture2D(tR,vWP.zy*.35)','texture2D(tR,vWP.zy*(.35+uReal*3.))').replace('texture2D(tR,vWP.xy*.35)','texture2D(tR,vWP.xy*(.35+uReal*3.))')};
   terrainMat.customProgramCacheKey=()=>pk+'|real';terrainMat.needsUpdate=true}
 
+/* ---------- farm fields: natural crops, real soil and crop grain, rows along each strip ---------- */
+const REALF={uReal:{value:0},white:null,map0:null};
+const CROPS0=CROPS.map(c=>c.slice()),CROPS_REAL=[[194,166,98],[182,158,104],[94,118,58],[122,136,72],[102,80,60],[148,138,90],[178,162,84]];
+{const prev=fieldMat.onBeforeCompile,pk=fieldMat.customProgramCacheKey();
+  fieldMat.onBeforeCompile=function(sh,r){prev.call(this,sh,r);sh.uniforms.uReal=REALF.uReal;
+    sh.fragmentShader=sh.fragmentShader.replace('uniform float uPh,uHam;','uniform float uPh,uHam,uReal;')
+      .replace('fFade=(1.-smoothstep(12.,46.,','fFade=(1.-smoothstep(12.+uReal*30.,46.+uReal*110.,')
+      .replace('vec2 P=vFW.xz*.45;','vec2 P=vFW.xz*(.45+uReal*5.5);')
+      .replace('texture2D(fN,vFW.xz*.45)','texture2D(fN,vFW.xz*(.45+uReal*5.5))')
+      .replace('diffuseColor.rgb*=.86;',`diffuseColor.rgb*=.86;
+  #ifdef USE_MAP
+  if(uReal>.5){float rc=vUv.x*12.;float fw=fwidth(rc);float rowA=1.-smoothstep(.3,1.,fw);float row=.5+.5*sin(rc*6.2832);
+    float ripe=smoothstep(.03,.12,diffuseColor.r-diffuseColor.b*1.25),soil=smoothstep(.0,.05,diffuseColor.r-diffuseColor.g)*(1.-ripe),grn=max(0.,1.-ripe-soil);
+    diffuseColor.rgb*=mix(1.,.7+.45*row,rowA*(soil*.85+grn*.5+ripe*.2));}
+  #endif`)};
+  fieldMat.customProgramCacheKey=()=>pk+'|real';fieldMat.needsUpdate=true}
+function realFields(on){if(!REALF.white){REALF.white=new THREE.DataTexture(new Uint8Array([255,255,255,255]),1,1,THREE.RGBAFormat);REALF.white.needsUpdate=true;REALF.map0=fieldMat.map}
+  fieldMat.map=on?REALF.white:REALF.map0;REALF.uReal.value=on?1:0;
+  CROPS.forEach((c,i)=>{const src=on?CROPS_REAL[i%CROPS_REAL.length]:CROPS0[i];c[0]=src[0];c[1]=src[1];c[2]=src[2]});
+  if(typeof FIELD_SIG!=='undefined')FIELD_SIG='';if(typeof VY!=='undefined'&&VY&&typeof rebuildFields==='function')try{rebuildFields()}catch(e){console.warn('fields',e)}}
+
+/* ---------- roads: packed earth with wheel ruts and a grassy crown, cobbles with kerbs, asphalt with its markings; soft edges ---------- */
+const ROADMATS0=ROADMATS.slice(),REALR=[];
+function realRoadMat(t){if(REALR[t])return REALR[t];const T=REAL.T,o=ROADMATS0[t],tile=t===1?.08:.1;
+  const m=new THREE.MeshStandardMaterial({map:t===0?T.dirt:t===1?T.cobble:T.asphalt,roughness:t===2?.8:.95,transparent:true,depthWrite:false,
+    polygonOffset:o.polygonOffset,polygonOffsetFactor:o.polygonOffsetFactor,polygonOffsetUnits:o.polygonOffsetUnits});
+  m.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec2 vRU;').replace('#include <uv_vertex>',`#include <uv_vertex>
+#ifdef USE_UV
+ vRU=uv;{vec3 rw=(modelMatrix*vec4(position,1.)).xyz;vUv=rw.xz/${tile.toFixed(3)};}
+#endif`);
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec2 vRU;').replace('#include <map_fragment>',`#include <map_fragment>
+ {float ax=abs(vRU.x-.5)*2.;
+ ${t===0?'float rut=exp(-pow((ax-.42)/.13,2.));diffuseColor.rgb*=1.-.24*rut;diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.78,1.02,.6),(1.-smoothstep(.08,.24,ax))*.45);diffuseColor.a=1.-smoothstep(.62,1.,ax);'
+  :t===1?'diffuseColor.rgb*=mix(1.,.7,smoothstep(.86,.92,ax));diffuseColor.a=1.-smoothstep(.94,1.,ax);'
+  :'float dash=step(.55,fract(vRU.y*2.))*(1.-smoothstep(.025,.045,ax));float edg=smoothstep(.8,.83,ax)*(1.-smoothstep(.87,.9,ax));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.8,.79,.74),max(dash,edg)*.85);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.46,.44,.41),smoothstep(.93,.96,ax));diffuseColor.a=1.-smoothstep(.97,1.,ax);'}}`)};
+  m.customProgramCacheKey=()=>'realroad'+t;if(typeof weatherHook==='function')weatherHook(m);REALR[t]=m;return m}
+function realRoads(on){for(let t=0;t<3;t++){const m=on?realRoadMat(t):ROADMATS0[t];ROADMATS[t]=m;if(roadMeshes[t])roadMeshes[t].material=m}}
+
+/* ---------- water: less bright sky in it, so seas, rivers and moats read as deep natural water ---------- */
+/* and the shallow sea is less clear: green-grey coastal water instead of a tropical lagoon over white sand */
+waterU.uReal={value:0};
+{const prev=waterMat.onBeforeCompile,pk=waterMat.customProgramCacheKey();
+  waterMat.onBeforeCompile=function(sh,r){prev.call(this,sh,r);sh.uniforms.uReal=waterU.uReal;
+    sh.fragmentShader=sh.fragmentShader.replace('uniform float uLite;','uniform float uLite;uniform float uReal;')
+      .replace('diffuseColor.a=mix(.5,.97,smoothstep(0.,.3,vDepth))','diffuseColor.a=mix(.5+uReal*.32,.97,smoothstep(0.,.3-uReal*.12,vDepth))')};
+  waterMat.customProgramCacheKey=()=>pk+'|real';waterMat.needsUpdate=true}
+const REALW=[];
+function realWater(on){if(!REALW.length){REALW.push([waterMat,waterMat.envMapIntensity,.42]);
+    const seen=new Set([waterMat]);const add=m=>{if(m&&!seen.has(m)&&/^inland-/.test(m.customProgramCacheKey()||'')){seen.add(m);REALW.push([m,m.envMapIntensity,.3])}};
+    if(typeof riverMat!=='undefined')add(riverMat);if(typeof pondMat!=='undefined')add(pondMat);for(const k in KITS)if(KITS[k].mesh)add(KITS[k].mesh.material)}
+  for(const [m,a,b] of REALW)m.envMapIntensity=on?b:a;waterU.uReal.value=on?1:0}
+
 /* ---------- switching ---------- */
 async function realOn(){if(!REAL.ready)REAL.ready=realLoad().catch(e=>{console.warn('Realistic look could not load',e);REAL.ready=null;throw e});
   try{await REAL.ready}catch(e){return}if(lookKey!=='real')return;
   if(!REALM.rS.value){REALM.rS.value=REAL.T.stone;REALM.rP.value=realTex(REAL.P.plaster,true);REALM.rW.value=realTex(REAL.P.planks,true);REALM.rT.value=REAL.T.tiles;if(typeof SMODEL_MAT!=='undefined')SMODEL_MAT.needsUpdate=true}
-  REALM.uRM.value=1;REAL.on=true;realSwap(true);terrU.uReal.value=1;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof forestDirty!=='undefined')forestDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
-function realOff(){if(!REAL.on)return;REAL.on=false;realSwap(false);terrU.uReal.value=0;REALM.uRM.value=0;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
+  REALM.uRM.value=1;REAL.on=true;realSwap(true);realFields(true);realRoads(true);realWater(true);terrU.uReal.value=1;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof forestDirty!=='undefined')forestDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
+function realOff(){if(!REAL.on)return;REAL.on=false;realSwap(false);realFields(false);realRoads(false);realWater(false);terrU.uReal.value=0;REALM.uRM.value=0;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
 {const _al=applyLook;applyLook=function(k){_al.apply(this,arguments);settings.realLook=k==='real';saveSettings();if(k==='real')realOn();else realOff()}}
 
 /* the choice in Settings, above the pixel size */
