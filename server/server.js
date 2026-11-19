@@ -1,6 +1,6 @@
 'use strict';
 /* Faithbound server: serves the game and stores accounts and saves. No dependencies, Node 18+.
-   Env: PORT (8080), DATA_DIR (/data), PUBLIC_DIR (./public), ALLOW_SIGNUP (true), SIGNUP_CODE (empty = no code). */
+   Env: PORT (8080), HOST (all interfaces), DATA_DIR (/data), PUBLIC_DIR (./public), ALLOW_SIGNUP (true), SIGNUP_CODE (empty = no code). */
 const http = require('http'), fs = require('fs'), fsp = fs.promises, path = require('path'), crypto = require('crypto'), zlib = require('zlib');
 const PORT = +process.env.PORT || 8080;
 const DATA = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data'));
@@ -250,13 +250,13 @@ async function api(req, res, url) {
 }
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.md': 'text/plain; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.md': 'text/plain; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
 const gzCache = new Map();
 async function serveStatic(req, res, url) {
   let p; try { p = decodeURIComponent(url.pathname); } catch { return send(res, 400, { error: 'Bad path.' }); }
   if (p === '/') p = '/index.html';
   /* only the game itself is public: never the data folder, the server or config files */
-  if (!/^\/(index\.html|three\.min\.js|js\/[a-z0-9_-]+\.js|favicon\.(ico|svg|png)|assets\/(textures|models)\/[a-z0-9_-]+\.(jpg|png|glb))$/i.test(p)) return send(res, 404, { error: 'Not found.' });
+  if (!/^\/(index\.html|three\.min\.js|js\/[a-z0-9_-]+\.js|favicon\.(ico|svg|png)|assets\/(textures(\/real)?|models)\/[a-z0-9_-]+\.(jpg|png|glb|webp))$/i.test(p)) return send(res, 404, { error: 'Not found.' });
   const f = path.normalize(path.join(PUB, p));
   if (!f.startsWith(PUB + path.sep)) return send(res, 404, { error: 'Not found.' });
   let st; try { st = await fsp.stat(f); } catch { return send(res, 404, { error: 'Not found.' }); }
@@ -283,7 +283,7 @@ http.createServer(async (req, res) => {
     if (!res.headersSent) send(res, e.status || 500, { error: e.status === 413 ? 'That save is too large.' : e.status === 400 ? 'The request is not valid.' : 'Something went wrong on the server.' });
     if (!e.status) console.error(e);
   }
-}).listen(PORT, () => console.log(`Faithbound on port ${PORT}. Data in ${DATA}. Sign-up ${ALLOW_SIGNUP ? 'open' : 'closed'}${SIGNUP_CODE ? ' with invite code' : ''}.`));
+}).listen(PORT, process.env.HOST || undefined, () => console.log(`Faithbound on port ${PORT}. Data in ${DATA}. Sign-up ${ALLOW_SIGNUP ? 'open' : 'closed'}${SIGNUP_CODE ? ' with invite code' : ''}.`));
 
 setInterval(() => { try { Q.oldSess.run(Date.now()); } catch (e) { console.error(e); } }, 3600e3).unref();
 /* close the database cleanly when the container stops */
