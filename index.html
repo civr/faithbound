@@ -136,7 +136,7 @@ body.inspace .dock,body.inspace #nationCard,body.inspace #follow,body.inspace #g
 .quick .ib{font-size:.74rem;padding:5px 8px;border-color:var(--line)}
 
 #mini{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 12px);width:196px;height:148px;padding:0;cursor:pointer}
-@media(max-width:900px){#mini{display:none}}
+#mini{display:none!important}/* the minimap is switched off: the world view runs to the corner */
 
 .sheet{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 70px);bottom:calc(env(safe-area-inset-bottom,0px) + 12px);width:min(380px,calc(100vw - 32px));display:flex;flex-direction:column;overflow:hidden}
 .sheet header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
