@@ -9,7 +9,7 @@
 LOOKS.real={label:'Realistic',desc:'Natural colours and real photo materials, drawn smooth at full resolution',pixel:0,soft:1,
   ground:{3:[170,154,118],4:[70,92,40],5:[46,64,30],6:[42,64,30],7:[176,152,110],8:[124,120,78],9:[52,66,40],10:[118,116,98],11:[86,94,58],12:[118,114,106]},
   sat:.96,exposure:.88,tint:[64,80,46,.05],sun:0xffecd6,sunI:3.05,hemiI:.46,fog:.8,lock:-1,skyTop:0x6a96c8,skyHor:0xc6d4de,shallow:0x356a64,deep:0x0b2a38,
-  post:{sat:.95,con:1.15,lift:[0,.004,.012],gain:[1.04,1,.94],vig:.3,tilt:.85,tiltFar:1,ao:.7,mist:.24,bloom:.22,grain:0,split:.9}};
+  post:{sat:.95,con:1.15,lift:[0,.004,.012],gain:[1.04,1,.94],vig:.3,tilt:.85,tiltFar:1,ao:.7,mist:.24,bloom:.12,grain:0,split:.9}};
 
 const REAL={on:false,ready:null,mats:{},swapped:[],trees:[],U:{uTime:null}};
 const M_PER_U=33;/* metres in one world unit */
@@ -265,17 +265,40 @@ waterU.uReal={value:0};
       .replace('diffuseColor.a=mix(.5,.97,smoothstep(0.,.3,vDepth))','diffuseColor.a=mix(.5+uReal*.32,.97,smoothstep(0.,.3-uReal*.12,vDepth))')};
   waterMat.customProgramCacheKey=()=>pk+'|real';waterMat.needsUpdate=true}
 const REALW=[];
-function realWater(on){if(!REALW.length){REALW.push([waterMat,waterMat.envMapIntensity,.42]);
+function realWater(on){if(!REALW.length){REALW.push([waterMat,waterMat.envMapIntensity,.26]);
     const seen=new Set([waterMat]);const add=m=>{if(m&&!seen.has(m)&&/^inland-/.test(m.customProgramCacheKey()||'')){seen.add(m);REALW.push([m,m.envMapIntensity,.3])}};
     if(typeof riverMat!=='undefined')add(riverMat);if(typeof pondMat!=='undefined')add(pondMat);for(const k in KITS)if(KITS[k].mesh)add(KITS[k].mesh.material)}
   for(const [m,a,b] of REALW)m.envMapIntensity=on?b:a;waterU.uReal.value=on?1:0}
+
+/* ---------- people, animals, ships and vehicles ---------- */
+/* clothes in natural dyes with a fabric grain, animals and cars in softer natural tones, ships of planked wood with sailcloth.
+   The shapes stay the game's own; only how their colours are painted changes. */
+const REALP={uRealP:{value:0}};
+const REALP_BODY={
+  part:`float l=dot(c,vec3(.3,.59,.11));float cloth=step(.5,vRP)*step(vRP,2.5)+step(4.5,vRP),hair=step(3.5,vRP)*step(vRP,4.5);
+    c=mix(vec3(l),c,mix(mix(.72,.55,cloth),.6,hair));c*=mix(1.,.9+.2*rpN(vROP.xy*900.+vROP.z*300.),cloth);c*=mix(1.,.9,cloth);`,
+  veh:`float l=dot(c,vec3(.3,.59,.11));c=mix(vec3(l),c,.78);c*=.95+.1*rpN(vROP.xz*400.+vROP.y*200.);`,
+  ship:`float l=dot(c,vec3(.3,.59,.11)),mx=max(c.r,max(c.g,c.b)),sat=(mx-min(c.r,min(c.g,c.b)))/max(mx,.001);
+    float wood=smoothstep(.02,.08,c.r-c.b)*(1.-smoothstep(.45,.7,l)),canvas=smoothstep(.45,.7,l)*(1.-smoothstep(.15,.3,sat));
+    float fy=fract(vROP.y*160.),seam=smoothstep(0.,.07,fy)*smoothstep(1.,.93,fy),grain=.88+.24*rpN(vec2(vROP.x*40.+vROP.z*40.,vROP.y*900.));
+    c*=mix(1.,(.74+.26*seam)*grain,wood*.9);c*=mix(1.,.92+.12*rpN(vROP.xy*700.+vROP.z*500.),canvas);c=mix(vec3(l),c,.82);`};
+function realPatchMat(mat,kind){if(!mat||mat._realP)return;mat._realP=true;const prev=mat.onBeforeCompile,pk=mat.customProgramCacheKey();
+  mat.onBeforeCompile=function(sh,r){if(prev)prev.call(this,sh,r);sh.uniforms.uRealP=REALP.uRealP;
+    const decl=/attribute float aPart/.test(sh.vertexShader)?'':'attribute float aPart;';
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\n'+decl+'varying float vRP;varying vec3 vROP;').replace('#include <begin_vertex>','#include <begin_vertex>\nvRP=aPart;vROP=position;');
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uRealP;varying float vRP;varying vec3 vROP;\nfloat rpH(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float rpN(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(rpH(i),rpH(i+vec2(1,0)),f.x),mix(rpH(i+vec2(0,1)),rpH(i+vec2(1,1)),f.x),f.y);}')
+      .replace('#include <color_fragment>','#include <color_fragment>\n if(uRealP>.5){vec3 c=diffuseColor.rgb;'+REALP_BODY[kind]+'diffuseColor.rgb=c;}')};
+  mat.customProgramCacheKey=()=>pk+'|realp';mat.needsUpdate=true}
+if(typeof MODEL_MAT!=='undefined')realPatchMat(MODEL_MAT,'part');
+if(typeof VEH_MAT!=='undefined')realPatchMat(VEH_MAT,'veh');
+if(typeof SHIP_MODEL_MAT!=='undefined')realPatchMat(SHIP_MODEL_MAT,'ship');
 
 /* ---------- switching ---------- */
 async function realOn(){if(!REAL.ready)REAL.ready=realLoad().catch(e=>{console.warn('Realistic look could not load',e);REAL.ready=null;throw e});
   try{await REAL.ready}catch(e){return}if(lookKey!=='real')return;
   if(!REALM.rS.value){REALM.rS.value=REAL.T.stone;REALM.rP.value=realTex(REAL.P.plaster,true);REALM.rW.value=realTex(REAL.P.planks,true);REALM.rT.value=REAL.T.tiles;if(typeof SMODEL_MAT!=='undefined')SMODEL_MAT.needsUpdate=true}
-  REALM.uRM.value=1;REAL.on=true;realSwap(true);realFields(true);realRoads(true);realWater(true);terrU.uReal.value=1;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof forestDirty!=='undefined')forestDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
-function realOff(){if(!REAL.on)return;REAL.on=false;realSwap(false);realFields(false);realRoads(false);realWater(false);terrU.uReal.value=0;REALM.uRM.value=0;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
+  REALM.uRM.value=1;REAL.on=true;realSwap(true);realFields(true);realRoads(true);realWater(true);REALP.uRealP.value=1;terrU.uReal.value=1;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof forestDirty!=='undefined')forestDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
+function realOff(){if(!REAL.on)return;REAL.on=false;realSwap(false);realFields(false);realRoads(false);realWater(false);REALP.uRealP.value=0;terrU.uReal.value=0;REALM.uRM.value=0;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
 {const _al=applyLook;applyLook=function(k){_al.apply(this,arguments);settings.realLook=k==='real';saveSettings();if(k==='real')realOn();else realOff()}}
 
 /* the choice in Settings, above the pixel size */
