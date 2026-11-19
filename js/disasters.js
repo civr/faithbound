@@ -13,7 +13,7 @@ const DIS_NOUN=['Fever','Cough','Pox','Flux','Sickness','Rot','Chill','Blight'];
 const diseaseName=()=>`${DIS_ADJ[(rng()*DIS_ADJ.length)|0]} ${DIS_NOUN[(rng()*DIS_NOUN.length)|0]}`;
 const medicine=n=>{const t=n.techs||[];return(t.includes('genetics')?.15:t.includes('medicine')?.35:1)*(n.era<3?1:.85)};
 const FUEL={4:.45,5:1,6:.55,8:.8,9:.35,3:.1};
-function tileAt(x,z){const tx=Math.floor(x+W/2),ty=Math.floor(z+H/2);return tx<0||ty<0||tx>=W||ty>=H?-1:ty*W+tx}
+function tileAt(x,z){let tx=Math.floor(x+W/2);const ty=Math.floor(z+H/2);if(ROUND)tx=((tx%W)+W)%W;return tx<0||ty<0||tx>=W||ty>=H?-1:ty*W+tx}
 function nationAt(x,z){const i=tileAt(x,z);return i>=0&&owner[i]>=0?nations[owner[i]]:null}
 function moistAt(i){return clamp(baseMoist[i]+(climate.rain-.5)*.7+moistD[i],0,1)}
 function resetDisasters(){storms=[];fires=new Map();bolts=[];waves=[];scorched=new Uint8Array(N);colorDirty=false}
@@ -91,7 +91,7 @@ function everydayWeather(dt,k){if(!dt||settings.weather===false||typeof camT==='
 /* ---------- the weather leaves its mark: wet ground after rain, snow that settles and melts, and a record of each land's rain ---------- */
 function wxRainOn(S,dt,k){const f=(S.fade||0)*dt*k,snow=S.kind==='blizzard'||S.snow,r=S.r,ci=tileAt(S.x,S.z);if(ci<0||f<=0)return;
   const cx=ci%W,cy=(ci/W)|0,R=Math.ceil(r);
-  for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){const X=cx+dx,Y=cy+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(wx(X)-S.x,wz(Y)-S.z);if(d>r)continue;
+  for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){const X=wrapTX(cx+dx),Y=cy+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(wx(X)-S.x,wz(Y)-S.z);if(d>r)continue;
     const j=Y*W+X,w=f*(1-d/r)*(.75+.5*hash(j*1.7+S.seed));
     if(snow){WXG.snow[j]=Math.min(1,WXG.snow[j]+w*.09);WXG.rain[j]+=w*.4}else{WXG.wet[j]=Math.min(1,WXG.wet[j]+w*.16);WXG.rain[j]+=w;if(WXG.snow[j]>0)WXG.snow[j]=Math.max(0,WXG.snow[j]-w*.05)}}
   WXG.dirty=true}
@@ -119,7 +119,7 @@ function wxPattern(){if(typeof wxEnsure!=='function')return;wxEnsure();const P=4
   if(WXP.seed!==seed||!WXP.a||WXP.a.length!==N||WXP.e!==e){WXP.a=WXP.e===e-1&&WXP.b&&WXP.seed===seed&&WXP.b.length===N?WXP.b:wxField(e,seed);WXP.b=wxField(e+1,seed);WXP.e=e;WXP.seed=seed}
   const A=WXP.a,B=WXP.b,an=WXG.anom;for(let i=0;i<N;i++){const v=(A[i]+(B[i]-A[i])*f-.5)*3.4;an[i]=v<-1?-1:v>1?1:v}WXG.dirty=true}
 /* how the weather pattern lies over a nation: below zero drier than usual, above wetter */
-function rainAnom(n){if(typeof WXG==='undefined'||!WXG.anom)return 0;let s=0,c=0;for(const t of n.cities){for(let dy=-2;dy<=2;dy+=2)for(let dx=-2;dx<=2;dx+=2){const X=t.x+dx,Y=t.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;s+=WXG.anom[Y*W+X];c++}}return c?s/c:0}
+function rainAnom(n){if(typeof WXG==='undefined'||!WXG.anom)return 0;let s=0,c=0;for(const t of n.cities){for(let dy=-2;dy<=2;dy+=2)for(let dx=-2;dx<=2;dx+=2){const X=wrapTX(t.x+dx),Y=t.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;s+=WXG.anom[Y*W+X];c++}}return c?s/c:0}
 /* armies wade through mud and snow */
 function weatherSlow(x,z){const i=tileAt(x,z);if(i<0||!WXG.wet)return 1;return clamp(1-WXG.wet[i]*.35-WXG.snow[i]*.55,.35,1)}
 {const _us=updateStorms;updateStorms=function(dt,k){_us(dt,k);try{everydayWeather(dt,k)}catch(e){}}}
@@ -161,7 +161,7 @@ function updateFires(dt,k){
 const FAMINE_CAUSE={hunger:'Too many mouths and too little grain',drought:'The harvest failed in the drought',cold:'Frost killed the harvest',storm:'Storms ruined the fields',god:'By your will the harvest withered'};
 function startFamine(n,cause,god){if(n.famine>0)return;n.famine=8+((rng()*10)|0);propsDirty=true;
   log(`Famine in ${n.name}. ${FAMINE_CAUSE[cause]}.`,'doom');const c=n.cities[0];if(c&&(god||n.pop>40))toast('Famine',`${n.name} goes hungry.`,wx(c.x),wz(c.y));milestone('famine','The hungry years','A famine struck a nation.')}
-function dryCapital(n){const c=n.cities[0];if(!c)return false;let s=0,k=0;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;s+=moistAt(Y*W+X);k++}return s/k<.24}
+function dryCapital(n){const c=n.cities[0];if(!c)return false;let s=0,k=0;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;s+=moistAt(Y*W+X);k++}return s/k<.24}
 
 /* ---------- epidemics ---------- */
 function startEpidemic(n,god){if(n.sick)return;n.sick={name:diseaseName(),sev:.55+rng()*.45,t:12+((rng()*10)|0)};

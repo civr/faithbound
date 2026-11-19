@@ -59,7 +59,7 @@ function companyTick(n){
     if(!P.ruled&&!Hn&&year-P.year>20&&owner[P.i]<0&&rng()<.04)companyRule(n,P,null)}
   const atSea=ships.filter(s=>s.owner===n.id&&s.kind==='company'&&!s.sink).length;if(atSea<C.posts.length&&rng()<.45){const P=C.posts[(rng()*C.posts.length)|0];companySail(n,P,false)}}
 function companyRule(n,P,Hn){const x=P.i%W,y=(P.i/W)|0;let took=0;
-  for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))continue;if(Hn?owner[j]===Hn.id:owner[j]<0){if(Hn&&Hn.cities.some(c=>c.x===X&&c.y===Y))continue;claim(j,n.id);took++}}
+  for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))continue;if(Hn?owner[j]===Hn.id:owner[j]<0){if(Hn&&Hn.cities.some(c=>c.x===X&&c.y===Y))continue;claim(j,n.id);took++}}
   if(!took)return false;P.ruled=true;if(!n.cities.some(c=>c.x===x&&c.y===y)&&owner[P.i]===n.id){n.cities.push({x,y,name:cultureName(cultOf(n)),origin:Hn?Hn.id:n.id,colony:true,company:true,born:year,conq:Hn?year:undefined});propsDirty=true}
   if(Hn){log(`${capF(n.company.name)} seized the lands of ${Hn.name} around its post. The Company rules them now.`,'war');addRival(Hn,n,.5);if(rng()<.35&&typeof warRoom==='function'&&warRoom(1))startWar(Hn,n)}
   else if(watchedC(n))log(`The fort of ${n.company.name} grew into a colony of ${n.name}.`,'life');bordersDirty=true;return true}

@@ -37,7 +37,7 @@ function winterTick(n){if(!n.cities.length||n.famine>0)return;const c=n.cities[0
 function seaTick(){if(year%5!==0)return;
   for(const n of nations){if(!n.alive)continue;for(const c of n.cities.slice()){const j=c.y*W+c.x;if(c.dike){if(h[j]<sea+.016){h[j]=sea+.016;terrainDirty=true}continue}
       if(h[j]>=sea+.012)continue;
-      if(n.era>=4||(n.era>=3&&rng()<.4)){c.dike=year;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(h[q]<sea+.016&&h[q]>sea-.05){h[q]=sea+.016;if(owner[q]<0)claim(q,n.id)}}
+      if(n.era>=4||(n.era>=3&&rng()<.4)){c.dike=year;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(h[q]<sea+.016&&h[q]>sea-.05){h[q]=sea+.016;if(owner[q]<0)claim(q,n.id)}}
         terrainDirty=true;propsDirty=true;if(important(n)||!milestones.has('dike'))log(`The sea rose against ${c.name}. ${n.name} built dikes to hold it back.`,'sky');milestone('dike','Dikes against the sea','A town held back the rising sea.');continue}
       const k=n.cities.indexOf(c),nj=bestSite(n,c.x,c.y,4);
       if(nj>=0&&nj!==j&&h[nj]>sea+.03){const old=c.name;c.x=nj%W;c.y=(nj/W)|0;c._plan=null;propsDirty=true;log(`The sea swallowed the old streets of ${old}. Its people rebuilt it further inland.`,'sky')}

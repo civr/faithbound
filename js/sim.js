@@ -6,16 +6,18 @@ var LZString=function(){var r=String.fromCharCode,o="ABCDEFGHIJKLMNOPQRSTUVWXYZa
 
 function genWorld(seedIn){
   for(const s of ships)disposeShip(s);ships=[];for(const r of rockets)scene.remove(r.g);rockets=[];walkers=[];parts=[];eruptions=[];
-  const S=SIZES[sizeKey];N=S.W*S.H;resetDisasters();folk={};folkId=0;houses=[];W=S.W;H=S.H;N=W*H;
+  setRound();const S=SIZES[sizeKey];N=S.W*S.H;resetDisasters();folk={};folkId=0;houses=[];W=S.W;H=S.H;N=W*H;
   const seed=seedIn||((rng()*1e9)|0);worldSeed=seed;hseed=(seed%9973)/7;
   const n1=makeNoise(seed),n2=makeNoise(seed+77),n3=makeNoise(seed+191),WO=worldOpts,sc=S.sc*(WO.frag||1);
   h=new Float32Array(N);baseMoist=new Float32Array(N);moistD=new Float32Array(N);warmD=null;
   owner=new Int16Array(N).fill(-1);biome=new Uint8Array(N);hab=new Float32Array(N);
   let mn=9,mx=-9,mm=9,mM=-9;
+  /* a round world blends each value with the one a world-width further west, so the east edge runs on into the west edge */
+  const seam=(f,nx,a)=>{if(!ROUND)return f(nx);const w1=Math.cos(nx*Math.PI/2),w2=Math.sin(nx*Math.PI/2),A=f(nx),B=f(nx-1);return a+((A-a)*w1+(B-a)*w2)/Math.sqrt(w1*w1+w2*w2)};
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x,nx=x/W,ny=y/H;
-    let e=n1(nx*sc,ny*sc*H/W*1.35,6);const ridge=1-Math.abs(n3(nx*sc*1.6,ny*sc*1.6,4)-.5)*2;e+=Math.pow(ridge,3)*.18*(e>.5?1:.3);
-    h[i]=e;mn=Math.min(mn,e);mx=Math.max(mx,e);const m=n2(nx*sc*1.4,ny*sc*1.4,4);baseMoist[i]=m;mm=Math.min(mm,m);mM=Math.max(mM,m)}
-  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x,dx=(x/(W-1)-.5)*2,dy=(y/(H-1)-.5)*2,d=Math.sqrt(dx*dx*.85+dy*dy);
+    let e=seam(X=>n1(X*sc,ny*sc*H/W*1.35,6),nx,.5);const ridge=1-Math.abs(seam(X=>n3(X*sc*1.6,ny*sc*1.6,4),nx,.5)-.5)*2;e+=Math.pow(ridge,3)*.18*(e>.5?1:.3);
+    h[i]=e;mn=Math.min(mn,e);mx=Math.max(mx,e);const m=seam(X=>n2(X*sc*1.4,ny*sc*1.4,4),nx,.5);baseMoist[i]=m;mm=Math.min(mm,m);mM=Math.max(mM,m)}
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x,dx=ROUND?0:(x/(W-1)-.5)*2,dy=(y/(H-1)-.5)*2,d=Math.sqrt(dx*dx*.85+dy*dy);
     h[i]=clamp((h[i]-mn)/(mx-mn)*.95+.12-Math.pow(d,2.6)*.45,0,1);baseMoist[i]=(baseMoist[i]-mm)/(mM-mm)}
   {/* the world sliders: share of land, and how rugged it is */const L=clamp(WO.land??.5,.1,.9),srt=Float32Array.from(h).sort(),q=srt[Math.floor((1-L)*(N-1))],sh=.44-q,mt=WO.mtn??1;
     let A=.01;for(let i=0;i<N;i++)A=Math.max(A,h[i]+sh-.44);
@@ -46,16 +48,16 @@ function genRivers(){river=new Uint8Array(N);rivers=[];
     const dist=new Float32Array(N).fill(1e9),prev=new Int32Array(N).fill(-1),open=[s];dist[s]=0;let end=-1,it=0;
     while(open.length&&it++<6000){let bi=0;for(let q=1;q<open.length;q++)if(dist[open[q]]<dist[open[bi]])bi=q;const i=open[bi];open[bi]=open[open.length-1];open.pop();
       if(h[i]<sea||(river[i]&&i!==s)){end=i;break}const x=i%W,y=(i/W)|0;
-      for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;const c=dist[i]+1+Math.max(0,h[j]-h[i])*80+h[j]*3;if(c<dist[j]){if(dist[j]>=1e9)open.push(j);dist[j]=c;prev[j]=i}}}
+      for(let d=0;d<4;d++){const X=wrapTX(x+DX[d]),Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;const c=dist[i]+1+Math.max(0,h[j]-h[i])*80+h[j]*3;if(c<dist[j]){if(dist[j]>=1e9)open.push(j);dist[j]=c;prev[j]=i}}}
     if(end<0)continue;const path=[];for(let k=end;k!==-1;k=prev[k])path.push(k);path.reverse();if(path.length<6)continue;
     let cur=h[path[0]];const tiles=[];
     path.forEach((t,k)=>{const last=k===path.length-1;if(!last||h[t]>=sea){h[t]=Math.max(sea+(last?-.01:.004),Math.min(h[t],cur-.0025)-.006);cur=h[t];
-        for(let d=0;d<4;d++){const X=t%W+DX[d],Y=((t/W)|0)+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(!river[j]&&h[j]>h[t])h[j]=Math.max(h[t]+.004,h[j]-.008);baseMoist[j]=Math.min(1,baseMoist[j]+.12)}}
+        for(let d=0;d<4;d++){const X=wrapTX(t%W+DX[d]),Y=((t/W)|0)+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(!river[j]&&h[j]>h[t])h[j]=Math.max(h[t]+.004,h[j]-.008);baseMoist[j]=Math.min(1,baseMoist[j]+.12)}}
       river[t]=Math.min(4,Math.max(river[t],1+Math.floor(k/7)));tiles.push(t)});
     rivers.push({tiles});used.push(s)}
 }
 /* a beach only where land actually meets the sea; low inland plains stay green */
-function nearSea(x,y){for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)return true;if(h[Y*W+X]<sea)return true}return false}
+function nearSea(x,y){for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)return true;if(h[Y*W+X]<sea)return true}return false}
 let TNOISE=null;
 let TERR_T=-1;
 /* how many tiles each sea tile is from the nearest land (up to 15) */
@@ -63,7 +65,7 @@ let DLAND=null;
 function seaDistToLand(){if(!DLAND||DLAND.length!==N)DLAND=new Uint8Array(N);const D=DLAND;D.fill(255);const q=new Int32Array(N);let qh=0,qt=0;
   for(let i=0;i<N;i++)if(h[i]>=sea){D[i]=0;q[qt++]=i}
   while(qh<qt){const i=q[qh++],d=D[i];if(d>=15)continue;const x=i%W,y=(i/W)|0;
-    for(let k=0;k<4;k++){const X=x+DX[k],Y=y+DY[k];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(D[j]>d+1){D[j]=d+1;q[qt++]=j}}}
+    for(let k=0;k<4;k++){const X=wrapTX(x+DX[k]),Y=y+DY[k];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(D[j]>d+1){D[j]=d+1;q[qt++]=j}}}
   return D}
 function computeTerrain(){terrBio++;TERR_T=climate.temp;if(typeof roadCache!=='undefined')roadCache.clear();
   sea=.44+(climate.temp-.5)*.16;
@@ -117,7 +119,7 @@ function newNation(x,y,o){
     aggr:.2+rng()*.7,faith:-1,gov:null,techs:[],research:null,known:[],trade:[],ties:[],ruler:null,house:null,reigns:[],wars:new Set(),cities:[],alive:true,bless:0,plague:0,born:year,nb:new Set(),wonder:0,front:[],_walk:0,kills:0};
   n.gov=o.gov||(n.aggr>.6?'chiefdom':'tribal');n.stab=.6;n.flag=makeFlag(n,null);nations.push(n);
   if(o.claim!==false){n.cities.push({x,y,name:n.name,born:year});
-    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;
       const j=Y*W+X;if(owner[j]<0&&(hab[j]>=.1||(dx===0&&dy===0)))claim(j,id)}}
   bordersDirty=true;return n;
 }
@@ -129,11 +131,11 @@ function claim(j,nid,why){
       else log(why==='flood'?`The city of ${c.name} was lost to the rising sea.`:`The city of ${c.name} was destroyed.`,'doom');propsDirty=true}}
   owner[j]=nid;if(nid>=0)nations[nid].tiles++;bordersDirty=true;
 }
-function nearCity(x,y,d){for(const n of nations){if(!n.alive)continue;for(const c of n.cities)if(Math.abs(c.x-x)<d&&Math.abs(c.y-y)<d)return true}return false}
+function nearCity(x,y,d){for(const n of nations){if(!n.alive)continue;for(const c of n.cities)if(Math.abs(tdx(x,c.x))<d&&Math.abs(c.y-y)<d)return true}return false}
 /* towns want flat, fertile ground: valleys, river banks and coasts, never a mountainside */
 const SL_CITY=.5;
 const flatOk=j=>tslope.length===N?tslope[j]<SL_CITY:true;
-function rugged(j){const x=j%W,y=(j/W)|0;let m=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(h[q]>sea)m=Math.max(m,Math.abs(h[q]-h[j]))}return m}
+function rugged(j){const x=j%W,y=(j/W)|0;let m=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(h[q]>sea)m=Math.max(m,Math.abs(h[q]-h[j]))}return m}
 /* a town site as people have always chosen one: fresh water first (a river, best where two rivers meet or where a river reaches the sea), a
    sheltered harbour rather than an open shore, good farmland all around and not just underfoot, dry ground a little above the water
    rather than the flood meadow, wood and stone or ore near, a hill to fall back on. Dry land far from any water is a poor place, and the
@@ -144,7 +146,7 @@ function brookTiles(){const k=typeof terrVer!=='undefined'?terrVer:0;if(BROOKS_&
 const SITE_WHY={brook:'by a brook',near:'near the water',mouth:'at the mouth of the river',confluence:'where two rivers meet',harbour:'by a sheltered harbour',river:'on the river',riverside:'by the river',coast:'on the coast',lake:'on the lakeshore',mines:'beside the mines',farm:'among good farmland',plain:'on the open plain'};
 function siteInfo(j){if(isWater(j)||hab[j]<.3||!flatOk(j)||biome[j]>=10||h[j]-sea>.2||rugged(j)>.045)return null;
   const x=j%W,y=(j/W)|0;let farm=0,fn=0,riv=0,riv3=0,wat2=0,sea2=0,forest=0,hill=0,coast4=false;
-  for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d>3.2)continue;const q=Y*W+X;
+  for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d>3.2)continue;const q=Y*W+X;
     if(isWater(q)){if(d<=2.3){wat2++;if(biome[q]===0)sea2++}if(d<=1)coast4=true;continue}
     farm+=hab[q];fn++;if(d<=1.5&&river[q])riv++;if(d<=1.5&&river[q]&&(Math.abs(dx)+Math.abs(dy)>0))riv3++;if(biome[q]===5||biome[q]===6)forest++;if(d<=2.3&&h[q]-h[j]>.035)hill=1}
   const fert=fn?farm/fn:0;let s=fert*1.2-(tslope.length===N?tslope[j]:0)*.8,why=fert>.7?'farm':'plain',wb=0;
@@ -163,7 +165,7 @@ function siteInfo(j){if(isWater(j)||hab[j]<.3||!flatOk(j)||biome[j]>=10||h[j]-se
   if(hill)s+=.08;if(forest>=3)s+=.08;if(deposits.length&&nearDeposit(j,2.5)){s+=.25;if(!wb&&why!=='farm')why='mines'}
   return{s,why}}
 function siteScore(j){const r=siteInfo(j);return r?r.s:-1}
-function bestSite(A,x,y,r,gap){let best=-1,bs=-1;for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
+function bestSite(A,x,y,r,gap){let best=-1,bs=-1;for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
   if(owner[j]!==A.id||gap&&nearCity(X,Y,gap))continue;const sc=siteScore(j);if(sc>bs){bs=sc;best=j}}return best}
 /* rivers and ridges slow a nation down, so borders tend to settle on them */
 function terrFactor(i,j){let f=1;if((river[i]>0)!==(river[j]>0))f*=.3;if(tslope.length===N)f*=clamp(1.25-tslope[j]*.9,.2,1);if(biome[j]===11||biome[j]===12)f*=.35;return f}
@@ -269,13 +271,13 @@ function startWar(a,b,kind){
 let warData={},ruins=[];
 const warKey=(a,b)=>a.id<b.id?a.id+'-'+b.id:b.id+'-'+a.id;
 function frontPairs(A,B){const out=[];for(let i=0;i<N;i++){if(owner[i]!==A.id)continue;const x=i%W,y=(i/W)|0;
-  for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===B.id)out.push([i,j])}}return out}
+  for(let d=0;d<4;d++){const X=wrapTX(x+DX[d]),Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===B.id)out.push([i,j])}}return out}
 /* push into enemy land: take the tile and a little of what lies behind it */
 /* fronts move as a line: a tile is easy to take when the attacker already holds two sides of it, hard when it would make a spike */
 function frontW(A,j){const x=j%W,y=(j/W)|0;let c=0;for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X>=0&&Y>=0&&X<W&&Y<H&&owner[Y*W+X]===A.id)c++}return [0,.22,1,1,1][c]}
-function advance(A,B,j){if(rng()>frontW(A,j))return;claim(j,A.id);const x=j%W,y=(j/W)|0;for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;
+function advance(A,B,j){if(rng()>frontW(A,j))return;claim(j,A.id);const x=j%W,y=(j/W)|0;for(let d=0;d<4;d++){const X=wrapTX(x+DX[d]),Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;
   if(owner[k]===B.id&&!cityAtTile(k)&&rng()<.35*frontW(A,k))claim(k,A.id)}}
-function besieged(c,A){/* attacker land within two tiles of the town */let n=0;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;if(owner[Y*W+X]===A.id)n++}return n}
+function besieged(c,A){/* attacker land within two tiles of the town */let n=0;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;if(owner[Y*W+X]===A.id)n++}return n}
 function siegeTick(A,B,w,sg){
   for(const c of [...B.cities]){const near=besieged(c,A);if(!near){c.siege=Math.max(0,(c.siege||0)-.1);continue}
     const sa=mil(A)*(1+near*.15),sb=mil(B)*(c===B.cities[0]?1.6:1)*(1+(c.walls||0));
@@ -286,7 +288,7 @@ function siegeTick(A,B,w,sg){
     if(rng()<razeP){/* sacked and burned */const k=B.cities.indexOf(c);if(k>=0)B.cities.splice(k,1);if(typeof refugees==='function')refugees(B,A,B.pop*.18);B.pop*=.82;
       ruins.push({x:c.x,y:c.y,year,name:c.name});claim(i,A.id);if(typeof ignite==='function')ignite(i);
       log(`${A.name} sacked and burned ${c.name}${cap?', capital of '+B.name:''}${heroTag(A)}.`,'doom');w.score+=4*sg;if(typeof fx==='function')fx(i,'war')}
-    else{/* taken: the town and its fields change hands */claim(i,A.id);for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(owner[k]===B.id)claim(k,A.id)}
+    else{/* taken: the town and its fields change hands */claim(i,A.id);for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(owner[k]===B.id)claim(k,A.id)}
       const moved=B.pop*(cap?.3:.18);B.pop-=moved;A.pop+=moved*.6;if(!cap)log(`${A.name} took ${c.name} from ${B.name} after a siege${heroTag(A)}.`,'war');w.score+=3*sg}
     propsDirty=true;bordersDirty=true;
     if(!B.cities.length){conquer(A,B);return true}}
@@ -322,7 +324,7 @@ function rebel(n,forced,why,msgOver){
   const maxD=Math.max(3,Math.round(Math.sqrt(n.tiles)*.45)),limit=Math.floor(n.tiles*.45),start=c.y*W+c.x;if(owner[start]!==n.id)return;
   const seen=new Uint8Array(N),q=[start],region=[];seen[start]=1;let head=0;/* the capital itself never goes with the rebels */if(n.cities[0]&&n.cities[0]!==c)seen[n.cities[0].y*W+n.cities[0].x]=1;
   while(head<q.length&&region.length<limit){const i=q[head++];region.push(i);const x=i%W,y=(i/W)|0;
-    for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
+    for(let d=0;d<4;d++){const X=wrapTX(x+DX[d]),Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
       if(seen[j]||owner[j]!==n.id||Math.max(Math.abs(X-c.x),Math.abs(Y-c.y))>maxD)continue;seen[j]=1;q.push(j)}}
   if(region.length<4)return;
   const oc=c.origin!=null&&nations[c.origin]?cultOf(nations[c.origin]):cultOf(n);
@@ -408,7 +410,7 @@ function holdFestival(n,god){n.festival=6;n.devotion=clamp((n.devotion??.3)+.2,0
 /* a town's harbour waters: the sea within two tiles of it, nearest first. Towns stand back from the waterline on firm ground, so a port is
    the town with the sea at its doorstep, not only the one built on the very beach; its ships, raiders and fishermen sail from here. */
 const FISH_TILES=25;
-function coastWater(c){const out=[];for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){if(!dx&&!dy)continue;const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))out.push([dx*dx+dy*dy,j])}
+function coastWater(c){const out=[];for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){if(!dx&&!dy)continue;const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))out.push([dx*dx+dy*dy,j])}
   out.sort((a,b)=>a[0]-b[0]);return out.slice(0,4).map(q=>q[1])}
 /* how deep the sea is here. Water under about a tenth of a unit is drawn see-through over the sandy bottom, with surf on it, and dries out
    at low tide: a ship there looks as if it sails over the beach. */
@@ -423,12 +425,12 @@ function seaPath(starts,goal){
   for(const s0 of starts){prev[s0]=-1;cost[s0]=0;push(s0,0)}let pops=0;
   while(hp.length&&pops<20000){const c0=hc[0],j=pop();if(c0>cost[j])continue;pops++;const x=j%W,y=(j/W)|0;const t=goal(x,y);
     if(t>=0){const path=[];let k=j;while(k!==-1){path.push(k);k=prev[k]}path.reverse();return{path,target:t}}
-    for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(!isWater(k)||occupied.has(k))continue;const c=c0+step(k);if(c<cost[k]){cost[k]=c;prev[k]=j;push(k,c)}}}
+    for(let d=0;d<4;d++){const X=wrapTX(x+DX[d]),Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(!isWater(k)||occupied.has(k))continue;const c=c0+step(k);if(c<cost[k]){cost[k]=c;prev[k]=j;push(k,c)}}}
   return null}
 /* a sailing route: the tile path pulled tight into straight legs over open water, then rounded at the corners */
 function clearSea(x0,z0,x1,z1){const d=Math.hypot(x1-x0,z1-z0),n=Math.ceil(d/.1),need=Math.min(SHIP_DEEP,seaDepth(x0,z0)-.01,seaDepth(x1,z1)-.01);
   for(let k=1;k<n;k++){const t=k/n,x=lerp(x0,x1,t),z=lerp(z0,z1,t),i=tileAt(x,z);if(i<0||!isWater(i)||occupied.has(i)||seaDepth(x,z)<need)return false}return true}
-function shipRoute(path){const P=path.map(t=>[wx(t%W),wz((t/W)|0)]),out=[P[0]];let i=0;
+function shipRoute(path){const P=path.map(t=>[wx(t%W),wz((t/W)|0)]);/* a round world: the route runs on across the seam instead of jumping back */if(ROUND)for(let k=1;k<P.length;k++)P[k][0]=nearX(P[k][0],P[k-1][0]);const out=[P[0]];let i=0;
   while(i<P.length-1){let j=Math.min(P.length-1,i+60);while(j>i+1&&!clearSea(P[i][0],P[i][1],P[j][0],P[j][1]))j--;out.push(P[j]);i=j}
   /* round the corners, but only where the cut-off corner is still deep water: otherwise keep the corner as it is */
   let r=out;for(let it=0;it<3;it++){if(r.length<3)break;const q=[r[0]];for(let k=0;k<r.length-1;k++){const a=r[k],b=r[k+1];
@@ -440,10 +442,10 @@ function launch(n,kind,foe){
   const coastal=n.cities.filter(c=>coastWater(c).length);if(!coastal.length)return;
   const c=coastal[(rng()*coastal.length)|0],starts=coastWater(c);
   const goal=kind==='colony'
-    ?(x,y)=>{for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const L=Y*W+X;
+    ?(x,y)=>{for(let d=0;d<4;d++){const X=wrapTX(x+DX[d]),Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const L=Y*W+X;
         if(owner[L]<0&&hab[L]>=.4&&flatOk(L)&&Math.max(Math.abs(X-c.x),Math.abs(Y-c.y))>=9&&!nearCity(X,Y,10))return L}return -1}
     :kind==='explore'?(()=>{let T=-1;for(let q=0;q<60;q++){const j=(rng()*N)|0;if(isWater(j)&&Math.hypot(j%W-c.x,((j/W)|0)-c.y)>Math.max(W,H)*.35){T=j;break}}return (x,y)=>y*W+x===T?T:-1})()
-    :(x,y)=>{for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const L=Y*W+X;if(owner[L]===foe.id)return L}return -1};
+    :(x,y)=>{for(let d=0;d<4;d++){const X=wrapTX(x+DX[d]),Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const L=Y*W+X;if(owner[L]===foe.id)return L}return -1};
   const res=seaPath(starts,goal);if(!res||res.path.length<2)return;const p0=res.path[0];
   const s={owner:n.id,kind,foe:foe?foe.id:-1,era:n.era,path:res.path,wp:shipRoute(res.path),seg:0,target:res.target,x:wx(p0%W),z:wz((p0/W)|0),sink:0,g:makeShip(n.era,kind,n.color,ensureFlag(n)),foamT:0};
   s.g.position.set(s.x,waterY,s.z);ships.push(s);
@@ -460,15 +462,15 @@ function arrive(s){
   if(s.kind==='explore'){exploreArrive(n,X,Y);return}
   if(s.kind==='trade'){const B=nations[s.foe];if(B&&B.alive&&n.trade.includes(B.id)){n.tech+=TECHCOST[n.era]*.04;B.tech+=TECHCOST[B.era]*.04;if(n.sick&&rng()<.3)infect(B,n.sick,n);if(rng()<.15&&(important(n)||important(B)))log(`Merchants of ${n.name} reached ${B.name} with full holds.`,'life')}return}
   if(s.kind==='colony'){/* the colonists look along the shore near their landing for the best place to build */
-    {let bs=siteScore(L);for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const x=X+dx,y=Y+dy;if(x<0||y<0||x>=W||y>=H)continue;const q=y*W+x;if(owner[q]>=0||nearCity(x,y,10))continue;const sc=siteScore(q);if(sc>bs){bs=sc;L=q}}X=L%W;Y=(L/W)|0}
+    {let bs=siteScore(L);for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const x=wrapTX(X+dx),y=Y+dy;if(x<0||y<0||x>=W||y>=H)continue;const q=y*W+x;if(owner[q]>=0||nearCity(x,y,10))continue;const sc=siteScore(q);if(sc>bs){bs=sc;L=q}}X=L%W;Y=(L/W)|0}
     if(owner[L]<0&&hab[L]>=.1){claim(L,n.id);
-      for(let d=0;d<4;d++){const x=X+DX[d],y=Y+DY[d];if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]<0&&hab[j]>=.1)claim(j,n.id)}
+      for(let d=0;d<4;d++){const x=wrapTX(X+DX[d]),y=Y+DY[d];if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]<0&&hab[j]>=.1)claim(j,n.id)}
       const name=cultureName(cultOf(n)),si=siteInfo(L);n.cities.push({x:X,y:Y,name,origin:n.id,colony:true,born:year,site:si?si.why:'coast'});n.pop+=3;fx(L,'bless');propsDirty=true;
       log(`Colonists from ${n.name} founded ${name} across the sea${si&&SITE_WHY[si.why]?', '+SITE_WHY[si.why]:''}.`,'life');milestone('colony','New World','The first overseas colony was founded.')}}
   else{if(s.escort)return;const B=nations[s.foe];if(!B||!B.alive||!n.wars.has(B.id)||owner[L]!==B.id)return;
     const lim=3+(s.era-SAIL)*2,q=[L],seen=new Set([L]);let took=0,head=0;
     while(head<q.length&&took<lim){const j=q[head++];if(owner[j]!==B.id)continue;const moved=B.pop/Math.max(1,B.tiles);B.pop=Math.max(2,B.pop-moved*.6);claim(j,n.id);took++;
-      const x=j%W,y=(j/W)|0;for(let d=0;d<4;d++){const x2=x+DX[d],y2=y+DY[d];if(x2<0||y2<0||x2>=W||y2>=H)continue;const k=y2*W+x2;if(!seen.has(k)){seen.add(k);q.push(k)}}}
+      const x=j%W,y=(j/W)|0;for(let d=0;d<4;d++){const x2=wrapTX(x+DX[d]),y2=y+DY[d];if(x2<0||y2<0||x2>=W||y2>=H)continue;const k=y2*W+x2;if(!seen.has(k)){seen.add(k);q.push(k)}}}
     fx(L,'war');log(`A fleet of ${n.name} stormed the shores of ${B.name}.`,'war');if(n.sick&&rng()<.5)infect(B,n.sick,n)}
 }
 /* ---------- voyages ----------
@@ -508,7 +510,7 @@ function updateShips(dy,dt,now){
         s.x=nx;s.z=nz;s.head=Math.atan2(-ddz,ddx)}}
     if(s.head!=null){const turn=Math.atan2(Math.sin(s.head-s.g.rotation.y),Math.cos(s.head-s.g.rotation.y));s.g.rotation.y+=turn*Math.min(1,dt*3);s.lean=lerp(s.lean||0,clamp(turn*.25,-.12,.12),Math.min(1,dt*3))}
     {/* ride the same swell the sea shader draws, so hulls neither sink into the waves nor float above them */const T=waterU.uTime.value,wa=s.x*1.7+T*1.1,wb=s.z*1.4+T*1.35,deep=clamp((waterY-groundY(s.x,s.z))*2,0,1);
-      s.g.position.set(s.x,seaY(s.x,s.z)+(s.era>=7?.06:0)-(s.sub?.03:0),s.z);const sf=typeof stormAt==='function'?stormAt(s.x,s.z):0,rk=1+sf*(s.era>=6?2:5);/* tossed about in a storm */s.g.rotation.x=Math.cos(wa)*.05*deep*rk+(s.lean||0)+sf*Math.sin(T*2.9+s.x*3.3)*.06*deep;s.g.rotation.z=-Math.sin(wb)*.04*deep*rk}
+      if(ROUND&&Math.abs(s.x)>W/2){const sh=W*Math.sign(s.x);s.x-=sh;if(s.wp)s.wp=s.wp.map(p=>[p[0]-sh,p[1]])}s.g.position.set(nearX(s.x,camT.x),seaY(s.x,s.z)+(s.era>=7?.06:0)-(s.sub?.03:0),s.z);const sf=typeof stormAt==='function'?stormAt(s.x,s.z):0,rk=1+sf*(s.era>=6?2:5);/* tossed about in a storm */s.g.rotation.x=Math.cos(wa)*.05*deep*rk+(s.lean||0)+sf*Math.sin(T*2.9+s.x*3.3)*.06*deep;s.g.rotation.z=-Math.sin(wb)*.04*deep*rk}
     if(dy>0){s.foamT+=dt;if(s.foamT>.12){s.foamT=0;const a=s.g.rotation.y;emit('foam',s.x-Math.cos(a)*.2,waterY+.01,s.z+Math.sin(a)*.2,0,0)}
       if(s.era===5&&rng()<dt*3)emit('dark',s.x,waterY+.2,s.z)}
     if(s.seg>=WP.length-1){arrive(s);disposeShip(s);ships.splice(k,1)}}
@@ -555,7 +557,7 @@ function tick(){if(typeof farmAbandonTick==='function')farmAbandonTick();
     n.pop+=n.pop*.035*[.6,.68,.76,.82,.88,.95,1,1][n.era]*t.grow*stabGrow(n)*(.85+.3*(n.happy??.6))*(n.bless>0?1.8:1)*(n.festival>0?1.25:1)*(1-n.pop/n.cap);
     /* settlers: a people with room to spare sends families out to found small villages inside its own lands */
     if(n.tiles/Math.max(1,n.cities.length)>=60&&n.pop>n.cities.length*60&&rng()<.012){const c0=n.cities[(rng()*n.cities.length)|0];
-      for(let q=0;q<8;q++){const x=c0.x+Math.round((rng()-.5)*30),y=c0.y+Math.round((rng()-.5)*30);if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]===n.id&&!nearCity(x,y,TOWN_GAP)&&hab[j]>.3){const k=n.cities.length;foundTown(n,x,y,j);if(n.cities.length>k){const nc=n.cities[k];if(rng()<.25)log(`Settlers from ${c0.name} founded ${nc.name} ${SITE_WHY[nc.site]||''}.`.replace(' .','.'),'');break}}}}
+      for(let q=0;q<8;q++){const x=wrapTX(c0.x+Math.round((rng()-.5)*30)),y=c0.y+Math.round((rng()-.5)*30);if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;if(owner[j]===n.id&&!nearCity(x,y,TOWN_GAP)&&hab[j]>.3){const k=n.cities.length;foundTown(n,x,y,j);if(n.cities.length>k){const nc=n.cities[k];if(rng()<.25)log(`Settlers from ${c0.name} founded ${nc.name} ${SITE_WHY[nc.site]||''}.`.replace(' .','.'),'');break}}}}
     if(n.plague>0){n.plague--;n.pop*=.975}
     if(n.wars.size)n.pop*=1-.002*n.wars.size;
     n.pop=Math.max(2,n.pop);worldPop+=n.pop;
@@ -578,7 +580,7 @@ function tick(){if(typeof farmAbandonTick==='function')farmAbandonTick();
   const K=Math.floor(N*.1);
   for(let k=0;k<K;k++){
     const i=(rng()*N)|0,a=owner[i];if(a<0)continue;
-    const x=i%W,y=(i/W)|0,d=(rng()*4)|0,X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;
+    const x=i%W,y=(i/W)|0,d=(rng()*4)|0,X=wrapTX(x+DX[d]),Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;
     const j=Y*W+X,b=owner[j],A=nations[a];if(b===a){if(rng()<.004&&A.pop>A.cities.length*60)foundTown(A,x,y,i);continue}
     if(b<0){if(hab[j]<.1)continue;const pr=A.pop/A.cap;if(rng()<hab[j]*.4*(pr>.6?1:.2)*ten(A).exp*(1+A.era*.08)*terrFactor(i,j)){claim(j,a);maybeCity(A,X,Y,j)}continue}
     A.nb.add(b);const B=nations[b];
@@ -655,7 +657,7 @@ function tradeTick(n){
   if(!cands.length||rng()>.25)return;let m=cands[0];{const w=cands.map(c=>tradeWant(n,c)*tradeWant(c,n));let r=rng()*w.reduce((a,b)=>a+b,0);for(let q=0;q<cands.length;q++){r-=w[q];if(r<=0){m=cands[q];break}}}n.trade.push(m.id);m.trade.push(n.id);
   if(important(n)||important(m))log(`${n.name} and ${m.name} opened a trade route.`,'life');milestone('trade','Merchants on the road','Two nations began to trade.')}
 function exploreArrive(n,X,Y){let found=0,land=0;const seen=new Set();
-  for(let dy=-7;dy<=7;dy++)for(let dx=-7;dx<=7;dx++){const x=X+dx,y=Y+dy;if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;
+  for(let dy=-7;dy<=7;dy++)for(let dx=-7;dx<=7;dx++){const x=wrapTX(X+dx),y=Y+dy;if(x<0||y<0||x>=W||y>=H)continue;const j=y*W+x;
     if(owner[j]>=0&&owner[j]!==n.id&&!seen.has(owner[j])){seen.add(owner[j]);const m=nations[owner[j]];if(m.alive&&!n.known.includes(m.id)){meet(n,m);found++}}
     else if(owner[j]<0&&hab[j]>=.4)land++}
   n.tech+=TECHCOST[n.era]*.12;
@@ -731,7 +733,7 @@ function applySave(d){
   sizeKey=Object.keys(SIZES).find(k=>k!=='custom'&&SIZES[k].W===d.W&&SIZES[k].H===d.H)||(setCustomSize(d.W,d.H),'custom');W=d.W;H=d.H;N=W*H;worldSeed=d.worldSeed;hseed=(worldSeed%9973)/7;
   h=unb64(d.h,Float32Array);baseMoist=unb64(d.bm,Float32Array);moistD=unb64(d.md,Float32Array);warmD=d.wd?unb64(d.wd,Float32Array):null;owner=unb64(d.owner16||d.owner,Int16Array);
   biome=new Uint8Array(N);hab=new Float32Array(N);resetDisasters();
-  worldOpts=Object.assign({pace:'standard',customN:1,customUnit:'weeks',calendar:false,anchorReal:0,anchorYear:0,maxEra:7},d.worldOpts||{});if(!PACES[worldOpts.pace])worldOpts.pace='standard';worldOpts.slot=d.slot||worldOpts.slot||null;worldOpts.name=d.worldName||worldOpts.name||'Unnamed world';if(!PACES[worldOpts.pace])worldOpts.pace='quick';
+  worldOpts=Object.assign({pace:'standard',customN:1,customUnit:'weeks',calendar:false,anchorReal:0,anchorYear:0,maxEra:7},d.worldOpts||{});setRound();if(!PACES[worldOpts.pace])worldOpts.pace='standard';worldOpts.slot=d.slot||worldOpts.slot||null;worldOpts.name=d.worldName||worldOpts.name||'Unnamed world';if(!PACES[worldOpts.pace])worldOpts.pace='quick';
   year=d.year;belief=d.belief;climate=d.climate;flags=d.flags;dayT=d.dayT||.22;
   ruins=d.ruins||[];warData=d.warData||{};cultSeeds=d.cultSeeds||[];coves=d.coves||[];
   nations=d.nations.map(n=>Object.assign(n,{wars:new Set(n.wars),nb:new Set(),front:[],_walk:0,gov:n.gov||'tribal'}));if(!cultSeeds.length)seedCultures();for(const n of nations){if(!n.culture){const c=n.cities[0];n.culture=c?cultureAt(c.x,c.y):'west'}if(!n.allies)n.allies=[];if(n.devotion==null)n.devotion=.3;if(n.festival==null)n.festival=0;if(!n.techs){grantTechsUpTo(n);n.tech=0}for(const k of ['known','trade','ties','reigns'])if(!n[k])n[k]=[];if(n.ruler===undefined)n.ruler=null;if(n.house===undefined)n.house=null}

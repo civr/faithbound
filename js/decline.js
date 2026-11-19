@@ -7,7 +7,7 @@
 
 /* how well can the land round a town feed and water it: 0 nothing, about 1 a good place */
 function livelihood(n,c){const x=c.x,y=c.y;let farm=0,fn=0,riv=0,wat=0,sea_=0,ice=0,dry=0,poison=0;
-  for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d>3.2)continue;const q=Y*W+X;
+  for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d>3.2)continue;const q=Y*W+X;
     if(isWater(q)){if(d<=2.3){wat++;if(biome[q]===0)sea_++}continue}
     const w=owner[q]===n.id||owner[q]<0?1:.5;farm+=hab[q]*w;fn++;if(d<=1.5&&river[q])riv++;
     if(biome[q]===10||biome[q]===9)ice++;if(biome[q]===7)dry++;if(window.fallout&&fallout[q]>20)poison++}
@@ -26,7 +26,7 @@ let DECAY_TL=0;
 function abandonTown(n,c,L){const k=n.cities.indexOf(c);if(k<0)return;const lv=townLevel(n,k===0),share=n.pop/Math.max(1,n.cities.length);
   n.cities.splice(k,1);ruins.push({x:c.x,y:c.y,year,name:c.name,abandoned:L.why});n.pop=Math.max(1,n.pop-share*.4);propsDirty=true;bordersDirty=true;
   /* most people move to the other towns; the fields round the old town go back to the wild */
-  for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(owner[q]===n.id&&!n.cities.some(o=>Math.hypot(o.x-X,o.y-Y)<4)&&rng()<.6)claim(q,-1)}
+  for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(owner[q]===n.id&&!n.cities.some(o=>Math.hypot(o.x-X,o.y-Y)<4)&&rng()<.6)claim(q,-1)}
   if(lv>=6&&typeof addLegend==='function')addLegend({name:c.name,x:c.x,y:c.y,kind:'abandoned',lv,nation:n.name,why:L.why});
   const cap=k===0&&n.cities.length?n.cities[0]:null;
   log(`${c.name} of ${n.name} has been abandoned. ${DECAY_GO[L.why]}${cap?` ${n.name} moved its capital to ${cap.name}.`:''}`,important(n)?'doom':'life');
@@ -36,7 +36,7 @@ function moveNation(n,c,L){/* the only town: the people pack up and look for bet
     if(owner[j]>=0&&owner[j]!==n.id||nearCity(X,Y,8))continue;const s=siteScore(j);if(s>bs){bs=s;best=j}}
   if(best<0)return false;const old={x:c.x,y:c.y,name:c.name};ruins.push({x:c.x,y:c.y,year,name:c.name,abandoned:L.why});
   c.x=best%W;c.y=(best/W)|0;c._plan=null;c.decay=0;c.dying=0;c.born=year;n.pop*=.7;
-  for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(!isWater(q)&&owner[q]<0)claim(q,n.id)}
+  for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(!isWater(q)&&owner[q]<0)claim(q,n.id)}
   propsDirty=true;bordersDirty=true;log(`The people of ${n.name} left ${old.name}, ${DECAY_WHY[L.why]}, and built a new home on better land.`,important(n)?'era':'life');return true}
 
 function declineTick(){for(const n of nations){if(!n.alive)continue;for(const c of n.cities.slice()){

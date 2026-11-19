@@ -35,8 +35,8 @@ function rankOf(T){const r=T.c.mayor.P/unitOf(T.n,false),e=T.n.era;return r<.5?(
 const mbLabel=(id,l)=>MB_LEVEL[id]&&MB_LEVEL[id][l-1]||MB[id].name;
 const mbYrs=(id,l)=>Array.isArray(MB[id].yrs)?MB[id].yrs[l]:MB[id].yrs;
 const mbCost=(id,l,e)=>({gold:Math.round(MB[id].gold[l]*(1+Math.max(0,e-MB[id].era)*.12)),wood:MB[id].wood[l]||0});
-function forestNear(c){let k=0;for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const b=biome[Y*W+X];if(b===5||b===6)k++}return k}
-function fieldsNear(n,c){let s=0,k=0;for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))continue;k++;if(owner[j]===n.id)s+=hab[j]}return k?s/k:0}
+function forestNear(c){let k=0;for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const b=biome[Y*W+X];if(b===5||b===6)k++}return k}
+function fieldsNear(n,c){let s=0,k=0;for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))continue;k++;if(owner[j]===n.id)s+=hab[j]}return k?s/k:0}
 function mlog(m,t,kind){m.log.unshift({y:year,t});if(m.log.length>40)m.log.length=40;if(kind)log(t,kind)}
 
 function govern(n,c){const T=myTown();if(T&&T.c!==c){delete T.c.mayor;propsDirty=true}

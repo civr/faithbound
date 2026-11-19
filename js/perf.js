@@ -64,7 +64,7 @@ function lodTick(L){const g=L.src.geometry,m0=L.chunks[0]&&L.chunks[0].m[0];if(!
   if(m0.geometry.attributes.normal!==g.attributes.normal||m0.geometry.attributes.position!==g.attributes.position)for(const ch of L.chunks)for(const m of ch.m)for(const k in g.attributes)m.geometry.setAttribute(k,g.attributes[k]);
   L.grp.position.copy(L.src.position);
   const k=typeof PERF!=='undefined'&&perfOn()?Math.max(.55,PERF.lodK):1,T0=9*k,T1=18*k,T2=34*k,cp=cam.position,gy=L.grp.position.y;
-  for(const ch of L.chunks){const d=Math.hypot(ch.c.x-cp.x,ch.c.y+gy-cp.y,ch.c.z-cp.z)-ch.m[0].geometry.boundingSphere.radius*.5;let lv=d<T0?0:d<T1?1:d<T2?2:3;if(ch.coast&&L.shadow)lv=Math.min(lv,1);lv=Math.min(lv,ch.m.length-1);/* coasts keep their detail: coarse triangles there pop the beach in and out */
+  for(const ch of L.chunks){const d=Math.hypot(ROUND?wrapWX(ch.c.x-cp.x):ch.c.x-cp.x,ch.c.y+gy-cp.y,ch.c.z-cp.z)-ch.m[0].geometry.boundingSphere.radius*.5;let lv=d<T0?0:d<T1?1:d<T2?2:3;if(ch.coast&&L.shadow)lv=Math.min(lv,1);lv=Math.min(lv,ch.m.length-1);/* coasts keep their detail: coarse triangles there pop the beach in and out */
     if(lv!==ch.lv){if(ch.lv>=0)ch.m[ch.lv].visible=false;ch.m[lv].visible=true;ch.lv=lv}
     ch.m[lv].castShadow=L.shadow&&lv<=1&&renderer.shadowMap.enabled}}
 const TLOD={t:null,w:null,tv:-1};

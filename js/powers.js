@@ -34,7 +34,7 @@ function migrate(src,c,j){const n=src,x=j%W,y=(j/W)|0;
   if(isWater(j)||hab[j]<.1)return 'Set them down on land where people can live.';if(owner[j]>=0&&owner[j]!==n.id)return 'That land belongs to another nation. Pick empty land or your own.';
   if(n.cities.some(t=>Math.hypot(t.x-x,t.y-y)<3)||nations.some(m=>m.alive&&m.cities.some(t=>Math.hypot(t.x-x,t.y-y)<3)))return 'Too close to another town. Pick a spot a little further away.';
   if(n.pop<12)return `${n.name} has too few people to spare.`;
-  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(owner[k]<0&&hab[k]>=.1)claim(k,n.id)}
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(owner[k]<0&&hab[k]>=.1)claim(k,n.id)}
   if(owner[j]!==n.id)claim(j,n.id);
   const far=Math.hypot(n.cities[0].x-x,n.cities[0].y-y)>14,t={x,y,name:cultureName(cultOf(n)),origin:n.id};if(far)t.colony=true;n.cities.push(t);
   n.pop*=.99;propsDirty=true;bordersDirty=true;
@@ -123,14 +123,14 @@ function fertileLand(i){let n=0,cold=0;brush(i,4.5,(j,d)=>{if(isWater(j)||biome[
 function plantForest(i){let n=0;brush(i,3.6,(j,d)=>{if(isWater(j)||biome[j]>=9||biome[j]===3)return;if(occupied.has(j))return;moistTo(j,.6+hash(j*3)*.08);n++});terrainDirty=true;treesDirty=true;return n}
 let floods=[];
 const FLOODMAT=stdMat({color:colL(0x6f7a5e),roughness:.15,metalness:.1,transparent:true,opacity:.78});
-function riverFlood(i){const x0=i%W,y0=(i/W)|0;let hit=null,bd=9;for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=x0+dx,Y=y0+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(river[k]&&!isWater(k)){const d=Math.hypot(dx,dy);if(d<bd){bd=d;hit=k}}}
+function riverFlood(i){const x0=i%W,y0=(i/W)|0;let hit=null,bd=9;for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=wrapTX(x0+dx),Y=y0+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(river[k]&&!isWater(k)){const d=Math.hypot(dx,dy);if(d<bd){bd=d;hit=k}}}
   if(hit==null)return null;const tiles=new Set();const hx=hit%W,hy=(hit/W)|0;
-  for(let dy=-7;dy<=7;dy++)for(let dx=-7;dx<=7;dx++){const X=hx+dx,Y=hy+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(!river[k]||isWater(k))continue;
-    for(let ey=-2;ey<=2;ey++)for(let ex=-2;ex<=2;ex++){const XX=X+ex,YY=Y+ey;if(XX<0||YY<0||XX>=W||YY>=H)continue;const q=YY*W+XX;if(!isWater(q)&&biome[q]<11&&h[q]-h[k]<.05)tiles.add(q)}}
+  for(let dy=-7;dy<=7;dy++)for(let dx=-7;dx<=7;dx++){const X=wrapTX(hx+dx),Y=hy+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(!river[k]||isWater(k))continue;
+    for(let ey=-2;ey<=2;ey++)for(let ex=-2;ex<=2;ex++){const XX=wrapTX(X+ex),YY=Y+ey;if(XX<0||YY<0||XX>=W||YY>=H)continue;const q=YY*W+XX;if(!isWater(q)&&biome[q]<11&&h[q]-h[k]<.05)tiles.add(q)}}
   /* the water level: the river's surface at the nearest river tile, raised by the flood. Each tile is cut into a fine grid that
      follows the ground; where the ground lies below the flood level the water stands, shallow at the edges. */
   const lvl=new Map(),rise=.022+rng()*.012;
-  const levelAt=(tx,ty)=>{let best=null,bd=9;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=Math.round(tx)+dx,Y=Math.round(ty)+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(!river[k]||isWater(k))continue;
+  const levelAt=(tx,ty)=>{let best=null,bd=9;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=wrapTX(Math.round(tx)+dx),Y=Math.round(ty)+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(!river[k]||isWater(k))continue;
       const d=Math.hypot(X-tx,Y-ty);if(d<bd){bd=d;best=k}}if(best==null)return -1e9;if(!lvl.has(best))lvl.set(best,groundY(wx(best%W),wz((best/W)|0))+.012);return lvl.get(best)+rise*(1-Math.min(1,bd/3))};
   const pos=[],gnd=[],lev=[],idx=[],S=5;const hit_=new Set(),lost=[],wet=new Set();
   for(const q of tiles){const X=q%W,Y=(q/W)|0,b=pos.length/3;let any=false;

@@ -129,7 +129,7 @@ const godOf=f=>faiths[f]?(faiths[f].god|0):0;
 let spendMul=1;
 function spend(c){c=Math.round(costOf(c)*spendMul*(typeof spendMulAvatar!=='undefined'?spendMulAvatar:1));spendMul=1;if(unlimited)return true;if(belief<c){say(`Not enough belief. This needs ${c}, you have ${Math.floor(belief)}.`);return false}belief-=c;return true}
 function fx(i,kind){const x=wx(i%W),z=wz((i/W)|0);effects.push({x,y:surfY(x,z),z,kind,t0:performance.now()})}
-function brush(i,r,fn){const x=i%W,y=(i/W)|0,R_=Math.ceil(r);for(let dy=-R_;dy<=R_;dy++)for(let dx=-R_;dx<=R_;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d<=r)fn(Y*W+X,d)}}
+function brush(i,r,fn){const x=i%W,y=(i/W)|0,R_=Math.ceil(r);for(let dy=-R_;dy<=R_;dy++)for(let dx=-R_;dx<=R_;dx++){const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d<=r)fn(Y*W+X,d)}}
 function burst(i,kind,n,spread){const x=wx(i%W),z=wz((i/W)|0);for(let k=0;k<n;k++){const px=x+(rng()-.5)*spread,pz=z+(rng()-.5)*spread;emit(kind,px,surfY(px,pz)+.03,pz)}}
 const needNation=n=>{if(!n){say("Tap inside a nation's borders.");return false}return true};
 
@@ -626,9 +626,10 @@ $('#titleMenu').onclick=async e=>{const lm=e.target.closest('[data-lm]');if(lm){
   if(m==='new')openSetup();if(m==='scen')openScenarios();if(m==='settings')openSettings();if(m==='help')openHelp()};
 const WSL=[['land','Land','More sea','More land',.2,.85,.01,v=>Math.round(v*100)+'%'],['frag','Shape','Continents','Islands',.6,1.8,.05,v=>v<.85?'Big':v>1.3?'Many':'Mixed'],
   ['mtn','Mountains','Flat','Rugged',.4,1.8,.05,v=>v<.75?'Low':v>1.3?'High':'Some'],['rain','Rainfall','Deserts','Forests',.25,.75,.01,v=>v<.42?'Dry':v>.58?'Wet':'Mild'],['rivers','Rivers','Few','Many',.3,2.2,.1,v=>v<.7?'Few':v>1.4?'Many':'Some']];
-function renderWorldSliders(){$('#worldSliders').innerHTML=WSL.map(([k,l,a,b,mn,mx,st,f])=>{const v=worldOpts[k]??(k==='land'||k==='rain'?.5:1);
+function renderWorldSliders(){$('#worldSliders').innerHTML=`<div class="seg" id="roundSeg" role="group" aria-label="Shape of the world"><button data-round="0" aria-pressed="${!worldOpts.round}">Flat map</button><button data-round="1" aria-pressed="${!!worldOpts.round}">Round world</button></div><p class="note">${worldOpts.round?'East and west meet: sail off one side and you come back on the other.':'A map with edges, the sea all round.'}</p>`+WSL.map(([k,l,a,b,mn,mx,st,f])=>{const v=worldOpts[k]??(k==='land'||k==='rain'?.5:1);
   return `<label class="sl"><span>${l}</span><input type="range" min="${mn}" max="${mx}" step="${st}" value="${v}" data-wo="${k}"><b id="wov_${k}">${f(v)}</b><span class="ends"><span>${a}</span><span>${b}</span></span></label>`}).join('')}
 let woTimer=0;
+$('#worldSliders').addEventListener('click',e=>{const b=e.target.closest('[data-round]');if(!b)return;worldOpts.round=b.dataset.round==='1';const t=climate.temp;genWorld(worldSeed);climate.temp=t;terrainDirty=true;updateHUD();renderWorldSliders()});
 $('#worldSliders').addEventListener('input',e=>{const k=e.target.dataset.wo;if(!k)return;const v=+e.target.value;worldOpts[k]=v;const d=WSL.find(s=>s[0]===k);$('#wov_'+k).textContent=d[7](v);
   clearTimeout(woTimer);woTimer=setTimeout(()=>{const t=climate.temp;genWorld(worldSeed);climate.temp=t;terrainDirty=true;updateHUD()},220)});
 function openSetup(){renderWorldSliders();$('#titleMain').hidden=true;$('#setup').hidden=false;if(!$('#worldName').value)$('#worldName').value=genName(2,3)+(rng()<.5?' Reach':' Realm');

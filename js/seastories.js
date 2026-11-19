@@ -16,7 +16,7 @@ function T(){if(!GODW.tales||!GODW.tales.picked){const ids=TALE_IDS.slice().sort
 const has=id=>T().picked.includes(id)&&!T().done[id];
 /* open sea far from any land, and a sheltered bay */
 function openSea(minLand){for(let q=0;q<600;q++){const x=4+((rng()*(W-8))|0),y=4+((rng()*(H-8))|0),j=y*W+x;if(!isWater(j)||biome[j]!==0)continue;let ok=true;
-    for(let dy=-minLand;dy<=minLand&&ok;dy+=2)for(let dx=-minLand;dx<=minLand;dx+=2){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;if(!isWater(Y*W+X)){ok=false;break}}if(ok)return j}return -1}
+    for(let dy=-minLand;dy<=minLand&&ok;dy+=2)for(let dx=-minLand;dx<=minLand;dx+=2){const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;if(!isWater(Y*W+X)){ok=false;break}}if(ok)return j}return -1}
 function bay(){for(let q=0;q<900;q++){const j=(rng()*N)|0;if(biome[j]!==1)continue;const x=j%W,y=(j/W)|0;let land=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X>=0&&Y>=0&&X<W&&Y<H&&!isWater(Y*W+X))land++}
     if(land>=3&&land<=5&&!nearCity(x,y,4))return j}return -1}
 const nearestNation=(x,y,f)=>{let b=null,bd=1e9;for(const n of nations){if(!n.alive||(f&&!f(n)))continue;for(const c of n.cities){const d=Math.hypot(c.x-x,c.y-y);if(d<bd){bd=d;b={n,c,d}}}}return b};
@@ -124,7 +124,7 @@ function serpentYear(){const S=T().ser;if(!S)return;if(year>S.until||topEra()>=5
     if(s.kind==='war'){if(rng()<.3){S.hp--;if(S.hp<=0){log(`The warships of ${n?n.name:'a nation'} killed the sea serpent; its bones washed up on the shore.`,'war');T().ser=null;T().done.serpent=1;return}}else if(rng()<.15){s.sink=.01;if(n)log(`The sea serpent dragged a warship of ${n.name} under.`,'war')}}
     else if(rng()<.3){s.sink=.01;if(n&&told(n))log(`The sea serpent took a ship of ${n.name}.`,'war')}}}
 function taleSirens(){const t=nearestNation(W/2,H/2,n=>!n.atl&&n.cities.some(c=>coastWater(c).length));if(!t)return false;const c=t.n.cities.find(q=>coastWater(q).length);
-  for(let q=0;q<60;q++){const a=rng()*6.283,r=2+rng()*2,x=Math.round(c.x+Math.cos(a)*r),y=Math.round(c.y+Math.sin(a)*r);if(x<0||y<0||x>=W||y>=H||!isWater(y*W+x))continue;
+  for(let q=0;q<60;q++){const a=rng()*6.283,r=2+rng()*2,x=wrapTX(Math.round(c.x+Math.cos(a)*r)),y=Math.round(c.y+Math.sin(a)*r);if(x<0||y<0||x>=W||y>=H||!isWater(y*W+x))continue;
     T().sir={x:wx(x),z:wz(y),name:c.name};log(`Ships began to founder on the rocks off ${c.name}; sailors swear they hear singing there at dusk.`,'sky');return true}return false}
 function sirenYear(){const S=T().sir;if(!S||S.light)return;if(topEra()>=6){S.light=year;log(`A lighthouse now stands on the singing rocks off ${S.name}. No one has heard the singing since.`,'era');T().done.sirens=1;return}
   for(const s of ships){if(s.sink||s.kind==='war'||s.kind==='ghost'||Math.hypot(s.x-S.x,s.z-S.z)>.9||rng()>.12)continue;s.sink=.01;const n=nations[s.owner];if(n&&told(n)&&year-(S.said||-99)>15){S.said=year;log(`A ship of ${n.name} broke up on the singing rocks off ${S.name}.`,'sky')}}}
@@ -170,7 +170,7 @@ function talesFrame(R2){if(!GODW.tales)return;const S=GODW.tales,now=performance
         add('gwBox',bx,waterY+.03,bz,.055,.03,.05,a,0x8a6a44);add('gwCone',bx,waterY+.06,bz,.07,.035,.065,a+.785,0xc8a868)}if(rng()<.05)emit('smoke',x,waterY+.05,z)}}
   /* drowned towers */for(const d of S.drowned){const x=wx(d.x),z=wz(d.y);if(!near(x,z))continue;const g=groundY(x,z),ht=waterY-g+.14;add('gwBox',x,g,z,.06,ht,.06,.3,0x8a8278);add('gwCone',x,g+ht,z,.075,.07,.075,1.085,0x4a4a52)}
   /* dikes along the low coast of nations that build them */if(Object.keys(S.dikes).length&&camDist<14){for(const id in S.dikes){if(id.includes('_'))continue;const n=nations[id];if(!n||!n.alive||n.era<3)continue;
-      for(const c of n.cities){const cx=wx(c.x),cz=wz(c.y);if(!near(cx,cz,2))continue;for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(isWater(q)||owner[q]!==n.id||h[q]-sea>.04)continue;
+      for(const c of n.cities){const cx=wx(c.x),cz=wz(c.y);if(!near(cx,cz,2))continue;for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(isWater(q)||owner[q]!==n.id||h[q]-sea>.04)continue;
           for(let d=0;d<4;d++){const q2=(Y+DY[d])*W+X+DX[d];if(!isWater(q2))continue;const ex=wx(X)+DX[d]*.42,ez=wz(Y)+DY[d]*.42;add('gwBox',ex,groundY(ex,ez)-.01,ez,DX[d]?.08:1,.035,DX[d]?1:.08,0,0x6a7a4a)}}}}}
   /* Atlantis: white columns under the shallow sea */if(S.atl&&S.atl.sunk){const x=wx(S.atl.x),z=wz(S.atl.y);if(near(x,z,2))for(let q=0;q<10;q++){const a=q/10*6.283,r=.35+(q%2)*.2,cx=x+Math.cos(a)*r,cz=z+Math.sin(a)*r,g=groundY(cx,cz);add('gwBox',cx,g,cz,.025,.06+(q%3)*.04,.025,0,0xe8e4d8)}}
   /* the island in the fog */if(S.fog&&year>=S.fog.on&&year<=S.fog.off&&near(S.fog.x,S.fog.z,3)){const F=S.fog;add('colBall',F.x,waterY-.12,F.z,1.4,.3,1.1,0,0x5a7a4a);

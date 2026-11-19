@@ -34,7 +34,7 @@ const farmReach=n=>3+(n.era>=3?1:0)+(n.era>=4?1:0);
 function farmTick(n){if(n.era<1||!CUTY)return;const F=farmArr(),C=CUTY,r=farmReach(n);let got=0;
   /* only a people that needs more land for food ploughs its clearings; otherwise the felled woods grow back */
   let have=0;for(let i=0;i<N;i++)if(F[i]&&owner[i]===n.id)have++;const room=n.pop>n.cap*.75?Math.max(0,n.cities.length*(4+n.era)-have):0;
-  if(room)for(const c of n.cities)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const i=Y*W+X;
+  if(room)for(const c of n.cities)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const i=Y*W+X;
     if(got>=room||F[i]||owner[i]!==n.id||!C[i]||!isForest(i)||forestGrowth(i)>.5||Math.hypot(dx,dy)>r+.5)continue;F[i]=1;hab[i]=Math.max(hab[i],BIOMES[4].hab);got++}
   /* worked fields hold the forest back */
   for(let i=0;i<N;i++)if(F[i]&&owner[i]===n.id)C[i]=year||1;
@@ -48,7 +48,7 @@ function logTick(n){if(n.wood==null)n.wood=30;const use=WOOD_USE[n.era]||0;if(!u
   const lvl=clamp(cityLevel(n)/14,.15,1),reach=4+(n.era>=4?2:0)+(n.era>=5?1:0);let want=0,cut=0;
   for(const c of n.cities){const d=use*lvl*.4*(green?.5:1);want+=d;c._wacc=(c._wacc||0)+d;const k=Math.floor(c._wacc);if(!k)continue;c._wacc-=k;
     /* the nearest standing forest within reach of this town */
-    const cand=[];for(let dy=-reach;dy<=reach;dy++)for(let dx=-reach;dx<=reach;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const i=Y*W+X,dd=Math.hypot(dx,dy);
+    const cand=[];for(let dy=-reach;dy<=reach;dy++)for(let dx=-reach;dx<=reach;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const i=Y*W+X,dd=Math.hypot(dx,dy);
       if(dd>reach+.5||!isForest(i)||forestGrowth(i)<.85)continue;if(owner[i]>=0&&owner[i]!==n.id)continue;if(typeof occupied!=='undefined'&&occupied.has(i))continue;cand.push([dd+hash(i*1.7+year*.01)*1.2,i])}
     cand.sort((a,b)=>a[0]-b[0]);let got=0;for(const [,i] of cand){if(got>=k)break;C[i]=year||1;got++;c._lumber={i,y:year}}cut+=got;
     /* told once per town, not every time the regrown wood is cut again */

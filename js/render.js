@@ -225,10 +225,10 @@ function panBy(dx,dy){
   const k=2*camDist*Math.tan(cam.fov*Math.PI/360)/innerHeight,p=camPitch();
   const rx=Math.cos(camYaw),rz=-Math.sin(camYaw),fx=-Math.sin(camYaw),fz=-Math.cos(camYaw);
   camT.x-=rx*dx*k;camT.z-=rz*dx*k;camT.x+=fx*dy*k/Math.sin(p);camT.z+=fz*dy*k/Math.sin(p);
-  camT.x=clamp(camT.x,-W/2,W/2);camT.z=clamp(camT.z,-H/2,H/2);
+  camT.x=ROUND?wrapWX(camT.x):clamp(camT.x,-W/2,W/2);camT.z=clamp(camT.z,-H/2,H/2);
 }
 function zoomBy(f){const L=camLimits();camDistT=clamp(camDistT*f,L.min,L.max)}
-function focusOn(x,z,dist){camT.x=x;camT.z=z;if(dist)camDistT=dist}
+function focusOn(x,z,dist){camT.x=wrapWX(x);camT.z=z;if(dist)camDistT=dist}
 /* pixel looks: the scene is drawn at a lower resolution and the browser scales it up with hard edges. Like a sprite game, the pixels grow as
    the camera comes closer (whole device pixels each, so every pixel is the same size); far out it is close to full detail. It is also much cheaper to draw. */
 let pixN=0,pixWant=0,pixSince=0;
@@ -274,9 +274,9 @@ const shapeH=v=>{const d=v-SEA0;return d>=0?SEA0*HS+d*HS*(.5+d*1.9+Math.max(0,d-
 let flatSpots=[],flatSig='',tslope=new Float32Array(1);
 function cityRadius(n,cap){return (cap?.62:.42)+Math.min(.9,Math.floor(cityLevel(n))*.05)}
 function citySig(){let s='';for(const n of nations)if(n.alive)n.cities.forEach((c,ci)=>{s+=c.x+','+c.y+','+(cityRadius(n,ci===0)*100|0)+';'});return s}
-function sampleH(tx,ty){tx=clamp(tx,0,W-1);ty=clamp(ty,0,H-1);const x0=Math.floor(tx),y0=Math.floor(ty),x1=Math.min(x0+1,W-1),y1=Math.min(y0+1,H-1),fx=tx-x0,fy=ty-y0;
+function sampleH(tx,ty){if(ROUND)tx=((tx%W)+W)%W;else tx=clamp(tx,0,W-1);ty=clamp(ty,0,H-1);const x0=Math.floor(tx),y0=Math.floor(ty),x1=ROUND?(x0+1)%W:Math.min(x0+1,W-1),y1=Math.min(y0+1,H-1),fx=tx-x0,fy=ty-y0;
   return lerp(lerp(h[y0*W+x0],h[y0*W+x1],fx),lerp(h[y1*W+x0],h[y1*W+x1],fx),fy)}
-function groundY(x,z){if(!VY)return 0;let u=(x+W/2)*R,v=(z+H/2)*R;u=clamp(u,0,VW-1.001);v=clamp(v,0,VH-1.001);
+function groundY(x,z){if(!VY)return 0;if(ROUND)x-=W*Math.round(x/W);let u=(x+W/2)*R,v=(z+H/2)*R;u=clamp(u,0,VW-1.001);v=clamp(v,0,VH-1.001);
   const u0=u|0,v0=v|0,fu=u-u0,fv=v-v0,k=v0*VW+u0;
   return lerp(lerp(VY[k],VY[k+1],fu),lerp(VY[k+VW],VY[k+VW+1],fu),fv)}
 const surfY=(x,z)=>Math.max(groundY(x,z),waterY);
@@ -404,6 +404,8 @@ function buildTerrain(){
   CT_U=null;LAY_TOKEN++;LAY_PEND=0;LAY={base:-1,wy:null,keys:null};LAYOLD=null;LAYDIRTY=null;HPREV=null;RLY_RECT=null;LAYBIO=-1;
   const dn=makeNoise((hseed*1000)|0);
   for(let v=0;v<VH;v++)for(let u=0;u<VW;u++)detail[v*VW+u]=(dn(u/R*.9,v/R*.9,3)-.5)*2;
+  /* a round world: the east edge's bumps are the west edge's, so the two sides join without a step */
+  if(ROUND)for(let v=0;v<VH;v++){const T=Math.min(R*3,VW>>2);for(let q=0;q<T;q++){const f=q/T,a=v*VW+q,b=v*VW+VW-1-q;const m=(detail[a]+detail[b])*.5;detail[a]=lerp(m,detail[a],f);detail[b]=lerp(m,detail[b],f)}}
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(nv*3),3));
   g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(nv*3),3));
@@ -432,7 +434,8 @@ function buildOcean(){const pts=[],hw=W/2,hh=H/2;
   for(let r=0;r<RN;r++){const o=OCEAN_OFF[r],sx=(hw+o)/hw,sz=(hh+o)/hh;for(let k=0;k<P;k++){const [x,z]=pts[k],q=(r*P+k)*3;
     /* each edge point moves straight out from its side, the corners out along the diagonal */
     pos[q]=Math.abs(x)>=hw-1e-6?Math.sign(x)*(hw+o):x*sx;pos[q+1]=0;pos[q+2]=Math.abs(z)>=hh-1e-6?Math.sign(z)*(hh+o):z*sz}}
-  for(let r=0;r<RN-1;r++)for(let k=0;k<P;k++){const a=r*P+k,b=r*P+(k+1)%P,c=a+P,d=b+P;idx.push(a,b,c,b,d,c)}
+  for(let r=0;r<RN-1;r++)for(let k=0;k<P;k++){const a=r*P+k,b=r*P+(k+1)%P,c=a+P,d=b+P;
+    /* a round world: no open sea east and west, where the world runs on */if(ROUND&&Math.abs(pos[a*3+2]+pos[b*3+2]+pos[c*3+2]+pos[d*3+2])/4<hh-.01)continue;idx.push(a,b,c,b,d,c)}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setIndex(idx);
   const nrm=new Float32Array(P*RN*3);for(let k=1;k<nrm.length;k+=3)nrm[k]=1;g.setAttribute('normal',new THREE.BufferAttribute(nrm,3));
   g.setAttribute('aDepth',new THREE.BufferAttribute(new Float32Array(P*RN),1));g.setAttribute('aIce',new THREE.BufferAttribute(new Float32Array(P*RN),1));
@@ -548,7 +551,7 @@ function layoutPatch(bio){const spots=townSpots(),keys=new Set(spots.map(f=>f.ke
   if(bio)colorTerrain();else colorTerrain(RU);layoutWater(RU);g0b();return true}
 function g0b(){const g=terrainMesh.geometry;g.computeBoundingSphere();g.computeBoundingBox()}
 /* the ground height in an older copy of the heights, to move trees by as much as the ground under them moved */
-function groundYIn(A,x,z){let u=(x+W/2)*R,v=(z+H/2)*R;u=clamp(u,0,VW-1.001);v=clamp(v,0,VH-1.001);const u0=u|0,v0=v|0,fu=u-u0,fv=v-v0,k=v0*VW+u0;
+function groundYIn(A,x,z){if(ROUND)x-=W*Math.round(x/W);let u=(x+W/2)*R,v=(z+H/2)*R;u=clamp(u,0,VW-1.001);v=clamp(v,0,VH-1.001);const u0=u|0,v0=v|0,fu=u-u0,fv=v-v0,k=v0*VW+u0;
   return lerp(lerp(A[k],A[k+1],fu),lerp(A[k+VW],A[k+VW+1],fu),fv)}
 /* ground colours. Every vertex blends the colours of the four tiles around it, then shore sand, rock, snow and the look's tint.
    It can redo just one rectangle (a town that grew), and it makes no garbage: the per-row and per-column blend weights are worked out once. */
@@ -567,7 +570,7 @@ function colorTerrain(rect){ctTables();
   const tx0=Math.max(0,CT_U.x0[u0]-1),tx1=Math.min(W-1,CT_U.x1[u1]+1),ty0=Math.max(0,CT_V.y0[v0]/W-1),ty1=Math.min(H-1,CT_V.y1[v1]/W+1);
   for(const n of nations){if(!n.alive||n.era<5||n.era>6)continue;const k_=n.era===5?1:.4;n.cities.forEach((c,ci)=>{const R2=(ci===0?3.2:2.2)+Math.min(2,n.pop/Math.max(1,n.cities.length)/600),RC=Math.ceil(R2);
     if(c.x+RC<tx0||c.x-RC>tx1||c.y+RC<ty0||c.y-RC>ty1)return;
-    for(let dy=-RC;dy<=RC;dy++)for(let dx=-RC;dx<=RC;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d>R2)continue;const j=Y*W+X;SOOT[j]=Math.max(SOOT[j],k_*(1-d/R2))}})}
+    for(let dy=-RC;dy<=RC;dy++)for(let dx=-RC;dx<=RC;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d>R2)continue;const j=Y*W+X;SOOT[j]=Math.max(SOOT[j],k_*(1-d/R2))}})}
   const GRD=LK.ground||{},mA=typeof marshAt==='function',sc=typeof scorched!=='undefined'&&scorched;
   for(let ty=ty0;ty<=ty1;ty++)for(let tx=tx0;tx<=tx1;tx++){const i=ty*W+tx;const c=mA&&marshAt(i)?MARSH_C:GRD[biome[i]]||GROUND[biome[i]],v=1-.1*hash(i*1.7);let r=c[0]*v,g=c[1]*v,b=c[2]*v;
     if(sc&&scorched[i]>0&&!isWater(i)){const t=Math.min(1,scorched[i]/18)*.85;r=lerp(r,56,t);g=lerp(g,50,t);b=lerp(b,44,t)}
@@ -627,7 +630,7 @@ function ensureOwnTex(){if(ownTex&&ownTex.image.width===W&&ownTex.image.height==
 const contested=new Uint8Array(1<<16);let contestedList=[];
 function updateTerritoryTex(){ensureOwnTex();const a=ownTex.image.data,w=warTex.image.data;contestedList=[];
   for(let i=0;i<N;i++){const o=owner[i],q=i*4;if(o<0||!nations[o]){a[q+3]=0;w[q]=0;continue}const c=nations[o].rgb;a[q]=LIN[c[0]]*255;a[q+1]=LIN[c[1]]*255;a[q+2]=LIN[c[2]]*255;a[q+3]=isWater(i)?0:255;
-    let war=0;if(nations[o].wars.size){const x=i%W,y=(i/W)|0;for(let dy=-1;dy<=1&&!war;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const p=owner[Y*W+X];if(p>=0&&p!==o&&nations[o].wars.has(p)){war=255;break}}}
+    let war=0;if(nations[o].wars.size){const x=i%W,y=(i/W)|0;for(let dy=-1;dy<=1&&!war;dy++)for(let dx=-1;dx<=1;dx++){const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const p=owner[Y*W+X];if(p>=0&&p!==o&&nations[o].wars.has(p)){war=255;break}}}
     w[q]=war;w[q+3]=255;if(war&&!isWater(i))contestedList.push(i)}
   ownTex.needsUpdate=true;warTex.needsUpdate=true}
 /* marching squares over a blurred membership field gives each nation an organic outline instead of tile steps */
@@ -669,7 +672,7 @@ function drawBorderMesh(){if(!borderMesh)return;
       const M=p.length,nrm=[];for(let i=0;i<M;i++){const A=p[(i-1+M)%M],B=p[(i+1)%M];const dx=B[0]-A[0],dy=B[1]-A[1],l=Math.hypot(dx,dy)||1;nrm.push([dy/l,-dx/l])}
       let inside=0,tot=0;for(let i=0;i<M;i+=Math.max(1,(M/12)|0)){const X=Math.floor(p[i][0]+nrm[i][0]*.6),Y=Math.floor(p[i][1]+nrm[i][1]*.6);tot++;if(X>=0&&Y>=0&&X<W&&Y<H&&owner[Y*W+X]===o)inside++}
       const sg=inside*2>=tot?1:-1;
-      const warAt=i=>{const X=Math.floor(p[i][0]-nrm[i][0]*sg*.7),Y=Math.floor(p[i][1]-nrm[i][1]*sg*.7);if(X<0||Y<0||X>=W||Y>=H)return 0;const nb=owner[Y*W+X];return nb>=0&&n.wars.has(nb)?1:0};
+      const warAt=i=>{const X=wrapTX(Math.floor(p[i][0]-nrm[i][0]*sg*.7)),Y=Math.floor(p[i][1]-nrm[i][1]*sg*.7);if(X<0||Y<0||X>=W||Y>=H)return 0;const nb=owner[Y*W+X];return nb>=0&&n.wars.has(nb)?1:0};
       const at=(i,off)=>{const q=p[i%M],nn=nrm[i%M],x=q[0]+nn[0]*off*sg-W/2,z=q[1]+nn[1]*off*sg-H/2;return[x,surfY(x,z)+.045,z]};
       for(let i=0;i<M;i++){const war=warAt(i)||warAt((i+1)%M),lc=war?RED:base;
         const a0=at(i,.0),b0=at(i+1,.0),a1=at(i,lw),b1=at(i+1,lw),a2=at(i,lw+band),b2=at(i+1,lw+band);
@@ -687,5 +690,5 @@ function pickPoint(cx,cy){ndc.set(cx/innerWidth*2-1,-(cy/innerHeight)*2+1);rayca
       for(let k=0;k<10;k++){const m=(a+b)/2,mx=o.x+d.x*m,my=o.y+d.y*m,mz=o.z+d.z*m;if(my<=surfY(mx,mz))b=m;else a=m}
       return{x:o.x+d.x*b,z:o.z+d.z*b}}prev=t;t+=step}
   return null}
-function pickTile(cx,cy){const p=pickPoint(cx,cy);if(!p)return -1;const x=Math.floor(p.x+W/2),y=Math.floor(p.z+H/2);if(x<0||y<0||x>=W||y>=H)return -1;return y*W+x}
-const project=(x,y,z)=>{const v=V3.set(x,y,z).project(cam);return[(v.x+1)/2*ov.width,(1-v.y)/2*ov.height,v.z]};
+function pickTile(cx,cy){const p=pickPoint(cx,cy);if(!p)return -1;const x=wrapTX(Math.floor(p.x+W/2)),y=Math.floor(p.z+H/2);if(x<0||y<0||x>=W||y>=H)return -1;return y*W+x}
+const project=(x,y,z)=>{const v=V3.set(nearX(x,camT.x),y,z).project(cam);/* a round world: things are shown at their copy nearest the camera */return[(v.x+1)/2*ov.width,(1-v.y)/2*ov.height,v.z]};

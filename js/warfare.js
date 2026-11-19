@@ -84,11 +84,11 @@ function updateBlasts(dt){for(let q=blasts.length-1;q>=0;q--){const B=blasts[q];
 /* ---------- one piece of land: pockets and enclaves are absorbed, so a nation never becomes a sieve ---------- */
 function consolidate(){const comp=new Int32Array(N).fill(-1),C=[];let changed=false;
   for(let s=0;s<N;s++){if(comp[s]>=0||isWater(s))continue;const o=owner[s],id=C.length,q=[s],tiles=[];comp[s]=id;
-    while(q.length){const i=q.pop();tiles.push(i);const x=i%W,y=(i/W)|0;for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(comp[j]<0&&!isWater(j)&&owner[j]===o){comp[j]=id;q.push(j)}}}
+    while(q.length){const i=q.pop();tiles.push(i);const x=i%W,y=(i/W)|0;for(let d=0;d<4;d++){const X=wrapTX(x+DX[d]),Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(comp[j]<0&&!isWater(j)&&owner[j]===o){comp[j]=id;q.push(j)}}}
     C.push({o,tiles})}
   for(let ci=0;ci<C.length;ci++){const c=C[ci],n=c.o>=0?nations[c.o]:null;
     if(n&&n.cities.some(t=>comp[t.y*W+t.x]===ci))continue;
-    const nb={};let coast=false;for(const i of c.tiles){const x=i%W,y=(i/W)|0;for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H){coast=true;continue}const j=Y*W+X;if(isWater(j)){coast=true;continue}const p=owner[j];if(p!==c.o)nb[p]=(nb[p]||0)+1}}
+    const nb={};let coast=false;for(const i of c.tiles){const x=i%W,y=(i/W)|0;for(let d=0;d<4;d++){const X=wrapTX(x+DX[d]),Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H){coast=true;continue}const j=Y*W+X;if(isWater(j)){coast=true;continue}const p=owner[j];if(p!==c.o)nb[p]=(nb[p]||0)+1}}
     const ks=Object.keys(nb).map(Number).sort((a,b)=>nb[b]-nb[a]);if(!ks.length)continue;const best=ks[0];
     if(c.o>=0){/* a pocket cut off from every town of its nation: it goes to whoever surrounds it */
       if(best>=0&&nations[best]&&nations[best].alive){for(const i of c.tiles)claim(i,best);changed=true}else if(c.tiles.length<=4){for(const i of c.tiles)claim(i,-1);changed=true}}

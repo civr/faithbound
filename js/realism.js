@@ -25,10 +25,10 @@ function harvestOf(n){
    and recover only slowly. */
 const FISH_ERA=[.6,.8,.9,1,1.1,1.2,1.5,1.4];
 /* the sea a town can fish from: water within two tiles of it, nearest first */
-function seaNear(c){if(c._snV===terrVer&&c._sn)return c._sn;const out=[];for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))out.push([Math.hypot(dx,dy),j])}
+function seaNear(c){if(c._snV===terrVer&&c._sn)return c._sn;const out=[];for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))out.push([Math.hypot(dx,dy),j])}
   out.sort((a,b)=>a[0]-b[0]);c._snV=terrVer;c._sn=out.slice(0,4).map(q=>q[1]);return c._sn}
 function fishGrounds(c){if(c._fgV===terrVer&&c._fgN!=null)return c._fgN;let g=0;const coast=seaNear(c).length,riv=!!river[c.y*W+c.x];
-  if(coast)for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))g+=biome[j]===1?1:.4}
+  if(coast)for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j))g+=biome[j]===1?1:.4}
   if(riv)g+=coast?3:4;c._fgV=terrVer;c._fgN=Math.min(1,g/12);return c._fgN}
 /* how many boats a town's harbour can keep: more for bigger towns */
 function fishBoats(n,c){const lv=typeof townLevel==='function'?townLevel(n,c===n.cities[0]):6;return clamp(1+Math.floor(lv/3.5),1,5)}

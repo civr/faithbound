@@ -80,7 +80,7 @@ gp({id:'carve',tab:'Land',label:'Carve a river',cost:35,icon:'river',hint:'Tap w
   if(isWater(i)){say('Start on land.');return}
   const p=pickTwo('carve',i,{},null,'Now tap where the river should run to.');if(!p)return;if(!spend(35))return;
   let x0=p.i%W,y0=(p.i/W)|0;const x1=i%W,y1=(i/W)|0,tiles=[];const steps=Math.max(Math.abs(x1-x0),Math.abs(y1-y0));
-  for(let s=0;s<=steps;s++){const t=steps?s/steps:0,wob=Math.sin(s*.7+x0)*.9,X=Math.round(lerp(x0,x1,t)+(steps>4?wob*Math.abs(y1-y0)/steps:0)),Y=Math.round(lerp(y0,y1,t)+(steps>4?wob*Math.abs(x1-x0)/steps:0));
+  for(let s=0;s<=steps;s++){const t=steps?s/steps:0,wob=Math.sin(s*.7+x0)*.9,X=wrapTX(Math.round(lerp(x0,x1,t)+(steps>4?wob*Math.abs(y1-y0)/steps:0))),Y=Math.round(lerp(y0,y1,t)+(steps>4?wob*Math.abs(x1-x0)/steps:0));
     if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(tiles[tiles.length-1]===k)continue;if(isWater(k)){tiles.push(k);break}tiles.push(k)}
   if(tiles.length<3){say('Make the river a little longer.');if(!unlimited)belief+=costOf(35);return}
   for(const k of tiles){river[k]=Math.max(river[k],2);h[k]=Math.max(sea+.004,h[k]-.012);moistD[k]=clamp(moistD[k]+.2,-.6,.6)}
@@ -90,10 +90,10 @@ gp({id:'carve',tab:'Land',label:'Carve a river',cost:35,icon:'river',hint:'Tap w
 /* part the sea: a land bridge opens for a generation, then the sea closes again */
 gp({id:'part',tab:'Land',label:'Part the sea',cost:60,icon:'part',hint:'Tap a strait between two coasts. The sea parts and a land bridge opens for about thirty years.'},(i,n)=>{
   if(!isWater(i)){say('Tap the sea between two coasts.');return}const x=i%W,y=(i/W)|0;let best=null;
-  for(const [dx,dy] of [[1,0],[0,1],[1,1],[1,-1]]){let a=null,b=null;for(let k=1;k<16&&!a;k++){const X=x+dx*k,Y=y+dy*k;if(X<0||Y<0||X>=W||Y>=H)break;if(!isWater(Y*W+X))a=k}
-    for(let k=1;k<16&&!b;k++){const X=x-dx*k,Y=y-dy*k;if(X<0||Y<0||X>=W||Y>=H)break;if(!isWater(Y*W+X))b=k}if(a&&b&&(!best||a+b<best.l))best={dx,dy,a,b,l:a+b}}
+  for(const [dx,dy] of [[1,0],[0,1],[1,1],[1,-1]]){let a=null,b=null;for(let k=1;k<16&&!a;k++){const X=wrapTX(x+dx*k),Y=y+dy*k;if(X<0||Y<0||X>=W||Y>=H)break;if(!isWater(Y*W+X))a=k}
+    for(let k=1;k<16&&!b;k++){const X=wrapTX(x-dx*k),Y=y-dy*k;if(X<0||Y<0||X>=W||Y>=H)break;if(!isWater(Y*W+X))b=k}if(a&&b&&(!best||a+b<best.l))best={dx,dy,a,b,l:a+b}}
   if(!best){say('There is no other shore close enough. Tap a narrower strait.');return}if(!spend(60))return;const keep=[];
-  for(let k=-best.b+1;k<best.a;k++)for(const w of [0,1]){const X=x+best.dx*k+(best.dy?w:0),Y=y+best.dy*k+(best.dy?0:w);if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(!isWater(j))continue;keep.push([j,h[j]]);h[j]=sea+.014}
+  for(let k=-best.b+1;k<best.a;k++)for(const w of [0,1]){const X=wrapTX(x+best.dx*k+(best.dy?w:0)),Y=y+best.dy*k+(best.dy?0:w);if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(!isWater(j))continue;keep.push([j,h[j]]);h[j]=sea+.014}
   GODW.bridges.push({until:year+30,tiles:keep});terrainDirty=true;fx(i,'bless');burst(i,'dust',20,3);shakeT=.4;
   log('You parted the sea. A path of dry land now runs between the shores.','sky');milestone('part','The sea parted','A land bridge opened at your word.')});
 

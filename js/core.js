@@ -197,5 +197,11 @@ function ten(n){const o=Object.assign({},NOTENET);const f=n.faith>=0?faiths[n.fa
   const tr=n.trade?n.trade.length:0;if(tr){o.grow*=1+.04*tr;o.tech*=1+.05*tr}return o}
 const isWater=j=>biome[j]===0||biome[j]===1;
 const wx=x=>x-W/2+.5, wz=y=>y-H/2+.5;
+/* a round world: east and west meet, as on a globe; the map wraps sideways (not at the poles) */
+let ROUND=false;function setRound(){ROUND=!!(typeof worldOpts!=='undefined'&&worldOpts.round)}
+const wrapTX=X=>ROUND?((X%W)+W)%W:X;/* a tile column, wrapped */
+const wrapWX=x=>ROUND?x-W*Math.round(x/W):x;/* a world x, brought into the map */
+const nearX=(x,ref)=>ROUND?x+W*Math.round((ref-x)/W):x;/* the copy of x nearest to ref (the camera) */
+const tdx=(a,b)=>ROUND?((b-a)%W+W*1.5)%W-W/2:b-a;/* the shortest step in columns from a to b */
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const LIN=new Float32Array(256);for(let i=0;i<256;i++)LIN[i]=Math.pow(i/255,2.2);

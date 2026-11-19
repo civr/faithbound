@@ -316,6 +316,7 @@ function cullCands(K,P,margin){if(K._cst===CULLK.last&&K._cm===margin)return K._
 function kitUp(K,n){K.mesh.count=n;const c=Math.max(1,n),IM=K.mesh.instanceMatrix;IM.needsUpdate=true;IM.updateRange.offset=0;IM.updateRange.count=c*16;const IC=K.mesh.instanceColor;if(IC){IC.needsUpdate=true;IC.updateRange.offset=0;IC.updateRange.count=c*3}}
 function copy16(D,d,S,o){for(let j=0;j<16;j++)D[d+j]=S[o+j]}
 function copy3(D,d,S,o){D[d]=S[o];D[d+1]=S[o+1];D[d+2]=S[o+2]}
+let CULL_S=[0];/* a round world: the sides (0, and a world-width east or west) whose copies may show; round.js culls each */
 function cullKit(K,P,margin){const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
   const NC=cullCands(K,P,margin),CL=K._cl;for(let j=0;j<NC;j++){const i=CL[j],x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
     for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}
@@ -325,6 +326,7 @@ function cullKit(K,P,margin){const A=K.mesh.instanceMatrix.array,C=K.mesh.instan
 /* re-cull when the camera has moved or turned, at most a dozen times a second while it moves */
 function cullTick(){if(typeof cam==='undefined')return;const now=performance.now();
   const sig=cam.position.x.toFixed(2)+','+cam.position.y.toFixed(2)+','+cam.position.z.toFixed(2)+','+cam.quaternion.x.toFixed(3)+','+cam.quaternion.y.toFixed(3)+','+cam.quaternion.w.toFixed(3);
+  {const sd=typeof roundSides==='function'?[0,...roundSides()]:[0];if(sd.join()!==CULL_S.join()){CULL_S=sd;CULLK.dirty=true}}
   if(!CULLK.dirty&&(sig===CULLK.sig||now-CULLK.last<80))return;CULLK.sig=sig;CULLK.last=now;CULLK.dirty=false;
   cam.updateMatrixWorld();CULLK.pm.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse);CULLK.fr.setFromProjectionMatrix(CULLK.pm);
   const P=CULLK.fr.planes,margin=.6+(typeof camDist!=='undefined'?camDist:10)*.12;
@@ -392,7 +394,7 @@ function countryside(){const farm=new Set();
       if(kind==='hedge'&&px_)for(let s=0;s<9;s++){const f=(s+.5)/9-.5+(hash(i*3+d*7+s)-.5)*.06,px=horiz?cx+f:cx,pz=horiz?cz:cz+f,gy=groundY(px,pz),hv=hash(i*5+d*3+s);if(gy<waterY+.03)continue;
         add('bush',px,gy-.012,pz,.26+hv*.1,.2+hv*.1,.26+hv*.1,hv*6,hv<.2?0x5f7a3c:hv<.6?0x42602c:0x3a5628);if(hv>.72)add('flower',px+.02,gy+.04,pz+.015,.013,.01,.013,0,hv>.86?0xe8e2d0:0xc85a5a)}}
     /* a farmstead on open ground beside the field */
-    if(e>=1&&e<=6&&hash(i*17.1)<.18)for(let d=0;d<4;d++){const X=x+DX[d],Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
+    if(e>=1&&e<=6&&hash(i*17.1)<.18)for(let d=0;d<4;d++){const X=wrapTX(x+DX[d]),Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;
       if(fieldTiles.has(j)||occupied.has(j)||farm.has(j)||isWater(j)||owner[j]!==o)continue;farm.add(j);
       const fx=X-W/2+.5-DX[d]*.25,fz=Y-H/2+.5-DY[d]*.25,gy=groundY(fx,fz),rot=hash(j)*1.57;if(gy<waterY+.04)break;
       const wall=e<=2?0x9a8468:e<=4?0xf0e8d8:0xb8604a,roof=e<=2?0xc8b070:0x8e3f2c,c=Math.cos(rot),s=Math.sin(rot);
@@ -406,7 +408,7 @@ function countryside(){const farm=new Set();
 const MARSH_C=[72,88,52];let MARSH=null,marshVer=-1;
 function marshAt(i){if(!MARSH||MARSH.length!==N||marshVer!==terrVer){MARSH=new Uint8Array(N);marshVer=terrVer;
     for(let j=0;j<N;j++){if(isWater(j)||!(biome[j]===4||biome[j]===5||biome[j]===8))continue;const m=baseMoist[j]+moistD[j]+(climate.rain-.5)*.7;if(h[j]-sea>.035||m<.5||hash(j*1.71)>.8)continue;
-      const x=j%W,y=(j/W)|0;let wet=false;for(let dy=-2;dy<=2&&!wet;dy++)for(let dx=-2;dx<=2;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(isWater(q)||river[q]){wet=true;break}}if(wet)MARSH[j]=1}}
+      const x=j%W,y=(j/W)|0;let wet=false;for(let dy=-2;dy<=2&&!wet;dy++)for(let dx=-2;dx<=2;dx++){const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(isWater(q)||river[q]){wet=true;break}}if(wet)MARSH[j]=1}}
   return MARSH[i]===1}
 
 /* ---------- building recipes ---------- */
@@ -863,7 +865,7 @@ function cityCenter(n,c,cx,cy,cz,e,cap,i0){
   if(e>=4&&e<=5)for(let k=0;k<6;k++){const a=k/6*6.283+.3,lx=cx+Math.cos(a)*(r+.02),lz=cz+Math.sin(a)*(r+.02);add('cyl',lx,cy,lz,.004,.075,.004,0,0x2e2e2e);add('lamp',lx,cy+.072,lz,.012,.014,.012)}
   if(e>=1&&e<=5&&herds.length<120){for(let h=0;h<1+(hash(i0*5)<.5?1:0);h++){const a=hash(i0*11+h)*6.283,d=.55+hash(i0*13+h)*.4,hx=cx+Math.cos(a)*d,hz=cz+Math.sin(a)*d,ti=Math.floor(hz+H/2)*W+Math.floor(hx+W/2);
     if(ti>=0&&ti<N&&owner[ti]===n.id&&(biome[ti]===4||biome[ti]===8)&&groundY(hx,hz)>waterY+.05)herds.push({x:hx,z:hz,kind:(q=>q<.45?'sheep':q<.78?'cow':q<.9?'pig':'horse')(hash(i0+h*3)),n:3+((hash(i0*17+h)*4)|0),seed:i0*7+h})}}}
-function harbour(c,cx,cz,e,i0,lvl){let d=-1;for(let q=0;q<4;q++){const X=c.x+DX[q],Y=c.y+DY[q];if(X<0||Y<0||X>=W||Y>=H)continue;if(isWater(Y*W+X)){d=q;break}}if(d<0)return;
+function harbour(c,cx,cz,e,i0,lvl){let d=-1;for(let q=0;q<4;q++){const X=wrapTX(c.x+DX[q]),Y=c.y+DY[q];if(X<0||Y<0||X>=W||Y>=H)continue;if(isWater(Y*W+X)){d=q;break}}if(d<0)return;
   if((lvl||0)>=5&&bigHarbour(c,cx,cz,e,i0,lvl,d))return;
   const len=e>=SAIL?.55:.32,px=cx+DX[d]*.45,pz=cz+DY[d]*.45,ax=DX[d]?len:.06,az=DY[d]?len:.06;
   add('box',px,waterY-.04,pz,ax,.06,az,0,e>=6?0x9a9a96:0x6b5038);
@@ -1018,7 +1020,7 @@ function chaikin2(p,it){for(let k=0;k<it;k++){const o=[p[0]];for(let i=0;i<p.len
 function metroRadius(n,c,cap,e){if(e<5||!n)return 0;const m=clamp(Math.sqrt(n.pop/Math.max(1,n.cities.length))*(cap?1.5:1)/40,0,1);
   const ws=clamp(W/112,.6,1.4);return (e===5?lerp(.4,cap?1.8:1.1,m):lerp(.6,cap?3.4:2,m))*ws}
 function isLagoon(n,c,e){if(e<2||e>5||!n)return false;if(c._lagT===terrVer)return c._lag;let w=0;
-  for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j)&&waterY-groundY(wx(X),wz(Y))<.95)w++}
+  for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(isWater(j)&&waterY-groundY(wx(X),wz(Y))<.95)w++}
   const lucky=hash(c.x*7.3+c.y*13.1)<(cultOf(n)==='med'?.85:.22);c._lagT=terrVer;return c._lag=w>=2&&w<=17&&lucky}
 function townPlan(n,c,cap,e){
   const MR=metroRadius(n,c,cap,e),mb=MR>.75?Math.round(MR*4)/4:0;
@@ -1147,7 +1149,7 @@ const CITYCACHE=new WeakMap();let setsPatched=false;
 function patchSets(){if(setsPatched)return;setsPatched=true;for(const [S_,key] of [[occupied,'occ'],[bare,'bare'],[bgrid,'bg']]){const o=S_.add.bind(S_);S_.add=v=>{if(REC)REC[key].push(v);return o(v)}}}
 const townGrowth=c=>c.born==null?1:clamp((year-c.born)/200,.15,1);
 function cityKey(n,c,ci,e,lvl,gold,cap){const MR=metroRadius(n,c,cap,e),rad=Math.ceil(Math.max(MR,.6))+1;let oh=0;
-  for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===n.id)oh++}oh=Math.round(oh/4)
+  for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===n.id)oh++}oh=Math.round(oh/4)
   const far=Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
   return [n.id,e,lvl,cap?1:0,gold?1:0,n.festival>0?1:0,c.statue?c.statue.faith:-1,c.siege>.08?1:0,c.riot&&year-c.riot<6?1:0,n.faith,n.wonder,flagKey(n.flag),cultOf(n),settings.arch,terrBase+':'+sea.toFixed(3)+':'+(c._flat||'')+':'+(c._gv||0),oh,far?1:0,Math.round(MR*4),
     n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),hbShipSig(),n.techs&&n.techs.includes('starships')?1:0,ci,settings.models!==false?1:0,cityRoadSig(c,rad)].join('|')}
@@ -1372,7 +1374,7 @@ function rebuildFields(){
   const pos=[],uv=[],col=[];fieldTiles.clear();let fsig=terrVer+'|'+(LK.pixel?1:0)+'|';const work=[];
   const vtx=(x,z,u,v,c)=>{pos.push(x,groundY(x,z)+.012,z);uv.push(u,v);col.push(c[0],c[1],c[2])};
   for(const n of nations){if(!n.alive||n.era<1)continue;const rad=(n.era>=4?3:2)+(LK.pixel?1:0),R2=Math.max(rad,typeof farmReach==='function'?farmReach(n):0);
-    for(const c of n.cities)for(let dy=-R2;dy<=R2;dy++)for(let dx=-R2;dx<=R2;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const i=Y*W+X;
+    for(const c of n.cities)for(let dy=-R2;dy<=R2;dy++)for(let dx=-R2;dx<=R2;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const i=Y*W+X;
       /* clearings the woodcutters left are always farmed */
       const fm=typeof FARMT!=='undefined'&&FARMT&&FARMT[i];if(!fm&&(Math.abs(dx)>rad||Math.abs(dy)>rad))continue;
       if(owner[i]!==n.id||occupied.has(i)||fieldTiles.has(i))continue;const b=biome[i];if(!fm&&!(b===4||b===8||(b===5&&n.era>=3)))continue;
@@ -1440,12 +1442,12 @@ function chaikin(p,it){for(let k=0;k<it;k++){const o=[p[0]];for(let i=0;i<p.leng
 function brooks(){const out=[],src=[];for(let i=0;i<N;i++){if(isWater(i)||river[i]||biome[i]>=11)continue;const a=h[i]-sea,m=baseMoist[i]+moistD[i];if(a<.04||a>.34||m<.4||hash(i*9.13)>.07)continue;src.push(i)}
   const taken=new Uint8Array(N);
   for(const s of src){if(taken[s])continue;const path=[s];let cur=s;
-    for(let k=0;k<30;k++){const x=cur%W,y=(cur/W)|0;let best=-1,bh=h[cur];for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(h[q]<bh-.0005){bh=h[q];best=q}}
+    for(let k=0;k<30;k++){const x=cur%W,y=(cur/W)|0;let best=-1,bh=h[cur];for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const q=Y*W+X;if(h[q]<bh-.0005){bh=h[q];best=q}}
       if(best<0)break;path.push(best);cur=best;if(isWater(best)||river[best]||taken[best]||marshAt(best))break}
     if(path.length<4)continue;for(const t of path)taken[t]=1;out.push(path)}
   return out}
 function riverNear(x,z,r){const R=riverSegs(),t=tileAt(x,z);if(t<0)return false;const X=t%W,Y=(t/W)|0;
-  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(X+dx<0||X+dx>=W||Y+dy<0||Y+dy>=H)continue;const L=R.get((Y+dy)*W+X+dx);if(!L)continue;
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const XD=wrapTX(X+dx);if(XD<0||XD>=W||Y+dy<0||Y+dy>=H)continue;const L=R.get((Y+dy)*W+XD);if(!L)continue;
     for(const g of L){const ex=g[2]-g[0],ez=g[3]-g[1],l2=ex*ex+ez*ez||1e-9,u=clamp(((x-g[0])*ex+(z-g[1])*ez)/l2,0,1),d=Math.hypot(x-g[0]-ex*u,z-g[1]-ez*u);if(d<g[4]+r)return true}}return false}
 /* the drawn rivers and brooks as line segments [x0,z0,x1,z1,half width,water height], filed under the tiles they touch, for the bridges */
 let RSEG=null,RSEGK='';
@@ -1480,7 +1482,7 @@ function roadPath(a,b,nid,used){const key=a.x+','+a.y+'>'+b.x+','+b.y+'|'+nid;if
   const pop=()=>{const top=heap[0],last=heap.pop();if(heap.length){heap[0]=last;let i=0;for(;;){const l=i*2+1,r=l+1;let m=i;if(l<heap.length&&heap[l][0]<heap[m][0])m=l;if(r<heap.length&&heap[r][0]<heap[m][0])m=r;if(m===i)break;[heap[m],heap[i]]=[heap[i],heap[m]];i=m}}return top};
   push(S,hx(S));let found=false,steps=0;
   while(heap.length&&steps++<20000){const [f,j]=pop();if(j===T){found=true;break}if(f-hx(j)>g[j]+1e-6)continue;const x=j%W,y=(j/W)|0;
-    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(isWater(k))continue;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(isWater(k))continue;
       if(dx&&dy&&(isWater(y*W+X)||isWater(Y*W+x)))continue;
       let c=(dx&&dy?1.414:1)*(1+tslope[k]*5+(biome[k]>=11?4:0)+(nid>=0&&owner[k]!==nid?3:0));
       if(river[k]&&!river[j])c+=2.5;if(used[k])c*=.45;const ng=g[j]+c;if(ng<g[k]){g[k]=ng;from[k]=j;push(k,ng+hx(k))}}}
@@ -1602,7 +1604,7 @@ function rebuildTrees0(){const RLOOK=typeof isRealLook==='function'&&isRealLook(
   {let tot=0;for(let i=0;i<N;i++)if(!isWater(i))tot+=treeWant(i);TGS=Math.min(1,62000/Math.max(1,tot))}
   kitReset(TREE_KITS);rebuildGreen();const dens=(settings.quality==='high'?1:settings.quality==='medium'?.65:.4)*(typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1),farm=countryside();
   /* trees near towns are drawn at a believable size next to the houses */
-  const near=new Float32Array(N).fill(1);for(const n of nations)if(n.alive)for(const c of n.cities)for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);near[Y*W+X]=Math.min(near[Y*W+X],.5+smooth(1,3.2,d)*.5)}
+  const near=new Float32Array(N).fill(1);for(const n of nations)if(n.alive)for(const c of n.cities)for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);near[Y*W+X]=Math.min(near[Y*W+X],.5+smooth(1,3.2,d)*.5)}
   for(let i=0;i<N;i++){const b=biome[i];if(occupied.has(i)||fieldTiles.has(i)||farm.has(i)||(scorched&&scorched[i]>0)||fires.has(i))continue;if(TREC)TREC.t=i;
     const x0=i%W-W/2,z0=((i/W)|0)-H/2,lat=1-Math.abs(((i/W)|0)/(H-1)-.5)*2;let n=0,type='broad';
     if(marshAt(i)){/* a marsh: reeds and a few willows */for(let t=0;t<0;t++){const x=x0+.1+hash(i*2.3+t)*.8,z=z0+.1+hash(i*5.1+t)*.8,y=groundY(x,z);if(y<waterY+.01)continue;const s=.12+hash(i+t*9)*.22;let lo=y,hi=y;for(let q=0;q<4;q++){const a=q*1.571,g=groundY(x+Math.cos(a)*s*.45,z+Math.sin(a)*s*.32);lo=Math.min(lo,g);hi=Math.max(hi,g)}if(hi-lo>.03)continue;add('puddle',x,lo-.004,z,s,hi-lo+.0055,s*.7,hash(i*t+1)*6)}
@@ -1646,10 +1648,10 @@ function rebuildTrees0(){const RLOOK=typeof isRealLook==='function'&&isRealLook(
     for(let t=0;t<4;t++){const hv=hash(i*9.13+t*3.7);if(hv<.35)continue;const x=x0+.1+hash(i*2.9+t)*.8,z=z0+.1+hash(i*6.7+t*1.3)*.8,y=groundY(x,z);if(y<waterY+.01)continue;
       const sz=.02+hv*.03;add(natKit('rock',hv),x,y-.008,z,sz,sz*.6,sz*.8,hv*6,hv<.6?0x9a958a:0xb0aa9c)}}
   /* hedgerows along field edges and orchards near villages */
-  if(dens>.4)for(const i of fieldTiles){const X=i%W,Y=(i/W)|0;for(let d=0;d<4;d++){const nx=X+DX[d],ny=Y+DY[d];if(nx<0||ny<0||nx>=W||ny>=H)continue;const j=ny*W+nx;if(fieldTiles.has(j)||hash(i*7+d)<.5)continue;
+  if(dens>.4)for(const i of fieldTiles){const X=i%W,Y=(i/W)|0;for(let d=0;d<4;d++){const nx=wrapTX(X+DX[d]),ny=Y+DY[d];if(nx<0||ny<0||nx>=W||ny>=H)continue;const j=ny*W+nx;if(fieldTiles.has(j)||hash(i*7+d)<.5)continue;
     for(let q=0;q<9;q++){if(hash(i*17+d*3+q)<.2)continue;const t=(q+.5)/9+(hash(i*5+q)-.5)*.06,ex=wx(X)+(DX[d]?DX[d]*.48:t-.5),ez=wz(Y)+(DY[d]?DY[d]*.48:t-.5),ey=groundY(ex,ez);if(ey<waterY+.04)continue;
       const hs=hash(i*13+d*5+q),f=near[i];if(hs<.14)add(natKit('broad',hs),ex,ey-.01,ez,(.4+hs)*f,(.42+hs)*f,(.4+hs)*f,q,0x4f7a36);else add('bush',ex,ey-.01,ez,(.5+hs*.3)*f,(.45+hs*.4)*f,(.5+hs*.3)*f,q,hs<.6?0x456f32:0x557a3a)}}}
-  for(const n of nations){if(!n.alive||n.era<2)continue;for(const c of n.cities){for(let q=0;q<2;q++){const a=hash(c.x*31+c.y*7+q)*6.283,X=Math.round(c.x+Math.cos(a)*1.6),Y=Math.round(c.y+Math.sin(a)*1.6);
+  for(const n of nations){if(!n.alive||n.era<2)continue;for(const c of n.cities){for(let q=0;q<2;q++){const a=hash(c.x*31+c.y*7+q)*6.283,X=wrapTX(Math.round(c.x+Math.cos(a)*1.6)),Y=Math.round(c.y+Math.sin(a)*1.6);
     if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]!==n.id||occupied.has(j)||fieldTiles.has(j)||biome[j]!==4||hash(j*1.7)>.5)continue;
     for(let gx=0;gx<4;gx++)for(let gz=0;gz<4;gz++){const ox=wx(X)-.3+gx*.2,oz=wz(Y)-.3+gz*.2,oy=groundY(ox,oz);if(oy>waterY+.04)add(natKit('broad',(gx*4+gz)/16+.03),ox,oy-.01,oz,.24,.22,.24,gx+gz,0x5e8f3a)}}}}
   kitCommit(TREE_KITS);
@@ -1703,7 +1705,7 @@ function cityPoint(c,near,fest){const P_=c._poi;if(!P_||!P_.pts.length){const a=
   if(rng()<(fest?.75:.25)){const a=rng()*6.28,r=rng()*P_.r*.8;return[P_.plaza[0]+Math.cos(a)*r,P_.plaza[1]+Math.sin(a)*r]}
   for(let q=0;q<6;q++){const p=P_.pts[(rng()*P_.pts.length)|0];if(!near||Math.hypot(p[0]-near[0],p[1]-near[1])<.6)return[p[0]+(rng()-.5)*.02,p[1]+(rng()-.5)*.02]}
   const p=P_.pts[(rng()*P_.pts.length)|0];return[p[0],p[1]]}
-function fieldPoint(c){const cx=c.x,cy=c.y;for(let q=0;q<10;q++){const X=cx+((rng()*5)|0)-2,Y=cy+((rng()*5)|0)-2;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(fieldTiles.has(j))return[wx(X)+(rng()-.5)*.7,wz(Y)+(rng()-.5)*.7]}return null}
+function fieldPoint(c){const cx=c.x,cy=c.y;for(let q=0;q<10;q++){const X=wrapTX(cx+((rng()*5)|0)-2),Y=cy+((rng()*5)|0)-2;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(fieldTiles.has(j))return[wx(X)+(rng()-.5)*.7,wz(Y)+(rng()-.5)*.7]}return null}
 function updateWalkers(dt,yrs){
   if(!settings.people){for(const k of FIG_KITS)KITS[k].mesh.count=0;return}
   const cap=settings.quality==='high'?1100:settings.quality==='medium'?650:280;

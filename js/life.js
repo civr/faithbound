@@ -132,7 +132,7 @@ function lineWater(x0,z0,x1,z1){const L=Math.hypot(x1-x0,z1-z0),n=Math.max(2,Mat
 function fbGrounds(c){if(c._fbgV===terrVer&&c._fbg)return c._fbg;const homes=[],spots=[];const cx=wx(c.x),cz=wz(c.y);
   for(const j of seaNear(c)){const tx=wx(j%W),tz=wz((j/W)|0),d=Math.hypot(cx-tx,cz-tz)||1,pull=Math.min(.32,.45/d);homes.push({x:tx+(cx-tx)*pull,z:tz+(cz-tz)*pull})}
   if(homes.length){const h=homes[0];const cand=[];
-    for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(!isWater(j))continue;const x=wx(X),z=wz(Y),d=Math.hypot(x-h.x,z-h.z);
+    for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(!isWater(j))continue;const x=wx(X),z=wz(Y),d=Math.hypot(x-h.x,z-h.z);
       if(d<1.4||d>5.2||!lineWater(h.x,h.z,x,z))continue;cand.push({x,z,s:(biome[j]===1?1.5:1)+hash(j*3.7)*.6-d*.06})}
     cand.sort((a,b)=>b.s-a.s);for(const q of cand){if(spots.every(o=>Math.hypot(o.x-q.x,o.z-q.z)>.9))spots.push(q);if(spots.length>=6)break}}
   c._fbgV=terrVer;c._fbg={homes,spots};return c._fbg}

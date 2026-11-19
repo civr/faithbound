@@ -20,7 +20,7 @@ CULTURES.east.label='Chinese';CULTURES.east.syl=['shan','lin','hua','jin','yun',
 const NEW_CU=['slavic','southasia','steppe','pacific','andean','arctic','japan','american'];
 
 /* who lives where: by land, climate, mountains and islands */
-function landShare(i,r){const x=i%W,y=(i/W)|0;let l=0,t=0;for(let dy=-r;dy<=r;dy+=2)for(let dx=-r;dx<=r;dx+=2){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;t++;if(!isWater(Y*W+X))l++}return t?l/t:1}
+function landShare(i,r){const x=i%W,y=(i/W)|0;let l=0,t=0;for(let dy=-r;dy<=r;dy+=2)for(let dx=-r;dx<=r;dx+=2){const X=wrapTX(x+dx),Y=y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;t++;if(!isWater(Y*W+X))l++}return t?l/t:1}
 pickCulture=function(i){const b=biome[i],y=(i/W)|0,lat=1-Math.abs(y/(H-1)-.5)*2,r=rng(),pk=a=>a[(r*a.length)|0];
   if(b===9||b===10)return pk(['arctic','arctic','nordic','slavic']);
   if(lat<.3)return pk(['nordic','nordic','slavic','arctic','west']);
