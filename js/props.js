@@ -353,7 +353,9 @@ function footAdd(o){footEach(o,k=>{let L=FOOT.get(k);if(!L)FOOT.set(k,L=[]);L.pu
 function obbHit(a,b){const dx=b.x-a.x,dz=b.z-a.z;if(dx*dx+dz*dz>(a.r+b.r)**2)return false;
   for(const [nx,nz] of [[a.c,-a.s],[a.s,a.c],[b.c,-b.s],[b.s,b.c]]){const ra=a.hw*Math.abs(a.c*nx-a.s*nz)+a.hd*Math.abs(a.s*nx+a.c*nz),rb=b.hw*Math.abs(b.c*nx-b.s*nz)+b.hd*Math.abs(b.s*nx+b.c*nz);
     if(Math.abs(dx*nx+dz*nz)>ra+rb)return false}return true}
-function footHits(o,ign){return footEach(o,k=>{const L=FOOT.get(k);if(L)for(const q of L)if(q.t!==ign&&obbHit(o,q))return true;return false})}
+function footHits(o,ign){if(ROADPLAN&&ROADPLAN.lines.length&&!FOOT_NOROAD&&footOnRoad(o))return true;return footHits0(o,ign)}
+let FOOT_NOROAD=false;
+function footHits0(o,ign){return footEach(o,k=>{const L=FOOT.get(k);if(L)for(const q of L)if(q.t!==ign&&obbHit(o,q))return true;return false})}
 /* build something as a solid thing: if it would stand inside anything already there, it is taken down again */
 /* what a building added is noted as it goes (each kit the first time it is touched, with its count then), so a building that does not fit can be taken
    down again without first writing down the count of every one of the 150 kits for every house */
@@ -1148,7 +1150,7 @@ function cityKey(n,c,ci,e,lvl,gold,cap){const MR=metroRadius(n,c,cap,e),rad=Math
   for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++){const X=c.x+dx,Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(owner[j]===n.id)oh++}oh=Math.round(oh/4)
   const far=Math.hypot(wx(c.x)-camT.x,wz(c.y)-camT.z)>camDist*1.3+2.5;
   return [n.id,e,lvl,cap?1:0,gold?1:0,n.festival>0?1:0,c.statue?c.statue.faith:-1,c.siege>.08?1:0,c.riot&&year-c.riot<6?1:0,n.faith,n.wonder,flagKey(n.flag),cultOf(n),settings.arch,terrBase+':'+sea.toFixed(3)+':'+(c._flat||'')+':'+(c._gv||0),oh,far?1:0,Math.round(MR*4),
-    n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),hbShipSig(),n.techs&&n.techs.includes('starships')?1:0,ci,settings.models!==false?1:0].join('|')}
+    n.techs&&n.techs.includes('aviation')?1:0,devTier(n),c.dike?1:0,cap?4:Math.round(townGrowth(c)*5),hbShipSig(),n.techs&&n.techs.includes('starships')?1:0,ci,settings.models!==false?1:0,cityRoadSig(c,rad)].join('|')}
 /* a town's copies are kept as plain blocks (matrices, colours, culling spheres) so replaying it is a straight copy */
 function stageSpheres(K,s,at,n){if(!K.csS||K.csS.length<(at+n)*4){const o=K.csS,c=new Float32Array(Math.min(K.max,Math.max(at+n,o?o.length/2:0,256))*4);if(o)c.set(o.subarray(0,Math.min(o.length,c.length)));K.csS=c}K.csS.set(n*4<s.length?s.subarray(0,n*4):s,at*4)}
 function replayCity(Rc){if(Rc.ft){const fr=FOOTREC;FOOTREC=null;for(const o of Rc.ft)footAdd(o);FOOTREC=fr}for(const name in Rc.m){const K=KITS[name],m=Rc.m[name],cnt=Math.min(m.length/16,K.max-K.k);if(cnt<=0)continue;kitGrow(K,K.k+cnt);
@@ -1169,10 +1171,10 @@ function rebuildCities(){patchSets();RB0=performance.now();for(const n of nation
 /* when every town, lair, ruin and mine would come out exactly as it is now, the whole rebuild is skipped */
 let RC_SIG='';
 const cityModelsSame=h=>typeof mdlSame!=='function'||mdlSame(h.mu);
-function rcSig(){let s=terrBase+'/'+settings.quality+'/'+(settings.models!==false)+'/'+(typeof MDL_VER!=='undefined'?MDL_VER:0)+'/'+lookKey+'/'+settings.arch+'/';for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(TOWN_MAX,cityLevel(n)+(gold?1.5:0))*2)/2;
+function rcSig(){roadPlan();let s=terrBase+'/'+settings.quality+'/'+(settings.models!==false)+'/'+(typeof MDL_VER!=='undefined'?MDL_VER:0)+'/'+lookKey+'/'+settings.arch+'/';for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(TOWN_MAX,cityLevel(n)+(gold?1.5:0))*2)/2;
     n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);s+=(hit&&hit.key===key&&cityModelsSame(hit)?'=':'!')+c.x+','+c.y+';'})}
   s+='|'+coves.map(c=>c.x+','+c.y).join(';')+'|'+ruins.map(r=>r.x+','+r.y+':'+Math.floor((year-r.year)/10)).join(';')+'|'+deposits.map(d=>d.i+d.k+':'+owner[d.i]+':'+(owner[d.i]>=0&&nations[owner[d.i]]?nations[owner[d.i]].era:-1)).join(';');return s}
-function rebuildCities0(){{const sig=rcSig();if(sig===RC_SIG&&!sig.includes('!'))return;RC_SIG=sig}{let s='';for(const n of nations)if(n.alive&&n.era>=5&&n.era<=6)s+=n.id+':'+n.era+':'+n.cities.length+';';if(s!==sootSig){sootSig=s;if(typeof colorDirty!=='undefined')colorDirty=true}}
+function rebuildCities0(){roadPlan();{const sig=rcSig();if(sig===RC_SIG&&!sig.includes('!'))return;RC_SIG=sig}{let s='';for(const n of nations)if(n.alive&&n.era>=5&&n.era<=6)s+=n.id+':'+n.era+':'+n.cities.length+';';if(s!==sootSig){sootSig=s;if(typeof colorDirty!=='undefined')colorDirty=true}}
   for(const m of townFlags)scene.remove(m);townFlags=[];airports=[];spaceports=[];bgrid.clear();FOOT.clear();kitReset(BUILD_KITS);occupied.clear();bare.clear();grassAt.x=1e9;emitters=[];herds=[];cityStreets=[];for(const g of windmills)scene.remove(g);windmills=[];
   const stale=[];
   for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(TOWN_MAX,cityLevel(n)+(gold?1.5:0))*2)/2;
@@ -1466,6 +1468,39 @@ const RIBC=new Map();let ribcVer=-1;
 let ribcBase=-1,RIB_DIRTY=[];
 let ROAD_LINES=[];
 let BRIDGES=[];
+/* ---------- the road plan: where the roads between towns will run, worked out before the towns are built so no house is put on one ---------- */
+let ROADPLAN={sig:null,lines:[],res:new BitGrid(),ver:0,box:[]};
+function roadPlanSig(){return terrBase+'/'+nations.map(n=>n.alive?n.id+':'+n.era+':'+n.cities.map(c=>c.x+','+c.y).join(';')+'/'+(n.trade||[]).join(',')+'/'+[...(n.nb||[])].join(','):'').join('|')}
+function roadPlanLines(){
+  /* roads: towns link to their nearest connected neighbour along the easiest ground (valleys, fords, existing roads) */
+  const used=new Uint8Array(N),lines=[];
+  for(const n of nations){if(!n.alive||n.cities.length<2)continue;const e=n.era,t=e<4?0:e<6?1:2,w=e<3?.055:e<5?.07:.1;
+    const conn=[n.cities[0]],rest=n.cities.slice(1);
+    while(rest.length){let bi=0,bj=0,bd=1e9;for(let i=0;i<rest.length;i++)for(let j=0;j<conn.length;j++){const d=Math.hypot(rest[i].x-conn[j].x,rest[i].y-conn[j].y);if(d<bd){bd=d;bi=i;bj=j}}
+      const a=rest.splice(bi,1)[0],b=conn[bj];conn.push(a);if(bd>22)continue;
+      const path=roadPath(a,b,n.id,used);if(path)lines.push({path,w,t,nid:n.id})}}
+  for(const n of nations){if(!n.alive||!n.cities.length)continue;for(const m of n.trade){const B=nations[m];if(!B||!B.alive||m<n.id||!B.cities.length||!n.nb.has(m))continue;
+    const path=roadPath(n.cities[0],B.cities[0],-1,used);if(path){const e=Math.min(n.era,B.era);lines.push({path,w:e<3?.05:e<5?.065:.09,t:e<4?0:e<6?1:2,nid:n.id})}}}
+  /* trading partners that can be reached over land are joined where their towns lie nearest, so the two road networks meet */
+  {const done=new Set();for(const n of nations){if(!n.alive||!n.cities.length)continue;for(const m of n.trade||[]){const B=nations[m];if(!B||!B.alive||!B.cities.length)continue;const key=Math.min(n.id,m)+':'+Math.max(n.id,m);if(done.has(key))continue;done.add(key);
+      let a=null,b=null,bd=1e9;for(const p of n.cities)for(const q of B.cities){const d=Math.hypot(p.x-q.x,p.y-q.y);if(d<bd){bd=d;a=p;b=q}}if(!a||bd>34)continue;
+      const path=roadPath(a,b,-1,used);if(path){const e=Math.min(n.era,B.era);lines.push({path,w:e<3?.05:e<5?.065:.09,t:e<4?0:e<6?1:2,nid:n.id,trade:m})}}}}
+  return lines}
+function roadPlan(){const sig=roadPlanSig();if(sig===ROADPLAN.sig)return ROADPLAN;
+  const lines=roadPlanLines(),res=new BitGrid(),box=[];
+  /* the ground each road will cover, a little wider than the road; not in the squares at the towns' hearts, where the roads end */
+  const hearts=[];for(const n of nations)if(n.alive)for(const c of n.cities)hearts.push([wx(c.x),wz(c.y)]);
+  for(const L of lines){const pts=chaikin2(L.path.map(j=>[wx(j%W)+(hash(j*3.1)-.5)*.25,wz((j/W)|0)+(hash(j*7.3)-.5)*.25]),3),r=L.w*.5+.03,R=Math.ceil(r/BC),D=discOff(R);let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
+    for(let k=0;k<pts.length-1;k++){const ax=pts[k][0],az=pts[k][1],bx=pts[k+1][0],bz=pts[k+1][1],S=Math.max(1,Math.ceil(Math.hypot(bx-ax,bz-az)/(BC*.7)));
+      for(let q=0;q<=S;q++){const x=ax+(bx-ax)*q/S,z=az+(bz-az)*q/S;if(hearts.some(h=>(h[0]-x)**2+(h[1]-z)**2<.3))continue;const X=Math.floor(x/BC),Z=Math.floor(z/BC);for(const [u,v] of D)res.add((X+u)*100003+Z+v);
+        x0=Math.min(x0,x);x1=Math.max(x1,x);z0=Math.min(z0,z);z1=Math.max(z1,z)}}
+    box.push([x0-r,x1+r,z0-r,z1+r,L.path.length+':'+L.path[0]+':'+L.path[L.path.length-1]+':'+L.w])}
+  ROADPLAN={sig,lines,res,ver:ROADPLAN.ver+1,box};return ROADPLAN}
+/* which planned roads cross a town's ground: part of the town's key, so a town is rebuilt when a road through it appears or moves */
+function cityRoadSig(c,R){const cx=wx(c.x),cz=wz(c.y);let s='';for(const b of ROADPLAN.box)if(b[1]>cx-R&&b[0]<cx+R&&b[3]>cz-R&&b[2]<cz+R)s+=b[4]+';';return s}
+function footOnRoad(o){const res=ROADPLAN.res,st=BC*.8;
+  const nx=Math.max(1,Math.ceil(2*o.hw/st)),nz=Math.max(1,Math.ceil(2*o.hd/st));
+  for(let i=0;i<=nx;i++)for(let j=0;j<=nz;j++){const lx=-o.hw+2*o.hw*i/nx,lz=-o.hd+2*o.hd*j/nz,x=o.x+lx*o.c+lz*o.s,z=o.z-lx*o.s+lz*o.c;if(res.has(bk(x,z)))return true}return false}
 function rebuildRoads(){roadBare.clear();grassAt.x=1e9;BRIDGES=[];
   if(ribcVer!==terrVer){if(ribcBase===terrBase&&RIB_DIRTY.length<40){for(const [k,c] of RIBC)if(RIB_DIRTY.some(r=>c.x1>=r[0]&&c.x0<=r[1]&&c.z1>=r[2]&&c.z0<=r[3]))RIBC.delete(k)}else RIBC.clear();ribcVer=terrVer;ribcBase=terrBase;RIB_DIRTY=[]}
   const P3=[[],[],[]],U3=[[],[],[]],C3=[[],[],[]];
@@ -1489,19 +1524,7 @@ function rebuildRoads(){roadBare.clear();grassAt.x=1e9;BRIDGES=[];
       U3[t].push(0,v0,1,v1,1,v0, 0,v0,0,v1,1,v1)}};
   const roadY=(x,z)=>{const g=groundY(x,z)+.01,ti=tileAt(x,z);let best=g;
     for(const B of BRIDGES){const d=Math.hypot(x-B.x,z-B.z);if(d>B.h+.1)continue;if(d<B.h)best=Math.max(best,B.y);else best=Math.max(best,lerp(B.y,g,(d-B.h)/.1))}return best};
-  /* roads: towns link to their nearest connected neighbour along the easiest ground (valleys, fords, existing roads) */
-  const used=new Uint8Array(N),lines=[];
-  for(const n of nations){if(!n.alive||n.cities.length<2)continue;const e=n.era,t=e<4?0:e<6?1:2,w=e<3?.055:e<5?.07:.1;
-    const conn=[n.cities[0]],rest=n.cities.slice(1);
-    while(rest.length){let bi=0,bj=0,bd=1e9;for(let i=0;i<rest.length;i++)for(let j=0;j<conn.length;j++){const d=Math.hypot(rest[i].x-conn[j].x,rest[i].y-conn[j].y);if(d<bd){bd=d;bi=i;bj=j}}
-      const a=rest.splice(bi,1)[0],b=conn[bj];conn.push(a);if(bd>22)continue;
-      const path=roadPath(a,b,n.id,used);if(path)lines.push({path,w,t,nid:n.id})}}
-  for(const n of nations){if(!n.alive||!n.cities.length)continue;for(const m of n.trade){const B=nations[m];if(!B||!B.alive||m<n.id||!B.cities.length||!n.nb.has(m))continue;
-    const path=roadPath(n.cities[0],B.cities[0],-1,used);if(path){const e=Math.min(n.era,B.era);lines.push({path,w:e<3?.05:e<5?.065:.09,t:e<4?0:e<6?1:2,nid:n.id})}}}
-  /* trading partners that can be reached over land are joined where their towns lie nearest, so the two road networks meet */
-  {const done=new Set();for(const n of nations){if(!n.alive||!n.cities.length)continue;for(const m of n.trade||[]){const B=nations[m];if(!B||!B.alive||!B.cities.length)continue;const key=Math.min(n.id,m)+':'+Math.max(n.id,m);if(done.has(key))continue;done.add(key);
-      let a=null,b=null,bd=1e9;for(const p of n.cities)for(const q of B.cities){const d=Math.hypot(p.x-q.x,p.y-q.y);if(d<bd){bd=d;a=p;b=q}}if(!a||bd>34)continue;
-      const path=roadPath(a,b,-1,used);if(path){const e=Math.min(n.era,B.era);lines.push({path,w:e<3?.05:e<5?.065:.09,t:e<4?0:e<6?1:2,nid:n.id,trade:m})}}}}
+  const lines=roadPlan().lines;
   /* the roads as they are drawn, for the travellers on them */
   ROAD_LINES=lines.map(L=>{const pts=chaikin2(L.path.map(j=>[wx(j%W)+(hash(j*3.1)-.5)*.25,wz((j/W)|0)+(hash(j*7.3)-.5)*.25]),3);let len=0;const acc=[0];for(let k=1;k<pts.length;k++){len+=Math.hypot(pts[k][0]-pts[k-1][0],pts[k][1]-pts[k-1][1]);acc.push(len)}
     let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;for(const q of pts){x0=Math.min(x0,q[0]);x1=Math.max(x1,q[0]);z0=Math.min(z0,q[1]);z1=Math.max(z1,q[1])}return{pts,acc,len,nid:L.nid,trade:L.trade,box:[x0,x1,z0,z1]}});
@@ -1510,11 +1533,13 @@ function rebuildRoads(){roadBare.clear();grassAt.x=1e9;BRIDGES=[];
       c={P:new Float32Array(P3[t].slice(p0)),U:new Float32Array(U3[t].slice(u0)),bi:roadBare.idxs(bare),bn:K.k-b0,bm:K.mesh.instanceMatrix.array.slice(b0*16,K.k*16),bc:K.mesh.instanceColor?K.mesh.instanceColor.array.slice(b0*3,K.k*3):null};{let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;const P=c.P;for(let i=0;i<P.length;i+=3){if(P[i]<x0)x0=P[i];if(P[i]>x1)x1=P[i];if(P[i+2]<z0)z0=P[i+2];if(P[i+2]>z1)z1=P[i+2]}if(K.k>b0){x0=-1e9;x1=1e9;z0=-1e9;z1=1e9}Object.assign(c,{x0,x1,z0,z1})}if(RIBC.size>5000)RIBC.clear();RIBC.set(key,c);return}
     C3[t].push(c);for(const v of c.bi)roadBare.setIdx(v);
     if(c.bn&&K.k+c.bn<=K.max){kitGrow(K,K.k+c.bn);K.mesh.instanceMatrix.array.set(c.bm,K.k*16);if(c.bc&&K.mesh.instanceColor)K.mesh.instanceColor.array.set(c.bc,K.k*3);K.k+=c.bn}};
-  for(const L of lines){const pa=L.path;cached('L'+L.t+'|'+L.w+'|'+pa.length+'|'+pa[0]+'|'+pa[pa.length>>1]+'|'+pa[pa.length-1],L.t,()=>{const pts=chaikin2(pa.map(j=>[wx(j%W)+(hash(j*3.1)-.5)*.25,wz((j/W)|0)+(hash(j*7.3)-.5)*.25]),3);
-    for(let k=0;k<pts.length-1;k++)rib(pts[k][0],pts[k][1],pts[k+1][0],pts[k+1][1],L.w,L.t)})}
+  /* which pieces of a road would run under something: those are left out, and which ones they are is part of the cache key */
+  const blockedMask=pts=>{const m=new Uint8Array(Math.max(0,pts.length-1));let h=0;for(let k=0;k<pts.length-1;k++){const a=pts[k],b=pts[k+1];if([.1,.3,.5,.7,.9].some(f=>underAny(a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f))){m[k]=1;h=(h*31+k+1)%1000003}}return [m,h]};
+  for(const L of lines){const pa=L.path,pts=chaikin2(pa.map(j=>[wx(j%W)+(hash(j*3.1)-.5)*.25,wz((j/W)|0)+(hash(j*7.3)-.5)*.25]),3),[bm,bh]=blockedMask(pts);cached('L'+L.t+'|'+L.w+'|'+pa.length+'|'+pa[0]+'|'+pa[pa.length>>1]+'|'+pa[pa.length-1]+'|'+bh,L.t,()=>{
+    for(let k=0;k<pts.length-1;k++)if(!bm[k])rib(pts[k][0],pts[k][1],pts[k+1][0],pts[k+1][1],L.w,L.t)})}
   for(const st0 of cityStreets){/* thin out street points: short segments cost as much as long ones */const P0=st0.pts,q=[P0[0]];for(let k=1;k<P0.length;k++){const l=q[q.length-1];if(k===P0.length-1||Math.hypot(P0[k][0]-l[0],P0[k][1]-l[1])>=.1)q.push(P0[k])}const st={pts:q,w:st0.w,t:st0.t};
-    const f=q[0],m=q[q.length>>1],l=q[q.length-1];cached('S'+st.t+'|'+st.w+'|'+q.length+'|'+f[0].toFixed(3)+','+f[1].toFixed(3)+'|'+m[0].toFixed(3)+','+m[1].toFixed(3)+'|'+l[0].toFixed(3)+','+l[1].toFixed(3),st.t,()=>{
-    for(let k=0;k<st.pts.length-1;k++){const a=st.pts[k],b=st.pts[k+1];if(groundY(a[0],a[1])>waterY+.03&&groundY(b[0],b[1])>waterY+.03)rib(a[0],a[1],b[0],b[1],st.w,st.t)}})}
+    const f=q[0],m=q[q.length>>1],l=q[q.length-1],[bm,bh]=blockedMask(q);cached('S'+st.t+'|'+st.w+'|'+q.length+'|'+f[0].toFixed(3)+','+f[1].toFixed(3)+'|'+m[0].toFixed(3)+','+m[1].toFixed(3)+'|'+l[0].toFixed(3)+','+l[1].toFixed(3)+'|'+bh,st.t,()=>{
+    for(let k=0;k<st.pts.length-1;k++){if(bm[k])continue;const a=st.pts[k],b=st.pts[k+1];if(groundY(a[0],a[1])>waterY+.03&&groundY(b[0],b[1])>waterY+.03)rib(a[0],a[1],b[0],b[1],st.w,st.t)}})}
   kitCommit(['bridge']);if(riverVer!==terrVer){riverVer=terrVer;rebuildRivers()}grassAt.x=1e9;
   for(let t=0;t<3;t++){if(!roadMeshes[t]){const m=new THREE.Mesh(new THREE.BufferGeometry(),ROADMATS[t]);m.receiveShadow=true;m.frustumCulled=false;m.renderOrder=1;scene.add(m);roadMeshes[t]=m}
     /* new pieces were built into plain lists; pieces from the cache are copied in as blocks */
@@ -1537,7 +1562,7 @@ let TGS=1;
    trees standing where a town has since spread, or where fire burned, are left out of the replay. Everything is redone from scratch
    when the land, the settings or half a minute has passed. */
 let FCACHE=null,greenDirty=false,TREE_LIGHT=false;
-const forestSig=()=>[terrBase,terrBio,waterY,settings.quality,typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1,!!LK.pixel,settings.models!==false,N].join('|');
+const forestSig=()=>[ROADPLAN.ver,typeof isRealLook==='function'&&isRealLook(lookKey)?1:0,terrBase,terrBio,waterY,settings.quality,typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1,!!LK.pixel,settings.models!==false,N].join('|');
 function replayForest(){const D=LAYDIRTY&&LAYOLD&&LAYOLD.length===VY.length?LAYDIRTY:null;
   for(const name in FCACHE.k){const K=KITS[name],a=FCACHE.k[name],cnt=a.length/20;kitGrow(K,Math.min(K.max,K.k+cnt));const M=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor.array;
   for(let i=0;i<cnt&&K.k<K.max;i++){const o=i*20,t=a[o+19];if(t>=0&&(occupied.has(t)||fieldTiles.has(t)||(scorched&&scorched[t]>0)||fires.has(t)))continue;
@@ -1547,7 +1572,7 @@ function replayForest(){const D=LAYDIRTY&&LAYOLD&&LAYOLD.length===VY.length?LAYD
 function rebuildTrees(light){TREE_LIGHT=false;greenDirty=false;
   if(light===true&&FCACHE&&FCACHE.sig===forestSig()){TREE_LIGHT=true;kitReset(TREE_KITS);replayForest();kitCommit(TREE_KITS);return}
   TREC={k:{},t:-1};LAYOLD=null;LAYDIRTY=null;try{rebuildTrees0()}finally{const R=TREC;TREC=null;for(const nm in R.k)R.k[nm]=new Float32Array(R.k[nm]);R.sig=forestSig();FCACHE=R}}
-function rebuildTrees0(){
+function rebuildTrees0(){const RLOOK=typeof isRealLook==='function'&&isRealLook(lookKey);
   {let tot=0;for(let i=0;i<N;i++)if(!isWater(i))tot+=treeWant(i);TGS=Math.min(1,62000/Math.max(1,tot))}
   kitReset(TREE_KITS);rebuildGreen();const dens=(settings.quality==='high'?1:settings.quality==='medium'?.65:.4)*(typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1),farm=countryside();
   /* trees near towns are drawn at a believable size next to the houses */
@@ -1570,8 +1595,11 @@ function rebuildTrees0(){
         if(y>waterY+.04)for(let r=0;r<3;r++)for(let q=0;q<3-r;q++){const off=(q-(2-r)/2)*.026;add('logs',x+Math.sin(ro)*off,y+.012+r*.021,z+Math.cos(ro)*off,.12,.024,.024,ro,r===2?0x9a7448:0x8a6440)}}
       n=Math.round(n*grow*grow)}}
     const lod=1;n=Math.round(n*dens*TGS);
-    for(let t=0;t<n;t++){const x=x0+.08+hash(i*3.1+t)*.84,z=z0+.08+hash(i*7.7+t)*.84,y=groundY(x,z);if(y<waterY+.05)continue;
-      const s=(.62+hash(i*11.3+t)*.5)*near[i]*(grow<1?.4+.6*grow:1),hv=hash(i*5.9+t);
+    /* the real-material looks: trees gather in clumps with glades between, bigger in the heart of a clump, instead of an even sprinkle */
+    const clump=RLOOK&&type!=='rock'&&type!=='mount';if(clump)n=Math.round(n*1.3);
+    for(let t=0;t<n;t++){const x=x0+.08+hash(i*3.1+t)*.84,z=z0+.08+hash(i*7.7+t)*.84,y=groundY(x,z);if(y<waterY+.05)continue;if(ROADPLAN.res.has(bk(x,z))||roadBare.has(bk(x,z)))continue;
+      let sk=1;if(clump){const cl=groveN(x*2.4+31.7,z*2.4-12.3)*.65+groveN(x*7.1-5.3,z*7.1+8.9)*.35;if(hash(i*13.7+t*3.1)>smooth(.3,.62,cl)*1.2)continue;sk=.74+.5*smooth(.35,.8,cl)}
+      const s=(.62+hash(i*11.3+t)*.5)*near[i]*(grow<1?.4+.6*grow:1)*sk,hv=hash(i*5.9+t);
       if(type==='rock'||(type==='mount'&&hv<.45)){if(hv<.6)add(natKit('rock',hv),x,y-.03,z,.08+hv*.25,.06+hv*.16,.08+hv*.2,hv*6,hv<.3?0x8a8378:0x9a9488);continue}
       if(type==='mount'){if(y<shapeH(.8))add('conifer',x,y-.01,z,s*.85,s*.95,s*.85,hv*6,0x2f4a30);continue}
       if((type==='mix'||type==='conifer'||type==='jungle')&&hv<.45&&lod>.5)add('bush',x+.04,y-.01,z+.03,s*.9,s*.7,s*.9,hv*6,type==='jungle'?0x3f6a2a:0x45602e);
@@ -1705,6 +1733,8 @@ function updateWalkers(dt,yrs){
   kitCommit(FIG_KITS);if(updateWalkers.pk&&updateWalkers.pk.length)mcommit(updateWalkers.pk);
 }
 /* is this point inside a house, its garden or a wall? */
+/* anything standing here at all (houses, walls, towers, temples, palaces): roads and streets are not drawn under it */
+function underAny(x,z){const L=FOOT.get(Math.floor(x/FCELL)*100003+Math.floor(z/FCELL));if(!L)return false;for(const q of L){const dx=x-q.x,dz=z-q.z,lx=dx*q.c-dz*q.s,lz=dx*q.s+dz*q.c;if(Math.abs(lx)<q.hw&&Math.abs(lz)<q.hd)return true}return false}
 function inBuilding(x,z){const L=FOOT.get(Math.floor(x/FCELL)*100003+Math.floor(z/FCELL));if(!L)return false;
   for(const q of L){if(q.t!=='house'&&q.t!=='wall'&&q.t!=='tower')continue;const dx=x-q.x,dz=z-q.z,lx=dx*q.c-dz*q.s,lz=dx*q.s+dz*q.c;if(Math.abs(lx)<q.hw&&Math.abs(lz)<q.hd)return true}return false}
 /* gondolas glide up and down the canals of lagoon towns, a gondolier at the stern */

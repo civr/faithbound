@@ -505,7 +505,7 @@ function updateShips(dy,dt,now){
         s.x=nx;s.z=nz;s.head=Math.atan2(-ddz,ddx)}}
     if(s.head!=null){const turn=Math.atan2(Math.sin(s.head-s.g.rotation.y),Math.cos(s.head-s.g.rotation.y));s.g.rotation.y+=turn*Math.min(1,dt*3);s.lean=lerp(s.lean||0,clamp(turn*.25,-.12,.12),Math.min(1,dt*3))}
     {/* ride the same swell the sea shader draws, so hulls neither sink into the waves nor float above them */const T=waterU.uTime.value,wa=s.x*1.7+T*1.1,wb=s.z*1.4+T*1.35,deep=clamp((waterY-groundY(s.x,s.z))*2,0,1);
-      s.g.position.set(s.x,seaY(s.x,s.z)+(s.era>=7?.06:0)-(s.sub?.03:0),s.z);s.g.rotation.x=Math.cos(wa)*.05*deep+(s.lean||0);s.g.rotation.z=-Math.sin(wb)*.04*deep}
+      s.g.position.set(s.x,seaY(s.x,s.z)+(s.era>=7?.06:0)-(s.sub?.03:0),s.z);const sf=typeof stormAt==='function'?stormAt(s.x,s.z):0,rk=1+sf*(s.era>=6?2:5);/* tossed about in a storm */s.g.rotation.x=Math.cos(wa)*.05*deep*rk+(s.lean||0)+sf*Math.sin(T*2.9+s.x*3.3)*.06*deep;s.g.rotation.z=-Math.sin(wb)*.04*deep*rk}
     if(dy>0){s.foamT+=dt;if(s.foamT>.12){s.foamT=0;const a=s.g.rotation.y;emit('foam',s.x-Math.cos(a)*.2,waterY+.01,s.z+Math.sin(a)*.2,0,0)}
       if(s.era===5&&rng()<dt*3)emit('dark',s.x,waterY+.2,s.z)}
     if(s.seg>=WP.length-1){arrive(s);disposeShip(s);ships.splice(k,1)}}

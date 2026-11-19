@@ -150,6 +150,7 @@ float fbN(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(fbH(
 SMODEL_MAT.customProgramCacheKey=()=>'smodel';weatherHook(SMODEL_MAT);
 {const _sn=setNight;setNight=function(f){_sn(f);BWIN.uNight.value=f}}
 const VEH_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.5,metalness:.15});const VEH_KITS=[];
+const LOD_HOUSES=/^(med_house|town2s|town3b|town3s|town4|cottage1|sub_house\d|mv_house\d|mv_inn|mv_smith|rts_h\d)$/;
 function prepStatic(name,gltf){const d=Object.assign({},SMODEL[name]);gltf.scene.updateMatrixWorld(true);PART_EXTRA=d.win?new RegExp('^('+d.win.join('|')+')$'):null;let f;try{f=flatten(gltf.scene)}finally{PART_EXTRA=null}
   /* baked window colours (pale cyan glass) count as windows too */
   if(d.k==='build')for(let v=0;v<f.T.length;v++){const r=f.C[v*3],g=f.C[v*3+1],b=f.C[v*3+2];if(f.T[v]===0&&b>.45&&g>.4&&r<.7*b)f.T[v]=7}
@@ -159,7 +160,9 @@ function prepStatic(name,gltf){const d=Object.assign({},SMODEL[name]);gltf.scene
   if(d.k==='tree'&&KITS.broad){const g=KITS.broad.mesh.geometry;g.computeBoundingBox();d.h*=g.boundingBox.max.y-Math.max(0,g.boundingBox.min.y)}
   const norm=normalizer(f,Object.assign(d,{axis:d.k==='veh'?'z':'none'},MODEL_FIX[name]||{}));const geo=toGeo(norm(f.P),f);const kn='s_'+name;MDL.info[name]={d};
   kit(kn,geo,d.k==='tree'||d.k==='rock'?modelTreeMat():d.k==='veh'&&!d.wild?VEH_MAT:SMODEL_MAT,d.max||2000,d.k!=='rock');
-  if(d.k==='build'||d.k==='farm'){const K=KITS[kn];let r=0,g=0,b=0,n=0;for(let i=0;i<f.C.length;i+=3){r+=f.C[i];g+=f.C[i+1];b+=f.C[i+2];n++}K.avg=[r/n,g/n,b/n];K.lodC=true}
+  if(d.k==='build'||d.k==='farm'){const K=KITS[kn];let r=0,g=0,b=0,n=0;for(let i=0;i<f.C.length;i+=3){r+=f.C[i];g+=f.C[i+1];b+=f.C[i+2];n++}K.avg=[r/n,g/n,b/n];
+    /* only gabled houses turn into the plain gabled block far away: a temple, castle, tower or barn drawn as a house block changed shape as you zoomed out */
+    K.lodC=d.k==='farm'||LOD_HOUSES.test(name);K.lodK=d.k==='farm'?2.6:1}
   if(d.k==='veh')VEH_KITS.push(kn);else (d.k==='build'?BUILD_KITS:TREE_KITS).push(kn);MDL.ready[name]=true;MDL_VER++;modelSettle(d.k)}
 /* models arrive in bursts: the towns are rebuilt and the new shaders compiled once, a moment after the last one, instead of after every model */
 let SETTLE_T=0,SETTLE_B=false,SETTLE_TR=false;
@@ -390,7 +393,7 @@ kit('lodBox',(()=>{const P=[],C=[],q=(a,b,c,col)=>{P.push(...a,...b,...c);for(le
 const LODP={stamp:-1,n:0};const _lodM=new THREE.Matrix4(),_lodC=new THREE.Color();
 const lodDist=()=>(settings.power==='saver'?6.5:settings.power==='max'?13:settings.quality==='low'?6.5:9)*(typeof PERF!=='undefined'&&perfOn()?PERF.lodK:1)*(LK.pixel?1.35:1);
 {const _ck=cullKit;cullKit=function(K,P,margin){if(!K.lodC)return _ck(K,P,margin);
-  if(LODP.stamp!==CULLK.last){LODP.stamp=CULLK.last;LODP.n=0}kitGrow(KITS.lodBox,Math.min(KITS.lodBox.max,LODP.n+K.n));const LK=KITS.lodBox,LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,avg=K.avg,LD2=lodDist()**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
+  if(LODP.stamp!==CULLK.last){LODP.stamp=CULLK.last;LODP.n=0}kitGrow(KITS.lodBox,Math.min(KITS.lodBox.max,LODP.n+K.n));const LK=KITS.lodBox,LA=LK.mesh.instanceMatrix.array,LC=LK.mesh.instanceColor.array,avg=K.avg,LD2=(lodDist()*(K.lodK||1))**2,cx=cam.position.x,cy=cam.position.y,cz=cam.position.z;
   const A=K.mesh.instanceMatrix.array,C=K.mesh.instanceColor?K.mesh.instanceColor.array:null,cs=K.cs,M=K.mm,MC=K.mc;let v=0;
   const NC=cullCands(K,P,margin),CL=K._cl;for(let j=0;j<NC;j++){const i=CL[j],x=cs[i*4],y=cs[i*4+1],z=cs[i*4+2],r=-(cs[i*4+3]+margin);let ok=true;
     for(let p=0;p<6;p++){const q=P[p];if(q.normal.x*x+q.normal.y*y+q.normal.z*z+q.constant<r){ok=false;break}}

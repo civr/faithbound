@@ -49,7 +49,7 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
       /* pairs of opposite samples: a flat or sloping surface averages out, only real creases and corners darken (no halos around trees) */
       for(int i=0;i<6;i++){float fi=float(i),a=fi*2.39996+rot,r=sqrt((fi+.5)/6.)*rad;vec2 o=vec2(cos(a),sin(a))*r*px;
         float dA=dep(uv+o),dB=dep(uv-o),cr=d0-(dA+dB)*.5,far=max(abs(d0-dA),abs(d0-dB));
-        occ+=smoothstep(.001*d0,.008*d0,cr)*(1.-smoothstep(.025*d0,.07*d0,far));}
+        occ+=smoothstep(.001*d0,.008*d0,cr)*(1.-smoothstep(min(.025*d0,.03),min(.07*d0,.08),far));/* a cap in world size: zoomed out, a tree crown a hand above the ground is no crease */}
       c*=1.-uAO*clamp(occ/6.*1.1,0.,.5);}
     /* low mist that pools over water and in the valleys, thicker far away */
     if(uMist>0.&&!sky0){vec3 wp=wpos(uv,d0);float above=max(0.,wp.y-uWaterY);float m=exp(-above*5.)*(1.-exp(-d0*.035))*uMist;c=mix(c,uMistCol*1.04,clamp(m,0.,.38));}
@@ -256,7 +256,7 @@ const seaNow=()=>waterY+TIDE;
 /* the height of the sea surface at (x,z) right now, exactly as the water shader draws it: the tide plus the swell, which
    fades out over the shallows. The shader moves the vertices of a half-tile grid, so sample the swell at the four grid
    corners around the point and blend, the way the triangles in between do. Anything afloat sits on this. */
-function swellV(px,pz,t){let d=clamp((waterY-groundY(px,pz))*2,0,1);if(d>0&&biome[clamp(Math.floor(pz+H/2),0,H-1)*W+clamp(Math.floor(px+W/2),0,W-1)]===2)d*=1-iceEdge(px,pz);return d>0?(Math.sin(px*1.7+t*1.1)*.03+Math.cos(pz*1.4+t*1.35)*.026)*d:0}
+function swellV(px,pz,t){let d=clamp((waterY-groundY(px,pz))*2,0,1);if(d>0&&biome[clamp(Math.floor(pz+H/2),0,H-1)*W+clamp(Math.floor(px+W/2),0,W-1)]===2)d*=1-iceEdge(px,pz);if(d<=0)return 0;const sf=typeof stormAt==='function'?stormAt(px,pz):0;return ((Math.sin(px*1.7+t*1.1)*.03+Math.cos(pz*1.4+t*1.35)*.026)*(1+sf*2.6)+sf*(Math.sin(px*3.3-t*2.4)*.03+Math.sin(pz*2.7+px*.9+t*2.9)*.026))*d}/* the same sea the shader draws, storms included */
 function seaY(x,z){const t=waterU.uTime.value,fx=(x+W/2)*2,fz=(z+H/2)*2,i=Math.floor(fx),j=Math.floor(fz),u=fx-i,v=fz-j,X0=i/2-W/2,Z0=j/2-H/2,X1=X0+.5,Z1=Z0+.5;
   const a=swellV(X0,Z0,t),b=swellV(X1,Z0,t),c=swellV(X0,Z1,t),d=swellV(X1,Z1,t);return waterY+TIDE+(a+(b-a)*u)*(1-v)+(c+(d-c)*u)*v}
 /* ships riding at anchor (the pirate coves) bob on it too */
@@ -448,14 +448,14 @@ function layoutOcean(){const g=ocean.geometry;if(!g.attributes.aDepth||!OCEAN_P)
     for(let r=0;r<OCEAN_OFF.length;r++){const f=OCEAN_DEEP[r];dA[r*P+k]=d0+(Math.max(d0,1.6)-d0)*f;iA[r*P+k]=0}}
   g.attributes.aDepth.needsUpdate=true;g.attributes.aIce.needsUpdate=true}
 const waterSideMat=new THREE.MeshStandardMaterial({color:colL(0x1d5f86),transparent:true,opacity:.72,roughness:.2,depthWrite:false});
-const waterU={uLite:{value:0},uTime:{value:0},uDeep:{value:colL(0x0f3f63)},uShallow:{value:colL(0x2f9bb0)},uWave:{value:WAVE_TEX}};
+const waterU={uStorm:{value:[new THREE.Vector4(),new THREE.Vector4(),new THREE.Vector4(),new THREE.Vector4()]},uLite:{value:0},uTime:{value:0},uDeep:{value:colL(0x0f3f63)},uShallow:{value:colL(0x2f9bb0)},uWave:{value:WAVE_TEX}};
 const waterMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.16,metalness:0,transparent:true,envMapIntensity:.85});
 waterMat.onBeforeCompile=sh=>{
   Object.assign(sh.uniforms,waterU);
-  sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float aDepth;attribute float aIce;varying float vDepth;varying float vIce;varying vec3 vWP;uniform float uTime;')
+  sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute float aDepth;attribute float aIce;varying float vDepth;varying float vIce;varying vec3 vWP;uniform float uTime;uniform vec4 uStorm[4];float stormF(vec2 p){float f=0.;for(int i=0;i<4;i++){vec4 S=uStorm[i];if(S.w<=0.)continue;f=max(f,S.w*(1.-smoothstep(S.z*.35,S.z,length(p-S.xy))));}return f;}')
    .replace('#include <beginnormal_vertex>','float wa=position.x*1.7+uTime*1.1,wb=position.z*1.4+uTime*1.35;vec3 objectNormal=normalize(vec3(-cos(wa)*.05,1.,sin(wb)*.045));')
-   .replace('#include <begin_vertex>','vec3 transformed=vec3(position);transformed.y+=(sin(wa)*.03+cos(wb)*.026)*(1.-aIce)*clamp(aDepth*2.,0.,1.);vDepth=aDepth;vIce=aIce;vWP=(modelMatrix*vec4(transformed,1.)).xyz;');
-  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uLite;uniform float uTime;uniform vec3 uDeep;uniform vec3 uShallow;uniform sampler2D uWave;varying float vDepth;varying float vIce;\n'+NOISE_GLSL)
+   .replace('#include <begin_vertex>','vec3 transformed=vec3(position);float sfv=stormF((modelMatrix*vec4(position,1.)).xz);/* a storm heaves the sea: higher, shorter, crossing swells */transformed.y+=((sin(wa)*.03+cos(wb)*.026)*(1.+sfv*2.6)+sfv*(sin(position.x*3.3-uTime*2.4)*.03+sin(position.z*2.7+position.x*.9+uTime*2.9)*.026))*(1.-aIce)*clamp(aDepth*2.,0.,1.);vDepth=aDepth;vIce=aIce;vWP=(modelMatrix*vec4(transformed,1.)).xyz;');
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uLite;uniform float uTime;uniform vec3 uDeep;uniform vec3 uShallow;uniform sampler2D uWave;varying float vDepth;varying float vIce;uniform vec4 uStorm[4];float stormF(vec2 p){float f=0.;for(int i=0;i<4;i++){vec4 S=uStorm[i];if(S.w<=0.)continue;f=max(f,S.w*(1.-smoothstep(S.z*.35,S.z,length(p-S.xy))));}return f;}\n'+NOISE_GLSL)
    .replace('#include <color_fragment>',`#include <color_fragment>
     /* clear at the very edge, then quickly deeper and darker, so lakes and coasts are not milky */
     float dd=clamp(vDepth/.8,0.,1.);vec3 wc=mix(uShallow*.95,uDeep,pow(dd,.5));
@@ -465,13 +465,16 @@ waterMat.onBeforeCompile=sh=>{
     /* a thin, broken line of foam at the shore instead of a white sheet over wide shallows */
     float brk=smoothstep(.45,.75,vn(vWP.xz*9.+uTime*.25)*.7+wh*.5);
     float fo=clamp((edge*.5*(.3+.7*brk)+surf*.4*brk)*(.5+.6*smoothstep(.35,.7,wh+vn(vWP.xz*16.+uTime*.3)*.35)),0.,.7);
-    float caps=smoothstep(.83,.9,wh)*smoothstep(.6,1.,dd)*.35;
+    /* under a storm the sea turns slate grey and the wind tears white caps and streaks of spray off every crest */
+    float sf=stormF(vWP.xz);wc=mix(wc,vec3(.05,.085,.095)+wh*vec3(.02,.03,.03),sf*.7);
+    float streak=smoothstep(.62,.9,vn(vec2(vWP.x*5.5+vWP.z*1.4,vWP.z*26.-vWP.x*6.)+uTime*vec2(1.1,.4)))*smoothstep(.35,.7,vn(vWP.xz*1.3+uTime*.05));
+    float caps=smoothstep(.83-.3*sf,.9-.18*sf,wh)*smoothstep(.6,1.,dd)*(.35+.5*sf)+sf*streak*.3*smoothstep(.3,1.,dd);
     diffuseColor.rgb=mix(wc,vec3(.92,.96,.97),max(fo,caps));diffuseColor.a=mix(.5,.97,smoothstep(0.,.3,vDepth))+fo*.35;
     float ic=vIce*(.85+.15*vn(vWP.xz*5.));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.86,.92,.97),ic);diffuseColor.a=max(diffuseColor.a,ic);`)
    .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.55,vIce);')
    .replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
     if(uLite<.5){vec3 n1=texture2D(uWave,vWP.xz*.32+vec2(uTime*.018,uTime*.011)).xyz*2.-1.,n2=texture2D(uWave,vWP.xz*.81-vec2(uTime*.024,-uTime*.017)).xyz*2.-1.,n3=texture2D(uWave,vWP.xz*2.3+vec2(-uTime*.05,uTime*.04)).xyz*2.-1.;
-     float camD=length(vWP-cameraPosition),k=(1.-vIce)*(.55+.45*(1.-smoothstep(10.,60.,camD)));
+     float camD=length(vWP-cameraPosition),k=(1.-vIce)*(.55+.45*(1.-smoothstep(10.,60.,camD)))*(1.+stormF(vWP.xz)*1.6);
      vec3 wn=normalize(vec3((n1.x+n2.x*.7+n3.x*.18)*k*.48,1.,(n1.y+n2.y*.7+n3.y*.18)*k*.48));normal=normalize(mix(normal,(viewMatrix*vec4(wn,0.)).xyz,.85));}`);
 };
 

@@ -113,7 +113,7 @@ function realScaledUV(m,tw,th,mode,win){const prev=m.onBeforeCompile;
 const REAL_TILE={office:[.182,.106],glassw:[.09,.106],half:[.194,.088],stone:[.194,.088],brick:[.194,.088],planks:[.194,.088],adobe:[.194,.088],rubble:[.11,.11],tiles:[.08,.08],thatch:[.1,.1]};
 /* which real material each of the game's materials becomes; a few kits take a plain variant (no windows on bridges and steps) */
 const REAL_OF={office:'office',glass:'glassw',dirtPlaza:'dirt',conc:'conc',plaza:'cobble',plaster:'half',stone:'stone',brick:'brick',timber:'planks',adobe:'adobe',tiles:'tiles',thatch:'thatch',thatch2:'thatch2'};
-const REAL_KIT_BYNAME={hedge:'hedge'};
+const REAL_KIT_BYNAME={hedge:'hedge',farmW:'half',farmR:'tiles'};
 const REAL_KIT_OVERRIDE={bridge:'rubble',stP:'rubble',pyr:'rubble'};
 
 async function realLoad(){
@@ -145,7 +145,7 @@ function realMode(geo){const t=geo.type||'';return t==='ConeGeometry'?'cone':t==
 /* ---------- trees: camera-facing pictures of real tree models ---------- */
 /* atlas: eight angles around the tree in two rows (seen from 22 and 55 degrees up); each copy keeps its own turn */
 function realImpostor(atlas,h0,cf,qk){const U={uH0:{value:h0},uCF:{value:cf},uQK:{value:qk},uTime:TREEU.uTime};
-  const head=`uniform float uH0,uCF,uQK,uTime;vec3 bbC,bbR,bbU,bbN,bbW;float bbS,bbY;
+  const head=`uniform float uH0,uCF,uQK,uTime;vec3 bbC,bbR,bbU,bbN,bbW;float bbS,bbY;varying float vBr,vLy;
 void bbFrame(){mat4 im=modelMatrix;
 #ifdef USE_INSTANCING
  im=modelMatrix*instanceMatrix;
@@ -155,7 +155,7 @@ void bbFrame(){mat4 im=modelMatrix;
 vec2 bbAtlas(vec2 uv){vec3 tc=cameraPosition-bbC;float a=atan(tc.x,tc.z)-bbY;float fr=mod(floor(a/6.2831853*8.+.5),8.);float row=bbN.y>.62?1.:0.;return vec2((fr+uv.x)/8.,(1.-(row+1.)*.5)+uv.y*.5);}`;
   const inject=(sh,full)=>{Object.assign(sh.uniforms,U);
     sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\n'+head)
-      .replace('#include <uv_vertex>','#include <uv_vertex>\nbbFrame();\n#ifdef USE_UV\nvUv=bbAtlas(uv);\n#endif')
+      .replace('#include <uv_vertex>','#include <uv_vertex>\nbbFrame();vBr=fract(sin(dot(floor(bbC.xz*400.),vec2(12.9898,78.233)))*43758.5453);vLy=position.y+.5;\n#ifdef USE_UV\nvUv=bbAtlas(uv);\n#endif')
       .replace('#include <project_vertex>',`{float hgt=position.y+.5;float ph=bbC.x*2.1+bbC.z*1.7;vec3 sw=vec3(sin(uTime*1.1+ph)+.4*sin(uTime*2.7+ph*2.3),0.,cos(uTime*.9+ph*1.4)*.6)*.03*hgt*hgt*bbS;
  bbW=bbC+(bbR*position.x+bbU*position.y)*bbS*uQK+sw;}
 vec4 mvPosition=viewMatrix*vec4(bbW,1.);gl_Position=projectionMatrix*mvPosition;`);
@@ -167,12 +167,14 @@ vec4 mvPosition=viewMatrix*vec4(bbW,1.);gl_Position=projectionMatrix*mvPosition;
 #ifdef USE_UV
  {float tpp=length(fwidth(vUv*vec2(3072.,768.)));if(diffuseColor.a<mix(.5,.16,smoothstep(1.5,9.,tpp)))discard;}
 #endif`)};
-  m.onBeforeCompile=sh=>{inject(sh,true);cut(sh);
+  m.onBeforeCompile=sh=>{inject(sh,true);cut(sh);sh.fragmentShader='varying float vBr,vLy;\n'+sh.fragmentShader;
     /* the kit's own colour only nudges the hue: the photo already carries the green */
     sh.fragmentShader=sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
 #ifdef USE_COLOR
- {float l=max(dot(vColor,vec3(.3,.59,.11)),.02);diffuseColor.rgb=diffuseColor.rgb/max(vColor,vec3(.01))*mix(vec3(1.),clamp(vColor/l,.6,1.5),.35);}
-#endif`)};
+ {float l=max(dot(vColor,vec3(.3,.59,.11)),.02);diffuseColor.rgb=diffuseColor.rgb/max(vColor,vec3(.01))*mix(vec3(1.),clamp(vColor/l,.6,1.5),.5);}
+#endif
+ /* no two crowns alike: each tree a little lighter or darker, warmer or cooler, and shaded towards its foot */
+ diffuseColor.rgb*=(.6+.32*vBr)*vec3(.9+.06*(vBr-.5),1.,.86-.1*(vBr-.5))*mix(.66,1.,smoothstep(.0,.6,vLy));/* deeper than the meadow, as woods are */`)};
   m.customProgramCacheKey=()=>'realImp';
   const d=new THREE.MeshDepthMaterial({depthPacking:THREE.RGBADepthPacking,map:atlas,alphaTest:.5,side:THREE.DoubleSide});d.onBeforeCompile=sh=>{inject(sh,false);cut(sh)};d.customProgramCacheKey=()=>'realImpD';
   return {m,d}}
@@ -182,7 +184,7 @@ function realTreeSwap(on){
   if(on){const quad=new THREE.PlaneGeometry(1,1);
     for(const name in KITS){const base=name.replace(/^(g_|lo_)+/,''),kind=REAL_TREES[base];const K=KITS[name];if(!kind||!K||K._real)continue;
       const g=K.mesh.geometry;if(!g.boundingBox)g.computeBoundingBox();const h0=Math.max(.05,g.boundingBox.max.y);
-      const I=kind==='F'?realImpostor(REAL.T.impF,h0,.42,1.11):realImpostor(REAL.T.impB,h0,.47,1.11);
+      const I=kind==='F'?realImpostor(REAL.T.impF,h0,.42,.95):realImpostor(REAL.T.impB,h0,.47,.9);
       K._real={geo:g,mat:K.mesh.material,depth:K.mesh.customDepthMaterial,rs:K.mesh.receiveShadow};K.mesh.geometry=quad;K.mesh.material=I.m;K.mesh.customDepthMaterial=I.d;K.mesh.receiveShadow=false;REAL.trees.push(K)}}
   else{for(const K of REAL.trees){if(!K._real)continue;K.mesh.geometry=K._real.geo;K.mesh.material=K._real.mat;K.mesh.customDepthMaterial=K._real.depth;K.mesh.receiveShadow=K._real.rs;delete K._real}REAL.trees.length=0}}
 
@@ -360,8 +362,8 @@ function realSnow(on){if(!REAL.P||!REAL.P.snow)return;if(!REALS.tex){REALS.tex=r
 async function realOn(){if(!REAL.ready)REAL.ready=realLoad().catch(e=>{console.warn('Realistic look could not load',e);REAL.ready=null;throw e});
   try{await REAL.ready}catch(e){return}if(!isRealLook(lookKey))return;
   if(!REALM.rS.value){REALM.rS.value=REAL.T.stone;REALM.rP.value=realTex(REAL.P.plaster,true);REALM.rW.value=realTex(REAL.P.planks,true);REALM.rT.value=REAL.T.tiles;if(typeof SMODEL_MAT!=='undefined')SMODEL_MAT.needsUpdate=true}
-  REALM.uRM.value=1;REAL.on=true;realSwap(true);realFields(true);realRoads(true);realWater(true);realFire(true);realSnow(true);REALP.uRealP.value=1;lastEnv=-1e9;envKey='';for(const k of ['plain','awning','metal'])if(MAT[k])MAT[k].needsUpdate=true;terrU.uReal.value=1;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof forestDirty!=='undefined')forestDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
-function realOff(){if(!REAL.on)return;REAL.on=false;realSwap(false);realFields(false);realRoads(false);realWater(false);realFire(false);realSnow(false);REALP.uRealP.value=0;lastEnv=-1e9;envKey='';terrU.uReal.value=0;REALM.uRM.value=0;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
+  REALM.uRM.value=1;REAL.on=true;if(typeof treesDirty!=='undefined')treesDirty=true;realSwap(true);realFields(true);realRoads(true);realWater(true);realFire(true);realSnow(true);REALP.uRealP.value=1;lastEnv=-1e9;envKey='';for(const k of ['plain','awning','metal'])if(MAT[k])MAT[k].needsUpdate=true;terrU.uReal.value=1;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof forestDirty!=='undefined')forestDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
+function realOff(){if(!REAL.on)return;REAL.on=false;if(typeof treesDirty!=='undefined')treesDirty=true;realSwap(false);realFields(false);realRoads(false);realWater(false);realFire(false);realSnow(false);REALP.uRealP.value=0;lastEnv=-1e9;envKey='';terrU.uReal.value=0;REALM.uRM.value=0;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
 {const _al=applyLook;applyLook=function(k){_al.apply(this,arguments);settings.realLook=isRealLook(k);settings.lookPick=k;saveSettings();if(isRealLook(k))realOn();else realOff()}}
 
 /* the choice in Settings, above the pixel size */

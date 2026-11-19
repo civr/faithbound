@@ -21,10 +21,10 @@ function nationsInRadius(x,z,r){const ids=new Set();for(let q=0;q<12;q++){const 
 function cityAtTile(i){const x=i%W,y=(i/W)|0;for(const n of nations){if(!n.alive)continue;const c=n.cities.find(c=>c.x===x&&c.y===y);if(c)return{n,c}}return null}
 
 /* ---------- storms ---------- */
-const STORM_NAME={thunder:'Thunderstorm',hurricane:'Hurricane',blizzard:'Blizzard'};
-function spawnStorm(kind,x,z,god){
+const STORM_NAME={thunder:'Thunderstorm',hurricane:'Hurricane',blizzard:'Blizzard',gale:'Storm at sea'};
+function spawnStorm(kind,x,z,god){if(kind==='storm')kind='gale';/* (old sea stories asked for a plain "storm": that is a storm at sea) */
   if(storms.filter(s=>s.kind!=='shower').length>=(god?10:5)||(!god&&kind==='hurricane'&&storms.some(s=>s.kind==='hurricane')))return null;
-  const S={kind,x,z,seed:rng()*1000,t:0,life:kind==='hurricane'?45:kind==='blizzard'?32:24,r:kind==='hurricane'?5.5:kind==='blizzard'?4.5:3,vx:0,vz:0,bolt:1,landfall:false};
+  const S={kind,x,z,seed:rng()*1000,t:0,life:kind==='hurricane'?45:kind==='blizzard'?32:kind==='gale'?34:24,r:kind==='hurricane'?5.5:kind==='blizzard'?4.5:kind==='gale'?4:3,vx:0,vz:0,bolt:1,landfall:false};
   const sp=kind==='hurricane'?.45:.3;
   if(kind==='hurricane'){const d=Math.hypot(x,z)||1;S.vx=-x/d*sp+(rng()-.5)*.2;S.vz=-z/d*sp+(rng()-.5)*.2}else{const a=rng()*6.28;S.vx=Math.cos(a)*sp;S.vz=Math.sin(a)*sp}
   storms.push(S);const n=nationAt(x,z),where=n?` over ${n.name}`:'';
@@ -41,14 +41,20 @@ function strike(S){
   const hit=cityAtTile(i);if(hit){hit.n.pop*=.995;if(rng()<.15)log(`Lightning struck ${hit.c.name}.`,'sky')}
   for(const s of ships)if(!s.sink&&Math.hypot(s.x-x,s.z-z)<.5&&rng()<.5){s.sink=.01;log(`Lightning sank a ${s.owner<0?"pirate ship":"ship of "+nations[s.owner].name}.`,'sky')}
 }
+function stormSeaUniforms(){if(typeof waterU==='undefined'||!waterU.uStorm)return;const U=waterU.uStorm.value,L=[];
+  for(const S of storms){if(S.kind==='shower')continue;const w=(S.kind==='hurricane'?1.25:S.kind==='gale'?1:S.kind==='thunder'?.55:.4)*(S.fade||0);if(w<=0)continue;L.push([Math.hypot(S.x-camT.x,S.z-camT.z)-S.r,S,w])}
+  L.sort((a,b)=>a[0]-b[0]);for(let i=0;i<4;i++){const q=L[i];if(q)U[i].set(q[1].x,q[1].z,q[1].r,q[2]);else U[i].set(0,0,1,0)}}
+/* how rough the sea is here (0 calm, 1 a full gale): ships pitch and roll by it */
+function stormAt(x,z){let f=0;if(typeof waterU==='undefined'||!waterU.uStorm)return 0;for(const v of waterU.uStorm.value){if(v.w<=0)continue;const d=Math.hypot(x-v.x,z-v.y);f=Math.max(f,v.w*(1-smooth(v.z*.35,v.z,d)))}return f}
 function updateStorms(dt,k){
-  weatherDim=0;
+  weatherDim=0;try{stormSeaUniforms()}catch(e){}
   for(let q=storms.length-1;q>=0;q--){const S=storms[q];
     S.t+=dt*k;S.x+=S.vx*dt*k;S.z+=S.vz*dt*k;
     if(S.kind==='hurricane'){const c=Math.cos(dt*k*.04),s=Math.sin(dt*k*.04),vx=S.vx;S.vx=vx*c-S.vz*s;S.vz=vx*s+S.vz*c}
     const onLand=groundY(S.x,S.z)>waterY+.05;
     if(S.kind==='hurricane'&&onLand){S.t+=dt*k*1.2;if(!S.landfall){S.landfall=true;const hit=nationsInRadius(S.x,S.z,S.r);
       if(hit.length){log(`The hurricane made landfall in ${hit.map(n=>n.name).join(' and ')}.`,'doom');toast('Landfall',`The hurricane hits ${hit[0].name}.`,S.x,S.z);milestone('hurricane','Eye of the storm','A hurricane reached land.')}}}
+    if(S.kind==='gale'&&onLand)S.t+=dt*k*1.5;/* a storm at sea blows itself out over land */
     const fade=Math.min(1,S.t/2.5)*Math.min(1,Math.max(0,S.life-S.t)/4);S.fade=fade;
     const dCam=Math.hypot(S.x-camT.x,S.z-camT.z);
     weatherDim=Math.max(weatherDim,(1-smooth(S.r*.8,S.r*2.4,dCam))*fade*(S.kind==='hurricane'?1:S.kind==='blizzard'?.7:S.kind==='shower'?.5:.8));
@@ -59,6 +65,7 @@ function updateStorms(dt,k){
     if(k>0){const hit=nationsInRadius(S.x,S.z,S.r);
       for(const n of hit){if(S.kind==='hurricane'&&onLand){n.pop*=1-.006*dt*k;if(!n.famine&&rng()<.02*dt*k)startFamine(n,'storm')}
         if(S.kind==='blizzard'){n.pop*=1-(n.era>=6?.0008:.003)*dt*k;if(!n.famine&&n.era<5&&rng()<.012*dt*k)startFamine(n,'cold')}}
+      if(S.kind==='gale')for(const s of ships)if(!s.sink&&Math.hypot(s.x-S.x,s.z-S.z)<S.r*.7&&rng()<.06*dt*k*(s.era>=6?.3:1)){s.sink=.01;log(`A storm at sea sank a ${s.owner<0?"pirate ship":"ship of "+nations[s.owner].name}.`,'doom')}
       if(S.kind==='hurricane')for(const s of ships)if(!s.sink&&Math.hypot(s.x-S.x,s.z-S.z)<S.r*.8&&rng()<.35*dt*k){s.sink=.01;log(`The hurricane sank a ${s.owner<0?"pirate ship":"ship of "+nations[s.owner].name}.`,'doom')}
       for(const [i] of fires){const x=wx(i%W),z=wz((i/W)|0);if(S.kind!=='blizzard'&&Math.hypot(x-S.x,z-S.z)<S.r&&rng()<dt*k*.8)endFire(i)}
       if(S.kind!=='blizzard')brushWorld(S.x,S.z,S.r,(j,f)=>{moistD[j]=Math.min(.5,moistD[j]+.004*dt*k*f)})}
@@ -195,6 +202,8 @@ function disasterTick(){
   if(L<=0)return;
   const pick=(test,tries)=>{for(let q=0;q<(tries||300);q++){const i=(rng()*N)|0;if(test(i))return i}return -1};
   if(rng()<.04*L){const i=pick(j=>!isWater(j)&&moistAt(j)>.35);if(i>=0)spawnStorm('thunder',wx(i%W),wz((i/W)|0))}
+  if(settings.weather!==false&&rng()<.022*L&&storms.filter(q=>q.kind==='gale').length<2){let i=-1;if(rng()<.35&&typeof camT!=='undefined'){for(let q=0;q<30&&i<0;q++){const a=rng()*6.283,d=camDist*.4+rng()*Math.min(24,camDist*1.2),x=camT.x+Math.cos(a)*d,z=camT.z+Math.sin(a)*d,t=tileAt(x,z);if(t>=0&&isWater(t)&&waterY-groundY(x,z)>.25)i=t}}
+    if(i<0)i=pick(j=>biome[j]===0);if(i>=0)spawnStorm('gale',wx(i%W),wz((i/W)|0))}
   if(climate.temp>.38&&rng()<.007*L*(climate.temp+.3)){const i=pick(j=>biome[j]===0&&Math.abs(((j/W)|0)/(H-1)-.5)<.32);if(i>=0)spawnStorm('hurricane',wx(i%W),wz((i/W)|0))}
   if(rng()<.012*L*clamp(1.25-climate.temp*1.6,0,1.2)){const i=pick(j=>biome[j]===9||biome[j]===10||(biome[j]===5&&Math.abs(((j/W)|0)/(H-1)-.5)>.32));if(i>=0)spawnStorm('blizzard',wx(i%W),wz((i/W)|0))}
   if(rng()<.014*L*(.5+climate.temp)){const i=pick(j=>FUEL[biome[j]]>=.8&&moistAt(j)<.55);if(i>=0)startWildfire(i,false)}
@@ -208,8 +217,8 @@ function updateDisasters(dt,k){updateStorms(dt,k);updateFires(dt,k);updateWaves(
 
 /* ---------- drawing ---------- */
 function stormPuffs(pa,sa,aa,ca,n,now){
-  for(const S of storms){const cnt=S.kind==='hurricane'?70:34,base=Math.max(waterY,groundY(S.x,S.z))+3.9,f=S.fade||0;
-    const col=S.kind==='blizzard'||S.snow?.78:S.kind==='hurricane'?.46:S.kind==='shower'?.56:.34;
+  for(const S of storms){const cnt=S.kind==='hurricane'?70:S.kind==='gale'?52:34,base=Math.max(waterY,groundY(S.x,S.z))+3.9,f=S.fade||0;
+    const col=S.kind==='blizzard'||S.snow?.78:S.kind==='hurricane'?.46:S.kind==='shower'?.56:S.kind==='gale'?.28:.34;
     for(let q=0;q<cnt&&n<MAXP;q++){const r1=hash(S.seed+q*1.7),r2=hash(S.seed+q*3.1),r3=hash(S.seed+q*5.3);let a,d;
       if(S.kind==='hurricane'){const arm=q%3;d=(q/cnt)*S.r;a=arm*2.094+d*.9+S.t*.7;if(q<4){d=.6+r1*.3}}else{a=r1*6.283+S.t*.05;d=Math.sqrt(r2)*S.r*.85}
       pa[n*3]=S.x+Math.cos(a)*d;pa[n*3+1]=base+r3*.9;pa[n*3+2]=S.z+Math.sin(a)*d;sa[n]=(2+r3*1.8)*(S.kind==='hurricane'?1.1:1);aa[n]=.62*f;
