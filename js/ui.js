@@ -898,3 +898,16 @@ function guideShow(){$$('.guide-hi').forEach(e=>e.classList.remove('guide-hi'));
   el.innerHTML=`<small>${guideI+1} / ${GUIDE.length}</small><h3>${g.t}</h3><p>${g.b}</p><div class="row" style="gap:8px"><button class="btn" id="gSkip">Skip</button><div class="flex"></div><button class="btn primary" id="gNext">${guideI===GUIDE.length-1?'Begin':'Next'}</button></div>`;
   $('#gSkip').onclick=()=>{guideI=GUIDE.length;guideShow()};$('#gNext').onclick=()=>{guideI++;guideShow()}}
 function maybeGuide(){let seen=false;try{seen=localStorage.getItem('fb.guided')==='1'}catch(e){}if(seen||viewOnly||(typeof coopGuest==='function'&&coopGuest()))return;guideI=0;setTimeout(guideShow,900)}
+
+/* ---------- hide the menus, for a clean view of the world: H, or the eye in the top bar; the small eye at the top right brings them back ---------- */
+{const st=document.createElement('style');
+  st.textContent=`#hud.noui>*:not(#uiBack){display:none!important}#uiBack{position:fixed;top:12px;right:12px;z-index:30;display:none;align-items:center;gap:6px;padding:6px 10px;opacity:.6;transition:opacity .2s}#hud.noui #uiBack{display:flex}#uiBack:hover,#uiBack:focus-visible{opacity:1}#uiBack small{font-size:11px;opacity:.75}`;
+  document.head.appendChild(st);
+  const hud=$('#hud'),nav=hud&&hud.querySelector('.panelsnav'),eye='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  if(hud&&nav){const b=document.createElement('button');b.className='ib';b.id='uiHideBtn';b.setAttribute('aria-label','Hide menus (H)');b.title='Hide menus (H)';
+    b.innerHTML=eye.replace('</svg>','<path d="M3 3l18 18"/></svg>')+'<span>Hide</span>';nav.insertBefore(b,$('#fsBtn'));
+    const back=document.createElement('button');back.className='glass';back.id='uiBack';back.setAttribute('aria-label','Show menus (H)');back.title='Show menus (H)';back.innerHTML=eye+'<small>H</small>';hud.appendChild(back);
+    window.toggleUI=on=>{const h=on===undefined?!hud.classList.contains('noui'):!!on;hud.classList.toggle('noui',h);if(!h)b.focus({preventScroll:true});else back.focus({preventScroll:true})};
+    b.onclick=()=>toggleUI(true);back.onclick=()=>toggleUI(false);
+    addEventListener('keydown',e=>{const tg=e.target.tagName;if(tg==='INPUT'||tg==='TEXTAREA'||tg==='SELECT'||e.ctrlKey||e.metaKey||e.altKey)return;
+      if(e.key.toLowerCase()==='h'&&typeof playing!=='undefined'&&playing&&$('#modal').hidden){toggleUI();e.preventDefault()}})}}
