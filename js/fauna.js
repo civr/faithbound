@@ -125,3 +125,6 @@ function updateHunts(dt,now){if(!dt)return;huntT-=dt;
 
 /* the nation card: how the hunt goes */
 function huntWord(n){const k=HUNT_K[n.era]||0;if(!k)return '';const s=(n.huntShare??k)/k;return s>.8?'Plenty of game':s>.5?'Fair hunting':s>.25?'Game is scarce':'Hunted out'}
+{const _rn=renderNationCard;renderNationCard=function(){_rn.apply(this,arguments);const n=nations[selected];if(!n||!n.alive)return;const kv=document.querySelector('#nationCard .kv');if(!kv||kv.querySelector('[data-hunt]'))return;
+  const w=huntWord(n);if(!w)return;const k=HUNT_K[n.era]||0,pct=Math.round((n.huntShare??k)*100);const v=document.createElement('div');v.dataset.hunt='1';
+  v.innerHTML=`<span>Hunting</span><b>${w}${pct>=1?` · ${pct}% of the food`:''}</b>`;kv.appendChild(v)}}
