@@ -1171,7 +1171,7 @@ function rebuildCities(){patchSets();RB0=performance.now();for(const n of nation
 /* when every town, lair, ruin and mine would come out exactly as it is now, the whole rebuild is skipped */
 let RC_SIG='';
 const cityModelsSame=h=>typeof mdlSame!=='function'||mdlSame(h.mu);
-function rcSig(){roadPlan();let s=terrBase+'/'+settings.quality+'/'+(settings.models!==false)+'/'+(typeof MDL_VER!=='undefined'?MDL_VER:0)+'/'+lookKey+'/'+settings.arch+'/';for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(TOWN_MAX,cityLevel(n)+(gold?1.5:0))*2)/2;
+function rcSig(){roadPlan();let s=hamletSig()+'#'+terrBase+'/'+settings.quality+'/'+(settings.models!==false)+'/'+(typeof MDL_VER!=='undefined'?MDL_VER:0)+'/'+lookKey+'/'+settings.arch+'/';for(const n of nations){if(!n.alive)continue;const e=n.era,gold=n.golden>year,lvl=Math.floor(Math.min(TOWN_MAX,cityLevel(n)+(gold?1.5:0))*2)/2;
     n.cities.forEach((c,ci)=>{const key=cityKey(n,c,ci,e,lvl,gold,ci===0),hit=CITYCACHE.get(c);s+=(hit&&hit.key===key&&cityModelsSame(hit)?'=':'!')+c.x+','+c.y+';'})}
   s+='|'+coves.map(c=>c.x+','+c.y).join(';')+'|'+ruins.map(r=>r.x+','+r.y+':'+Math.floor((year-r.year)/10)).join(';')+'|'+deposits.map(d=>d.i+d.k+':'+owner[d.i]+':'+(owner[d.i]>=0&&nations[owner[d.i]]?nations[owner[d.i]].era:-1)).join(';');return s}
 function rebuildCities0(){roadPlan();{const sig=rcSig();if(sig===RC_SIG&&!sig.includes('!'))return;RC_SIG=sig}{let s='';for(const n of nations)if(n.alive&&n.era>=5&&n.era<=6)s+=n.id+':'+n.era+':'+n.cities.length+';';if(s!==sootSig){sootSig=s;if(typeof colorDirty!=='undefined')colorDirty=true}}
@@ -1188,7 +1188,7 @@ function rebuildCities0(){roadPlan();{const sig=rcSig();if(sig===RC_SIG&&!sig.in
   /* anyone a new house went up around steps back out into the street */
   for(const w of walkers)if(inBuilding(w.x,w.z)&&w.ci){const p=cityPoint(w.ci);w.x=w.tx=p[0];w.z=w.tz=p[1];w.moving=false}
   for(const nm of BUILD_KITS)KITS[nm].csPre=KITS[nm].k;
-  buildExtras();RC_SIG=rcSig()}
+  try{hamlets()}catch(err){console.warn('hamlets',err)}buildExtras();RC_SIG=rcSig()}
 function buildOne(n,c,ci,e,gold,lvl,key){const L0={em:emitters.length,hd:herds.length,cs:cityStreets.length,ap:airports.length,sp:spaceports.length,wm:windmills.length,tf:townFlags.length};
   REC={k:{},occ:[],bare:[],bg:[]};FOOTREC=[];const mu0=typeof MDL_USED!=='undefined'?MDL_USED:null,mu={};if(typeof MDL_USED!=='undefined')MDL_USED=mu;try{buildCity(n,c,ci,e,gold,lvl)}finally{if(typeof MDL_USED!=='undefined')MDL_USED=mu0;const Rc=REC;REC=null;Rc.ft=FOOTREC;FOOTREC=null;Rc.mu=mu;Rc.m={};Rc.c={};Rc.s={};
     for(const nm in Rc.k){const a=Rc.k[nm],cnt=a.length/19,m=new Float32Array(cnt*16),cl=new Float32Array(cnt*3);for(let i=0;i<cnt;i++){for(let j=0;j<16;j++)m[i*16+j]=a[i*19+j];cl[i*3]=a[i*19+16];cl[i*3+1]=a[i*19+17];cl[i*3+2]=a[i*19+18]}
@@ -1207,7 +1207,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       if(n.faith>=0&&(cap||hash(i0*3)<.35)){const [tx,tz]=dryOff(-.32*CO,.2*CO,cap?.2:.15);/* a temple too big for its spot is tried again smaller before it gives up */for(const sc of [1,.8,.62]){SACRED_SCALE=sc;if(solid(()=>sacredSite(faiths[n.faith],n,tx,surfY(tx,tz),tz,e,hash(i0)*3,cap),tx,tz,0,false,undefined,'big'))break}SACRED_SCALE=1;KO.push([tx,tz,cap?.26:.2])}
       if(c.dike)dikeRing(c,cx,cz);
       if(c.mayor&&typeof mayorBuild==='function')try{mayorBuild(n,c,cx,cz,e,cap,KO,dryOff,i0)}catch(err){console.warn('mayor build',err)}
-      MCTX={lvl,cap,tall:[],w:.12,cu:cultOf(n),n};const lagoon=isLagoon(n,c,e);MCTX.lagoon=lagoon;const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+Math.min(TOWN_MAX,townLevel(n,cap)+(gold?1.5:0))*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?3.4:3.2):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4))));
+      MCTX={lvl,cap,tall:[],w:.12,cu:cultOf(n),n};const lagoon=isLagoon(n,c,e);MCTX.lagoon=lagoon;const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+Math.min(TOWN_MAX,townLevel(n,cap)+(gold?1.5:0))*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?3.4:3.2):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4)*(cap?.85:.7))));/* towns a size the land can carry: smaller than before, the capital most of all stays big */
       if(plan.metro)plan.streets.forEach((st,si)=>{if(st.main&&st.base<=plan.pr+.01)reach.set(si,.5)});let k=0,placed=0;const HP=[];CUR_GREEN=c._green=[];c._poi={pts:[],plaza:[cx,cz],r:plan.pr};c._doors=[];
       const far=Math.hypot(cx-camT.x,cz-camT.z)>camDist*1.3+2.5;MCTX.far=far;
       if(e>=2&&e<=4&&!plan.metro&&!lagoon&&count>=(cap?14:18)){const ds=[];for(const sl of slots){if(ds.length>=count)break;const t=tileAt(sl.x,sl.z);if(t<0||(owner[t]>=0&&owner[t]!==n.id))continue;ds.push(Math.hypot(sl.x-cx,sl.z-cz))}
@@ -1281,6 +1281,32 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
             wetRun=0;pts.push([q[0],q[1]])}
           flush()})}
     }}
+/* ---------- hamlets: a few houses round a well out in the country, between the towns, where people farm their own patch ---------- */
+let HAMLETS=[];
+function hamletSig(){let s='';for(const n of nations)if(n.alive&&n.era>=1)s+=n.id+':'+n.era+':'+(n.tiles>>4)+':'+n.cities.length+';';return s}
+function hamlets(){HAMLETS=[];if(settings.quality==='low')return;
+  for(const n of nations){if(!n.alive||n.era<1||!n.cities.length)continue;const e=n.era,cu=cultOf(n),max=Math.min(50,Math.floor(n.tiles/28));let made=0;
+    const dry=['mideast','africa','meso','andean','steppe','southasia'].includes(cu),round=(cu==='africa'||cu==='pacific'||cu==='meso')&&e<=3;
+    for(let q=0;q<n.tiles*3&&made<max;q++){const i=(hash(n.id*977+q*13.37)*N)|0;if(owner[i]!==n.id||isWater(i)||occupied.has(i)||fieldTiles.has(i))continue;
+      const b=biome[i];if(!(b===4||b===5||b===8||b===3))continue;const X=i%W,Y=(i/W)|0;if(hash(i*3.71+1.3)>.5)continue;
+      /* clear of the towns' own ground and of each other */
+      let ok=true;for(const c of n.cities)if(Math.hypot(c.x-X,c.y-Y)<3.6){ok=false;break}if(!ok)continue;
+      for(const H_ of HAMLETS)if(Math.hypot(H_.x-X,H_.y-Y)<2.6){ok=false;break}if(!ok||nearCity(X,Y,3.6))continue;
+      const cx=wx(X)+(hash(i*1.9)-.5)*.3,cz=wz(Y)+(hash(i*2.7)-.5)*.3,cy=groundY(cx,cz);if(cy<waterY+.06)continue;
+      /* level enough to build on */let lo=cy,hi=cy;for(let a=0;a<6;a++){const g=groundY(cx+Math.cos(a)*.22,cz+Math.sin(a)*.22);lo=Math.min(lo,g);hi=Math.max(hi,g)}if(hi-lo>.12)continue;
+      const nh=2+((hash(i*5.3)*4)|0),r0=hash(i*7.7)*6.283;let built=0;
+      for(let k=0;k<nh;k++){const a=r0+k*(6.283/nh)+(hash(i*11+k)-.5)*.6,d=.1+hash(i*13+k)*.07,x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d,y=groundY(x,z),rot=a+Math.PI/2+(hash(i*17+k)-.5)*.4,hk=hash(i*19+k);
+        if(y<waterY+.05)continue;
+        if(solid(()=>{if(e>=5){add('plaster',x,y-.02,z,.1,.06,.075,rot,hk<.5?0xece4d6:0xd8cdb8);add('tiles',x,y+.04,z,.115,.035,.09,rot,hk<.6?0x9a4a36:0x5a5e66)}
+            else if(round){add('adobeCyl',x,y-.02,z,.05,.05,.05,0,0xb88e62);add('coneThatch',x,y+.03,z,.075,.06,.075,0,0xb4a070)}
+            else if(dry){add('adobe',x,y-.02,z,.09,.055,.075,rot,hk<.5?0xc8a47a:0xd6b88e);add('box',x,y+.036,z,.095,.006,.08,rot,0x9a7a56)}
+            else cottage(x,y,z,rot,.09,.07,.038+hk*.01,hk)},x,z,rot))built++;
+        if(!dry&&!round&&e>=2&&hash(i*23+k)<.6)yard(x,z,rot,.09,.07,.07,.09,hk)}
+      if(built<2)continue;
+      /* the well, a haystack or a cart, and a path out to the nearest road */
+      add('cyl',cx,cy-.01,cz,.018,.025,.018,0,0x8a8478);add('cyl',cx,cy+.012,cz,.012,.002,.012,0,0x2a3a44);
+      if(e<5){const hx=cx+Math.cos(r0+3.1)*.06,hz=cz+Math.sin(r0+3.1)*.06;add('hay',hx,groundY(hx,hz)-.005,hz,.03,.035,.03,0,0xd8c070)}
+      occupied.add(i);HAMLETS.push({x:X,y:Y,n:n.id,cx,cz});made++}}}
 function buildExtras(){
   /* the pirate lair: shacks behind a palisade, a jetty, beached boats and the black flag */
   for(const g of coveShips)disposeShip({g});coveShips=[];

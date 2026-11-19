@@ -166,11 +166,11 @@ function bestSite(A,x,y,r,gap){let best=-1,bs=-1;for(let dy=-r;dy<=r;dy++)for(le
 function terrFactor(i,j){let f=1;if((river[i]>0)!==(river[j]>0))f*=.3;if(tslope.length===N)f*=clamp(1.25-tslope[j]*.9,.2,1);if(biome[j]===11||biome[j]===12)f*=.35;return f}
 /* towns stand well apart and are founded rarely, so there are fewer of them and each grows larger */
 /* towns stand well apart, with farms, woods and open country between them, as on a real island */
-const TOWN_GAP=10;
+const TOWN_GAP=14;/* towns stand well apart, with hamlets and open country between them */
 /* a new town looks for the best site in a wide stretch of the nation's land around where its people are spreading */
 function maybeCity(A,x,y,j){if(rng()>.012)return;j=bestSite(A,x,y,5,TOWN_GAP);if(j<0||siteScore(j)<.7)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,TOWN_GAP))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year,site:siteInfo(j).why});propsDirty=true;
   if(!milestones.has('city2')){milestone('city2','A second city rises','The '+A.name+' founded a new town.')}}
-function foundTown(A,x,y,j){if((A.tiles/Math.max(1,A.cities.length))<80)return;j=bestSite(A,x,y,6,TOWN_GAP);if(j<0||siteScore(j)<.65)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,TOWN_GAP))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year,site:siteInfo(j).why});propsDirty=true}
+function foundTown(A,x,y,j){if((A.tiles/Math.max(1,A.cities.length))<130)return;j=bestSite(A,x,y,6,TOWN_GAP);if(j<0||siteScore(j)<.65)return;x=j%W;y=(j/W)|0;if(nearCity(x,y,TOWN_GAP))return;A.cities.push({x,y,name:cultureName(cultOf(A)),origin:A.id,born:year,site:siteInfo(j).why});propsDirty=true}
 const mil=n=>n.pop/Math.max(1,n.tiles)*ERAS[n.era].mil*ten(n).mil*(n.gpMil||1)*(n.bless>0?1.3:1)*(n.hero&&n.hero.until>year?1.6:1);
 /* ---------- alliances: sworn friends join each other's wars ---------- */
 const allied=(a,b)=>!!(a.allies&&a.allies.includes(b.id));
