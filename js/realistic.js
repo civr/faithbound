@@ -6,11 +6,17 @@
    Nothing about the simulation changes: this file only swaps the materials and shapes the existing kits are drawn with,
    and swaps them back when the player returns to the pixel look. One world unit is about 33 metres. */
 
-LOOKS.real={label:'Realistic',desc:'Natural colours and real photo materials, drawn smooth at full resolution',pixel:0,soft:1,
+LOOKS.real={label:'Realistic',desc:'Natural colours and real photo materials, drawn smooth at full resolution',pixel:0,soft:.85,
   ground:{3:[170,154,118],4:[70,92,40],5:[46,64,30],6:[42,64,30],7:[176,152,110],8:[124,120,78],9:[52,66,40],10:[118,116,98],11:[86,94,58],12:[118,114,106]},
   sat:.96,exposure:.88,tint:[64,80,46,.05],sun:0xffecd6,sunI:3.05,hemiI:.46,fog:.8,lock:-1,skyTop:0x6a96c8,skyHor:0xc6d4de,shallow:0x356a64,deep:0x0b2a38,
   post:{sat:.95,con:1.15,lift:[0,.004,.012],gain:[1.04,1,.94],vig:.3,tilt:.85,tiltFar:1,ao:.7,mist:.24,bloom:.12,grain:0,split:.9}};
 
+/* the Miniature look: the same real materials, seen as a tabletop model. A narrow band of sharp focus across the middle of the
+   view with strong blur above and below (as a tilt-shift lens gives), clear air, bright sun and rich toy-like colour */
+LOOKS.mini=Object.assign({},LOOKS.real,{soft:.75,label:'Miniature',desc:'A tiny model world on a table: real materials, strong tilt-shift blur and bright colours',
+  sat:1.04,exposure:.96,sunI:3.3,hemiI:.5,fog:.5,skyTop:0x5f94d0,skyHor:0xd2dfe8,
+  post:{sat:1.22,con:1.14,lift:[.004,.004,.01],gain:[1.05,1.01,.94],vig:.4,tilt:1.45,tiltAll:1,tiltB:[.05,.36],tiltN:32,ao:.85,mist:0,bloom:.16,grain:0,split:.9}});
+const isRealLook=k=>k==='real'||k==='mini';
 const REAL={on:false,ready:null,mats:{},swapped:[],trees:[],U:{uTime:null}};
 const M_PER_U=33;/* metres in one world unit */
 
@@ -111,7 +117,7 @@ const REAL_KIT_BYNAME={hedge:'hedge'};
 const REAL_KIT_OVERRIDE={bridge:'rubble',stP:'rubble',pyr:'rubble'};
 
 async function realLoad(){
-  const files={plaster:'r_plaster.jpg',wood:'r_wood.jpg',planks:'r_planks.jpg',stone:'r_stone.jpg',brick:'r_brick.jpg',tiles:'r_tiles.jpg',thatch:'r_thatch.jpg',cobble:'r_cobble.jpg',leaf:'../t_leaf.jpg',sky:'r_sky.jpg',dirt:'r_dirt.jpg',asphalt:'r_asphalt.jpg',conc:'r_conc.jpg',conc2:'r_conc2.jpg',
+  const files={plaster:'r_plaster.jpg',wood:'r_wood.jpg',planks:'r_planks.jpg',stone:'r_stone.jpg',brick:'r_brick.jpg',tiles:'r_tiles.jpg',thatch:'r_thatch.jpg',cobble:'r_cobble.jpg',leaf:'../t_leaf.jpg',sky:'r_sky.jpg',snow:'r_snow.jpg',dirt:'r_dirt.jpg',asphalt:'r_asphalt.jpg',conc:'r_conc.jpg',conc2:'r_conc2.jpg',
     stoneN:'r_stone_n.jpg',brickN:'r_brick_n.jpg',tilesN:'r_tiles_n.jpg',thatchN:'r_thatch_n.jpg',planksN:'r_planks_n.jpg',impB:'imp_broadleaf.webp',impF:'imp_fir.webp'};
   const P={};await Promise.all(Object.entries(files).map(async([k,f])=>{P[k]=await realImg(f)}));
   const F={};for(const k of ['half','stone','brick','planks','adobe','office','glassw'])F[k]=realFacade(k,P);
@@ -200,7 +206,7 @@ if(typeof SMODEL_MAT!=='undefined'){const prev=SMODEL_MAT.onBeforeCompile,pk=SMO
     if(sh.fragmentShader.indexOf('vWxP')<0)return;
     sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uRM;uniform sampler2D rS,rP,rW,rT;')
       .replace('#include <color_fragment>',`#include <color_fragment>
-  if(uRM>.5){vec3 bw=pow(abs(vWxN),vec3(4.));bw/=bw.x+bw.y+bw.z+1e-4;vec3 q=vWxP;
+  if(uRM>.5&&length(vWxP-cameraPosition)<14.){vec3 bw=pow(abs(vWxN),vec3(4.));bw/=bw.x+bw.y+bw.z+1e-4;vec3 q=vWxP;
    #define TRI(t,k) (dot(texture2D(t,q.zy*k).rgb,vec3(.3,.59,.11))*bw.x+dot(texture2D(t,q.xz*k).rgb,vec3(.3,.59,.11))*bw.y+dot(texture2D(t,q.xy*k).rgb,vec3(.3,.59,.11))*bw.z)
    diffuseColor.rgb=mix(vec3(dot(diffuseColor.rgb,vec3(.3,.59,.11))),diffuseColor.rgb,.62);
    vec3 c=diffuseColor.rgb;float l=dot(c,vec3(.3,.59,.11)),sat=max(c.r,max(c.g,c.b))-min(c.r,min(c.g,c.b));
@@ -213,7 +219,7 @@ if(typeof SMODEL_MAT!=='undefined'){const prev=SMODEL_MAT.onBeforeCompile,pk=SMO
 {const prev=terrainMat.onBeforeCompile,pk=terrainMat.customProgramCacheKey();terrU.uReal={value:0};
   terrainMat.onBeforeCompile=function(sh,r){prev.call(this,sh,r);sh.uniforms.uReal=terrU.uReal;
     sh.fragmentShader=sh.fragmentShader.replace('uniform float uPhoto;','uniform float uPhoto;uniform float uReal;')
-      .replace('smoothstep(14.+uHam*16.,52.+uHam*30.,camD)','smoothstep(14.+uHam*16.+uReal*26.,52.+uHam*30.+uReal*90.,camD)')
+      .replace('smoothstep(14.+uHam*16.,52.+uHam*30.,camD)','smoothstep(14.+uHam*16.+uReal*12.,52.+uHam*30.+uReal*38.,camD)')
       .replace('det=clamp(det,.4,1.7);','det=clamp(det,.4,1.7);det=mix(det,pow(det,vec3(1.25)),uReal);')
       .replace('vec2 P1=vWP.xz*.42,P2=mat2(.8,-.6,.6,.8)*vWP.xz*.13+.37;','vec2 P1=vWP.xz*(.42+uReal*5.4),P2=mat2(.8,-.6,.6,.8)*vWP.xz*(.13+uReal*1.5)+.37;')
       .replace('texture2D(tR,vWP.zy*.35)','texture2D(tR,vWP.zy*(.35+uReal*3.))').replace('texture2D(tR,vWP.xy*.35)','texture2D(tR,vWP.xy*(.35+uReal*3.))')};
@@ -316,7 +322,7 @@ function realGrain(m){if(!m||m._rg)return;m._rg=true;const prev=m.onBeforeCompil
   m.onBeforeCompile=function(sh,r){if(prev)prev.call(this,sh,r);if(!REALM.rS.value||sh.fragmentShader.indexOf('vWxP')<0)return;Object.assign(sh.uniforms,REALM);
     sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uRM;uniform sampler2D rS,rP,rW;float rgH(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float rgN(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(rgH(i),rgH(i+vec2(1,0)),f.x),mix(rgH(i+vec2(0,1)),rgH(i+vec2(1,1)),f.x),f.y);}')
       .replace('#include <color_fragment>',`#include <color_fragment>
-  if(uRM>.5){vec3 bw=pow(abs(vWxN),vec3(4.));bw/=bw.x+bw.y+bw.z+1e-4;vec3 q=vWxP;
+  if(uRM>.5&&length(vWxP-cameraPosition)<10.){vec3 bw=pow(abs(vWxN),vec3(4.));bw/=bw.x+bw.y+bw.z+1e-4;vec3 q=vWxP;
    #define TRG(t,k) (dot(texture2D(t,q.zy*k).rgb,vec3(.3,.59,.11))*bw.x+dot(texture2D(t,q.xz*k).rgb,vec3(.3,.59,.11))*bw.y+dot(texture2D(t,q.xy*k).rgb,vec3(.3,.59,.11))*bw.z)
    vec3 c=diffuseColor.rgb;float l=dot(c,vec3(.3,.59,.11)),mx=max(c.r,max(c.g,c.b)),sat=(mx-min(c.r,min(c.g,c.b)))/max(mx,.001);
    float wood=smoothstep(.02,.08,c.r-c.b)*(1.-smoothstep(.3,.55,l))*(1.-smoothstep(.55,.75,sat)),cloth=smoothstep(.4,.6,sat)*(1.-wood),
@@ -342,21 +348,29 @@ function realFire(on){const set=(k,v)=>Object.assign(PK[k],v);
   const t=new THREE.CanvasTexture(envCan);t.mapping=THREE.EquirectangularReflectionMapping;t.encoding=THREE.sRGBEncoding;
   const rt=pmrem.fromEquirectangular(t);t.dispose();if(envRT)envRT.dispose();envRT=rt;scene.environment=rt.texture}}
 
+/* ---------- clean snow, and no scattered flower and pebble specks (they re-scatter round the camera and read as coloured blobs) ---------- */
+const REALS={snow0:null,mW0:null};
+function realSnow(on){if(!REAL.P||!REAL.P.snow)return;if(!REALS.tex){REALS.tex=realTex(REAL.P.snow,true);REALS.snow0=terrU.tW.value;REALS.mW0=terrU.mW.value.clone()}
+  terrU.tW.value=on?REALS.tex:REALS.snow0;terrU.mW.value.copy(on?new THREE.Vector3(.89,.87,.82):REALS.mW0);
+  for(const k of ['wflower','pebble'])if(KITS[k])KITS[k].mesh.visible=!on}
+/* the grass carpet is re-scattered as the camera moves, which also shows these again: keep them hidden after every scatter */
+{const _ug=updateGrass;updateGrass=function(){const r=_ug.apply(this,arguments);if(REAL.on)for(const k of ['wflower','pebble']){const K=KITS[k];if(K){K.mesh.visible=false;K.mesh.count=0}}return r}}
+
 /* ---------- switching ---------- */
 async function realOn(){if(!REAL.ready)REAL.ready=realLoad().catch(e=>{console.warn('Realistic look could not load',e);REAL.ready=null;throw e});
-  try{await REAL.ready}catch(e){return}if(lookKey!=='real')return;
+  try{await REAL.ready}catch(e){return}if(!isRealLook(lookKey))return;
   if(!REALM.rS.value){REALM.rS.value=REAL.T.stone;REALM.rP.value=realTex(REAL.P.plaster,true);REALM.rW.value=realTex(REAL.P.planks,true);REALM.rT.value=REAL.T.tiles;if(typeof SMODEL_MAT!=='undefined')SMODEL_MAT.needsUpdate=true}
-  REALM.uRM.value=1;REAL.on=true;realSwap(true);realFields(true);realRoads(true);realWater(true);realFire(true);REALP.uRealP.value=1;lastEnv=-1e9;envKey='';for(const k of ['plain','awning','metal'])if(MAT[k])MAT[k].needsUpdate=true;terrU.uReal.value=1;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof forestDirty!=='undefined')forestDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
-function realOff(){if(!REAL.on)return;REAL.on=false;realSwap(false);realFields(false);realRoads(false);realWater(false);realFire(false);REALP.uRealP.value=0;lastEnv=-1e9;envKey='';terrU.uReal.value=0;REALM.uRM.value=0;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
-{const _al=applyLook;applyLook=function(k){_al.apply(this,arguments);settings.realLook=k==='real';saveSettings();if(k==='real')realOn();else realOff()}}
+  REALM.uRM.value=1;REAL.on=true;realSwap(true);realFields(true);realRoads(true);realWater(true);realFire(true);realSnow(true);REALP.uRealP.value=1;lastEnv=-1e9;envKey='';for(const k of ['plain','awning','metal'])if(MAT[k])MAT[k].needsUpdate=true;terrU.uReal.value=1;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof forestDirty!=='undefined')forestDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
+function realOff(){if(!REAL.on)return;REAL.on=false;realSwap(false);realFields(false);realRoads(false);realWater(false);realFire(false);realSnow(false);REALP.uRealP.value=0;lastEnv=-1e9;envKey='';terrU.uReal.value=0;REALM.uRM.value=0;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
+{const _al=applyLook;applyLook=function(k){_al.apply(this,arguments);settings.realLook=isRealLook(k);settings.lookPick=k;saveSettings();if(isRealLook(k))realOn();else realOff()}}
 
 /* the choice in Settings, above the pixel size */
 {const _os=openSettings;openSettings=function(){_os.apply(this,arguments);const box=document.querySelector('#modalBox .setcol');if(!box||box.querySelector('[data-look]'))return;
-  const sec=document.createElement('div');sec.className='sec';const cur=lookKey==='real'?'real':'hamlet';
-  sec.innerHTML=`<span class="lab">Look</span><div class="seg"><button data-look="hamlet" aria-pressed="${cur==='hamlet'}">Cozy pixel</button><button data-look="real" aria-pressed="${cur==='real'}">Realistic</button></div>
-    <p class="note">Realistic draws the world smooth with real photo materials: plaster and oak beams, stone, brick, clay tiles, thatch and real trees. It needs a faster computer than the pixel look.</p>`;
+  const sec=document.createElement('div');sec.className='sec';const cur=isRealLook(lookKey)?lookKey:'hamlet';
+  sec.innerHTML=`<span class="lab">Look</span><div class="seg"><button data-look="hamlet" aria-pressed="${cur==='hamlet'}">Cozy pixel</button><button data-look="real" aria-pressed="${cur==='real'}">Realistic</button><button data-look="mini" aria-pressed="${cur==='mini'}">Miniature</button></div>
+    <p class="note">Realistic draws the world smooth with real photo materials: plaster and oak beams, stone, brick, clay tiles, thatch and real trees. Miniature shows the same world as a tiny model on a table, with tilt-shift blur and bright colours. Both need a faster computer than the pixel look.</p>`;
   const anchor=[...box.querySelectorAll('.sec')].find(s=>s.querySelector('[data-pixsize]'));box.insertBefore(sec,anchor||box.children[1]||null)}}
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-look]');if(!b)return;const k=b.dataset.look;if(LOOKS[k]&&k!==lookKey)applyLook(k);openSettings()});
 
 /* the choice is kept between visits (the pixel look is otherwise forced on start) */
-if(settings.realLook)setTimeout(()=>{try{applyLook('real')}catch(e){console.warn(e)}},0);
+if(settings.realLook)setTimeout(()=>{try{applyLook(isRealLook(settings.lookPick)?settings.lookPick:'real')}catch(e){console.warn(e)}},0);

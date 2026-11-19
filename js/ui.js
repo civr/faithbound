@@ -244,7 +244,7 @@ function renderNationCard(){
     <div class="kv"><div><span>People</span><b>${people(n)}</b></div><div><span>Lands</span><b>${n.tiles}</b></div>
     <div><span>Cities</span><b>${n.cities.length}</b></div><div><span>Fleet</span><b>${fleet}</b></div>
     <div><span>Rule</span><b>${GOVS[n.gov]?GOVS[n.gov].name:'None'}</b></div><div><span>Faith</span><b>${n.faith>=0?esc(faiths[n.faith].name):'Ancestors'}</b></div><div><span>Temper</span><b>${n.aggr>.65?'Warlike':n.aggr>.4?'Wary':'Calm'}</b></div><div><span>Harvest</span><b>${typeof harvestWord==='function'?harvestWord(n.harvest):'—'}${n.harvWhy?` <small style="font-weight:400">(${n.harvWhy})</small>`:''}</b></div>
-    <div><span>Capital</span><b>${n.cities[0]?esc(n.cities[0].name):'None'}</b></div><div><span>Wonder</span><b>${n.wonder?esc(WONDERS[n.wonder].name):'None'}</b></div></div>
+    <div><span>Capital</span><b>${n.cities[0]?esc(n.cities[0].name):'None'}</b></div><div><span>Wonder</span><b>${n.wonder?esc(typeof wonderName==='function'?wonderName(n,n.wonder):WONDERS[n.wonder].name):'None'}</b></div></div>
     ${wars.length?`<p class="note"><b style="color:#f0a196">Fighting:</b> ${esc(wars.join(', '))}</p>`:''}
     ${typeof voyageHtml==='function'?voyageHtml(n):''}
     <div title="${esc(stTip)}"><div class="row" style="justify-content:space-between"><span class="lab">Stability · ${stabLabel(st)}</span><span class="lab">${sp.slice(0,2).map(p=>`${esc(p[0])} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join(' · ')}</span></div><div class="prog"><i style="width:${st*100}%;background:${stabColor(st)}"></i></div></div>

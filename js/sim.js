@@ -560,7 +560,7 @@ function tick(){if(typeof farmAbandonTick==='function')farmAbandonTick();
     if(n.bless>0)n.bless--;
     if(!govOptions(n).includes(n.gov)||rng()<.0015/Math.sqrt(paceInfo().techMult))aiReform(n);
     emis+=n.pop*e.emit*t.emit;n.nb=new Set();n.front=[];
-    if(n.era>=1&&n.wonder<n.era&&n.cities.length>=2&&rng()<.004){n.wonder=n.era;propsDirty=true;const wd=WONDERS[n.era];
+    if(n.era>=1&&n.wonder<n.era&&n.cities.length>=2&&rng()<.004&&(typeof wonderPick!=='function'||wonderPick(n,n.era))){n.wonder=n.era;n.wonderName=null;propsDirty=true;const wd={name:n._wpick||(typeof wonderName==='function'?wonderName(n,n.era):WONDERS[n.era].name)};n.wonderName=wd.name;if(typeof wonderClaim==='function')wonderClaim(n,wd.name);
       log(`${n.name} completed the ${wd.name}.`,'era');milestone('wonder','A wonder of the world',`${n.name} built the ${wd.name}.`)}
     if(n.era>=SAIL){let col=0,war=0;for(const s of ships)if(s.owner===n.id&&!s.sink){if(s.kind==='colony')col++;else if(s.kind==='war')war++}
       if(col<2&&rng()<.02*t.exp*t.sea)launch(n,'colony');
