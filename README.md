@@ -87,3 +87,8 @@ Your browser opens at http://localhost:8040. Saves and accounts are kept in the 
 Stop it with Ctrl+C. To update later: `git pull && ./run-local.sh`.
 
 With Docker Desktop installed you can also run `docker compose up -d --build` in the same folder and open http://localhost:8040.
+
+## Credits
+- Photo textures, the realistic trees and the sky: [Poly Haven](https://polyhaven.com), CC0. Per-file lists in `assets/textures/CREDITS.md` and `assets/textures/real/CREDITS.md`.
+- 3D models of people, animals, vehicles and buildings: see `assets/models/CREDITS.md`.
+- three.js: MIT licence.

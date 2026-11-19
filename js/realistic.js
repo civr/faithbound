@@ -99,6 +99,7 @@ function realScaledUV(m,tw,th,mode,win){const prev=m.onBeforeCompile;
 #endif
  tuv/=vec2(${tw.toFixed(4)},${th.toFixed(4)});vUv=tuv;vRWin=vec3(tuv,fract(dot(seed.xz,vec2(17.31,24.17)))*97.+floor(normal.x*2.+normal.z*3.)*13.);}
 #endif`);
+    sh.fragmentShader=sh.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n diffuseColor.rgb=mix(vec3(dot(diffuseColor.rgb,vec3(.3,.59,.11))),diffuseColor.rgb,.84);');
     if(win)sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vRWin;').replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
   {vec2 cell=floor(vRWin.xy*vec2(2.,1.));float hw=fract(sin(dot(cell+vRWin.z,vec2(12.9898,78.233)))*43758.5453);totalEmissiveRadiance*=step(hw,.5)*(.4+hw);}`)};
   m.customProgramCacheKey=()=>'real|'+mode+'|'+tw+'|'+th+(win?'w':'')+(m.userData.tall?'t':'');return m}
@@ -110,11 +111,11 @@ const REAL_KIT_BYNAME={hedge:'hedge'};
 const REAL_KIT_OVERRIDE={bridge:'rubble',stP:'rubble',pyr:'rubble'};
 
 async function realLoad(){
-  const files={plaster:'r_plaster.jpg',wood:'r_wood.jpg',planks:'r_planks.jpg',stone:'r_stone.jpg',brick:'r_brick.jpg',tiles:'r_tiles.jpg',thatch:'r_thatch.jpg',cobble:'r_cobble.jpg',leaf:'../t_leaf.jpg',dirt:'r_dirt.jpg',asphalt:'r_asphalt.jpg',conc:'r_conc.jpg',conc2:'r_conc2.jpg',
+  const files={plaster:'r_plaster.jpg',wood:'r_wood.jpg',planks:'r_planks.jpg',stone:'r_stone.jpg',brick:'r_brick.jpg',tiles:'r_tiles.jpg',thatch:'r_thatch.jpg',cobble:'r_cobble.jpg',leaf:'../t_leaf.jpg',sky:'r_sky.jpg',dirt:'r_dirt.jpg',asphalt:'r_asphalt.jpg',conc:'r_conc.jpg',conc2:'r_conc2.jpg',
     stoneN:'r_stone_n.jpg',brickN:'r_brick_n.jpg',tilesN:'r_tiles_n.jpg',thatchN:'r_thatch_n.jpg',planksN:'r_planks_n.jpg',impB:'imp_broadleaf.webp',impF:'imp_fir.webp'};
   const P={};await Promise.all(Object.entries(files).map(async([k,f])=>{P[k]=await realImg(f)}));
   const F={};for(const k of ['half','stone','brick','planks','adobe','office','glassw'])F[k]=realFacade(k,P);
-  REAL.F=F;REAL.P=P;REAL.T={stone:realTex(P.stone,true),stoneN:realTex(P.stoneN),tiles:realTex(P.tiles,true),tilesN:realTex(P.tilesN),thatch:realTex(P.thatch,true),thatchN:realTex(P.thatchN),cobble:realTex(P.cobble,true),leaf:realTex(P.leaf,true),dirt:realTex(P.dirt,true),asphalt:realTex(P.asphalt,true),conc2:realTex(P.conc2,true),
+  REAL.F=F;REAL.P=P;REAL.sky=P.sky;REAL.T={stone:realTex(P.stone,true),stoneN:realTex(P.stoneN),tiles:realTex(P.tiles,true),tilesN:realTex(P.tilesN),thatch:realTex(P.thatch,true),thatchN:realTex(P.thatchN),cobble:realTex(P.cobble,true),leaf:realTex(P.leaf,true),dirt:realTex(P.dirt,true),asphalt:realTex(P.asphalt,true),conc2:realTex(P.conc2,true),
     impB:realTex(P.impB,true),impF:realTex(P.impF,true)};
   for(const t of [REAL.T.impB,REAL.T.impF]){t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=4}}
 
@@ -132,7 +133,7 @@ function realMat(kind,mode,orig){const key=kind+'|'+mode;if(REAL.mats[key])retur
   else{/* thatch, and the weathered grey-brown thatch of hipped cottage roofs */
     m=realScaledUV(new THREE.MeshStandardMaterial({map:T.thatch,normalMap:T.thatchN,roughness:1,side:THREE.DoubleSide,color:kind==='thatch2'?0xb4a690:0xffffff}),.1,.1,mode==='box'?'roof':mode,false)}
   if(orig&&orig.side===THREE.DoubleSide)m.side=THREE.DoubleSide;
-  if(typeof weatherHook==='function')weatherHook(m);REAL.mats[key]=m;return m}
+  if(typeof weatherHook==='function')weatherHook(m);realCloud(m,'vWxP');REAL.mats[key]=m;return m}
 function realMode(geo){const t=geo.type||'';return t==='ConeGeometry'?'cone':t==='CylinderGeometry'?'cyl':t==='BoxGeometry'?'box':geo.attributes&&geo.attributes.position&&geo.attributes.position.count<=36?'roof':'box'}
 
 /* ---------- trees: camera-facing pictures of real tree models ---------- */
@@ -253,7 +254,7 @@ function realRoadMat(t){if(REALR[t])return REALR[t];const T=REAL.T,o=ROADMATS0[t
  ${t===0?'float rut=exp(-pow((ax-.42)/.13,2.));diffuseColor.rgb*=1.-.24*rut;diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.78,1.02,.6),(1.-smoothstep(.08,.24,ax))*.45);diffuseColor.a=1.-smoothstep(.62,1.,ax);'
   :t===1?'diffuseColor.rgb*=mix(1.,.7,smoothstep(.86,.92,ax));diffuseColor.a=1.-smoothstep(.94,1.,ax);'
   :'float dash=step(.55,fract(vRU.y*2.))*(1.-smoothstep(.025,.045,ax));float edg=smoothstep(.8,.83,ax)*(1.-smoothstep(.87,.9,ax));diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.8,.79,.74),max(dash,edg)*.85);diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.46,.44,.41),smoothstep(.93,.96,ax));diffuseColor.a=1.-smoothstep(.97,1.,ax);'}}`)};
-  m.customProgramCacheKey=()=>'realroad'+t;if(typeof weatherHook==='function')weatherHook(m);REALR[t]=m;return m}
+  m.customProgramCacheKey=()=>'realroad'+t;if(typeof weatherHook==='function')weatherHook(m);realCloud(m,'vWxP');REALR[t]=m;return m}
 function realRoads(on){for(let t=0;t<3;t++){const m=on?realRoadMat(t):ROADMATS0[t];ROADMATS[t]=m;if(roadMeshes[t])roadMeshes[t].material=m}}
 
 /* ---------- water: less bright sky in it, so seas, rivers and moats read as deep natural water ---------- */
@@ -268,6 +269,8 @@ const REALW=[];
 function realWater(on){if(!REALW.length){REALW.push([waterMat,waterMat.envMapIntensity,.26]);
     const seen=new Set([waterMat]);const add=m=>{if(m&&!seen.has(m)&&/^inland-/.test(m.customProgramCacheKey()||'')){seen.add(m);REALW.push([m,m.envMapIntensity,.3])}};
     if(typeof riverMat!=='undefined')add(riverMat);if(typeof pondMat!=='undefined')add(pondMat);for(const k in KITS)if(KITS[k].mesh)add(KITS[k].mesh.material)}
+  if(typeof FLOODMAT!=='undefined'&&!REALW.some(r=>r[0]===FLOODMAT)){REALW.push([FLOODMAT,FLOODMAT.envMapIntensity,.25]);REAL.floodCol=FLOODMAT.color.clone()}
+  if(REAL.floodCol){FLOODMAT.color.copy(REAL.floodCol);if(on)FLOODMAT.color.multiply(new THREE.Color(.82,.74,.62));FLOODMAT.roughness=on?.35:.15}
   for(const [m,a,b] of REALW)m.envMapIntensity=on?b:a;waterU.uReal.value=on?1:0}
 
 /* ---------- people, animals, ships and vehicles ---------- */
@@ -293,12 +296,58 @@ if(typeof MODEL_MAT!=='undefined')realPatchMat(MODEL_MAT,'part');
 if(typeof VEH_MAT!=='undefined')realPatchMat(VEH_MAT,'veh');
 if(typeof SHIP_MODEL_MAT!=='undefined')realPatchMat(SHIP_MODEL_MAT,'ship');
 
+/* ---------- cloud shadows: slow patches of shade drifting over the land, the fields and the roofs ---------- */
+const CLOUDU={uCS:{value:0},uCT:{value:0}};
+const CLOUD_GLSL=`uniform float uCS,uCT;float rcH(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float rcN(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(rcH(i),rcH(i+vec2(1,0)),f.x),mix(rcH(i+vec2(0,1)),rcH(i+vec2(1,1)),f.x),f.y);}
+float rCloud(vec2 w){vec2 p=w*.07+uCT*vec2(.012,.005);float n=rcN(p)*.55+rcN(p*2.1+3.7)*.3+rcN(p*4.3-1.3)*.15;return 1.-uCS*.55*smoothstep(.5,.64,n);}`;
+function realCloud(m,pos){if(!m||m._rc||!m.isMeshStandardMaterial)return;m._rc=true;const prev=m.onBeforeCompile,pkf=m.customProgramCacheKey.bind(m);
+  m.onBeforeCompile=function(sh,r){if(prev)prev.call(this,sh,r);sh.uniforms.uCS=CLOUDU.uCS;sh.uniforms.uCT=CLOUDU.uCT;
+    if(sh.fragmentShader.indexOf(pos)<0||sh.fragmentShader.indexOf('#include <lights_fragment_end>')<0)return;
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\n'+CLOUD_GLSL)
+      .replace('#include <lights_fragment_end>',`#include <lights_fragment_end>\n{float cs=rCloud(${pos}.xz);reflectedLight.directDiffuse*=cs;reflectedLight.directSpecular*=cs;}`)};
+  m.customProgramCacheKey=()=>pkf()+'|rc';m.needsUpdate=true}
+realCloud(terrainMat,'vWP');realCloud(fieldMat,'vFW');if(typeof SMODEL_MAT!=='undefined')realCloud(SMODEL_MAT,'vWxP');
+(function cloudTick(){requestAnimationFrame(cloudTick);CLOUDU.uCT.value=performance.now()/1000;CLOUDU.uCS.value=REAL.on?(1-(typeof nightF==='number'?nightF:0))*(1-.6*(typeof weatherDim==='number'?weatherDim:0)):0})();
+
+/* ---------- photo grain on the small parts: fences, posts, carts, barrels, awnings, steps, doors, beams ---------- */
+/* the many plain-coloured pieces take wood, stone or plaster grain by their colour, and woven cloth when brightly dyed */
+function realGrain(m){if(!m||m._rg)return;m._rg=true;const prev=m.onBeforeCompile,pkf=m.customProgramCacheKey.bind(m);
+  m.onBeforeCompile=function(sh,r){if(prev)prev.call(this,sh,r);if(!REALM.rS.value||sh.fragmentShader.indexOf('vWxP')<0)return;Object.assign(sh.uniforms,REALM);
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uRM;uniform sampler2D rS,rP,rW;float rgH(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}float rgN(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(rgH(i),rgH(i+vec2(1,0)),f.x),mix(rgH(i+vec2(0,1)),rgH(i+vec2(1,1)),f.x),f.y);}')
+      .replace('#include <color_fragment>',`#include <color_fragment>
+  if(uRM>.5){vec3 bw=pow(abs(vWxN),vec3(4.));bw/=bw.x+bw.y+bw.z+1e-4;vec3 q=vWxP;
+   #define TRG(t,k) (dot(texture2D(t,q.zy*k).rgb,vec3(.3,.59,.11))*bw.x+dot(texture2D(t,q.xz*k).rgb,vec3(.3,.59,.11))*bw.y+dot(texture2D(t,q.xy*k).rgb,vec3(.3,.59,.11))*bw.z)
+   vec3 c=diffuseColor.rgb;float l=dot(c,vec3(.3,.59,.11)),mx=max(c.r,max(c.g,c.b)),sat=(mx-min(c.r,min(c.g,c.b)))/max(mx,.001);
+   float wood=smoothstep(.02,.08,c.r-c.b)*(1.-smoothstep(.3,.55,l))*(1.-smoothstep(.55,.75,sat)),cloth=smoothstep(.4,.6,sat)*(1.-wood),
+     stone=(1.-wood-cloth)*(1.-smoothstep(.6,.85,l)),plast=max(0.,1.-wood-cloth-stone);
+   float d=TRG(rW,16.)/.46*wood+TRG(rS,9.)/.62*stone+TRG(rP,5.)/.84*plast+(.9+.2*rgN(q.xz*900.+q.y*700.))*cloth;
+   diffuseColor.rgb=mix(vec3(l),c,mix(1.,.7,cloth))*clamp(mix(1.,d,.8),.5,1.5);}`)};
+  m.customProgramCacheKey=()=>pkf()+'|rg'+(REALM.rS.value?1:0);m.needsUpdate=true}
+for(const k of ['plain','awning','metal'])if(MAT[k]){realGrain(MAT[k]);realCloud(MAT[k],'vWxP')}
+for(const k in MAT)realCloud(MAT[k],'vWxP');
+
+/* ---------- fire: the glow round flames stays near them instead of washing the town in orange ---------- */
+const PK0=JSON.parse(JSON.stringify({fire:PK.fire,glow:PK.glow,ember:PK.ember}));
+function realFire(on){const set=(k,v)=>Object.assign(PK[k],v);
+  if(on){set('glow',{size:PK0.glow.size*.45,a:PK0.glow.a*.22});set('fire',{size:PK0.fire.size*.8,a:PK0.fire.a*.75});set('ember',{a:PK0.ember.a*.8})}
+  else for(const k in PK0)set(k,PK0[k])}
+
+/* ---------- light from a real sky: a sky photo (Poly Haven) blended into the game's own sky colours, so reflections and the soft
+   light from above carry real clouds and a bright horizon, while dawn, dusk and night still colour it ---------- */
+{const _re=refreshEnv;refreshEnv=function(){if(!(REAL.on&&REAL.sky))return _re.apply(this,arguments);
+  const x=envCan.getContext('2d'),w=envCan.width,h=envCan.height,g=x.createLinearGradient(0,0,0,h),hx=c=>'#'+c.getHexString();
+  g.addColorStop(0,hx(skyU.top.value));g.addColorStop(.5,hx(skyU.hor.value));g.addColorStop(.56,hx(skyU.gnd.value));g.addColorStop(1,'#1d2620');x.globalCompositeOperation='source-over';x.globalAlpha=1;x.fillStyle=g;x.fillRect(0,0,w,h);
+  x.save();x.beginPath();x.rect(0,0,w,h*.52);x.clip();x.globalCompositeOperation='soft-light';x.globalAlpha=.9;x.drawImage(REAL.sky,0,0,w,h);x.restore();x.globalCompositeOperation='source-over';x.globalAlpha=1;
+  const t=new THREE.CanvasTexture(envCan);t.mapping=THREE.EquirectangularReflectionMapping;t.encoding=THREE.sRGBEncoding;
+  const rt=pmrem.fromEquirectangular(t);t.dispose();if(envRT)envRT.dispose();envRT=rt;scene.environment=rt.texture}}
+
 /* ---------- switching ---------- */
 async function realOn(){if(!REAL.ready)REAL.ready=realLoad().catch(e=>{console.warn('Realistic look could not load',e);REAL.ready=null;throw e});
   try{await REAL.ready}catch(e){return}if(lookKey!=='real')return;
   if(!REALM.rS.value){REALM.rS.value=REAL.T.stone;REALM.rP.value=realTex(REAL.P.plaster,true);REALM.rW.value=realTex(REAL.P.planks,true);REALM.rT.value=REAL.T.tiles;if(typeof SMODEL_MAT!=='undefined')SMODEL_MAT.needsUpdate=true}
-  REALM.uRM.value=1;REAL.on=true;realSwap(true);realFields(true);realRoads(true);realWater(true);REALP.uRealP.value=1;terrU.uReal.value=1;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof forestDirty!=='undefined')forestDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
-function realOff(){if(!REAL.on)return;REAL.on=false;realSwap(false);realFields(false);realRoads(false);realWater(false);REALP.uRealP.value=0;terrU.uReal.value=0;REALM.uRM.value=0;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
+  REALM.uRM.value=1;REAL.on=true;realSwap(true);realFields(true);realRoads(true);realWater(true);realFire(true);REALP.uRealP.value=1;lastEnv=-1e9;envKey='';for(const k of ['plain','awning','metal'])if(MAT[k])MAT[k].needsUpdate=true;terrU.uReal.value=1;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof forestDirty!=='undefined')forestDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
+function realOff(){if(!REAL.on)return;REAL.on=false;realSwap(false);realFields(false);realRoads(false);realWater(false);realFire(false);REALP.uRealP.value=0;lastEnv=-1e9;envKey='';terrU.uReal.value=0;REALM.uRM.value=0;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
 {const _al=applyLook;applyLook=function(k){_al.apply(this,arguments);settings.realLook=k==='real';saveSettings();if(k==='real')realOn();else realOff()}}
 
 /* the choice in Settings, above the pixel size */

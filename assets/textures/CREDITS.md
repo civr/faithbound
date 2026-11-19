@@ -26,3 +26,5 @@ The b_ files are greyscale detail layers blended over the painted building textu
 - f_crop: leafy_grass (greyscale detail for growing crops)
 - b_gravel: gravel_road (greyscale detail for dirt lanes)
 - b_asphalt: worn_asphalt (greyscale detail for modern roads)
+
+The Realistic look has its own photo textures, trees and sky in real/; see real/CREDITS.md.
