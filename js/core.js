@@ -23,7 +23,7 @@ function makeNoise(seed){
 
 /* ---------- game data ---------- */
 /* larger maps with broader landforms, so towns sit in scale with their islands */
-const SIZES={tiny:{W:80,H:60,tribes:5,sc:2.6},small:{W:112,H:84,tribes:7,sc:3},medium:{W:144,H:108,tribes:10,sc:3.4},large:{W:192,H:144,tribes:14,sc:3.8},huge:{W:240,H:180,tribes:18,sc:4.1},custom:{W:160,H:100,tribes:10,sc:3.5}};
+const SIZES={tiny:{W:80,H:60,tribes:5,sc:2.6},small:{W:112,H:84,tribes:7,sc:3},medium:{W:144,H:108,tribes:10,sc:3.4},large:{W:192,H:144,tribes:14,sc:3.8},huge:{W:240,H:180,tribes:18,sc:4.1},giant:{W:320,H:240,tribes:24,sc:4.5},colossal:{W:400,H:300,tribes:30,sc:4.8},titan:{W:512,H:384,tribes:38,sc:5.2},custom:{W:160,H:100,tribes:10,sc:3.5}};
 /* a world of any size: tribes and the grain of the land scale with its area */
 function setCustomSize(w,h){w=Math.max(48,Math.min(288,Math.round(w/8)*8));h=Math.max(36,Math.min(216,Math.round(h/4)*4));const a=w*h;SIZES.custom={W:w,H:h,tribes:Math.max(3,Math.min(26,Math.round(10*a/15552))),sc:Math.max(2.3,Math.min(4.5,2.6+Math.log(a/4800)*.686))};return SIZES.custom}
 const DX=[1,-1,0,0],DY=[0,0,1,-1];

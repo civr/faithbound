@@ -587,7 +587,7 @@ async function api(path,opts){const o=Object.assign({credentials:'same-origin',h
 async function probeAccount(){try{const c=await api('/api/config');if(!c.ok||!c.data||c.data.signup===undefined)return;account.online=true;account.signup=c.data.signup;account.code=c.data.code;
   const me=await api('/api/me');if(me.ok){account.user=me.data.username;await refreshWorlds();await uploadLocalIfNewer()}}catch(e){}renderTitle()}
 async function refreshWorlds(){const r=await api('/api/saves');account.worlds=r.ok?r.data:[];for(const w of account.worlds)if(w.rev&&account.rev[w.slot]==null&&!playing)account.rev[w.slot]=w.rev}
-async function uploadLocalIfNewer(){let d;try{d=JSON.parse(localStorage.getItem('faithbound.save')||'null')}catch(e){}if(!d||(d.owner&&d.owner!==account.user))return;
+async function uploadLocalIfNewer(){let d;try{d=readLocalSave()}catch(e){}if(!d||(d.owner&&d.owner!==account.user))return;
   if(!d.slot)d.slot=Date.now().toString(36);const srv=account.worlds.find(w=>w.slot===d.slot);if(srv&&srv.saved>=d.saved)return;
   d.owner=account.user;if(srv&&srv.rev)account.rev[d.slot]=srv.rev;if(await cloudSave(d)){saveLocal(d);await refreshWorlds();toast('World saved to your account',`${d.worldName||'Your world'} is now on the server.`)}}
 function openAuth(mode){const reg=mode==='register';
@@ -642,7 +642,7 @@ $('#sizeSeg').onclick=e=>{const b=e.target.closest('[data-size]');if(!b)return;s
 function renderCustomSize(){const box=$('#customSize'),note=$('#sizeNote');if(!box)return;const S=SIZES[sizeKey];box.hidden=sizeKey!=='custom';
   note.textContent=`${S.W} by ${S.H} tiles, about ${S.tribes} peoples at the start.${S.W*S.H>40000?' Very large worlds can be slow on phones and older computers.':''}`;
   if(sizeKey!=='custom')return;const C=SIZES.custom;
-  box.innerHTML=[['cw','Width',48,288,8,C.W,'Narrow','Wide'],['ch','Height',36,216,4,C.H,'Short','Tall']].map(([k,l,mn,mx,st,v,a,b])=>`<label class="sl"><span>${l}</span><input type="range" min="${mn}" max="${mx}" step="${st}" value="${v}" data-cs="${k}"><b id="csv_${k}">${v}</b><span class="ends"><span>${a}</span><span>${b}</span></span></label>`).join('')}
+  box.innerHTML=[['cw','Width',48,512,8,C.W,'Narrow','Wide'],['ch','Height',36,384,4,C.H,'Short','Tall']].map(([k,l,mn,mx,st,v,a,b])=>`<label class="sl"><span>${l}</span><input type="range" min="${mn}" max="${mx}" step="${st}" value="${v}" data-cs="${k}"><b id="csv_${k}">${v}</b><span class="ends"><span>${a}</span><span>${b}</span></span></label>`).join('')}
 let csTimer=0;
 if($('#customSize'))$('#customSize').addEventListener('input',e=>{const k=e.target.dataset.cs;if(!k)return;const v=+e.target.value;worldOpts[k]=v;$('#csv_'+k).textContent=v;
   clearTimeout(csTimer);csTimer=setTimeout(()=>{setCustomSize(worldOpts.cw||SIZES.custom.W,worldOpts.ch||SIZES.custom.H);const t=climate.temp;genWorld();climate.temp=t;terrainDirty=true;updateHUD();const n=$('#sizeNote'),S=SIZES.custom;if(n)n.textContent=`${S.W} by ${S.H} tiles, about ${S.tribes} peoples at the start.${S.W*S.H>40000?' Very large worlds can be slow on phones and older computers.':''}`},350)});
@@ -911,3 +911,6 @@ function maybeGuide(){let seen=false;try{seen=localStorage.getItem('fb.guided')=
     b.onclick=()=>toggleUI(true);back.onclick=()=>toggleUI(false);
     addEventListener('keydown',e=>{const tg=e.target.tagName;if(tg==='INPUT'||tg==='TEXTAREA'||tg==='SELECT'||e.ctrlKey||e.metaKey||e.altKey)return;
       if(e.key.toLowerCase()==='h'&&typeof playing!=='undefined'&&playing&&$('#modal').hidden){toggleUI();e.preventDefault()}})}}
+
+/* the very big worlds: buttons after Huge */
+{const seg=$('#sizeSeg'),cu=seg&&seg.querySelector('[data-size="custom"]');if(seg)for(const [k,l] of [['giant','Giant'],['colossal','Colossal'],['titan','Titan']]){if(seg.querySelector(`[data-size="${k}"]`))continue;const b=document.createElement('button');b.dataset.size=k;b.textContent=l;seg.insertBefore(b,cu||null)}}
