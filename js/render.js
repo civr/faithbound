@@ -13,10 +13,12 @@ const POST={rt:null,size:new THREE.Vector2(),scene:new THREE.Scene(),cam:new THR
 const postU={tCol:{value:null},tDep:{value:null},uRes:{value:new THREE.Vector2(1,1)},uNear:{value:.02},uFar:{value:900},uExp:{value:1},uTime:{value:0},
   uSat:{value:1},uCon:{value:1},uLift:{value:new THREE.Vector3()},uGain:{value:new THREE.Vector3(1,1,1)},uVig:{value:0},uTilt:{value:0},uTiltB:{value:new THREE.Vector2(.08,.42)},uTiltN:{value:16},uLine:{value:0},
   uPoster:{value:0},uPaper:{value:0},uBloom:{value:0},uGrain:{value:0},uBars:{value:0},uPx:{value:1},uNoAA:{value:0},uPix:{value:0},uSplit:{value:0},
-  uAO:{value:0},uP00:{value:1},uP11:{value:1},uCamW:{value:new THREE.Matrix4()},uWaterY:{value:0},uMist:{value:0},uMistCol:{value:new THREE.Color()}};
+  tHalf:{value:null},tBl:{value:null},uHalf:{value:0},uAO:{value:0},uP00:{value:1},uP11:{value:1},uCamW:{value:new THREE.Matrix4()},uWaterY:{value:0},uMist:{value:0},uMistCol:{value:new THREE.Color()}};
 const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrite:false,
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
-  fragmentShader:`precision highp float;varying vec2 vUv;uniform vec2 uTiltB;uniform float uTiltN;uniform sampler2D tCol,tDep;uniform vec2 uRes;uniform float uPix,uSplit,uNoAA,uNear,uFar,uExp,uTime,uSat,uCon,uVig,uTilt,uLine,uPoster,uPaper,uBloom,uGrain,uBars,uPx,uAO,uP00,uP11,uWaterY,uMist;uniform vec3 uLift,uGain,uMistCol;uniform mat4 uCamW;
+  fragmentShader:`precision highp float;varying vec2 vUv;uniform vec2 uTiltB;uniform sampler2D tHalf,tBl;uniform float uHalf;
+  #define LODF ${renderer.capabilities.isWebGL2?'texture2DLodEXT':'texture2D'}
+  uniform float uTiltN;uniform sampler2D tCol,tDep;uniform vec2 uRes;uniform float uPix,uSplit,uNoAA,uNear,uFar,uExp,uTime,uSat,uCon,uVig,uTilt,uLine,uPoster,uPaper,uBloom,uGrain,uBars,uPx,uAO,uP00,uP11,uWaterY,uMist;uniform vec3 uLift,uGain,uMistCol;uniform mat4 uCamW;
   float lin(float d){float z=d*2.-1.;return 2.*uNear*uFar/(uFar+uNear-z*(uFar-uNear));}
   float dep(vec2 uv){return lin(texture2D(tDep,uv).x);}
   vec3 aces(vec3 c){c*=uExp*.6;return clamp((c*(2.51*c+.03))/(c*(2.43*c+.59)+.14),0.,1.);}
@@ -34,17 +36,26 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
   void main(){vec2 uv=vUv,px=1./uRes;vec3 c=uNoAA>.5?fetch(uv):fxaa(uv);
     float d0=dep(uv);bool sky0=texture2D(tDep,uv).x>.9999;
     /* tilt-shift blur first, on the plain picture: blurring after the mist mixed misty and unmisted pixels, so the sharp middle strip ended in a hard light line */
-    if(uTilt>0.){float b=uTilt*smoothstep(uTiltB.x,uTiltB.y,abs(uv.y-.5));if(b>.01){vec3 acc=c;float w=1.;for(int i=0;i<32;i++){if(float(i)>=uTiltN)break;float a=float(i)*2.39996,r=sqrt(float(i)+.5)/sqrt(uTiltN);vec2 o=vec2(cos(a),sin(a))*r*b*9.*uPx*px;acc+=fetch(uv+o);w+=1.;}c=acc/w;}}
+    if(uTilt>0.){float b=uTilt*smoothstep(uTiltB.x,uTiltB.y,abs(uv.y-.5));
+      /* with the small blurred copy: a few soft samples from the right level of its mip chain, instead of dozens of full-size ones */
+      if(uHalf>.5){float rp=b*9.*uPx;if(rp>.3){float L=clamp(log2(max(rp*.5,1.))-.5,0.,5.);vec3 acc=vec3(0);
+          for(int i=0;i<7;i++){float a=float(i)*2.39996,r=sqrt(float(i)+.5)/2.65;acc+=LODF(tHalf,uv+vec2(cos(a),sin(a))*r*rp*.75*px,L).rgb;}
+          c=mix(c,acc/7.,smoothstep(.3,2.2,rp));}}
+      else if(b>.01){vec3 acc=c;float w=1.;for(int i=0;i<32;i++){if(float(i)>=uTiltN)break;float a=float(i)*2.39996,r=sqrt(float(i)+.5)/sqrt(uTiltN);vec2 o=vec2(cos(a),sin(a))*r*b*9.*uPx*px;acc+=fetch(uv+o);w+=1.;}c=acc/w;}}
     /* ambient occlusion: darken creases, the feet of walls and the gaps between houses and trees */
-    if(uAO>0.&&!sky0){float occ=0.;float rad=clamp(.09*uRes.y*uP11*.5/d0,2.,40.);float rot=0.;
+    if(uAO>0.&&!sky0){float occ=0.;float rad=clamp(.055*uRes.y*uP11*.5/d0,2.,18.*uPx);
+      /* the sample ring turns from pixel to pixel (interleaved noise): with a fixed ring every small thing - a person, a post - left six dark copies of itself on the ground */
+      float rot=6.2832*fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))));
       /* pairs of opposite samples: a flat or sloping surface averages out, only real creases and corners darken (no halos around trees) */
       for(int i=0;i<6;i++){float fi=float(i),a=fi*2.39996+rot,r=sqrt((fi+.5)/6.)*rad;vec2 o=vec2(cos(a),sin(a))*r*px;
         float dA=dep(uv+o),dB=dep(uv-o),cr=d0-(dA+dB)*.5,far=max(abs(d0-dA),abs(d0-dB));
-        occ+=smoothstep(.001*d0,.008*d0,cr)*(1.-smoothstep(.06*d0,.14*d0,far));}
+        occ+=smoothstep(.001*d0,.008*d0,cr)*(1.-smoothstep(.025*d0,.07*d0,far));}
       c*=1.-uAO*clamp(occ/6.*1.1,0.,.5);}
     /* low mist that pools over water and in the valleys, thicker far away */
     if(uMist>0.&&!sky0){vec3 wp=wpos(uv,d0);float above=max(0.,wp.y-uWaterY);float m=exp(-above*5.)*(1.-exp(-d0*.035))*uMist;c=mix(c,uMistCol*1.04,clamp(m,0.,.38));}
-    if(uBloom>0.){vec3 bl=vec3(0);for(int i=0;i<12;i++){float a=float(i)*2.39996,r=sqrt(float(i)+.5)/3.5;vec3 s=fetch(uv+vec2(cos(a),sin(a))*r*22.*uPx*px);bl+=max(s-vec3(.9),0.);}c+=bl/12.*uBloom*1.6;}
+    /* bloom from the bright parts' mip chain: a tight glow plus a wide soft one, three samples */
+    if(uBloom>0.&&uHalf>.5){vec3 bl=LODF(tBl,uv,1.).rgb*.45+LODF(tBl,uv,3.).rgb*.35+LODF(tBl,uv,5.).rgb*.2;c+=bl*uBloom*1.9;}
+    else if(uBloom>0.){vec3 bl=vec3(0);for(int i=0;i<12;i++){float a=float(i)*2.39996,r=sqrt(float(i)+.5)/3.5;vec3 s=fetch(uv+vec2(cos(a),sin(a))*r*22.*uPx*px);bl+=max(s-vec3(.9),0.);}c+=bl/12.*uBloom*1.6;}
     vec3 col=srgb(aces(c));
     float lum=dot(col,vec3(.299,.587,.114));
     if(uPoster>0.){float q=floor(lum*uPoster+.5)/uPoster;col*=mix(1.,q/max(lum,.02),.7);lum=dot(col,vec3(.299,.587,.114));}
@@ -69,15 +80,25 @@ const postMat=new THREE.ShaderMaterial({uniforms:postU,depthTest:false,depthWrit
     if(uBars>0.&&(uv.y<uBars||uv.y>1.-uBars))col=vec3(0);
     gl_FragColor=vec4(clamp(col,0.,1.),1.);}`});
 POST.scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),postMat));
+/* a half-size copy of the picture with its mip chain (for the focus blur), and one of only its brightest parts (for the glow) */
+const downU={tSrc:{value:null},uPx2:{value:new THREE.Vector2()},uBright:{value:0}};
+const downMat=new THREE.ShaderMaterial({uniforms:downU,depthTest:false,depthWrite:false,
+  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
+  fragmentShader:`precision highp float;varying vec2 vUv;uniform sampler2D tSrc;uniform vec2 uPx2;uniform float uBright;
+    vec3 tap(vec2 o){vec3 s=texture2D(tSrc,vUv+o*uPx2).rgb;return uBright>.5?max(s-vec3(.9),0.):s;}
+    void main(){vec3 c=(tap(vec2(-.5,-.5))+tap(vec2(.5,-.5))+tap(vec2(-.5,.5))+tap(vec2(.5,.5)))*.25;gl_FragColor=vec4(min(c,vec3(64.)),1.);}`});
+POST.dScene=new THREE.Scene();POST.dScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),downMat));
+function postHalfRT(old,w,h,flt){if(old&&old.width===w&&old.height===h)return old;if(old)old.dispose();
+  return new THREE.WebGLRenderTarget(w,h,{type:flt?THREE.HalfFloatType:THREE.UnsignedByteType,depthBuffer:false,generateMipmaps:true,minFilter:THREE.LinearMipmapLinearFilter,magFilter:THREE.LinearFilter})}
 function postActive(){return POST.ok&&settings.post!==false&&!!LK.post}
 let shadowAt=0,shadowSig='';
 /* shadows are drawn again only when the view or the sun has really moved: the camera at most 30 times a second, the slow sun 4 times a second */
 let shadowSun=-1;
 function shadowTick(){if(!renderer.shadowMap.enabled)return;renderer.shadowMap.autoUpdate=false;const now=performance.now(),
-    sig=(camT.x*20|0)+','+(camT.z*20|0)+','+(camDist*10|0),moved=sig!==shadowSig,sun=(dayT*400|0),sunMoved=sun!==shadowSun,
+    sig=(camT.x*20|0)+','+(camT.z*20|0)+','+(camDist*10|0)+','+(camYaw*40|0),moved=sig!==shadowSig,sun=(dayT*400|0),sunMoved=sun!==shadowSun,
     gap=moved?(settings.power==='saver'?66:settings.power==='max'?16:33):sunMoved?(settings.power==='saver'?500:250):(playing?1000:3000);
   if(now-shadowAt>gap||shadowForce||(shadowSoft&&now-shadowAt>(settings.power==='max'?33:settings.power==='saver'?250:100))){shadowAt=now;shadowSig=sig;shadowSun=sun;shadowForce=false;shadowSoft=false;renderer.shadowMap.needsUpdate=true}}
-let shadowForce=true,shadowSoft=false;
+let shadowForce=true,shadowSoft=false;const SHC=new THREE.Vector3();
 /* (camera snapping to whole pixels made the view shake while it eased, so it is off) */
 const PXS={r:new THREE.Vector3(),u:new THREE.Vector3(),d:new THREE.Vector3()};
 function pixSnap(on){if(!on){if(PXS.on){cam.position.sub(PXS.d);cam.updateMatrixWorld();PXS.on=false}return}
@@ -102,7 +123,14 @@ function renderFrame0(){/* the near clipping plane follows the zoom: zoomed out,
   postU.uWaterY.value=waterY;postU.uMist.value=(P.mist??.5)*(1-.7*smooth(.02,.3,Math.sin(dayT*6.283)-.1)+.2*(typeof weatherDim!=='undefined'?weatherDim:0));postU.uMistCol.value.copy(scene.fog.color);
   postU.uSat.value=P.sat*(pixN&&P.pixSat?P.pixSat:1);postU.uCon.value=P.con*(pixN&&P.pixCon?P.pixCon:1);postU.uLift.value.fromArray(P.lift||[0,0,0]);postU.uGain.value.fromArray(P.gain||[1,1,1]);postU.uVig.value=P.vig||0;
   postU.uTilt.value=(P.tilt||0)*(P.tiltAll?1-.35*smooth(40,160,camDist):P.tiltFar?smooth(9,34,camDist):1-smooth(20,60,camDist));postU.uTiltB.value.fromArray(P.tiltB||[.08,.42]);postU.uTiltN.value=P.tiltN||16;postU.uNoAA.value=pixN?1:0;postU.uPix.value=pixN?(P.pixL||18):0;postU.uLine.value=P.line||(pixN?(P.pixLine==null?.5:P.pixLine):0);postU.uPoster.value=P.poster||0;postU.uPaper.value=P.paper||0;postU.uBloom.value=POST.flt?(P.bloom||0):0;postU.uGrain.value=P.grain||0;postU.uBars.value=P.bars||0;
-  PLU.uPL.value=1;PLU.uPE.value=postU.uExp.value;renderer.setRenderTarget(POST.rt);renderer.render(scene,cam);renderer.setRenderTarget(null);
+  PLU.uPL.value=1;PLU.uPE.value=postU.uExp.value;renderer.setRenderTarget(POST.rt);renderer.render(scene,cam);
+  /* the small copies, only for the effects that use them (WebGL 2 makes their mip chains) */
+  const wantT=postU.uTilt.value>0,wantB=postU.uBloom.value>0;postU.uHalf.value=0;
+  if((wantT||wantB)&&renderer.capabilities.isWebGL2&&POST.half!==false){try{const hw=Math.max(1,w>>1),hh=Math.max(1,h>>1);downU.tSrc.value=POST.rt.texture;downU.uPx2.value.set(1/w,1/h);
+      if(wantT){POST.half=postHalfRT(POST.half,hw,hh,POST.flt);downU.uBright.value=0;renderer.setRenderTarget(POST.half);renderer.render(POST.dScene,POST.cam);postU.tHalf.value=POST.half.texture}
+      if(wantB){POST.bl=postHalfRT(POST.bl,hw,hh,POST.flt);downU.uBright.value=1;renderer.setRenderTarget(POST.bl);renderer.render(POST.dScene,POST.cam);postU.tBl.value=POST.bl.texture}
+      postU.uHalf.value=1;if(!wantT)postU.tHalf.value=POST.bl.texture;if(!wantB)postU.tBl.value=POST.half.texture}catch(e){POST.half=false;postU.uHalf.value=0}}
+  renderer.setRenderTarget(null);
   try{renderer.render(POST.scene,POST.cam)}catch(e){POST.ok=false;throw e}}
 renderer.toneMappingExposure=1;
 renderer.shadowMap.enabled=true;
@@ -152,13 +180,15 @@ function updateSky(dt,now){
   const top=tmpC.set(LK.skyTop).lerp(C_DTOP,dusk*.55),hor=tmpC2.set(LK.skyHor).lerp(C_DHOR,dusk*.75);
   skyU.top.value.copy(C_NTOP).lerp(top,day);skyU.hor.value.copy(C_NHOR).lerp(hor,day);
   skyU.gnd.value.copy(skyU.hor.value).lerp(tmpC.set(0x2a4a5e),.35);
-  skyU.sunDir.value.set(az,el,.32).normalize();skyU.sunCol.value.set(LK.sun).lerp(C_DUSKSUN,dusk).multiplyScalar(day);
+  skyU.sunDir.value.set(az,el,LK.sunZ||.32).normalize();skyU.sunCol.value.set(LK.sun).lerp(C_DUSKSUN,dusk).multiplyScalar(day);
   skyU.stars.value=1-day;
-  const ld=el>0?V3.set(az,Math.max(el,.06),.32):V3.set(-az,Math.max(-el,.06),.32);ld.normalize();
+  const ld=el>0?V3.set(az,Math.max(el,.06),LK.sunZ||.32):V3.set(-az,Math.max(-el,.06),LK.sunZ||.32);ld.normalize();
   {/* keep shadows steady while the camera moves: snap the shadow box to whole shadow-map texels in the light's own frame */
     const sc0=sunL.shadow.camera,tx=(sc0.right-sc0.left)/Math.max(1,sunL.shadow.mapSize.x);const fw=V3b.copy(ld).negate(),rt=V3c.crossVectors(fw,V3d.set(0,1,0)).normalize(),up=V3d.crossVectors(rt,fw).normalize();
-    const pr=camT.dot(rt),pu=camT.dot(up),pf=camT.dot(fw),sr=Math.round(pr/tx)*tx,su=Math.round(pu/tx)*tx;SNAPT.copy(rt).multiplyScalar(sr).addScaledVector(up,su).addScaledVector(fw,pf);
-    sunL.position.copy(SNAPT).addScaledVector(ld,150);sunL.target.position.copy(SNAPT)}
+    /* the box reaches further ahead of the target than behind it: behind is only the bit of ground under the camera */
+    const s0=clamp(camDist*.75,3.2,Math.max(W,H)*.75),fx=camT.x-cam.position.x,fz=camT.z-cam.position.z,fl=Math.hypot(fx,fz)||1;SHC.set(camT.x+fx/fl*s0*.42,camT.y,camT.z+fz/fl*s0*.42);
+    const pr=SHC.dot(rt),pu=SHC.dot(up),pf=SHC.dot(fw),sr=Math.round(pr/tx)*tx,su=Math.round(pu/tx)*tx;SNAPT.copy(rt).multiplyScalar(sr).addScaledVector(up,su).addScaledVector(fw,pf);
+    sunL.position.copy(SNAPT).addScaledVector(ld,sunL.shadow.camera.right+24);sunL.target.position.copy(SNAPT)}
   if(el>0){sunL.color.set(LK.sun).lerp(C_DUSKSUN,1-smooth(.02,.35,el));sunL.intensity=LK.sunI*smooth(0,.12,el)}
   else{sunL.color.copy(C_MOON);sunL.intensity=1.1*smooth(0,.15,-el)}/* a soft moonlit night: the village stays visible round its lit windows */
   hemi.intensity=LK.hemiI*(.55+.45*day)*(1-.35*weatherDim)+flashT*9;sunL.intensity*=1-.7*weatherDim;
@@ -173,8 +203,10 @@ function updateSky(dt,now){
   if(now-lastEnv>4000){lastEnv=now;const q=c=>((c.r*48)|0)+'.'+((c.g*48)|0)+'.'+((c.b*48)|0),key=q(skyU.top.value)+'/'+q(skyU.hor.value)+'/'+q(skyU.gnd.value);if(key!==envKey||!envRT){envKey=key;refreshEnv()}}
   if(typeof setNight==='function')setNight(nightF);
   /* shadow box follows the view */
-  const s=clamp(camDist*.75,6,Math.max(W,H)*.75),sc=sunL.shadow.camera;
-  if(Math.abs(sc.right-s)>.5){sc.left=-s;sc.right=s;sc.top=s;sc.bottom=-s;sc.updateProjectionMatrix()}
+  const s=clamp(camDist*.75,3.2,Math.max(W,H)*.75),sc=sunL.shadow.camera;
+  if(Math.abs(sc.right-s)>s*.06||sc.far>2*s+60){sc.left=-s;sc.right=s;sc.top=s;sc.bottom=-s;
+    /* depth range and biases follow the box: a fixed 400-deep range made the depth bias some 15 cm of the world, more than a house is tall, so small houses cast no shadow at all */
+    sc.near=1;sc.far=2*s+50;sc.updateProjectionMatrix();const tex=2*s/Math.max(512,sunL.shadow.mapSize.x);sunL.shadow.bias=-tex*.6/sc.far;sunL.shadow.normalBias=tex*1.1}
 }
 
 /* ---------- camera ---------- */
