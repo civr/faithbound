@@ -504,8 +504,10 @@ function riverPlan(FB){RIVC.sig=riverSig();RIVC.ver++;RIVC.map=null;const lines=
       let g=raw(p[0],p[1]);for(const m of [w,hw*.6,hw])g=Math.min(g,raw(p[0]+nx*m,p[1]+nz*m),raw(p[0]-nx*m,p[1]-nz*m));
       let s=brook?g+.006:Math.min(g-(.024+.006*f),sPrev);s=Math.max(s,waterY-.008);if(!brook)sPrev=s;
       L.push({x:p[0],z:p[1],nx,nz,s,w,hw,d:brook?.022:.04+.012*Math.min(f,4),rap:0})}
+    /* the river ends where it meets the sea: one point into the water to join it, no further */
+    if(!brook){let cut=-1;for(let k=0;k<L.length;k++){if(raw(L[k].x,L[k].z)<waterY-.01){cut=k;break}}if(cut>=0)L.length=Math.max(2,cut+1)}
     /* rapids where the river drops fast */
-    for(let k=1;k<L.length;k++){const a=L[k-1],b=L[k],dl=Math.hypot(b.x-a.x,b.z-a.z)||1;b.rap=clamp(((a.s-b.s)/dl-.07)*4,0,.7)}if(L.length>1)L[0].rap=L[1].rap;
+    for(let k=1;k<L.length;k++){const a=L[k-1],b=L[k],dl=Math.hypot(b.x-a.x,b.z-a.z)||1;b.rap=b.s<waterY+.03?0:clamp(((a.s-b.s)/dl-.07)*4,0,.7)}if(L.length>1)L[0].rap=L[1].rap;
     lines.push({pts:L,brook})};
   for(const r of rivers){if(!r.tiles||r.tiles.length<2)continue;for(const t of r.tiles)T[t]=1;trace(chaikin(r.tiles.map(t=>[wx(t%W)+(hash(t)-.5)*.3,wz((t/W)|0)+(hash(t*3)-.5)*.3,river[t]||1]),2),false)}
   if(typeof brooks==='function')for(const path of brooks()){if(path.length<2)continue;for(const t of path)T[t]=1;trace(chaikin(path.map((t,k)=>[wx(t%W)+(hash(t*2.1)-.5)*.5,wz((t/W)|0)+(hash(t*4.7)-.5)*.5,k/path.length]),3),true)}
