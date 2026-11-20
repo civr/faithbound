@@ -231,7 +231,7 @@ function renderNationCard(){
   const el=$('#nationCard'),n=selected>=0?nations[selected]:null;
   if(!n&&inspectTile<0){el.hidden=true;return}el.hidden=false;
   if(!n){const b=BIOMES[biome[inspectTile]],hgt=Math.round((h[inspectTile]-sea)*900);
-    el.innerHTML=`<div class="nc-head"><h3>${b.n}</h3><button class="ib x" data-x aria-label="Close">✕</button></div><div class="kv"><div><span>Fertility</span><b>${Math.round(b.hab*100)}%</b></div><div><span>Height</span><b>${hgt} m</b></div><div><span>Owner</span><b>Nobody</b></div>${settings.tides!==false?`<div><span>Sea</span><b>${tideWord()}</b></div>`:''}${typeof groundWord==='function'&&groundWord(inspectTile)?`<div><span>Ground</span><b>${groundWord(inspectTile)}</b></div>`:''}</div>`;return}
+    el.innerHTML=`<div class="nc-head"><h3>${typeof ecoName==='function'?ecoName(inspectTile):b.n}</h3><button class="ib x" data-x aria-label="Close">✕</button></div><div class="kv"><div><span>Fertility</span><b>${Math.round(hab[inspectTile]*100)}%</b></div><div><span>Height</span><b>${hgt} m</b></div><div><span>Owner</span><b>Nobody</b></div>${settings.tides!==false?`<div><span>Sea</span><b>${tideWord()}</b></div>`:''}${typeof groundWord==='function'&&groundWord(inspectTile)?`<div><span>Ground</span><b>${groundWord(inspectTile)}</b></div>`:''}</div>`;return}
   const wars=[...n.wars].map(b=>nations[b].name),fleet=ships.filter(s=>s.owner===n.id&&!s.sink).length;
   const rt=n.research?TECH[n.research]:null,pct=rt?clamp(n.tech/TECHCOST[rt.era],0,1):1;
   const st=stabOf(n),sp=stabParts(n).sort((p,q)=>Math.abs(q[1])-Math.abs(p[1])),stTip=sp.map(p=>`${p[0]} ${p[1]>0?'+':''}${Math.round(p[1]*100)}`).join('\n');

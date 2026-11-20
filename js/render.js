@@ -571,8 +571,9 @@ function colorTerrain(rect){ctTables();
   for(const n of nations){if(!n.alive||n.era<5||n.era>6)continue;const k_=n.era===5?1:.4;n.cities.forEach((c,ci)=>{const R2=(ci===0?3.2:2.2)+Math.min(2,n.pop/Math.max(1,n.cities.length)/600),RC=Math.ceil(R2);
     if(c.x+RC<tx0||c.x-RC>tx1||c.y+RC<ty0||c.y-RC>ty1)return;
     for(let dy=-RC;dy<=RC;dy++)for(let dx=-RC;dx<=RC;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);if(d>R2)continue;const j=Y*W+X;SOOT[j]=Math.max(SOOT[j],k_*(1-d/R2))}})}
-  const GRD=LK.ground||{},mA=typeof marshAt==='function',sc=typeof scorched!=='undefined'&&scorched;
+  const GRD=LK.ground||{},EG=typeof ECO!=='undefined'&&ECO&&ECO.length===N?ECO:null,mA=typeof marshAt==='function',sc=typeof scorched!=='undefined'&&scorched;
   for(let ty=ty0;ty<=ty1;ty++)for(let tx=tx0;tx<=tx1;tx++){const i=ty*W+tx;const c=mA&&marshAt(i)?MARSH_C:GRD[biome[i]]||GROUND[biome[i]],v=1-.1*hash(i*1.7);let r=c[0]*v,g=c[1]*v,b=c[2]*v;
+    if(EG){const e=ECOS[EG[i]].g;if(e&&!(mA&&marshAt(i))){r+=(e[0]*v-r)*e[3];g+=(e[1]*v-g)*e[3];b+=(e[2]*v-b)*e[3]}}
     if(sc&&scorched[i]>0&&!isWater(i)){const t=Math.min(1,scorched[i]/18)*.85;r=lerp(r,56,t);g=lerp(g,50,t);b=lerp(b,44,t)}
     if(SOOT[i]>0&&!isWater(i)){const t=SOOT[i]*.5;r=lerp(r,82,t);g=lerp(g,76,t);b=lerp(b,62,t)}
     TC[i*3]=r;TC[i*3+1]=g;TC[i*3+2]=b}

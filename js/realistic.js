@@ -171,7 +171,9 @@ vec4 mvPosition=viewMatrix*vec4(bbW,1.);gl_Position=projectionMatrix*mvPosition;
     /* the kit's own colour only nudges the hue: the photo already carries the green */
     sh.fragmentShader=sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
 #ifdef USE_COLOR
- {float l=max(dot(vColor,vec3(.3,.59,.11)),.02);diffuseColor.rgb=diffuseColor.rgb/max(vColor,vec3(.01))*mix(vec3(1.),clamp(vColor/l,.6,1.5),.5);}
+ {float l=max(dot(vColor,vec3(.3,.59,.11)),.02);diffuseColor.rgb=diffuseColor.rgb/max(vColor,vec3(.01))*mix(vec3(1.),clamp(vColor/l,.6,1.5),.5);
+  /* very dark kit colours (dark woods, taiga) darken the crown, very pale ones (birch) lighten it; the usual greens leave it as it is */
+  diffuseColor.rgb*=l<.06?pow(l/.06,.8):l>.16?min(pow(l/.16,.4),1.35):1.;}
 #endif
  /* no two crowns alike: each tree a little lighter or darker, warmer or cooler, and shaded towards its foot */
  diffuseColor.rgb*=(.6+.32*vBr)*vec3(.9+.06*(vBr-.5),1.,.86-.1*(vBr-.5))*mix(.66,1.,smoothstep(.0,.6,vLy));/* deeper than the meadow, as woods are */`)};

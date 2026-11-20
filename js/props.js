@@ -1601,7 +1601,7 @@ function rebuildTrees(light){TREE_LIGHT=false;greenDirty=false;
   if(light===true&&FCACHE&&FCACHE.sig===forestSig()){TREE_LIGHT=true;kitReset(TREE_KITS);replayForest();kitCommit(TREE_KITS);return}
   TREC={k:{},t:-1};LAYOLD=null;LAYDIRTY=null;try{rebuildTrees0()}finally{const R=TREC;TREC=null;for(const nm in R.k)R.k[nm]=new Float32Array(R.k[nm]);R.sig=forestSig();FCACHE=R}}
 function rebuildTrees0(){const RLOOK=typeof isRealLook==='function'&&isRealLook(lookKey);
-  {let tot=0;for(let i=0;i<N;i++)if(!isWater(i))tot+=treeWant(i);TGS=Math.min(1,(RLOOK?100000:62000)/Math.max(1,tot))}
+  let CVK=1;{let tot=0,cv=0;const EO=typeof ecoOf==='function';for(let i=0;i<N;i++)if(!isWater(i)){tot+=treeWant(i);if(EO){const E=ecoOf(i);if(E&&E.cover)for(const C of E.cover)cv+=C.n}}TGS=Math.min(1,(RLOOK?100000:62000)/Math.max(1,tot));CVK=Math.min(1,30000/Math.max(1,cv))}
   /* how deep inside a forest each tile lies (share of forest within two tiles): the heart of a big forest is closed and dense, its edges break up into clumps */
   const FI=RLOOK?new Float32Array(N):null;if(FI){const isF=j=>{const b=biome[j];return b===5||b===6||(b===9&&groveN(j%W,(j/W)|0)>.42)};
     for(let i=0;i<N;i++){if(!isF(i))continue;const X=i%W,Y=(i/W)|0;let f=0,c=0;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const XX=wrapTX(X+dx),YY=Y+dy;if(XX<0||YY<0||XX>=W||YY>=H)continue;c++;if(isF(YY*W+XX))f++}FI[i]=f/c}}
@@ -1614,6 +1614,15 @@ function rebuildTrees0(){const RLOOK=typeof isRealLook==='function'&&isRealLook(
       for(let t=0;t<16;t++){const x=x0+hash(i*3.7+t)*.98,z=z0+hash(i*6.3+t*2)*.98,y=groundY(x,z);if(y<waterY+.01)continue;add('reed',x,y-.003,z,.008,.05+hash(i*t+3)*.04,.008,0,hash(i+t)<.5?0x6a7a3a:0x8a7a48)}
       if(hash(i*4.4)<.5){const x=x0+.5,z=z0+.5,y=groundY(x,z);if(y>waterY+.02)add('broad',x,y-.01,z,.55,.6,.55,hash(i)*6,0x5f7a3a)}continue}
     n=treeWant(i);type=b===5?(!LK.pixel&&(lat<.45||climate.temp<.4)?'conifer':'mix'):b===6?'jungle':b===4?'broad':b===8?'acacia':b===9?'conifer':b===3?'palm':b===11?'mount':b===12||b===7?'rock':'broad';
+    /* the kind of country: dark woods, taiga, birch, dry woodland, steppe, heath, badlands and the rest */
+    const EK=typeof ecoOf==='function'?ecoOf(i):null,ET=EK&&EK.t;if(ET){if(ET.type)type=ET.type;if(ET.nk!=null)n=Math.round(n*ET.nk)}
+    if(EK&&EK.cover&&!(owner[i]>=0&&nations[owner[i]].era>=4))for(const C of EK.cover){const cn=Math.round(C.n*dens*CVK+hash(i*2.9)*.6);
+      for(let t=0;t<cn;t++){const x=x0+.06+hash(i*5.3+t*1.7)*.88,z=z0+.06+hash(i*8.9+t*2.3)*.88,y=groundY(x,z);if(y<waterY+.03)continue;if(ROADPLAN.res.has(bk(x,z)))continue;
+        const hv=hash(i*3.3+t*5.1),cc=C.cols[(hv*C.cols.length)|0];
+        if(C.kit==='tuft')add('tuft',x,y-.004,z,.02*C.s,(.03+hv*.02)*C.s,.02*C.s,hv*6,cc);
+        else if(C.kit==='reed')add('reed',x,y-.003,z,.008,.045+hv*.04,.008,0,cc);
+        else if(C.kit==='rock')add(natKit('rock',hv),x,y-.03,z,.07+hv*.22,.07+hv*.2,.07+hv*.18,hv*6,cc);
+        else{const q=C.s*(.7+hv*.6);add('bush',x,y-.01,z,q,q*.7,q,hv*6,cc)}}}
     if((b===4||b===8)&&dens>.5&&settings.quality!=='high'){const tn=b===4?3:2;for(let t=0;t<tn;t++){const x=x0+hash(i*2.7+t*5)*.96+.02,z=z0+hash(i*4.3+t*7)*.96+.02,y=groundY(x,z);if(y>waterY+.04)add('tuft',x,y-.004,z,.016,.022+hash(i+t)*.014,.016,hash(i*t),b===4?0x4e7232:0x8a8a44)}
       if(hash(i*8.1)<.22){const fc=[0xe8d84a,0xd8504a,0xf2f2f2,0x9a6ad0,0xf0a040][(hash(i*3.9)*5)|0];for(let t=0;t<5;t++){const x=x0+hash(i*6.1+t)*.9+.05,z=z0+hash(i*1.9+t*3)*.9+.05,y=groundY(x,z);if(y>waterY+.04)add('flower',x,y+.006,z,.012,.012,.012,0,fc)}}}
     if(owner[i]>=0&&nations[owner[i]].era>=3&&type!=='rock')n=Math.round(n*.45);
@@ -1635,14 +1644,15 @@ function rebuildTrees0(){const RLOOK=typeof isRealLook==='function'&&isRealLook(
         /* closed forest: only a rare glade; at the edge and on open land, clumps with gaps between */
         const keep=fi>.8?1-.85*(1-smooth(.12,.22,cl)):copse?.85+.15*smooth(.2,.4,cl):Math.min(1,smooth(.3,.62,cl)*1.2+fi*.55);
         if(hash(i*13.7+t*3.1)>keep)continue;sk=(fi>.8?.95+.25*smooth(.3,.8,cl):.74+.5*smooth(.35,.8,cl))}
-      const s=(.62+hash(i*11.3+t)*.5)*near[i]*(grow<1?.4+.6*grow:1)*sk,hv=hash(i*5.9+t);
+      const s=(.62+hash(i*11.3+t)*.5)*near[i]*(grow<1?.4+.6*grow:1)*sk*(ET&&ET.sk||1),hv=hash(i*5.9+t);
       if(type==='rock'||(type==='mount'&&hv<.45)){if(hv<.6)add(natKit('rock',hv),x,y-.03,z,.08+hv*.25,.06+hv*.16,.08+hv*.2,hv*6,hv<.3?0x8a8378:0x9a9488);continue}
       if(type==='mount'){if(y<shapeH(.8))add('conifer',x,y-.01,z,s*.85,s*.95,s*.85,hv*6,0x2f4a30);continue}
-      if((type==='mix'||type==='conifer'||type==='jungle')&&hv<.45&&lod>.5)add('bush',x+.04,y-.01,z+.03,s*.9,s*.7,s*.9,hv*6,type==='jungle'?0x3f6a2a:0x45602e);
-      let k=type;if(type==='mix')k=hv<(LK.pixel?(lat<.35?.5:.12):.4)?'conifer':'broad';if(type==='jungle')k=hv<.35?'palm':'broad';if(type==='acacia')k='broad';
-      const col=k==='conifer'?(hv<.5?0x2e5434:0x3a6338):k==='palm'?0x5d8a3a:type==='jungle'?(hv<.5?0x2f6a32:0x3d7a35):(hv<.25?0x3a6428:hv<.5?0x46702e:hv<.75?0x527a32:0x5e7f30);
+      if((type==='mix'||type==='conifer'||type==='jungle')&&hv<.45&&lod>.5)add('bush',x+.04,y-.01,z+.03,s*.9,s*.7,s*.9,hv*6,ET&&ET.bush||(type==='jungle'?0x3f6a2a:0x45602e));
+      let k=type;if(type==='mix')k=hv<(ET&&ET.con!=null?ET.con:LK.pixel?(lat<.35?.5:.12):.4)?'conifer':'broad';if(type==='jungle')k=hv<.35?'palm':'broad';if(type==='acacia')k='broad';
+      let col=k==='conifer'?(hv<.5?0x2e5434:0x3a6338):k==='palm'?0x5d8a3a:type==='jungle'?(hv<.5?0x2f6a32:0x3d7a35):(hv<.25?0x3a6428:hv<.5?0x46702e:hv<.75?0x527a32:0x5e7f30);
+      if(ET&&ET.cols&&k!=='palm')col=ET.cols[((hv*97.3)|0)%ET.cols.length];
       if(type==='acacia'){const ak=natKit('acacia',hv);if(ak==='broad')add('broad',x,y-.01,z,s*1.2,s*.55,s*1.2,hv*6,0x7a8a3c);else add(ak,x,y-.01,z,s,s,s,hv*6,0x7a8a3c)}else add(k==='broad'?natKit('broad',hv):k,x,y-.01,z,s,s,s,hv*6,col);
-      if(hv>.8&&k!=='palm')add('bush',x+.06,y-.01,z+.04,s,s,s,0,0x4f7a36)}}
+      if(hv>.8&&k!=='palm')add('bush',x+.06,y-.01,z+.04,s,s,s,0,ET&&ET.bush||0x4f7a36)}}
   /* woodcutters' camps where a town is felling now: a hut, a chopping block and stacked logs; a sawmill with a chimney from the Industrial age */
   for(const nn of nations){if(!nn.alive)continue;for(const c of nn.cities){const L=c._lumber;if(!L||year-L.y>30||occupied.has(L.i))continue;if(TREC)TREC.t=L.i;
     const X=L.i%W,Y=(L.i/W)|0,ax=wx(X),az=wz(Y),dx=c.x-X,dy=c.y-Y,dl=Math.hypot(dx,dy)||1,x=ax+dx/dl*.32,z=az+dy/dl*.32,y=groundY(x,z),ro=Math.atan2(dx,dy);if(y<waterY+.04)continue;
