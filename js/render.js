@@ -401,7 +401,7 @@ function buildTerrain(){
   for(const m of [terrainMesh,skirtMesh,waterMesh,waterSide]){if(m){scene.remove(m);m.geometry.dispose()}}
   VW=W*R+1;VH=H*R+1;const nv=VW*VH;VY=new Float32Array(nv);detail=new Float32Array(nv);
   /* a new world: nothing laid out for the last one carries over (colour tables, pending layout steps, the old heights) */
-  CT_U=null;LAY_TOKEN++;LAY_PEND=0;LAY={base:-1,wy:null,keys:null};LAYOLD=null;LAYDIRTY=null;HPREV=null;RLY_RECT=null;LAYBIO=-1;
+  CT_U=null;LAY_TOKEN++;LAY_PEND=0;RIVC={sig:'',lines:[],map:null,tiles:null,ver:RIVC.ver+1};LAY={base:-1,wy:null,keys:null};LAYOLD=null;LAYDIRTY=null;HPREV=null;RLY_RECT=null;LAYBIO=-1;
   const dn=makeNoise((hseed*1000)|0);
   for(let v=0;v<VH;v++)for(let u=0;u<VW;u++)detail[v*VW+u]=(dn(u/R*.9,v/R*.9,3)-.5)*2;
   /* a round world: the east edge's bumps are the west edge's, so the two sides join without a step */
@@ -486,7 +486,42 @@ function townSpots(){const out=[];for(const n of nations)if(n.alive)n.cities.for
     for(let a=0;a<12;a++)for(const f of [0,.4,.8]){const hb=sampleH(c.x+Math.cos(a*.5236)*r*f,c.y+Math.sin(a*.5236)*r*f);if(hb>sea){s+=shapeH(hb);k++}}
     c._flat=k?(r*100|0)+':'+Math.round(Math.max(s/k,waterY+.05)*1000):'w';if(k)out.push({x:c.x,y:c.y,r:r*1.35,r0:r*.75,h:Math.max(s/k,waterY+.05),key:c.x+','+c.y+':'+c._flat})});return out}
 function spotGrid(spots){const FB=new Map();for(const f of spots){const r=Math.ceil(f.r);for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){const k=(Math.floor(f.x)+dx)+','+(Math.floor(f.y)+dy);if(!FB.has(k))FB.set(k,[]);FB.get(k).push(f)}}return FB}
-function vertY(u,v,FB){const tx=u/R-.5,ty=v/R-.5,hb=sampleH(tx,ty);
+/* ---------- rivers in their beds ----------
+   Each river and brook is traced once per layout: its water level only ever falls on the way to the sea, and never stands above the
+   lowest ground across its width, so it cannot hang on a hillside. The ground near it is then cut down to a channel, a dished bed under
+   the water and banks rising away from it, so the water lies in a valley instead of on top of the land. */
+let RIVC={sig:'',lines:[],map:null,tiles:null,ver:0};
+function riverSig(){if(typeof river==='undefined'||!river)return '';let a=0,b=0;for(let i=0;i<N;i++)if(river[i]){a=(a*31+river[i]*(i+7))%2147483647;b++}return a+':'+b+':'+(typeof rivers!=='undefined'?rivers.length:0)}
+function riverIn(hc){const T=RIVC.tiles;if(!T)return false;for(let y=Math.max(0,hc[2]-2);y<=Math.min(H-1,hc[3]+2);y++)for(let x=Math.max(0,hc[0]-2);x<=Math.min(W-1,hc[1]+2);x++)if(T[y*W+x])return true;return false}
+function riverPlan(FB){RIVC.sig=riverSig();RIVC.ver++;RIVC.map=null;const lines=[],T=new Uint8Array(N);RIVC.tiles=T;
+  if(typeof rivers==='undefined'||typeof chaikin!=='function'){RIVC.lines=lines;return}
+  const raw=(x,z)=>{if(ROUND)x-=W*Math.round(x/W);const u=clamp((x+W/2)*R,0,VW-1.001),v=clamp((z+H/2)*R,0,VH-1.001),u0=u|0,v0=v|0,fu=u-u0,fv=v-v0;
+    return lerp(lerp(vertY0(u0,v0,FB),vertY0(u0+1,v0,FB),fu),lerp(vertY0(u0,v0+1,FB),vertY0(u0+1,v0+1,FB),fu),fv)};
+  const trace=(pts,brook)=>{const L=[];let sPrev=1e9;
+    for(let k=0;k<pts.length;k++){const p=pts[k],q=pts[Math.min(k+1,pts.length-1)],o=pts[Math.max(k-1,0)];let dx=q[0]-o[0],dz=q[1]-o[1];const l=Math.hypot(dx,dz)||1;dx/=l;dz/=l;
+      /* the ground mesh has a vertex every third of a tile, so a river bed narrower than that cannot be cut: rivers are at least .2 either side; brooks lie on the ground */
+      const f=brook?p[2]:Math.min(p[2],5),w=brook?.02+.022*f:Math.max(.2,.06+.035*f),hw=brook?w:w+.36,nx=-dz,nz=dx;
+      let g=raw(p[0],p[1]);for(const m of [w,hw*.6,hw])g=Math.min(g,raw(p[0]+nx*m,p[1]+nz*m),raw(p[0]-nx*m,p[1]-nz*m));
+      let s=brook?g+.006:Math.min(g-(.024+.006*f),sPrev);s=Math.max(s,waterY-.008);if(!brook)sPrev=s;
+      L.push({x:p[0],z:p[1],nx,nz,s,w,hw,d:brook?.022:.04+.012*Math.min(f,4),rap:0})}
+    /* rapids where the river drops fast */
+    for(let k=1;k<L.length;k++){const a=L[k-1],b=L[k],dl=Math.hypot(b.x-a.x,b.z-a.z)||1;b.rap=clamp(((a.s-b.s)/dl-.07)*4,0,.7)}if(L.length>1)L[0].rap=L[1].rap;
+    lines.push({pts:L,brook})};
+  for(const r of rivers){if(!r.tiles||r.tiles.length<2)continue;for(const t of r.tiles)T[t]=1;trace(chaikin(r.tiles.map(t=>[wx(t%W)+(hash(t)-.5)*.3,wz((t/W)|0)+(hash(t*3)-.5)*.3,river[t]||1]),2),false)}
+  if(typeof brooks==='function')for(const path of brooks()){if(path.length<2)continue;for(const t of path)T[t]=1;trace(chaikin(path.map((t,k)=>[wx(t%W)+(hash(t*2.1)-.5)*.5,wz((t/W)|0)+(hash(t*4.7)-.5)*.5,k/path.length]),3),true)}
+  /* cut the channels */
+  const M=new Float32Array(VW*VH).fill(1e9);let any=false;
+  for(const ln of lines){if(ln.brook)continue;const P=ln.pts,bank=.55;
+    for(let k=0;k<P.length-1;k++){const a=P[k],b=P[k+1],ex=b.x-a.x,ez=b.z-a.z,el=ex*ex+ez*ez||1e-9,rr=Math.max(a.hw,b.hw)+.1;
+      let u0=Math.floor((Math.min(a.x,b.x)-rr+W/2)*R),u1=Math.ceil((Math.max(a.x,b.x)+rr+W/2)*R),v0=Math.max(0,Math.floor((Math.min(a.z,b.z)-rr+H/2)*R)),v1=Math.min(VH-1,Math.ceil((Math.max(a.z,b.z)+rr+H/2)*R));
+      u0=Math.max(0,u0);u1=Math.min(VW-1,u1);
+      for(let v=v0;v<=v1;v++){const z=v/R-H/2;for(let u=u0;u<=u1;u++){const x=u/R-W/2;let t=((x-a.x)*ex+(z-a.z)*ez)/el;t=clamp(t,0,1);
+        const dist=Math.hypot(x-a.x-ex*t,z-a.z-ez*t),hw=lerp(a.hw,b.hw,t);if(dist>hw+.1)continue;const s0=lerp(a.s,b.s,t),w=lerp(a.w,b.w,t),d=lerp(a.d,b.d,t);
+        const y=dist<w?s0-d*(1-(dist/w)**2):s0+(dist-w)*bank;const j=v*VW+u;if(y<M[j]){M[j]=Math.max(y,waterY-.07);any=true}}}}}
+  RIVC.lines=lines;RIVC.map=any?M:null}
+/* rivers carve their beds: every vertex near a river is held down to the river's channel (see riverPlan) */
+function vertY(u,v,FB){const y=vertY0(u,v,FB);if(RIVC.map){const c=RIVC.map[v*VW+u];if(c<y)return c}return y}
+function vertY0(u,v,FB){const tx=u/R-.5,ty=v/R-.5,hb=sampleH(tx,ty);
     let y=shapeH(hb);y+=detail[v*VW+u]*(hb>SEA0?.16*(.12+clamp((hb-SEA0)*3.4,0,1.5)):.06);
     const near=y>waterY&&FB.get(Math.floor(tx+.5)+','+Math.floor(ty+.5));if(near)for(const f of near){const dx=tx-f.x,dy=ty-f.y;if(Math.abs(dx)>f.r||Math.abs(dy)>f.r)continue;const d=Math.hypot(dx,dy);if(d>=f.r)continue;
       const w=d<=f.r0?1:1-smooth(f.r0,f.r,d);y=lerp(y,Math.max(f.h,Math.min(y,f.h+.02)),w*.92)}return y}
@@ -499,8 +534,8 @@ function heightChange(){if(!HPREV||HPREV.length!==N)return null;let x0=W,x1=-1,y
   for(let i=0;i<N;i++)if(h[i]!==HPREV[i]){const x=i%W,y=(i/W)|0;if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;n++}
   return n?[x0,x1,y0,y1]:'same'}
 function layoutTerrain(){const wy=shapeH(sea),g0=terrainMesh.geometry;
-  if(!LAY_PEND&&LAY.wy===wy&&LAY.keys&&g0.attributes.normal&&VY&&tslope.length===N){const hc=heightChange();
-    if(hc==='same'||(hc&&(hc[1]-hc[0]+5)*(hc[3]-hc[2]+5)<N*.3)){
+  if(!LAY_PEND&&LAY.wy===wy&&LAY.keys&&g0.attributes.normal&&VY&&tslope.length===N&&riverSig()===RIVC.sig){const hc=heightChange();
+    if(hc==='same'||(hc&&(hc[1]-hc[0]+5)*(hc[3]-hc[2]+5)<N*.3&&!riverIn(hc))){
       if(hc!=='same'){HPREV.set(h);relayRect(hc)}
       const bio=LAYBIO!==terrBio;LAYBIO=terrBio;if(bio)terrVer++;
       if(layoutPatch(bio)){return 'patch'}}}
@@ -508,7 +543,7 @@ function layoutTerrain(){const wy=shapeH(sea),g0=terrainMesh.geometry;
 /* the whole ground laid out again, as a list of steps. Called from the frame loop the steps run one per frame, so a shift of the coastline never freezes the view. */
 let LAY_TOKEN=0,LAY_PEND=0;
 function layoutFullSteps(wy){const tok=++LAY_TOKEN;LAY_PEND=tok;let FB;const g=terrainMesh.geometry,st=[];
-  st.push(()=>{terrBase++;terrVer++;HPREV=h.slice();LAYBIO=terrBio;RLY_RECT=null;waterY=wy;terrU.uWaterY.value=waterY;flatSig=citySig();flatSpots=townSpots();FB=spotGrid(flatSpots)});
+  st.push(()=>{terrBase++;terrVer++;HPREV=h.slice();LAYBIO=terrBio;RLY_RECT=null;waterY=wy;terrU.uWaterY.value=waterY;flatSig=citySig();flatSpots=townSpots();FB=spotGrid(flatSpots);riverPlan(FB)});
   const CH=Math.ceil(VH/4);for(let c=0;c<VH;c+=CH){const a=c,b=Math.min(VH,c+CH);st.push(()=>{const pos=g.attributes.position.array;
     for(let v=a;v<b;v++)for(let u=0;u<VW;u++){const k=v*VW+u,y=vertY(u,v,FB);VY[k]=y;pos[k*3]=u/R-W/2;pos[k*3+1]=y;pos[k*3+2]=v/R-H/2}g.attributes.position.needsUpdate=true})}
   st.push(()=>{const t=new Float32Array(N);for(let i=0;i<N;i++)t[i]=tileSlope(i);tslope=t;g.computeVertexNormals();g.computeBoundingSphere();g.computeBoundingBox()});
@@ -517,7 +552,7 @@ function layoutFullSteps(wy){const tok=++LAY_TOKEN;LAY_PEND=tok;let FB;const g=t
   return st.map(f=>{const j=()=>{if(tok===LAY_TOKEN)f()};j.terr=1;return j})}
 /* for the frame loop: the cheap patch runs now; a full layout comes back as steps to spread over frames */
 function layoutTerrainJobs(){if(LAY_PEND){terrainDirty=true;return null}const wy=shapeH(sea),g0=terrainMesh.geometry;
-  if(LAY.wy===wy&&LAY.keys&&g0.attributes.normal&&VY&&tslope.length===N){const hc=heightChange();if(hc==='same'||(hc&&(hc[1]-hc[0]+5)*(hc[3]-hc[2]+5)<N*.3)){layoutTerrain();return null}}
+  if(LAY.wy===wy&&LAY.keys&&g0.attributes.normal&&VY&&tslope.length===N&&riverSig()===RIVC.sig){const hc=heightChange();if(hc==='same'||(hc&&(hc[1]-hc[0]+5)*(hc[3]-hc[2]+5)<N*.3&&!riverIn(hc))){layoutTerrain();return null}}
   return layoutFullSteps(wy)}
 /* lay out one rectangle of tiles again after the heights under it changed */
 function relayRect(hc){const x0=Math.max(0,hc[0]-2),x1=Math.min(W-1,hc[1]+2),y0=Math.max(0,hc[2]-2),y1=Math.min(H-1,hc[3]+2);

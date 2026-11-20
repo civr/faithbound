@@ -1419,20 +1419,20 @@ TX.river.encoding=THREE.sRGBEncoding;
 const INWU={uTime:{value:0}};
 function inlandWaterMat(kind){const river=kind===true||kind==='river',moat=kind==='moat';const m=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.2,metalness:0,transparent:true,depthWrite:false,envMapIntensity:.5});
   m.onBeforeCompile=sh=>{sh.uniforms.uTime=INWU.uTime;sh.uniforms.uWave={value:WAVE_TEX};
-    sh.vertexShader='varying vec2 vIU,vIL;varying vec3 vIW;varying float vIY;\n'+sh.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\n  vIU=uv;vIY=normal.y;vIL=position.xz*2.;').replace('#include <worldpos_vertex>',`#include <worldpos_vertex>
+    sh.vertexShader='varying vec2 vIU,vIL;varying vec3 vIW;varying float vIY,vRap;\n'+(river?'attribute float aRap;\n':'')+sh.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\n  vIU=uv;vIY=normal.y;vIL=position.xz*2.;vRap='+(river?'aRap':'0.')+';').replace('#include <worldpos_vertex>',`#include <worldpos_vertex>
     {vec4 tw=vec4(transformed,1.);
     #ifdef USE_INSTANCING
     tw=instanceMatrix*tw;
     #endif
     vIW=(modelMatrix*tw).xyz;}`);
-    sh.fragmentShader='uniform float uTime;uniform sampler2D uWave;varying vec2 vIU,vIL;varying vec3 vIW;varying float vIY;float iwDepth;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
-    ${river?'float acr=abs(vIU.x-.5)*2.;iwDepth=1.-acr*acr;':moat?'float rr=length(vIL);iwDepth=clamp(1.-abs(rr-.87)/.14,0.,1.);':'float rr=length(vIL);iwDepth=clamp(1.-rr,0.,1.);'}
+    sh.fragmentShader='uniform float uTime;uniform sampler2D uWave;varying vec2 vIU,vIL;varying vec3 vIW;varying float vIY,vRap;float iwDepth;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+    ${river?'float acr=abs(vIU.x-.5)*2.;iwDepth=clamp(1.-acr*acr,0.,1.);':moat?'float rr=length(vIL);iwDepth=clamp(1.-abs(rr-.87)/.14,0.,1.);':'float rr=length(vIL);iwDepth=clamp(1.-rr,0.,1.);'}
     vec2 fp=${river?'vec2(vIU.x*.35,vIU.y*.22-uTime*.12)':'vIW.xz*.9+vec2(uTime*.012,uTime*.008)'};
     float wh=texture2D(uWave,fp).a*.6+texture2D(uWave,vIW.xz*2.1-vec2(uTime*.03,-uTime*.02)).a*.4;
     vec3 bank=vec3(.11,.12,.075),mid=vec3(.025,.065,.075),deep=vec3(.012,.035,.05);
     vec3 wc=mix(bank,mid,smoothstep(.0,.55,iwDepth));wc=mix(wc,deep,smoothstep(.55,1.,iwDepth)*.8);wc*=.9+wh*.22;
-    ${river?'float rip=smoothstep(.8,.96,wh)*(1.-smoothstep(.0,.5,iwDepth))*.3+smoothstep(.9,.98,wh)*.08;wc=mix(wc,vec3(.6,.66,.66),rip);':''}
-    diffuseColor.rgb=wc;diffuseColor.a=smoothstep(0.,.38,iwDepth)*.94${river?'':'*step(.5,vIY)'};`).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
+    ${river?'float rip=smoothstep(.8,.96,wh)*(1.-smoothstep(.0,.5,iwDepth))*.3+smoothstep(.9,.98,wh)*.08;rip+=vRap*smoothstep(.55,.9,texture2D(uWave,vec2(vIU.x*.6,vIU.y*.5-uTime*.5)).a*.7+wh*.4)*.45;wc=mix(wc,vec3(.62,.68,.68),clamp(rip,0.,.85));':''}
+    diffuseColor.rgb=wc;diffuseColor.a=${river?'.62+.32*smoothstep(0.,.38,iwDepth)':'smoothstep(0.,.38,iwDepth)*.94*step(.5,vIY)'};`).replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
     {vec3 n1=texture2D(uWave,${river?'vec2(vIU.x*.35,vIU.y*.22-uTime*.12)':'vIW.xz*.9+vec2(uTime*.012,uTime*.008)'}).xyz*2.-1.,n2=texture2D(uWave,vIW.xz*2.1-vec2(uTime*.03,-uTime*.02)).xyz*2.-1.;
      vec3 wn=normalize(vec3((n1.x+n2.x*.6)*.28,1.,(n1.y+n2.y*.6)*.28));normal=normalize(mix(normal,(viewMatrix*vec4(wn,0.)).xyz,.9));}`)};
   m.customProgramCacheKey=()=>'inland-'+(river?'river':moat?'moat':'pond');return m}
@@ -1457,19 +1457,14 @@ function riverSegs(){const key=terrVer+'|'+rivers.length;if(RSEG&&RSEGK===key)re
   for(const r of rivers)run(chaikin(r.tiles.map(t=>[wx(t%W)+(hash(t)-.5)*.3,wz((t/W)|0)+(hash(t*3)-.5)*.3,river[t]||1]),2),p=>.045+.03*p[2],.03);
   for(const path of brooks())run(chaikin(path.map((t,k)=>[wx(t%W)+(hash(t*2.1)-.5)*.5,wz((t/W)|0)+(hash(t*4.7)-.5)*.5,k/path.length]),2),p=>.012+.02*p[2],.008);
   return RSEG}
-function rebuildRivers(){const pos=[],uv=[],idx=[];let base=0;
-  for(const r of rivers){const pts=chaikin(r.tiles.map(t=>[wx(t%W)+(hash(t)-.5)*.3,wz((t/W)|0)+(hash(t*3)-.5)*.3,river[t]||1]),2);let v=0;
-    for(let k=0;k<pts.length;k++){const p=pts[k],q=pts[Math.min(k+1,pts.length-1)],o=pts[Math.max(k-1,0)];let dx=q[0]-o[0],dz=q[1]-o[1];const L=Math.hypot(dx,dz)||1;dx/=L;dz/=L;
-      const w=.045+.03*p[2],nx=-dz*w,nz=dx*w,gl=groundY(p[0]+nx,p[1]+nz),gr=groundY(p[0]-nx,p[1]-nz),gc=groundY(p[0],p[1]);
-      const y=Math.max(Math.min(gl,gr,gc)+.03,waterY-.02);if(k>0)v+=Math.hypot(p[0]-pts[k-1][0],p[1]-pts[k-1][1])*2.5;
-      pos.push(p[0]+nx,y,p[1]+nz,p[0]-nx,y,p[1]-nz);uv.push(0,v,1,v);
-      if(k>0){const a=base+(k-1)*2;idx.push(a,a+2,a+1,a+1,a+2,a+3)}}base+=pts.length*2}
-  for(const path of brooks()){const pts=chaikin(path.map((t,k)=>[wx(t%W)+(hash(t*2.1)-.5)*.5,wz((t/W)|0)+(hash(t*4.7)-.5)*.5,k/path.length]),2);let v=0;
-    for(let k=0;k<pts.length;k++){const p=pts[k],q=pts[Math.min(k+1,pts.length-1)],o=pts[Math.max(k-1,0)];let dx=q[0]-o[0],dz=q[1]-o[1];const L=Math.hypot(dx,dz)||1;dx/=L;dz/=L;
-      const w=.012+.02*p[2],nx=-dz*w,nz=dx*w,y=Math.max(Math.min(groundY(p[0]+nx,p[1]+nz),groundY(p[0]-nx,p[1]-nz),groundY(p[0],p[1]))+.008,waterY-.02);if(k>0)v+=Math.hypot(p[0]-pts[k-1][0],p[1]-pts[k-1][1])*4;
-      pos.push(p[0]+nx,y,p[1]+nz,p[0]-nx,y,p[1]-nz);uv.push(0,v,1,v);if(k>0){const a=base+(k-1)*2;idx.push(a,a+2,a+1,a+1,a+2,a+3)}}base+=pts.length*2}
+function rebuildRivers(){const pos=[],uv=[],rap=[],idx=[];let base=0;
+  /* the water follows the traced river (riverPlan): level across, falling downstream, reaching well into the banks so its edge is the ground's own shoreline */
+  for(const ln of (typeof RIVC!=='undefined'?RIVC.lines:[])){const P=ln.pts;let v=0;
+    for(let k=0;k<P.length;k++){const p=P[k];if(k>0)v+=Math.hypot(p.x-P[k-1].x,p.z-P[k-1].z)*(ln.brook?4:2.5);const e=ln.brook?.5:.5*p.hw/p.w;
+      pos.push(p.x+p.nx*p.hw,p.s,p.z+p.nz*p.hw,p.x-p.nx*p.hw,p.s,p.z-p.nz*p.hw);uv.push(.5-e,v,.5+e,v);rap.push(p.rap,p.rap);
+      if(k>0){const a=base+(k-1)*2;idx.push(a,a+2,a+1,a+1,a+2,a+3)}}base+=P.length*2}
   if(!riverMesh){riverMesh=new THREE.Mesh(new THREE.BufferGeometry(),riverMat);riverMesh.receiveShadow=true;riverMesh.frustumCulled=false;riverMesh.renderOrder=2;scene.add(riverMesh)}
-  const g=freshGeo(riverMesh);g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.deleteAttribute('normal');g.computeVertexNormals()}
+  const g=freshGeo(riverMesh);g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setAttribute('aRap',new THREE.Float32BufferAttribute(rap,1));g.setIndex(idx);g.deleteAttribute('normal');g.computeVertexNormals()}
 kit('bridge',unitBox(),MAT.stone,600);
 let cityStreets=[];
 const ROADMATS=[stdMat({map:TX.dirt,roughness:1}),stdMat({map:TX.cobble,roughness:.95}),stdMat({map:TX.asphalt,roughness:.85})];
@@ -1582,7 +1577,7 @@ function rebuildRoads(){roadBare.clear();grassAt.x=1e9;BRIDGES=[];
 function groveN(x,y){const s=4.2,X=Math.floor(x/s),Y=Math.floor(y/s),fx=x/s-X,fy=y/s-Y,q=(a,b)=>hash(a*131.7+b*71.3+5.1),u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy);
   return lerp(lerp(q(X,Y),q(X+1,Y),u),lerp(q(X,Y+1),q(X+1,Y+1),u),v)}
 function treeWant(i){const b=biome[i],g=groveN(i%W,(i/W)|0),lone=hash(i*1.3);
-  switch(b){case 5:return 16;case 6:return 10;case 9:return g>.42?11:lone<.1?1:0;case 4:return g>.64?8:LK.pixel?(lone<.16?2:lone<.48?1:0):lone<.07?1:0;case 8:return lone<.22?1:0;
+  switch(b){case 5:return 24;case 6:return 17;case 9:return g>.42?11:lone<.1?1:0;case 4:return g>.64?8:LK.pixel?(lone<.16?2:lone<.48?1:0):lone<.07?1:0;case 8:return lone<.22?1:0;
     case 3:return lone<.3&&(1-Math.abs(((i/W)|0)/(H-1)-.5)*2)>.5?1:0;case 11:return g>.55?5:lone<.25?1:0;case 12:return 3;case 7:return lone<.3?1:0}return 0}
 /* one even scale for the whole world, so the forests always fit in the drawing budget instead of thinning out away from the camera */
 let TGS=1;
@@ -1601,7 +1596,7 @@ function rebuildTrees(light){TREE_LIGHT=false;greenDirty=false;
   if(light===true&&FCACHE&&FCACHE.sig===forestSig()){TREE_LIGHT=true;kitReset(TREE_KITS);replayForest();kitCommit(TREE_KITS);return}
   TREC={k:{},t:-1};LAYOLD=null;LAYDIRTY=null;try{rebuildTrees0()}finally{const R=TREC;TREC=null;for(const nm in R.k)R.k[nm]=new Float32Array(R.k[nm]);R.sig=forestSig();FCACHE=R}}
 function rebuildTrees0(){const RLOOK=typeof isRealLook==='function'&&isRealLook(lookKey);
-  let CVK=1;{let tot=0,cv=0;const EO=typeof ecoOf==='function';for(let i=0;i<N;i++)if(!isWater(i)){tot+=treeWant(i);if(EO){const E=ecoOf(i);if(E&&E.cover)for(const C of E.cover)cv+=C.n}}TGS=Math.min(1,(RLOOK?100000:62000)/Math.max(1,tot));CVK=Math.min(1,30000/Math.max(1,cv))}
+  let CVK=1;{let tot=0,cv=0;const EO=typeof ecoOf==='function';for(let i=0;i<N;i++)if(!isWater(i)){tot+=treeWant(i);if(EO){const E=ecoOf(i);if(E&&E.cover)for(const C of E.cover)cv+=C.n}}TGS=Math.min(1,(RLOOK?210000:110000)/Math.max(1,tot));CVK=Math.min(1,30000/Math.max(1,cv))}
   /* how deep inside a forest each tile lies (share of forest within two tiles): the heart of a big forest is closed and dense, its edges break up into clumps */
   const FI=RLOOK?new Float32Array(N):null;if(FI){const isF=j=>{const b=biome[j];return b===5||b===6||(b===9&&groveN(j%W,(j/W)|0)>.42)};
     for(let i=0;i<N;i++){if(!isF(i))continue;const X=i%W,Y=(i/W)|0;let f=0,c=0;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const XX=wrapTX(X+dx),YY=Y+dy;if(XX<0||YY<0||XX>=W||YY>=H)continue;c++;if(isF(YY*W+XX))f++}FI[i]=f/c}}
@@ -1638,7 +1633,7 @@ function rebuildTrees0(){const RLOOK=typeof isRealLook==='function'&&isRealLook(
     /* the real-material looks: trees gather in clumps with glades between, bigger in the heart of a clump, instead of an even sprinkle */
     const clump=RLOOK&&type!=='rock'&&type!=='mount',fi=FI?FI[i]:0,copse=b===4&&n>=6;
     /* deep forest and copses are thick with trees; forest edges a little fuller than the plain count, since clumping thins them */
-    if(clump)n=Math.round(n*(fi>.8?1.55:copse?1.45:1.3));
+    if(clump)n=Math.round(n*(fi>.8?1.7:copse?1.5:1.3));
     for(let t=0;t<n;t++){const x=x0+.08+hash(i*3.1+t)*.84,z=z0+.08+hash(i*7.7+t)*.84,y=groundY(x,z);if(y<waterY+.05)continue;if(ROADPLAN.res.has(bk(x,z))||roadBare.has(bk(x,z)))continue;
       let sk=1;if(clump){const cl=groveN(x*2.4+31.7,z*2.4-12.3)*.65+groveN(x*7.1-5.3,z*7.1+8.9)*.35;
         /* closed forest: only a rare glade; at the edge and on open land, clumps with gaps between */
