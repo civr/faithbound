@@ -1601,7 +1601,10 @@ function rebuildTrees(light){TREE_LIGHT=false;greenDirty=false;
   if(light===true&&FCACHE&&FCACHE.sig===forestSig()){TREE_LIGHT=true;kitReset(TREE_KITS);replayForest();kitCommit(TREE_KITS);return}
   TREC={k:{},t:-1};LAYOLD=null;LAYDIRTY=null;try{rebuildTrees0()}finally{const R=TREC;TREC=null;for(const nm in R.k)R.k[nm]=new Float32Array(R.k[nm]);R.sig=forestSig();FCACHE=R}}
 function rebuildTrees0(){const RLOOK=typeof isRealLook==='function'&&isRealLook(lookKey);
-  {let tot=0;for(let i=0;i<N;i++)if(!isWater(i))tot+=treeWant(i);TGS=Math.min(1,62000/Math.max(1,tot))}
+  {let tot=0;for(let i=0;i<N;i++)if(!isWater(i))tot+=treeWant(i);TGS=Math.min(1,(RLOOK?100000:62000)/Math.max(1,tot))}
+  /* how deep inside a forest each tile lies (share of forest within two tiles): the heart of a big forest is closed and dense, its edges break up into clumps */
+  const FI=RLOOK?new Float32Array(N):null;if(FI){const isF=j=>{const b=biome[j];return b===5||b===6||(b===9&&groveN(j%W,(j/W)|0)>.42)};
+    for(let i=0;i<N;i++){if(!isF(i))continue;const X=i%W,Y=(i/W)|0;let f=0,c=0;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const XX=wrapTX(X+dx),YY=Y+dy;if(XX<0||YY<0||XX>=W||YY>=H)continue;c++;if(isF(YY*W+XX))f++}FI[i]=f/c}}
   kitReset(TREE_KITS);rebuildGreen();const dens=(settings.quality==='high'?1:settings.quality==='medium'?.65:.4)*(typeof PERF!=='undefined'&&perfOn()?PERF.treeK:1),farm=countryside();
   /* trees near towns are drawn at a believable size next to the houses */
   const near=new Float32Array(N).fill(1);for(const n of nations)if(n.alive)for(const c of n.cities)for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const X=wrapTX(c.x+dx),Y=c.y+dy;if(X<0||Y<0||X>=W||Y>=H)continue;const d=Math.hypot(dx,dy);near[Y*W+X]=Math.min(near[Y*W+X],.5+smooth(1,3.2,d)*.5)}
@@ -1624,9 +1627,14 @@ function rebuildTrees0(){const RLOOK=typeof isRealLook==='function'&&isRealLook(
       n=Math.round(n*grow*grow)}}
     const lod=1;n=Math.round(n*dens*TGS);
     /* the real-material looks: trees gather in clumps with glades between, bigger in the heart of a clump, instead of an even sprinkle */
-    const clump=RLOOK&&type!=='rock'&&type!=='mount';if(clump)n=Math.round(n*1.3);
+    const clump=RLOOK&&type!=='rock'&&type!=='mount',fi=FI?FI[i]:0,copse=b===4&&n>=6;
+    /* deep forest and copses are thick with trees; forest edges a little fuller than the plain count, since clumping thins them */
+    if(clump)n=Math.round(n*(fi>.8?1.55:copse?1.45:1.3));
     for(let t=0;t<n;t++){const x=x0+.08+hash(i*3.1+t)*.84,z=z0+.08+hash(i*7.7+t)*.84,y=groundY(x,z);if(y<waterY+.05)continue;if(ROADPLAN.res.has(bk(x,z))||roadBare.has(bk(x,z)))continue;
-      let sk=1;if(clump){const cl=groveN(x*2.4+31.7,z*2.4-12.3)*.65+groveN(x*7.1-5.3,z*7.1+8.9)*.35;if(hash(i*13.7+t*3.1)>smooth(.3,.62,cl)*1.2)continue;sk=.74+.5*smooth(.35,.8,cl)}
+      let sk=1;if(clump){const cl=groveN(x*2.4+31.7,z*2.4-12.3)*.65+groveN(x*7.1-5.3,z*7.1+8.9)*.35;
+        /* closed forest: only a rare glade; at the edge and on open land, clumps with gaps between */
+        const keep=fi>.8?1-.85*(1-smooth(.12,.22,cl)):copse?.85+.15*smooth(.2,.4,cl):Math.min(1,smooth(.3,.62,cl)*1.2+fi*.55);
+        if(hash(i*13.7+t*3.1)>keep)continue;sk=(fi>.8?.95+.25*smooth(.3,.8,cl):.74+.5*smooth(.35,.8,cl))}
       const s=(.62+hash(i*11.3+t)*.5)*near[i]*(grow<1?.4+.6*grow:1)*sk,hv=hash(i*5.9+t);
       if(type==='rock'||(type==='mount'&&hv<.45)){if(hv<.6)add(natKit('rock',hv),x,y-.03,z,.08+hv*.25,.06+hv*.16,.08+hv*.2,hv*6,hv<.3?0x8a8378:0x9a9488);continue}
       if(type==='mount'){if(y<shapeH(.8))add('conifer',x,y-.01,z,s*.85,s*.95,s*.85,hv*6,0x2f4a30);continue}
