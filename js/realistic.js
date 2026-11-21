@@ -165,7 +165,9 @@ vec4 mvPosition=viewMatrix*vec4(bbW,1.);gl_Position=projectionMatrix*mvPosition;
   const m=new THREE.MeshStandardMaterial({map:atlas,alphaTest:.5,roughness:.92,side:THREE.DoubleSide});
   const cut=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <alphatest_fragment>',`
 #ifdef USE_UV
- {float tpp=length(fwidth(vUv*vec2(3072.,768.)));if(diffuseColor.a<mix(.5,.16,smoothstep(1.5,9.,tpp)))discard;}
+ /* far away the picture's small mip levels blur its edge: a low cut-off would swell every crown into a round ball, a high one would
+    thin the wood to nothing. Keep the outline: lift the blurred alpha a little per mip level and cut near the middle. */
+ {float tpp=length(fwidth(vUv*vec2(3072.,768.)));float ml=max(log2(max(tpp,1.)),0.);if(diffuseColor.a*(1.+.11*ml)<mix(.5,.4,smoothstep(1.5,9.,tpp)))discard;}
 #endif`)};
   m.onBeforeCompile=sh=>{inject(sh,true);cut(sh);sh.fragmentShader='varying float vBr,vLy;\n'+sh.fragmentShader;
     /* the kit's own colour only nudges the hue: the photo already carries the green */
@@ -173,7 +175,7 @@ vec4 mvPosition=viewMatrix*vec4(bbW,1.);gl_Position=projectionMatrix*mvPosition;
 #ifdef USE_COLOR
  {float l=max(dot(vColor,vec3(.3,.59,.11)),.02);diffuseColor.rgb=diffuseColor.rgb/max(vColor,vec3(.01))*mix(vec3(1.),clamp(vColor/l,.6,1.5),.5);
   /* very dark kit colours (dark woods, taiga) darken the crown, very pale ones (birch) lighten it; the usual greens leave it as it is */
-  diffuseColor.rgb*=l<.06?pow(l/.06,.8):l>.16?min(pow(l/.16,.4),1.35):1.;}
+  diffuseColor.rgb*=l<.06?max(pow(l/.06,.65),.62):l>.16?min(pow(l/.16,.3),1.16):1.;}
 #endif
  /* no two crowns alike: each tree a little lighter or darker, warmer or cooler, and shaded towards its foot */
  diffuseColor.rgb*=(.6+.32*vBr)*vec3(.9+.06*(vBr-.5),1.,.86-.1*(vBr-.5))*mix(.66,1.,smoothstep(.0,.6,vLy));/* deeper than the meadow, as woods are */`)};

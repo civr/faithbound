@@ -10,7 +10,7 @@ const ECOS=[
   /* forest */
   {n:'Taiga',b:5,g:[40,58,44,.45],hab:.75,t:{type:'conifer',nk:1.1,sk:1.05,cols:[0x163024,0x1b3828,0x132c1f,0x1f3e2d],bush:0x22402f}},
   {n:'Dark forest',b:5,g:[24,38,26,.62],hab:.6,t:{type:'mix',con:.55,nk:1.5,sk:1.28,cols:[0x1b3121,0x1f3825,0x243d27,0x18291c],bush:0x22361f}},
-  {n:'Birch wood',b:5,g:[96,114,58,.4],hab:1.05,t:{type:'broad',nk:.85,sk:.82,cols:[0x8aa64a,0x9ab452,0x7c9a44,0xa8b858],bush:0x6a8a40}},
+  {n:'Birch wood',b:5,g:[96,114,58,.4],hab:1.05,t:{type:'broad',nk:.85,sk:.82,cols:[0x7a9446,0x86a04c,0x6e8a42,0x90a454],bush:0x5e7a3c}},
   {n:'Broadleaf forest',b:5},
   {n:'Dry woodland',b:5,g:[118,110,66,.45],hab:1.1,t:{type:'broad',nk:.5,sk:.82,cols:[0x6a7a46,0x74804c,0x5e6e40,0x7e8452],bush:0x7a7a4a},cover:[{n:3,kit:'bush',s:.9,cols:[0x7a7a4a,0x8a8452,0x6e6a40]}]},
   /* jungle */
