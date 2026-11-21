@@ -927,7 +927,11 @@ function frontGarden(x,y,z,rot,w,d,hk){/* a hedge or a white fence around a litt
   const sides=[[0,D2,W2*2,th],[W2,0,th,D2*2],[-W2,0,th,D2*2]];for(const [a,b,ww,dd] of sides)add(hedge?'box':'fence',x+a*c+b*s,y-.004,z-a*s+b*c,ww,hh,dd,rot,col);
   if(hash(hk*13)<.6)for(let k=0;k<3;k++){const a=(k-1)*W2*.6,b=D2*.75;add('bloom',x+a*c+b*s,y+.003,z-a*s+b*c,.012,.009,.012,0,BLOOMS[(hash(hk*7+k)*5)|0])}}
 function cityCenter(n,c,cx,cy,cz,e,cap,i0){
-  const r=cap?.3:.15;if(e>=1){add(e>=3?'plazaStone':'plazaDirt',cx,cy-.012,cz,r*2,.016,r*2,hash(i0)*6)}
+  const r=cap?.3:.15;
+  /* a square at the water's edge or out in a lagoon stands on a stone footing above the highest tide and the waves, not under them */
+  if(e>=1){let lo=cy;for(let q=0;q<8;q++){const a=q/8*6.283;lo=Math.min(lo,groundY(cx+Math.cos(a)*r*.95,cz+Math.sin(a)*r*.95))}lo=Math.min(lo,groundY(cx,cz));
+    const top=waterY+TIDE_A+.03;if(lo<top){const y0=lo;cy=Math.max(cy,top);add('plazaStone',cx,y0-.05,cz,r*2.04,cy-y0+.04,r*2.04,hash(i0)*6,0xb0a890)}}
+  if(e>=1){add(e>=3?'plazaStone':'plazaDirt',cx,cy-.012,cz,r*2,.016,r*2,hash(i0)*6)}
   if(cap)return;
   if(e>=1&&e<=3){add('cyl',cx,cy,cz,.04,.025,.04,0,0x9a948a);add('pool',cx,cy+.005,cz,.03,.022,.03);add('cyl',cx-.016,cy,cz,.004,.05,.004,0,0x5a4632);add('cyl',cx+.016,cy,cz,.004,.05,.004,0,0x5a4632);add(e>=3?'tiles':'thatch',cx,cy+.05,cz,.05,.02,.045,0,0x8e3f2c)}
   else if(e<=5){add('cyl',cx,cy,cz,.09,.018,.09,0,0xd8d2c6);add('pool',cx,cy+.004,cz,.078,.016,.078);add('cyl',cx,cy,cz,.012,.05,.012,0,0xd8d2c6);emitters.push({x:cx,y:cy+.05,z:cz,fountain:true,rate:6})}

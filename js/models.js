@@ -305,8 +305,17 @@ function drawWildModel(hd,m,x,y,z,now){const name=hd._mn!==undefined?hd._mn:(hd.
     const mv=Math.hypot(hd.vx,hd.vz)>.009,bob=mv?Math.abs(Math.sin(now/140+m.ph))*.003:0;add('s_'+nm,x,y+bob,z,1,1,1,mv?Math.atan2(hd.vx,hd.vz):m.a,hd.kind==='reindeer'?0xd8d0c8:null);return true}
   if(!modelOn(name))return false;const F=MDL.frames[name],mv=Math.hypot(hd.vx,hd.vz)>.009&&F.walk!==F.idle;
   const list=mv?F.walk:F.idle,fi=Math.floor(now/1000*(mv?7:1.5)+m.ph*3)%list.length,kn=list[(fi+list.length)%list.length];addM(kn,x,y,z,1,mv?Math.atan2(hd.vx,hd.vz):m.a);WILD_USED.add(kn);return true}
-function drawWhaleModel(w,up,now){if(!modelOn('whale'))return false;const F=MDL.frames.whale.swim,kn=F[Math.floor(now/260)%F.length];
-  addM(kn,w.x,seaNow()-.05+up*.04,w.z,1,Math.atan2(Math.cos(w.a),Math.sin(w.a)),null,null,null,null,-Math.cos(w.t*.6)*.12);WILD_USED.add(kn);return true}
+/* a whale swims under the surface: only its back breaks the water when it comes up to blow, then it rolls down again. Its hide is
+   painted once: slate grey on the back, pale on the belly */
+let WHALE_H=0;
+function whalePaint(){const F=MDL.frames.whale.swim;let lo=1e9,hi=-1e9;
+  for(const kn of F){const g=KITS[kn]&&KITS[kn].mesh.geometry;if(!g)continue;g.computeBoundingBox();lo=Math.min(lo,g.boundingBox.min.y);hi=Math.max(hi,g.boundingBox.max.y)}
+  if(hi<=lo)return;WHALE_H=hi-lo;const back=new THREE.Color(0x3c4854).convertSRGBToLinear(),belly=new THREE.Color(0xb4b8bc).convertSRGBToLinear(),c=new THREE.Color();
+  for(const kn of F){const g=KITS[kn]&&KITS[kn].mesh.geometry;if(!g||g.userData.painted)continue;g.userData.painted=true;const P=g.attributes.position,C=g.attributes.color,T=g.attributes.aPart;if(!C)continue;if(T){T.array.fill(0);T.needsUpdate=true}/* its own colours, not the part colours */
+    for(let i=0;i<P.count;i++){const f=clamp((P.getY(i)-lo)/(hi-lo),0,1);c.copy(belly).lerp(back,clamp((f-.3)*3,0,1));C.setXYZ(i,c.r,c.g,c.b)}C.needsUpdate=true}}
+function drawWhaleModel(w,up,now){if(!modelOn('whale'))return false;const F=MDL.frames.whale.swim,kn=F[Math.floor(now/260)%F.length];if(!WHALE_H)whalePaint();const H=WHALE_H||.06;
+  /* down at depth most of the time; when it surfaces a quarter of its height shows above the waves */
+  addM(kn,w.x,seaNow()-H*(1.05-up*.3),w.z,1,Math.atan2(Math.cos(w.a),Math.sin(w.a)),null,null,null,null,-Math.cos(w.t*.6)*.12);WILD_USED.add(kn);return true}
 
 /* ---------- the sea: pods of dolphins that leap, a shark's fin, manta rays in warm water and shoals of bright fish in the shallows ---------- */
 let seaLife=[],seaT=0;
