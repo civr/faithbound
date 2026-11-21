@@ -74,7 +74,7 @@ function oceanUpdate(now){const want=settings.ocean!==false&&!LK.pixel&&!(typeof
     for(let c=0;c<4;c++){P.asm.uniforms.uC.value=c;P.asm.uniforms.uOut.value=0;ocnPass(P.asm,OCN.disp[c]);P.asm.uniforms.uOut.value=1;ocnPass(P.asm,OCN.deriv[c])}}
   finally{renderer.setRenderTarget(prevT);renderer.autoClear=ac;renderer.xr.enabled=xr}
   OCU.uOSun.value.copy(skyU.sunDir.value);OCU.uOSunC.value.copy(skyU.sunCol.value)}
-{const _rf=renderFrame;renderFrame=function(){try{oceanUpdate(performance.now())}catch(e){OCN.ok=false;OCU.uOcean.value=0;console.warn('ocean',e)}return _rf.apply(this,arguments)}}
+{const _rf=renderFrame;renderFrame=function(){try{if(typeof floatDepth==='function')floatDepth()}catch(e){}try{oceanUpdate(performance.now())}catch(e){OCN.ok=false;OCU.uOcean.value=0;console.warn('ocean',e)}return _rf.apply(this,arguments)}}
 
 /* ---------- the sea's surface ---------- */
 const OCN_GLSL=`uniform vec3 uSkT,uSkH,uSkC;uniform float uOcean,uOAmp,uOEx;uniform vec4 uOL;uniform sampler2D uOD0,uOD1,uOD2,uOD3,uON0,uON1,uON2,uON3;uniform vec3 uOSun,uOSunC;`;

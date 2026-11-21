@@ -712,7 +712,9 @@ function drawBorderMesh(){if(!borderMesh)return;
       const sg=inside*2>=tot?1:-1;
       const warAt=i=>{const X=wrapTX(Math.floor(p[i][0]-nrm[i][0]*sg*.7)),Y=Math.floor(p[i][1]-nrm[i][1]*sg*.7);if(X<0||Y<0||X>=W||Y>=H)return 0;const nb=owner[Y*W+X];return nb>=0&&n.wars.has(nb)?1:0};
       const at=(i,off)=>{const q=p[i%M],nn=nrm[i%M],x=q[0]+nn[0]*off*sg-W/2,z=q[1]+nn[1]*off*sg-H/2;return[x,surfY(x,z)+.045,z]};
-      for(let i=0;i<M;i++){const war=warAt(i)||warAt((i+1)%M),lc=war?RED:base;
+      /* where the land meets the sea the coast is the border: no line is drawn out over the water */
+      const seaAt=i=>{const X=wrapTX(Math.floor(p[i][0]-nrm[i][0]*sg*.7)),Y=Math.floor(p[i][1]-nrm[i][1]*sg*.7);return X>=0&&Y>=0&&X<W&&Y<H&&isWater(Y*W+X)&&owner[Y*W+X]<0};
+      for(let i=0;i<M;i++){if(seaAt(i)&&seaAt((i+1)%M))continue;const war=warAt(i)||warAt((i+1)%M),lc=war?RED:base;
         const a0=at(i,.0),b0=at(i+1,.0),a1=at(i,lw),b1=at(i+1,lw),a2=at(i,lw+band),b2=at(i+1,lw+band);
         pos.push(...a0,...b0,...b1,...a0,...b1,...a1);for(let k=0;k<6;k++)col.push(lc[0],lc[1],lc[2],.95);
         pos.push(...a1,...b1,...b2,...a1,...b2,...a2);const A1=war?.4:.28;

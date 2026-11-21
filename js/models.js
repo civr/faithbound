@@ -33,7 +33,7 @@ function toGeo(P,f){const g=new THREE.BufferGeometry();g.setAttribute('position'
 function partMat(){const m=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.82,metalness:0});
   m.onBeforeCompile=sh=>{sh.vertexShader='attribute float aPart;\n#ifdef USE_INSTANCING\nattribute vec3 iTop;attribute vec3 iBot;attribute vec3 iSkin;attribute vec3 iHair;\n#endif\n'+sh.vertexShader.replace('#include <color_vertex>',`#include <color_vertex>
     #ifdef USE_INSTANCING
-    if(aPart>.5&&aPart<1.5)vColor.xyz=iTop;else if(aPart>1.5&&aPart<2.5)vColor.xyz=iBot;else if(aPart>2.5&&aPart<3.5)vColor.xyz=iSkin;else if(aPart>3.5&&aPart<4.5)vColor.xyz=iHair;else if(aPart>4.5)vColor.xyz=iTop;
+    if(aPart>.5&&aPart<1.5)vColor.xyz=iTop;else if(aPart>1.5&&aPart<2.5)vColor.xyz=iBot;else if(aPart>2.5&&aPart<3.5){vColor.xyz=abs(iSkin);/* old-time dress: long sleeves and hose instead of bare arms and legs */if(iSkin.x<0.){if(position.y<.021)vColor.xyz=iBot;else if(position.y<.036)vColor.xyz=iTop;}}else if(aPart>3.5&&aPart<4.5)vColor.xyz=iHair;else if(aPart>4.5)vColor.xyz=iTop;
     #endif`)};m.customProgramCacheKey=()=>'partmat';return m}
 const MODEL_MAT=partMat();
 /* an instanced kit that also carries per-instance part colours */
@@ -42,7 +42,9 @@ const _mc=new THREE.Color(),_md=new THREE.Object3D();
 function addM(name,x,y,z,s,ry,top,bot,skin,hair,tilt){const K=KITS[name];if(!K||(K.k>=K.cap&&!kitGrow(K,K.k+1)))return;if(typeof SJ!=='undefined'&&SJ)sjTouch(name,K);_md.position.set(x,y,z);_md.rotation.set(tilt||0,ry,0);_md.scale.setScalar(s);_md.updateMatrix();
   K.mesh.setMatrixAt(K.k,_md.matrix);const g=K.mesh.geometry,i=K.k*3;
   for(const [a,h] of [['iTop',top],['iBot',bot],['iSkin',skin],['iHair',hair]]){if(h==null)continue;_mc.set(h).convertSRGBToLinear();const A=g.attributes[a].array;A[i]=_mc.r;A[i+1]=_mc.g;A[i+2]=_mc.b}
+  if(g.attributes.iSkin){const A=g.attributes.iSkin.array;A[i]=ADDM_OLD?-Math.max(Math.abs(A[i]),1e-3):Math.abs(A[i])}
   K.k++}
+let ADDM_OLD=false;/* set while drawing people of the old days: the shader dresses them in sleeves and hose */
 function mcommit(names){for(const n of names){const K=KITS[n];if(!K)continue;K.mesh.count=K.k;const c=Math.max(1,K.k),IM=K.mesh.instanceMatrix;IM.needsUpdate=true;IM.updateRange.offset=0;IM.updateRange.count=c*16;for(const a of ['iTop','iBot','iSkin','iHair']){const A=K.mesh.geometry.attributes[a];A.needsUpdate=true;A.updateRange.offset=0;A.updateRange.count=c*A.itemSize}}}
 
 /* what to load: size, axis, which way is forward, and which animations to pose */
@@ -257,8 +259,8 @@ function folkModel(w){if(w.sol)return w.uni<=4?'knightcharacter':(w.seed&1?'male
 function drawFolkModel(w,gy){const name=folkModel(w);if(!modelOn(name)||(typeof camDist!=='undefined'&&camDist>(typeof PERF!=='undefined'?PERF.folkD:12)))return false;
   const F=MDL.frames[name],moving=w.moving&&F.walk,list=moving?F.walk:F.idle,TAU=6.2832;
   const fi=moving?Math.floor((((w.ph%TAU)+TAU)%TAU)/TAU*list.length):Math.floor((w.t||0)*1.2)%list.length;
-  const s=w.kid?.7:1,top=w.dress||w.top,bot=w.dress&&w.long?w.dress:w.bot;
-  addM(list[fi%list.length],w.x,gy,w.z,s,w.dir,top,bot,w.skin,w.hair);return true}
+  const s=(w.kid?.7:1)*(w.era<=5?.86:1),top=w.dress||w.top,bot=w.dress&&w.long?w.dress:w.bot;/* a touch smaller in the old towns, so the houses keep their scale */
+  ADDM_OLD=w.era<=5&&!w.sol;try{addM(list[fi%list.length],w.x,gy,w.z,s,w.dir,top,bot,w.skin,w.hair)}finally{ADDM_OLD=false}return true}
 
 /* ---------- ships: a real hull for galleys, galleons and liners ---------- */
 const SHIP_GEO_CACHE={};

@@ -68,12 +68,31 @@ const WARM=new THREE.Color(0xffd38a);
 const winMats=[];
 function stdMat(o){const m=new THREE.MeshStandardMaterial(Object.assign({roughness:.85,metalness:0},o));if(o.emissiveMap){m.emissive=WARM.clone();m.emissiveIntensity=0;winMats.push(m)}return m}
 /* copies that float at the waterline (moored boats, rowing boats, fishing boats) are lifted by the tide on the graphics chip */
-function tideHook(m){const prev=m.onBeforeCompile;m.onBeforeCompile=function(sh,r){if(prev)prev.call(this,sh,r);sh.uniforms.uTide=TIDEU.uTide;sh.uniforms.uSeaY=TIDEU.uSeaY;
-  sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nuniform float uTide;uniform float uSeaY;').replace('#include <project_vertex>',`vec4 mvPosition=vec4(transformed,1.0);
+/* things afloat at their moorings (boats, ships alongside the jetties, their masts and awnings) rise and fall with the tide, and when
+   float is set they also ride the swell and the waves of the sea exactly as the water draws them, rolling with its slope, so a moored
+   hull never sinks under a passing crest. How deep the water is under them comes from a small per-tile map (FLOATD) */
+const FLOATU={uFlD:{value:null},uFlM:{value:new THREE.Vector2(1,1)},uFlT:{value:0},uFlOn:{value:0},uFlO0:{value:null},uFlO1:{value:null},uFlL:{value:new THREE.Vector4(1,1,1,1)},uFlE:{value:0}};
+function tideHook(m,float){const prev=m.onBeforeCompile;m.onBeforeCompile=function(sh,r){if(prev)prev.call(this,sh,r);sh.uniforms.uTide=TIDEU.uTide;sh.uniforms.uSeaY=TIDEU.uSeaY;
+  if(float){floatBind();Object.assign(sh.uniforms,FLOATU)}
+  const FL=float?`uniform sampler2D uFlD,uFlO0,uFlO1;uniform vec2 uFlM;uniform float uFlT,uFlOn,uFlE;uniform vec4 uFlL;
+float flH(vec2 p){vec2 uv=(p+uFlM*.5)/uFlM;float dep=texture2D(uFlD,uv).a*.5;float h=(sin(p.x*1.7+uFlT*1.1)*.03+cos(p.y*1.4+uFlT*1.35)*.026)*clamp(dep*2.,0.,1.);
+  if(uFlOn>.5)h+=(texture2D(uFlO0,p/uFlL.x).y+texture2D(uFlO1,p/uFlL.y).y)*uFlE*smoothstep(0.,.25,dep);return h;}`:'';
+  sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nuniform float uTide;uniform float uSeaY;'+FL).replace('#include <project_vertex>',`vec4 mvPosition=vec4(transformed,1.0);
 #ifdef USE_INSTANCING
-mvPosition=instanceMatrix*mvPosition;{float oy=instanceMatrix[3].y;mvPosition.y+=uTide*step(uSeaY+.001,oy)*step(oy,uSeaY+.035);}
+mvPosition=instanceMatrix*mvPosition;{float oy=instanceMatrix[3].y,band=step(uSeaY+.001,oy)*step(oy,uSeaY+.035);mvPosition.y+=uTide*band;
+${float?`if(band>.5){vec2 ip=instanceMatrix[3].xz;float h0=flH(ip),hx=flH(ip+vec2(.06,0.)),hz=flH(ip+vec2(0.,.06));vec2 rel=mvPosition.xz-ip;
+  mvPosition.y+=h0+((hx-h0)*rel.x+(hz-h0)*rel.y)/.06*.7;}`:''}}
 #endif
-mvPosition=modelViewMatrix*mvPosition;gl_Position=projectionMatrix*mvPosition;`)};m.customProgramCacheKey=()=>'tide'+m.uuid;m.needsUpdate=true}
+mvPosition=modelViewMatrix*mvPosition;gl_Position=projectionMatrix*mvPosition;`)};m.customProgramCacheKey=()=>'tide'+(float?'f':'')+m.uuid;m.needsUpdate=true}
+/* the depth map and the live sea: bound when a floating material is compiled, kept current each frame */
+const FLOATD={tex:null,ver:-1};
+function floatBind(){if(typeof waterU!=='undefined')FLOATU.uFlT=waterU.uTime;
+  if(typeof OCU!=='undefined'){FLOATU.uFlOn=OCU.uOcean;FLOATU.uFlO0=OCU.uOD0;FLOATU.uFlO1=OCU.uOD1;FLOATU.uFlL=OCU.uOL;FLOATU.uFlE=OCU.uOEx}floatDepth()}
+function floatDepth(){if(typeof N==='undefined'||!N||typeof groundY!=='function')return;
+  if(!FLOATD.tex||FLOATD.tex.image.width!==W||FLOATD.tex.image.height!==H){if(FLOATD.tex)FLOATD.tex.dispose();FLOATD.tex=new THREE.DataTexture(new Uint8Array(N*4),W,H,THREE.RGBAFormat);FLOATD.tex.magFilter=FLOATD.tex.minFilter=THREE.LinearFilter;FLOATD.ver=-1}
+  const tv=typeof terrVer!=='undefined'?terrVer:0;if(FLOATD.ver===tv&&FLOATU.uFlD.value===FLOATD.tex)return;FLOATD.ver=tv;
+  const d=FLOATD.tex.image.data;for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x;d[i*4+3]=clamp((waterY-groundY(x-W/2+.5,y-H/2+.5))*2,0,1)*255|0}
+  FLOATD.tex.needsUpdate=true;FLOATU.uFlD.value=FLOATD.tex;FLOATU.uFlM.value.set(W,H)}
 const MAT={
   plaster:stdMat({map:TX.plaster,emissiveMap:TX.plasterE}),
   stone:stdMat({map:TX.stone,emissiveMap:TX.stoneE,roughness:.95}),
@@ -233,7 +252,7 @@ kit('hamA',hamTree(17,false),treeMat,40000);kit('hamB',hamTree(29,true),treeMat,
 kit('palm',palmGeo(5),treeMat,8000);
 kit('bush',bushGeo(3),treeMat,80000);
 kit('rock',(()=>{const g=new THREE.DodecahedronGeometry(.5,0);g.translate(0,.25,0);return g})(),stdMat({roughness:1}),6000);
-tideHook(MAT.plain);tideHook(MAT.awning);
+tideHook(MAT.plain,true);tideHook(MAT.awning,true);
 kit('fence',unitBox(),MAT.plain,30000,false);kit('lamp',unitBox(),MAT.lamp,4000,false);kit('awning',gableGeo(),MAT.awning,8000);
 kit('plazaStone',unitCyl(24),MAT.plaza,400,false);kit('plazaDirt',unitCyl(18),MAT.dirtPlaza,400,false);kit('pool',unitCyl(16),inlandWaterMat(false),5000,false);
 kit('townTree',leafTree(23,'broad'),treeMat,16000);
@@ -496,6 +515,8 @@ function castle(n,x,y,z,e,nc){LAST_LM='castle';const ST=CASTLE_STYLE[cultOf(n)]|
   const cap=(X,Y,Z,sx,sy,sz,r,c)=>{if(!ST.flat){add('coneTile',X,Y,Z,sx,sy*(ST.coneH||1),sz,r,c);return}const w=sx*.72;add('stone',X,Y-.004,Z,w*1.06,.006,w*1.06,0,shadeHex(col,.9));for(const [ox,oz,rr] of [[0,-w/2,0],[0,w/2,0],[-w/2,0,Math.PI/2],[w/2,0,Math.PI/2]])crenel(X+ox,Y+.002,Z+oz,w,rr,col)};
   if(typeof bareRect==='function')bareRect(x,z,0,S*3.1,S*3.1);{let lo=y;for(let q=0;q<12;q++){const a=q/12*6.283;lo=Math.min(lo,groundY(x+Math.cos(a)*S*1.3,z+Math.sin(a)*S*1.3))}if(y-lo<.03)add('moat',x,y-.012,z,S*2.95,.02,S*2.95,0)}/* the moat, only on level ground */
   add('stone',x,y-.035,z,S*2.15,.035,S*2.15,0,ST.yard);/* the bailey ground */
+  /* the castle with its moat is off limits to the townsfolk: nobody wades through the moat or wanders the bailey */
+  {const hw=S*1.48;footAdd({x,z,hw,hd:hw,c:1,s:0,r:hw*1.42,t:'wall'})}
   const sides=[[0,-S,S*2,0],[0,S,S*2,0],[-S,0,S*2,Math.PI/2],[S,0,S*2,Math.PI/2]];
   sides.forEach(([dx,dz,L,r],si)=>{if(si===1){/* the gate side: two halves and a gatehouse */for(const sd of [-1,1])add('stone',x+sd*S*.6,y-.03,z+dz,S*.8,WH+.03,T,0,col),crenel(x+sd*S*.6,y+WH,z+dz,S*.8,0,col);
       for(const sd of [-1,1]){twr(x+sd*.07,y-.03,z+dz,.075,WH+.09,.075,0,col);cap(x+sd*.07,y+WH+.06,z+dz,.09,.07,.09,0,roof)}
@@ -932,7 +953,7 @@ function harbour(c,cx,cz,e,i0,lvl){let d=-1;for(let q=0;q<4;q++){const X=wrapTX(
    A growing port builds out along its shore: a stone quay following the waterline, jetties reaching into the sea with
    boats and ships moored alongside, warehouses behind the quay, cranes (wooden treadwheel cranes, later steel ones),
    and in the great ports a breakwater with a lighthouse at its end. Ships use the real ship models when they are loaded. */
-const HB_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.8});tideHook(HB_MAT);
+const HB_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.8});tideHook(HB_MAT,true);
 const HB_SHIPS=[['viking_boat',0,2],['sail_ship',3,5],['liner',5,6],['cruiseship',6,7]];
 function hbShipKit(e){for(const [m,a,b] of HB_SHIPS){if(e<a||e>b||typeof modelOn!=='function'||!modelOn(m))continue;const kn='hb_'+m;
     if(!KITS[kn]){kit(kn,MDL.geo[m],HB_MAT,160,true);BUILD_KITS.push(kn)}return kn}return null}
@@ -1740,10 +1761,12 @@ const FHAIR=[0x2a1d14,0x3b2a1c,0x5a3c22,0x8a6a3a,0xc9a45a,0x1a1a1a,0x6e3a1e,0x9a
 /* clothing by era: [tops, bottoms, hats(null = bare)] */
 const CLOTH=[
   {top:[0x8a6a48,0x7a5a3a,0x9a7a52,0x6e5236],bot:[0x6e5236,0x5a4630],dress:[0x8a6a48,0x7a5a3a],hat:[null]},
-  {top:[0xe8e0cc,0xd8c8a0,0xb8743a,0x9a4a2e,0x3a4a7a],bot:[0x7a6248,0xe8e0cc],dress:[0xe8e0cc,0xc0603a,0x5a6a9a],hat:[null,null,'cap']},
-  {top:[0xe8e0cc,0xc0603a,0x8a3a3a,0x4a5a8a,0xb89a5a],bot:[0x6a5238,0xd8ccb0],dress:[0xe8e0cc,0x9a3a3a,0x4a5a8a,0xd8b060],hat:[null,null,'cap']},
-  {top:[0x5a6a3a,0x7a3a2a,0x3a4a6a,0x6a5236,0x8a7a5a,0x4a3a2a],bot:[0x4a3a2a,0x5a5040,0x3a3a3a],dress:[0x6a3a3a,0x3a4a6a,0x5a6a3a,0x8a7a5a],hat:[null,'hood','hood','straw']},
-  {top:[0x2a3a5a,0x6a2a2a,0x3a5a3a,0x6a5236,0xd8d0c0],bot:[0xd8d0c0,0x4a3a2a,0x2a2a2a],dress:[0x7a3a4a,0x3a5a7a,0xd8c8a8,0x5a6a4a],hat:[null,'tricorn','tricorn','straw']},
+  /* from the first towns to the age of sail people dress in homespun: undyed wool and linen, madder red, woad blue, weld yellow and
+     walnut brown, all faded, so a crowd reads as one warm, muted mass as in an old painting, not a scatter of bright modern shirts */
+  {top:[0xa8946c,0x9a7a52,0x8a6a44,0x7a4a32,0x5a5a3a,0x6a5236],bot:[0x5a4630,0x4a3a28,0x6a5a42],dress:[0x9a8462,0x7a4a36,0x5a5a6a,0x8a6a44],hat:[null,null,'cap']},
+  {top:[0xa8946c,0x8a4a32,0x6a3a2e,0x4e5a6e,0x9a8050,0x7a6a4a],bot:[0x4a3a28,0x5a4a34,0x6a5a42],dress:[0x9a8462,0x7a3a30,0x4e5a6e,0x9a7a48],hat:[null,null,'cap']},
+  {top:[0x5a6238,0x7a3a2a,0x44506a,0x6a5236,0x8a7a5a,0x4a3a2a,0x9a6a3a],bot:[0x3e3024,0x4a4034,0x34302a],dress:[0x6a3a32,0x44506a,0x5a6238,0x8a7a5a,0x7a5a3a],hat:[null,'hood','hood','straw']},
+  {top:[0x3a4660,0x6a2e2a,0x44583a,0x6a5236,0x9a8a6a,0x7a6248],bot:[0x4a3a2a,0x3a342c,0x6a5e4a],dress:[0x6e3a40,0x3e5068,0x9a8a6a,0x56603e,0x7a5a3a],hat:[null,'tricorn','tricorn','straw']},
   {top:[0x2a2a2e,0x4a4a48,0x5a4a3a,0x3a3a4a,0x6a6a62],bot:[0x2a2a2e,0x3a3a3a,0x4a4038],dress:[0x2a2a3a,0x4a3a3a,0x3a4a4a],hat:[null,'cap','bowler','top']},
   {top:[0xd84a3a,0x3a7ac8,0xe8e8e8,0x2a2a2a,0x5ab05a,0xe8c040,0x8a4ab0],bot:[0x3a5a8a,0x2a3a5a,0x4a4a4a,0xc8b890],dress:[0xd84a6a,0x3a9ac8,0xe8d040,0x2a2a2a],hat:[null,null,null,'cap']},
   {top:[0xe8eef2,0xb8c8d0,0x3ab0b0,0x8a9aa8],bot:[0xd0d8e0,0x5a6a78],dress:[0xe8eef2,0x3ab0b0],hat:[null,null,'visor']}];
@@ -1770,14 +1793,15 @@ const dummyR=new THREE.Object3D();dummyR.rotation.order='YXZ';
 function addR(name,x,y,z,sx,sy,sz,ry,rx,rz,hex){const K=KITS[name];if(K.k>=K.cap&&!kitGrow(K,K.k+1))return;if(SJ)sjTouch(name,K);
   dummyR.position.set(x,y,z);dummyR.rotation.set(rx||0,ry||0,rz||0);dummyR.scale.set(sx,sy,sz);dummyR.updateMatrix();
   K.mesh.setMatrixAt(K.k,dummyR.matrix);K.mesh.setColorAt(K.k,tmpC.set(hex).convertSRGBToLinear());K.k++}
+const mixHex=(a,b,f)=>{const m=(s)=>Math.round(((a>>s)&255)*(1-f)+((b>>s)&255)*f);return (m(16)<<16)|(m(8)<<8)|m(0)};
 function dressFolk(w,n){const e=n.era,C=CLOTH[e],r=mulberry32(w.seed),pk=a=>a[(r()*a.length)|0];
-  w.fem=r()<.5;w.kid=r()<.14;w.skin=pk(SKIN);w.hair=e>=5&&r()<.15?0x9a9a96:pk(FHAIR);w.top=r()<.18?parseInt(n.color.slice(1),16):pk(C.top);w.bot=pk(C.bot);
+  w.fem=r()<.5;w.kid=r()<.14;w.skin=pk(SKIN);w.hair=e>=5&&r()<.15?0x9a9a96:pk(FHAIR);w.top=r()<.18?(c=>e<=5?mixHex(c,0x6a5a44,.5):c)(parseInt(n.color.slice(1),16)):pk(C.top);/* the nation's colour, dyed faded in the old days */w.bot=pk(C.bot);
   w.dress=w.fem&&(e<6||r()<.4)?pk(C.dress):0;w.hat=w.kid?null:pk(C.hat);w.hatCol=w.hat==='straw'?0xd8c078:w.hat==='hood'?w.top:w.hat==='visor'?0x9ad8e8:0x2a2420;
   w.pack=!w.kid&&r()<(e<5?.3:.12)?(e<3?0x8a6a3a:e<6?0x9a7a4a:0x3a4a5a):0;w.shoe=e===0?w.skin:e>=7?0xd8dee4:pk([0x2a2018,0x3a2a1c,0x4a3424,0x1e1a18]);w.tool=!w.kid&&!w.fem&&r()<.25&&e<5;w.long=w.fem&&r()<.6;w.era=e}
 function soldierKit(w,n){const e=n.era,nc=parseInt(n.color.slice(1),16);w.top=e<=1?0x7a5a3a:e<=3?nc:e===4?nc:e===5?(r=>r)(0x5a5a3a):e===6?0x4a5a3a:0xd8dee4;
   w.bot=e===4?0xe8e0d0:e>=5&&e<7?0x4a4a3a:e===7?0xc8ced4:0x5a4630;w.dress=0;w.pack=e>=5?0x4a4a32:0;w.hat=e<=1?null:e<=3?'helm':e===4?'tricorn':e===7?'visor':'helm';w.hatCol=e<=3?0x9aa0a8:e===4?0x1a1a1a:e===7?0x9ad8e8:0x4a5038;w.kid=false;w.fem=false;w.uni=e}
 function cityPoint(c,near,fest){const P_=c._poi;if(!P_||!P_.pts.length){const a=rng()*6.28,r=.08+rng()*.25;return[wx(c.x)+Math.cos(a)*r,wz(c.y)+Math.sin(a)*r]}
-  if(rng()<(fest?.75:.25)){const a=rng()*6.28,r=rng()*P_.r*.8;return[P_.plaza[0]+Math.cos(a)*r,P_.plaza[1]+Math.sin(a)*r]}
+  if(rng()<(fest?.75:.25)){const a=rng()*6.28,r=rng()*P_.r*.8,x=P_.plaza[0]+Math.cos(a)*r,z=P_.plaza[1]+Math.sin(a)*r;if(!inBuilding(x,z))return[x,z]}
   for(let q=0;q<6;q++){const p=P_.pts[(rng()*P_.pts.length)|0];if(!near||Math.hypot(p[0]-near[0],p[1]-near[1])<.6)return[p[0]+(rng()-.5)*.02,p[1]+(rng()-.5)*.02]}
   const p=P_.pts[(rng()*P_.pts.length)|0];return[p[0],p[1]]}
 function fieldPoint(c){const cx=c.x,cy=c.y;for(let q=0;q<10;q++){const X=wrapTX(cx+((rng()*5)|0)-2),Y=cy+((rng()*5)|0)-2;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(fieldTiles.has(j))return[wx(X)+(rng()-.5)*.7,wz(Y)+(rng()-.5)*.7]}return null}
@@ -1955,7 +1979,7 @@ kit('flameFx',(()=>{const g=new THREE.ConeGeometry(.5,1,7,1,true);g.translate(0,
 KITS.flameFx.mesh.renderOrder=6;
 let parts=[];
 const PK={smoke:{life:3.2,size:.16,grow:.35,vy:.16,col:[.62,.62,.6],a:.5},dark:{life:4,size:.2,grow:.45,vy:.2,col:[.28,.27,.26],a:.6},
-  fire:{life:.8,size:.13,grow:-.06,vy:.32,col:[1,.6,.2],a:.85},ember:{life:2.2,size:.022,grow:-.01,vy:.45,col:[1,.62,.22],a:1},glow:{life:1.1,size:.55,grow:.1,vy:.02,col:[1,.42,.12],a:.32},flash:{life:.12,size:.06,grow:.05,vy:0,col:[1,.85,.5],a:1},foam:{life:1.2,size:.07,grow:.06,vy:0,col:[.95,.97,1],a:.7},
+  fire:{life:.8,size:.13,grow:-.06,vy:.32,col:[1,.6,.2],a:.85},ember:{life:2.2,size:.022,grow:-.01,vy:.45,col:[1,.62,.22],a:1},glow:{life:1.1,size:.55,grow:.1,vy:.02,col:[1,.42,.12],a:.32},flash:{life:.12,size:.06,grow:.05,vy:0,col:[1,.85,.5],a:1},foam:{life:1.4,size:.034,grow:.04,vy:0,col:[.9,.94,.96],a:.34},
   rain:{life:.55,size:.035,grow:0,vy:-6.5,col:[.72,.78,.88],a:.55},snow:{life:4,size:.05,grow:0,vy:-.85,col:[1,1,1],a:.9},
   miasma:{life:4,size:.45,grow:.6,vy:.03,col:[.56,.64,.4],a:.22},
   spray:{life:.6,size:.02,grow:.01,vy:.18,col:[.85,.92,1],a:.8},
