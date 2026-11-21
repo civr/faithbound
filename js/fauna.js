@@ -41,6 +41,7 @@ spawnHerd=function(){for(let t=0;t<30;t++){const x=camT.x+(rng()-.5)*(camDist*1.
     const b=biome[i],n=owner[i]>=0?nations[owner[i]]:null,tame=n&&n.era>=1&&(b===4||b===8)&&rng()<.55;
     if(GAME&&rng()>.15+.85*GAME[i])continue;/* hunted out: fewer to be seen */
     const kind=tame?(rng()<.5?'sheep':'cattle'):faunaPick(i,z);if(!kind)continue;
+    /* rhinos, bears, polar bears and penguins have no real model yet: they are not shown */if(FAUNA[kind]&&!FAUNA_REAL[kind])continue;
     const F=FAUNA[kind],cnt=F?F.herd[0]+((rng()*(F.herd[1]-F.herd[0]+1))|0):5+((rng()*6)|0),spread=F?Math.min(.6,.18+F.body[0]*2.6):.4;
     const m=[];for(let k=0;k<cnt;k++)m.push({dx:(rng()-.5)*spread,dz:(rng()-.5)*spread,a:rng()*6.28,ph:rng()*6.28,young:F&&k>1&&rng()<.25});
     wildHerds.push({x,z,kind,m,t:0,vx:(rng()-.5)*.02,vz:(rng()-.5)*.02});return}};
@@ -73,7 +74,16 @@ function drawFauna(hd,m,x,y,z,now){const F=FAUNA[hd.kind];if(!F)return false;
   if(F.antler&&!m.young&&hd.m.indexOf(m)===0)for(const sd of [-1,1]){const [ex,ez]=at(bl*.5+hs*.1,hs*.9*sd);addR('fPart',ex,hy+hs*.6,ez,hs*1.1,.004,hs*.7,rot,0,sd*.35,0xd8c8a8)}
   if(F.neck)for(const sd of [-1,1]){const [ox,oz]=at(bl*.5+hs*.1,hs*.25*sd);addR('fLeg',ox,hy+hs*.75,oz,hs*.1,hs*.4,hs*.1,rot,Math.PI,0,F.dark)}
   return true}
-{const _dw=drawWildModel;drawWildModel=function(hd,m,x,y,z,now){if(FAUNA[hd.kind])return drawFauna(hd,m,x,y,z,now);return _dw.apply(this,arguments)}}
+/* ---------- the animals as real models ----------
+   Elephant, giraffe and lion are Poly by Google models (CC-BY 3.0, standing still in one pose); bison, antelope, moose, ibex and boar are Quaternius' bull, deer and pig in their colours (CC0, walking and galloping). */
+const FAUNA_REAL={elephant:1,giraffe:1,lion:1,bison:1,antelope:1,moose:1,ibex:1,boar:1};
+function drawFaunaModel(hd,m,x,y,z,now){if(!FAUNA_REAL[hd.kind])return false;const name='rw_'+hd.kind,run=hd.flee>0,mv=Math.hypot(hd.vx,hd.vz)>.009||run,rot=mv?Math.atan2(hd.vx,hd.vz):m.a,sc=m.young?.62:1;
+  if(SMODEL[name]){if(!sOn(name))return false;const bob=mv?Math.abs(Math.sin(now/(run?90:150)+m.ph))*.002:0;add('s_'+name,x,y+bob,z,sc,sc,sc,rot,null);return true}
+  if(typeof modelOn!=='function'||!modelOn(name))return false;const F=MDL.frames[name];if(!F)return false;
+  const list=(run&&F.run)||(mv&&F.walk)||F.idle;if(!list||!list.length)return false;
+  const fi=Math.floor(now/1000*(run?11:mv?7:1.5)+m.ph*3)%list.length,kn=list[(fi+list.length)%list.length];
+  addM(kn,x,y,z,sc,rot);if(typeof WILD_USED!=='undefined')WILD_USED.add(kn);return true}
+{const _dw=drawWildModel;drawWildModel=function(hd,m,x,y,z,now){if(FAUNA[hd.kind])return drawFaunaModel(hd,m,x,y,z,now)||drawFauna(hd,m,x,y,z,now);return _dw.apply(this,arguments)}}
 
 /* ---------- game: how much wild food the land holds ---------- */
 const GAME_CAP=[0,0,0,.15,.8,1,.9,.12,1,.6,.25,.4,.1];

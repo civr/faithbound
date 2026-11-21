@@ -57,6 +57,10 @@ const MODEL_DEFS={
   tank:{len:.17,axis:'x'},tank2:{len:.17,axis:'x'},tank3:{len:.17,axis:'x'},
   zebra:{len:.068,axis:'z',anims:{walk:['Walk',8],idle:['Idle',2]}},llama:{len:.06,axis:'z',anims:{idle:['Idle',4]}},wolf:{len:.056,axis:'z',anims:{walk:['Walking',8],idle:['Idle',2]}},
   dolphin:{len:.1,axis:'z',anims:{swim:['Swim',6]}},shark:{len:.11,axis:'z',anims:{swim:['Swim',6]}},whale:{len:.3,axis:'z',anims:{swim:['Swim',6]}},manta_ray:{len:.09,axis:'z',anims:{swim:['Swim',6]}},
+  /* wild animals (CC0): Quaternius bull, deer and pig recoloured as bison, antelope, moose, ibex and boar */
+rw_bison:{len:.07,axis:'z',anims:{walk:['Walk',8],run:['Gallop',6],idle:['Idle',3]}},
+  rw_antelope:{len:.045,axis:'z',anims:{walk:['Walk',8],run:['Gallop',6],idle:['Idle',3]}},rw_moose:{len:.066,axis:'z',anims:{walk:['Walk',8],run:['Gallop',6],idle:['Idle',3]}},
+  rw_ibex:{len:.04,axis:'z',anims:{walk:['Walk',8],run:['Gallop',6],idle:['Idle',3]}},rw_boar:{len:.044,axis:'z',anims:{idle:['Idle',4]}},
   fish1:{len:.022,axis:'z',anims:{swim:['Swim',4]}},fish2:{len:.02,axis:'z',anims:{swim:['Swim',4]}},fish3:{len:.02,axis:'z',anims:{swim:['Swim',4]}}};
 /* per-model corrections found by looking at them in the game */
 const MODEL_FIX={wolf:{flip:1},liner:{flip:1},male_casual:{yaw:-Math.PI/2},male_shirt:{yaw:-Math.PI/2},female_casual:{yaw:-Math.PI/2},female_dress:{yaw:-Math.PI/2},knightcharacter:{yaw:-Math.PI/2},tank:{flip:1},tank2:{flip:1},tank3:{flip:1},commercial_airplane:{yaw:Math.PI/2},military_airplane:{yaw:Math.PI/2},smallplane:{yaw:Math.PI/2}};
@@ -98,6 +102,8 @@ Object.assign(SMODEL,{c_large:{k:'build',unit:1,max:400},c_round:{k:'build',unit
   dt_large:{k:'build',unit:1,max:500},dt_medium:{k:'build',unit:1,max:600},dt_small:{k:'build',unit:1,max:800},
   fut_base:{k:'build',unit:1,max:800},fut_tower:{k:'build',unit:1,max:800},fut_dome:{k:'build',unit:1,max:800},fut_cyl:{k:'build',unit:1,max:1200},fut_long:{k:'build',unit:1,max:800},fut_open:{k:'build',unit:1,max:1200},fut_house:{k:'build',unit:1,max:1500},
   ship_challenger:{k:'veh',len:.045,max:300},ship_dispatcher:{k:'veh',len:.04,max:300},ship_pancake:{k:'veh',len:.04,max:300},ship_zenith:{k:'veh',len:.045,max:300},
+  /* Poly by Google (CC-BY 3.0): elephant, giraffe, lion */
+  rw_elephant:{k:'veh',wild:1,len:.1,max:200},rw_giraffe:{k:'veh',wild:1,len:.07,max:200},rw_lion:{k:'veh',wild:1,len:.058,max:150},
   deer:{k:'veh',wild:1,len:.052,max:300},stag:{k:'veh',wild:1,len:.06,max:150},fox:{k:'veh',wild:1,len:.034,max:100},donkey:{k:'veh',wild:1,len:.048,max:400}});
 for(const n of ['town2s','town3b','town3s','town4','cottage1'])SMODEL[n].win=['darkgrey'];SMODEL.med_house.win=['darkblue','darkpurple'];
 let MTREE_MAT=null,SBVER=0,MDL_LOADER=null;const MDL_REQ=new Set();
@@ -407,7 +413,7 @@ const lodDist=()=>(settings.power==='saver'?6.5:settings.power==='max'?13:settin
 
 /* ---------- models load as the world needs them: a Stone Age world never downloads cars or space domes ---------- */
 function modelEras(n){
-  if(/^(cow|horse|sheep|pig|male_|female_|knight|tree_|bush_|rock_|zebra|llama|wolf|dolphin|shark|whale|manta|fish|deer|stag|fox|donkey)/.test(n))return [0,7];
+  if(/^(rw_|cow|horse|sheep|pig|male_|female_|knight|tree_|bush_|rock_|zebra|llama|wolf|dolphin|shark|whale|manta|fish|deer|stag|fox|donkey)/.test(n))return [0,7];
   if(n==='viking_boat')return [0,3];if(n==='sail_ship'||n==='boatwsail')return [2,5];if(n==='cruiseship')return [6,7];if(/plane/.test(n))return [5,7];if(/^tank/.test(n))return [5,6];
   if(/^(egypt|japan|maya|pantheon)/.test(n))return [1,3];if(n==='torii')return [1,4];if(/^c_/.test(n))return [3,4];if(n==='med_house')return [3,6];if(/^mv_/.test(n))return [3,4];if(/^rts_/.test(n))return [2,4];
   if(/^town|^cottage/.test(n))return [4,5];if(/^farm_/.test(n))return [4,6];if(/^(sub_house|flat|shop|hospital|bank|dt_)/.test(n))return [6,6];

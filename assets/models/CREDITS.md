@@ -33,3 +33,8 @@ From the Quaternius stage mirror (USD, converted with a small usd2glb script; al
 Modular Medieval Buildings (Jul 2017): c_large, c_round, c_tallwall, c_gate, c_small (castle pieces)
 - Ultimate Modular Ruins (Quaternius, CC0): ru_* ruin pieces
 - Kenney Watercraft Kit (CC0), via britzl/sample-kenney-watercraft: liner (also used as the grey warship)
+
+Wild animals (added Nov 2026):
+- rw_elephant, rw_giraffe, rw_lion: "Elephant", "Giraffe", "Lion" by Poly by Google, CC-BY 3.0 (https://creativecommons.org/licenses/by/3.0/), via Poly Pizza; texture colours baked into vertex colours, lion's colours warmed.
+- rw_bison, rw_antelope, rw_moose, rw_ibex: Quaternius "Bull" and "Deer" (Ultimate Animated Animals, CC0), recoloured.
+- rw_boar: Quaternius "Pig" (Farm Animals Animated, CC0), recoloured.
