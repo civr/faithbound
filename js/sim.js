@@ -438,10 +438,25 @@ function shipRoute(path){const P=path.map(t=>[wx(t%W),wz((t/W)|0)]);/* a round w
     /* the new legs at each corner: from .75 of one leg to .25 of the next */const fix=[q[0]];for(let k=1;k<q.length;k++){const A=fix[fix.length-1],B=q[k];
       if(k%2===1&&k>1&&!clearSea(A[0],A[1],B[0],B[1])){/* the corner between them is shallow or dry: go round it by the old corner point */fix.push(r[(k-1)/2])}fix.push(B)}r=fix}
   return r}
+/* merchant shipping: from the days of the galleys every people with a harbour sends ships to its trading partners' ports, and coasters
+   between its own ports; more harbours, more ships. Each lies at the quay a while when it comes in, then sails home again, so the
+   harbours always have ships coming and going */
+function merchantCap(){return settings.quality==='high'?36:settings.quality==='medium'?24:12}
+function merchantTick(n){if(n.era<2||!n.cities.length)return;const ports=n.cities.filter(c=>coastWater(c).length);if(!ports.length)return;
+  let mine=0,all=0;for(const s of ships){if(s.kind!=='trade'||s.sink)continue;all++;if(s.owner===n.id)mine++}
+  const want=Math.min(5,ports.length+(n.trade.length?1:0)+(n.era>=SAIL?1:0));if(mine>=want||all>=merchantCap()||rng()>.35)return;
+  const seaOk=p=>p&&p.alive&&p!==n&&!n.wars.has(p.id)&&p.cities.some(c=>coastWater(c).length);
+  let partners=(n.trade||[]).map(i=>nations[i]).filter(seaOk);
+  /* no pact yet: merchants still sail to the harbours of peoples they know and are at peace with */
+  if(!partners.length)partners=((n.known&&n.known.length?n.known.map(i=>nations[i]):nations)).filter(seaOk);
+  if(partners.length&&(ports.length<2||rng()<.6))launch(n,'trade',partners[(rng()*partners.length)|0]);
+  else if(ports.length>=2)launch(n,'trade',n)}
 function launch(n,kind,foe){
   const coastal=n.cities.filter(c=>coastWater(c).length);if(!coastal.length)return;
   const c=coastal[(rng()*coastal.length)|0],starts=coastWater(c);
-  const goal=kind==='colony'
+  /* a merchant sails port to port: to one of the partner's harbours, or to another harbour of its own */
+  const tradePorts=kind==='trade'&&foe?(()=>{const S=new Set();for(const t of foe.cities)if(t!==c)for(const j of coastWater(t))S.add(j);return S.size?S:null})():null;
+  const goal=tradePorts?(x,y)=>tradePorts.has(y*W+x)?y*W+x:-1:kind==='colony'
     ?(x,y)=>{for(let d=0;d<4;d++){const X=wrapTX(x+DX[d]),Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const L=Y*W+X;
         if(owner[L]<0&&hab[L]>=.4&&flatOk(L)&&Math.max(Math.abs(X-c.x),Math.abs(Y-c.y))>=9&&!nearCity(X,Y,10))return L}return -1}
     :kind==='explore'?(()=>{let T=-1;for(let q=0;q<60;q++){const j=(rng()*N)|0;if(isWater(j)&&Math.hypot(j%W-c.x,((j/W)|0)-c.y)>Math.max(W,H)*.35){T=j;break}}return (x,y)=>y*W+x===T?T:-1})()
@@ -460,6 +475,11 @@ function arrive(s){
   if(s.kind==='pirate'){pirateRaid(s);return}
   const n=nations[s.owner];let L=s.target,X=L%W,Y=(L/W)|0;if(!n.alive)return;
   if(s.kind==='explore'){exploreArrive(n,X,Y);return}
+  if(s.kind==='trade'&&!s.homeward&&s.path&&s.path.length>1){/* she lies at the quay a while, then sails home */const at=s.path[s.path.length-1],hs=new Set();for(const t of n.cities)for(const j of coastWater(t))if(j!==at)hs.add(j);
+    const res=hs.size?seaPath([at],(x,y)=>hs.has(y*W+x)?y*W+x:-1):null;
+    if(res&&res.path.length>1&&ships.length<400){const r={owner:n.id,kind:'trade',foe:s.foe,era:n.era,path:res.path,wp:shipRoute(res.path),seg:0,target:res.target,x:s.x,z:s.z,sink:0,g:makeShip(n.era,'trade',n.color,ensureFlag(n)),foamT:0,homeward:true,hold:7+rng()*9};
+      r.g.position.copy(s.g.position);r.g.rotation.y=s.g.rotation.y;ships.push(r)}}
+  if(s.kind==='trade'&&s.homeward)return;
   if(s.kind==='trade'){const B=nations[s.foe];if(B&&B.alive&&n.trade.includes(B.id)){n.tech+=TECHCOST[n.era]*.04;B.tech+=TECHCOST[B.era]*.04;if(n.sick&&rng()<.3)infect(B,n.sick,n);if(rng()<.15&&(important(n)||important(B)))log(`Merchants of ${n.name} reached ${B.name} with full holds.`,'life')}return}
   if(s.kind==='colony'){/* the colonists look along the shore near their landing for the best place to build */
     {let bs=siteScore(L);for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){const x=wrapTX(X+dx),y=Y+dy;if(x<0||y<0||x>=W||y>=H)continue;const q=y*W+x;if(owner[q]>=0||nearCity(x,y,10))continue;const sc=siteScore(q);if(sc>bs){bs=sc;L=q}}X=L%W;Y=(L/W)|0}
@@ -513,6 +533,7 @@ function updateShips(dy,dt,now){
       if(ROUND&&Math.abs(s.x)>W/2){const sh=W*Math.sign(s.x);s.x-=sh;if(s.wp)s.wp=s.wp.map(p=>[p[0]-sh,p[1]])}s.g.position.set(nearX(s.x,camT.x),seaY(s.x,s.z)+(s.era>=7?.06:0)-(s.sub?.03:0),s.z);const sf=typeof stormAt==='function'?stormAt(s.x,s.z):0,rk=1+sf*(s.era>=6?2:5);/* tossed about in a storm */s.g.rotation.x=Math.cos(wa)*.05*deep*rk+(s.lean||0)+sf*Math.sin(T*2.9+s.x*3.3)*.06*deep;s.g.rotation.z=-Math.sin(wb)*.04*deep*rk}
     if(dy>0){s.foamT+=dt;if(s.foamT>.12){s.foamT=0;const a=s.g.rotation.y;emit('foam',s.x-Math.cos(a)*.2,waterY+.01,s.z+Math.sin(a)*.2,0,0)}
       if(s.era===5&&rng()<dt*3)emit('dark',s.x,waterY+.2,s.z)}
+    if(s.kind!=='ghost')s.g.visible=Math.hypot(s.x-camT.x,s.z-camT.z)<Math.max(9,camDist*2.2+3);/* far out of sight: not drawn */
     if(s.seg>=WP.length-1){arrive(s);disposeShip(s);ships.splice(k,1)}}
   if(dy<=0)return;
   /* naval war: warships hunt enemy ships they sight, close in, trade broadsides until one sinks */
@@ -575,7 +596,8 @@ function tick(){if(typeof farmAbandonTick==='function')farmAbandonTick();
     if(year%3===n.id%3)allianceTick(n);independenceTick(n,t);devotionTick(n);politicsTick(n);heroTick(n);terraformTick(n);resourceTick(n);winterTick(n);nukeTick(n);if(!n.alive)continue;if(!n.alive)continue;
     if(n.era>=SAIL||(n.era>=3&&n.techs.includes('sailing'))){let ex=0,tr=0;for(const s of ships)if(s.owner===n.id&&!s.sink){if(s.kind==='explore')ex++;if(s.kind==='trade')tr++}
       if(ex<1&&rng()<.006*t.sea)launch(n,'explore');
-      if(tr<1&&n.trade.length&&rng()<.03){const p=nations[n.trade[(rng()*n.trade.length)|0]];if(p&&p.alive)launch(n,'trade',p)}}
+    }
+    merchantTick(n);
   }
   const K=Math.floor(N*.1);
   for(let k=0;k<K;k++){
