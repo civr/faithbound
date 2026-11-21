@@ -521,20 +521,34 @@ function castle(n,x,y,z,e,nc){const ST=CASTLE_STYLE[cultOf(n)]||CASTLE_STYLE.wes
   CRENEL_FORK=false}
 /* a town wall: stone in the middle ages, a palisade before, with towers and gates where the main streets leave */
 let WALL_TIGHT=false;
-function packInside(n,plan,cx,cz,R,e,KO,HP,k0){const SP=[];for(const st of plan.streets)for(let i=1;i<st.pts.length;i++){const a=st.pts[i-1],b=st.pts[i];for(let q=0;q<3;q++){const t=q/3;SP.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t])}}
+function packInside(n,plan,cx,cz,R,e,KO,HP,k0){
+  /* houses stand in rows along both sides of every lane, wall to wall, fronts to the street; the space behind them stays as yards and
+     gardens, as in a real old town, instead of every gap being filled with a house turned some odd way */
+  const SP=[];for(const st of plan.streets)for(let i=1;i<st.pts.length;i++){const a=st.pts[i-1],b=st.pts[i];for(let q=0;q<4;q++){const t=q/4;SP.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t])}}
   const G=new Map(),gk=(x,z)=>Math.floor(x/.15)+','+Math.floor(z/.15);for(const q of SP){const kk=gk(q[0],q[1]);if(!G.has(kk))G.set(kk,[]);G.get(kk).push(q)}
-  const nearSt=(x,z)=>{const gx=Math.floor(x/.15),gz=Math.floor(z/.15);let b=null,bd=9;for(let a=-2;a<=2;a++)for(let c=-2;c<=2;c++){const L=G.get((gx+a)+','+(gz+c));if(L)for(const q of L){const d=Math.hypot(q[0]-x,q[1]-z);if(d<bd){bd=d;b=q}}}return [b,bd]};
-  const st=.086;let kk=k0;
-  for(let gx=-R;gx<=R;gx+=st)for(let gz=-R;gz<=R;gz+=st){const x=cx+gx,z=cz+gz,d=Math.hypot(gx,gz);if(d>R*.97||d<plan.pr*.75)continue;
-    const t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id||river[t]||riverNear(x,z,.065))continue;
-    if(KO.some(q=>Math.hypot(x-q[0],z-q[1])<q[2]+.03))continue;
-    const [q,sd]=nearSt(x,z);if(!q||sd<.075||sd>.5)continue;/* keep the lanes clear; deep inside a block, face the nearest lane anyway */
-    const rot=Math.atan2(q[0]-x,q[1]-z),hk=hash(x*91.7+z*53.3),w=.082+hash(hk*3)*.016,dd=.074+hash(hk*5)*.012;
-    let mn=1e9,mx=-1e9;for(const [a,b] of [[-w/2,-dd/2],[w/2,-dd/2],[-w/2,dd/2],[w/2,dd/2]]){const yy=groundY(x+a*Math.cos(rot)+b*Math.sin(rot),z-a*Math.sin(rot)+b*Math.cos(rot));mn=Math.min(mn,yy);mx=Math.max(mx,yy)}
-    if(mn<waterY+.03||mx-mn>.06)continue;
-    const sl={x,z,rot,w,d:dd,core:.7,terr:true};kk++;
-    const up=solid(()=>{if(mx-mn>.012)add('stone',x,mn-.03,z,w*1.04,mx-mn+.03,dd*1.04,rot,0xa8a090);terraceHouse(n,sl,mx,e,hk)},x,z,rot,false,-.016);
-    if(up){HP.push([x,z,Math.max(w,dd)*.62]);occupied.add(t)}}}
+  const nearSt=(x,z)=>{const gx=Math.floor(x/.15),gz=Math.floor(z/.15);let bd=9;for(let a=-1;a<=1;a++)for(let c=-1;c<=1;c++){const L=G.get((gx+a)+','+(gz+c));if(L)for(const q of L){const d=Math.hypot(q[0]-x,q[1]-z);if(d<bd)bd=d}}return bd};
+  let kk=k0;
+  for(const st of plan.streets){const P=st.pts;if(P.length<2)continue;const half=st.main?.042:.03;
+    /* the lane as one line measured along its length, so the houses run on smoothly round its bends */
+    const cum=[0];for(let i=1;i<P.length;i++)cum.push(cum[i-1]+Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]));const LEN=cum[cum.length-1];
+    const at=u=>{let i=1;while(i<P.length-1&&cum[i]<u)i++;const a=P[i-1],b=P[i],l=Math.max(1e-6,cum[i]-cum[i-1]),t=clamp((u-cum[i-1])/l,0,1),dx=(b[0]-a[0])/l,dz=(b[1]-a[1])/l;return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,dx,dz]};
+    for(const side of [-1,1]){let u=.02;
+      while(u<LEN-.04){const hk=hash(P[0][0]*91.7+P[0][1]*53.3+u*173.1+side*31.7),w=.07+hash(hk*3)*.022,dd=.066+hash(hk*5)*.016,m=u+w/2;u+=w+.003;if(m>LEN-.02)break;
+        const [px,pz,dx,dz]=at(m),nx=-dz,nz=dx,off=half+dd/2+.005,x=px+nx*side*off,z=pz+nz*side*off,rot=Math.atan2(-nx*side,-nz*side);
+        const d=Math.hypot(x-cx,z-cz);if(d>R*.95||d<plan.pr*.8)continue;
+        const t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id||river[t]||riverNear(x,z,.065))continue;
+        if(KO.some(q=>Math.hypot(x-q[0],z-q[1])<q[2]+.03))continue;
+        if(nearSt(x,z)<half+dd*.35)continue;/* not across another lane */
+        let mn=1e9,mx=-1e9;for(const [a,b] of [[-w/2,-dd/2],[w/2,-dd/2],[-w/2,dd/2],[w/2,dd/2]]){const yy=groundY(x+a*Math.cos(rot)+b*Math.sin(rot),z-a*Math.sin(rot)+b*Math.cos(rot));mn=Math.min(mn,yy);mx=Math.max(mx,yy)}
+        if(mn<waterY+.03||mx-mn>.06)continue;
+        const sl={x,z,rot,w,d:dd,core:.7,terr:true};kk++;
+        const up=solid(()=>{if(mx-mn>.012)add('stone',x,mn-.03,z,w*1.04,mx-mn+.03,dd*1.04,rot,0xa8a090);terraceHouse(n,sl,mx,e,hk)},x,z,rot,false,-.016);
+        if(up){HP.push([x,z,Math.max(w,dd)*.62]);occupied.add(t)}
+        /* back to back: a second house behind it, its front on the yard or the next lane, where the block is deep enough */
+        if(up&&hash(hk*7.7)<.75){const o2=off+dd+.006,x2=px+nx*side*o2,z2=pz+nz*side*o2,d2=Math.hypot(x2-cx,z2-cz),t2=tileAt(x2,z2);
+          if(d2<R*.93&&t2>=0&&!isWater(t2)&&owner[t2]===n.id&&!river[t2]&&!riverNear(x2,z2,.065)&&!KO.some(q=>Math.hypot(x2-q[0],z2-q[1])<q[2]+.03)&&nearSt(x2,z2)>=.03+dd*.35){
+            const y2=groundY(x2,z2);if(Math.abs(y2-mx)<.05&&y2>waterY+.03){const sl2={x:x2,z:z2,rot:rot+Math.PI,w,d:dd,core:.6,terr:true},hk2=hash(hk*13.1);kk++;
+              if(solid(()=>terraceHouse(n,sl2,Math.max(y2,mx-.01),e,hk2),x2,z2,rot+Math.PI,false,-.016)){HP.push([x2,z2,Math.max(w,dd)*.62]);occupied.add(t2)}}}}}}}}
 /* inside a walled city: a market square with stalls and a well, and a stone church with a spire, each on its own open ground */
 function innerCity(n,plan,cx,cy,cz,e,cap,i0,wR,KO){const cu=cultOf(n);
   const spot=(a0,d,r)=>{for(let q=0;q<8;q++){const a=a0+q*.79,x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d,t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id)continue;const y=groundY(x,z);if(y<waterY+.03)continue;
@@ -1253,7 +1267,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       /* the painted look: the green between the lanes fills with orchards, garden shrubs, vegetable plots and haystacks, as in an old village */
       /* how far the houses reach: orchards and plantations are laid out beyond it */
       {const ds=HP.map(h=>Math.hypot(h[0]-cx,h[1]-cz)+h[2]).sort((a,b)=>a-b);c._townR=Math.max(plan.pr,plan.wallR>.3?plan.wallR+.06:0,ds.length?ds[Math.floor(ds.length*.9)]:0)}
-      if(LK.pixel&&e>=1&&e<=4&&!plan.metro&&!lagoon&&HP.length>4)townInfill(n,plan,cx,cz,HP,i0,KO);
+      if((LK.pixel||plan.wallR>.3)&&e>=1&&e<=4&&!plan.metro&&!lagoon&&HP.length>4)townInfill(n,plan,cx,cz,HP,i0,KO);
       if(e===7&&typeof windTurbine==='function'){/* wind turbines on the open ground beyond the town */const R2=(plan.metro||(cap?1.1:.7))+.45;for(let k=0;k<(cap?5:3);k++){const a=hash(i0*3.1+k)*6.283,x=cx+Math.cos(a)*R2,z=cz+Math.sin(a)*R2,t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id)continue;windTurbine(x,groundY(x,z),z,.34,hash(i0)*6.28)}}
       if(MCTX.fac>0){/* smog: a brown haze hangs over the mill towns */const R_=(plan.metro||(cap?1.1:.7))*1.05+.3;add('smog',cx,cy+.05,cz,R_*2,.3+MCTX.fac*.02,R_*2,0,0x6a5a48);
         const fa=hash(i0*2.7)*6.283;add('smog',cx+Math.cos(fa)*R_*.45,cy+.08,cz+Math.sin(fa)*R_*.45,R_*1.1,.36,R_*1.1,0,0x4a4038)}
