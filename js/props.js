@@ -546,7 +546,10 @@ function castle(n,x,y,z,e,nc){LAST_LM='castle';const ST=CASTLE_STYLE[cultOf(n)]|
 /* a town wall: stone in the middle ages, a palisade before, with towers and gates where the main streets leave */
 let WALL_TIGHT=false;
 /* the shape of the town wall at angle t, as townWall0 draws it when the town is packed tight */
-function wallRadAt(R,i0,t){const ph=hash(i0*4.4)*6.283;return R*(1+.35*(.07*Math.sin(3*t+ph)+.04*Math.sin(5*t+ph*1.7)))}
+/* the wall of a packed town follows the shape of the town itself: P holds how far out the terraced houses reach in 24 directions,
+   as a share of the town's main radius, so a town strung along a road or a shore gets a long wall, not a round one */
+function wallProfAt(P,t){if(!P)return 1;const B=P.length,f=((t/6.283)%1+1)%1*B,k=Math.floor(f),u=f-k;return P[k%B]*(1-u)+P[(k+1)%B]*u}
+function wallRadAt(R,i0,t,P){const ph=hash(i0*4.4)*6.283;return R*wallProfAt(P,t)*(1+.35*(.07*Math.sin(3*t+ph)+.04*Math.sin(5*t+ph*1.7)))}
 /* the lanes of a walled old town, the way such towns grew: the main streets run from the gates to the square; ring lanes curve round
    inside the wall, one along the square and one just inside the wall with its houses backing onto it; short alleys cross between the rings
    halfway between the main streets, so no block is too long to walk round */
@@ -564,13 +567,13 @@ function townLanes(n,plan,cx,cz,wR,cR,KO,i0){const L=[],mains=plan.streets.filte
     for(let r=cR+.03;r<d0;r+=.05)pts.push([cx+Math.cos(a)*r,cz+Math.sin(a)*r]);pts.push([p[0],p[1]]);for(const R of runs(pts,false))L.push({pts:R,main:true,base:0,lane:'spoke'})}
   /* two rings: one just inside the wall, so a row of houses fits between it and the wall and backs onto it, and one round the square */
   const rO=wR-.125,rI=cR+.035,radii=rO>rI+.2?[rO,rI]:[rI];
-  for(const r of radii){const K=Math.max(24,Math.ceil(6.283*r/.045)),pts=[];for(let k=0;k<K;k++){const t=k/K*6.283,rr=r<wR*.6?r:wallRadAt(r,i0,t);pts.push([cx+Math.cos(t)*rr,cz+Math.sin(t)*rr])}
+  for(const r of radii){const K=Math.max(24,Math.ceil(6.283*r/.045)),pts=[];for(let k=0;k<K;k++){const t=k/K*6.283,rr=r<wR*.6?r:Math.max(rI+.12,wallRadAt(wR,i0,t,plan.wallProf)-(wR-r));pts.push([cx+Math.cos(t)*rr,cz+Math.sin(t)*rr])}
     for(const R of runs(pts,true))L.push({pts:R,main:false,base:0,lane:'ring'})}
   /* between them a crooked grid of lanes, the way old towns filled in: long lanes a block apart, crossed every so often by short ones.
      It leans the way the first main street runs; a lane that would run alongside a main street gives way to it */
   if(radii.length>1){const MP=[];for(const st of mains)for(let i=1;i<st.pts.length;i++){const a=st.pts[i-1],b=st.pts[i],l=Math.hypot(b[0]-a[0],b[1]-a[1])||1;MP.push([(a[0]+b[0])/2,(a[1]+b[1])/2,(b[0]-a[0])/l,(b[1]-a[1])/l])}
     let th=hash(i0*2.9)*3.14;if(mains.length){const s0=mains[0].pts,q=s0[Math.min(s0.length-1,4)];th=Math.atan2(q[1]-s0[0][1],q[0]-s0[0][0])}
-    const inner=(x,z,m)=>{const d=Math.hypot(x-cx,z-cz);return d>rI+.075+m&&d<wallRadAt(rO,i0,Math.atan2(z-cz,x-cx))-.075-m};
+    const inner=(x,z,m)=>{const d=Math.hypot(x-cx,z-cz);return d>rI+.075+m&&d<wallRadAt(wR,i0,Math.atan2(z-cz,x-cx),plan.wallProf)-(wR-rO)-.075-m};
     const byMain=(x,z,dx,dz)=>{for(const q of MP){if(Math.abs(q[0]-x)>.14||Math.abs(q[1]-z)>.14)continue;if(Math.hypot(q[0]-x,q[1]-z)<.13&&Math.abs(q[2]*dx+q[3]*dz)>.75)return true}return false};
     const grid=(ang,sp,j0,step,kind,ph)=>{const dx=Math.cos(ang),dz=Math.sin(ang),px=-dz,pz=dx,RR=wR+.1;
       for(let j=-Math.ceil(RR/sp);j<=Math.ceil(RR/sp);j++){const v=(j+j0)*sp,pts=[];let prev=null;
@@ -626,9 +629,9 @@ function innerCity(n,plan,cx,cy,cz,e,cap,i0,wR,KO){const cu=cultOf(n);
       P('stone',x,y-.02,z,rot,0,-.085*sc,0,.05*sc,.15*sc,.05*sc,col);P('pyr',x,y+.13*sc,z,rot,0,-.085*sc,0,.06*sc,.09*sc,.06*sc,rc);
       for(const sd of [-1,1])for(let q=0;q<3;q++)P('box',x,y+.02*sc,z,rot,sd*.0385*sc,(-.03+q*.045)*sc,0,.002,.03*sc,.012*sc,0x2a3038)},x,z,rot,true,undefined,'big')}}}
 function townWall(n,plan,cx,cz,R,e,far,i0){if(R<.3)return;CRENEL_FORK=cultOf(n)==='med';try{townWall0(n,plan,cx,cz,R,e,far,i0)}finally{CRENEL_FORK=false}}
-function townWall0(n,plan,cx,cz,R,e,far,i0){const stone=e>=3,col=stone?(LK.pixel?0x8e8576:0xcfc8b8):0x6e5236,H=stone?(LK.pixel?.062:.09):.07,TR=LK.pixel?0x5a4c3e:ROOF_SLATE[0],L=.075,K=Math.max(16,Math.ceil(6.283*R/L)),ph=hash(i0*4.4)*6.283,gates=[];
-  for(const st of plan.streets){if(!st.main)continue;for(const q of st.pts){const d=Math.hypot(q[0]-cx,q[1]-cz);if(d>=R){gates.push(Math.atan2(q[1]-cz,q[0]-cx));break}}}
-  const wb=WALL_TIGHT?.35:1,rad=t=>R*(1+wb*(.07*Math.sin(3*t+ph)+.04*Math.sin(5*t+ph*1.7))),pt=t=>[cx+Math.cos(t)*rad(t),cz+Math.sin(t)*rad(t)];
+function townWall0(n,plan,cx,cz,R,e,far,i0){const stone=e>=3,col=stone?(LK.pixel?0x8e8576:0xcfc8b8):0x6e5236,H=stone?(LK.pixel?.062:.09):.07,TR=LK.pixel?0x5a4c3e:ROOF_SLATE[0],L=.075,K=Math.max(16,Math.ceil(6.283*R*(WALL_TIGHT&&plan.wallProf?Math.max(...plan.wallProf):1)/L)),ph=hash(i0*4.4)*6.283,gates=[];
+  for(const st of plan.streets){if(!st.main)continue;for(const q of st.pts){const d=Math.hypot(q[0]-cx,q[1]-cz),a=Math.atan2(q[1]-cz,q[0]-cx);if(d>=R*(WALL_TIGHT?wallProfAt(plan.wallProf,a):1)){gates.push(a);break}}}
+  const wb=WALL_TIGHT?.35:1,WP=WALL_TIGHT?plan.wallProf:null,rad=t=>R*wallProfAt(WP,t)*(1+wb*(.07*Math.sin(3*t+ph)+.04*Math.sin(5*t+ph*1.7))),pt=t=>[cx+Math.cos(t)*rad(t),cz+Math.sin(t)*rad(t)];
   const nearGate=t=>gates.some(g=>Math.abs(((t-g+9.42)%6.283)-3.14)<.055/R+.02);
   for(let k=0;k<K;k++){const t0=k/K*6.283,t1=(k+1)/K*6.283,[x0,z0]=pt(t0),[x1,z1]=pt(t1),mx=(x0+x1)/2,mz=(z0+z1)/2,ti=tileAt(mx,mz);
     if(ti<0||isWater(ti)||owner[ti]!==n.id)continue;const y=groundY(mx,mz);if(y<waterY+.02)continue;
@@ -1132,12 +1135,25 @@ function townPlan(n,c,cap,e){
       if(!best||bc>1.6)break;x=best[0];z=best[1];h=best[2];d+=step;pts.push([x,z,d])}
     return pts};
   /* main streets leave the square in a few directions; one arm is a street village, five is a star town */
-  const nm=e>=3&&e<=4?[3,3,4,4,5,5,6][(R_()*7)|0]:[1,2,2,3,3,3,4,4,5][(R_()*9)|0],a0=R_()*6.283,arms=nm===1?[a0,a0+Math.PI+(R_()-.5)*.6]:Array.from({length:nm},(_,k)=>a0+k*6.283/nm+(R_()-.5)*.7);
-  for(const a of arms){const pts=walk(cx+Math.cos(a)*pr,cz+Math.sin(a)*pr,a,len*(.6+R_()*.6),true);if(pts.length>3)streets.push({pts,main:true,base:pr})}
+  /* a town is not round: it grows out along the road to its neighbours and along the shore, and only a little the other ways.
+     The main street points to the nearest neighbouring town, or along the coast; the road out the other side carries the through
+     traffic; the other streets stay short. Plots fill in order of distance weighted by how busy their street is */
+  const pref=[];{let nb=null,nd=11;for(const m of nations){if(!m.alive)continue;for(const o of m.cities){if(o===c)continue;const d=Math.hypot(wx(o.x)-cx,wz(o.y)-cz);if(d<nd){nd=d;nb=o}}}
+    if(nb)pref.push([Math.atan2(wz(nb.y)-cz,wx(nb.x)-cx),1.4]);
+    let wsx=0,wsz=0;for(let k=0;k<16;k++){const a=k/16*6.283;for(const r of [.4,.8]){const t=tileAt(cx+Math.cos(a)*r,cz+Math.sin(a)*r);if(t>=0&&isWater(t)){wsx+=Math.cos(a)/r;wsz+=Math.sin(a)/r}}}
+    if(Math.hypot(wsx,wsz)>.8){const aw=Math.atan2(wsz,wsx);pref.push([aw+Math.PI/2,1.3],[aw-Math.PI/2,1.3])}}
+  const nm=e>=3&&e<=4?[3,3,4,4,5,5,6][(R_()*7)|0]:[1,2,2,3,3,3,4,4,5][(R_()*9)|0],a0=pref.length?pref[0][0]+(R_()-.5)*.3:R_()*6.283,arms=nm===1?[a0,a0+Math.PI+(R_()-.5)*.6]:Array.from({length:nm},(_,k)=>a0+k*6.283/nm+(R_()-.5)*(k?.7:.2));
+  /* the town's own outline: an oval along its main axis, longer the busier the road or the shore it lies on, with a fatter end and a
+     bulge or two, so no two towns have the same shape and none is round */
+  const asp=1.8+R_()*1.2+(pref.length>1?.4:0),ph1=R_()*6.283,ph2=R_()*6.283,fat=(R_()-.5)*.3;
+  const SH=t=>{const u=t-a0,A=Math.sqrt(asp),B=1/A;return (1/Math.hypot(Math.cos(u)/A,Math.sin(u)/B))*(1+.12*Math.sin(2*t+ph1)+.08*Math.sin(3*t+ph2)+fat*Math.cos(u))/1.08};
+  const armW=a=>{let w=.4+R_()*.3;for(const [pa,pw] of pref){const g=Math.abs(((a-pa+9.425)%6.283)-3.1416);if(g<.6)w=Math.max(w,pw*(1-g*.3));else if(g>2.6&&pref.length===1)w=Math.max(w,1)}
+    if(!pref.length)w=a===a0?1.3:Math.abs(((a-a0+9.425)%6.283)-3.1416)>2.4?1:w;return w};
+  for(const a of arms){const wg=armW(a),pts=walk(cx+Math.cos(a)*pr,cz+Math.sin(a)*pr,a,len*Math.min(1.6,wg*.5+SH(a)*.6)*(.8+R_()*.25),true);if(pts.length>3)streets.push({pts,main:true,base:pr,w:wg})}
   const mains=streets.length;
   for(let m=0;m<mains;m++){const st=streets[m];let side=R_()<.5?1:-1;
     for(let i=4;i<st.pts.length-2;i+=(dens>.5?2:3)+((R_()*(4-2*dens))|0)){if(R_()>(e>=3&&e<=4?.95:.6+dens*.3))continue;const p0=st.pts[i],p1=st.pts[i+1],h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0])+side*(Math.PI/2+(R_()-.5)*.6);side=-side;
-      const pts=walk(p0[0],p0[1],h,(.25+R_()*.6*(cap?1.3:1))*(1+dens*.5),false);if(pts.length>3)streets.push({pts,main:false,base:p0[2]+st.base})}}
+      const sh=SH(Math.atan2(p0[1]-cz,p0[0]-cx)),pts=walk(p0[0],p0[1],h,(.25+R_()*.6*(cap?1.3:1))*(1+dens*.5)*Math.min(1.2,.6+st.w*.4)*clamp(sh,.55,1.3),false);if(pts.length>3)streets.push({pts,main:false,base:p0[2]+st.base,w:st.w})}}
   /* plaza frontage first, then plots along every street, both sides */
   const hs=band===1?[.1,.075]:band===2?[.12,.08]:[.11,.1];
   const ring=pr>.5?0:Math.max(5,Math.round(pr*6.283/(hs[0]+.02)));for(let k=0;k<ring;k++){const a=k/ring*6.283+.2,r=pr+hs[1]/2+.03,x=cx+Math.cos(a)*r,z=cz+Math.sin(a)*r;
@@ -1146,7 +1162,7 @@ function townPlan(n,c,cap,e){
   streets.forEach((st,si)=>{const sw=st.main?.035:.025;
     const fine=band>=1&&dens>.25;const PT=fine?(()=>{const o=[];st.pts.forEach((q,i)=>{if(!i){o.push(q);return}const a=st.pts[i-1];for(let k=1;k<=6;k++){const t=k/6;o.push([a[0]+(q[0]-a[0])*t,a[1]+(q[1]-a[1])*t,a[2]+(q[2]-a[2])*t])}});return o})():st.pts;
     for(let i=1;i<PT.length;i++){const p0=PT[i-1],p1=PT[i],h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0]);
-      for(const side of [1,-1]){const dd=st.base+p1[2],core=clamp(1-dd/((cap?1.1:.6)*(1+dens*.8)),0,1),rural=band===1&&core<(e>=3&&e<=4?.28:.6)*(1-dens*.8);
+      for(const side of [1,-1]){const ea=Math.atan2(p1[1]-cz,p1[0]-cx),dd=.4*(st.base+p1[2])/(st.w||1)+.6*Math.hypot(p1[0]-cx,p1[1]-cz)/SH(ea),core=clamp(1-dd/((cap?1.1:.6)*(1+dens*.8)),0,1),rural=band===1&&core<(e>=3&&e<=4?.28:.6)*(1-dens*.8);
         if(R_()<(rural?.3*(1-dens*.6):band>=2?.28*(1-dens*.85):e>=3?.05*(1-dens):.12*(1-dens*.8)))continue;
         /* villages: detached cottages on long plots with gaps of meadow; town cores: houses shoulder to shoulder */
         /* the heart of a big town: terraced rows, each house wall to wall with the next and its front on the lane, no gaps and no gardens */
@@ -1160,7 +1176,16 @@ function townPlan(n,c,cap,e){
         mark(x,z,rr);if(pd>0){mark(bx,bz,pd*.45);mark(x+nx*(d/2+pd*.9),z+nz*(d/2+pd*.9),pw*.4)}
         slots.push({x,z,rot:Math.atan2(-nx,-nz),w,d,pd,pw,core,st:si,at:p1[2],fx:p1[0],fz:p1[1],dd:dd+R_()*(terr?.02:.25)-(terr?.3:0),terr})}}});
   slots.sort((a,b)=>a.dd-b.dd);
-  {const td=slots.filter(q=>q.terr).map(q=>Math.hypot(q.x-cx,q.z-cz)).sort((a,b)=>a-b),cr=td.length?td[td.length-1]:0,w8=td.length>12?td[Math.floor(td.length*.8)]:0;return c._plan={key,streets,slots,pr,coreR:cr*.85,wallR:w8}}}
+  {const td=slots.filter(q=>q.terr).map(q=>Math.hypot(q.x-cx,q.z-cz)).sort((a,b)=>a-b),cr=td.length?td[td.length-1]:0,w8=td.length>12?td[Math.floor(td.length*.8)]:0;
+    /* how far the terraced core reaches in each direction, smoothed, as a share of w8: the shape the wall will follow */
+    let wallProf=null;if(w8>0){const B=24,bins=Array.from({length:B},()=>[]);for(const q of slots){if(!q.terr)continue;const a=Math.atan2(q.z-cz,q.x-cx);bins[((Math.floor((a/6.283+1)*B))%B)].push(Math.hypot(q.x-cx,q.z-cz))}
+      let r=bins.map(L=>{if(L.length<2)return NaN;L.sort((a,b)=>a-b);return L[Math.floor(L.length*.85)]});const lo=Math.max(pr+.18,w8*.3);r=r.map((v,k)=>{const sh=w8*SH((k+.5)/B*6.283)*1.05;return isNaN(v)?Math.max(lo,Math.min(sh,lo*1.2)):Math.max(lo,Math.min(sh,v*1.08))});/* the outline leads; where few houses stand (the shore, a hill) the wall pulls in */
+      for(let it=0;it<2;it++)r=r.map((v,k)=>(r[(k+B-2)%B]+2*r[(k+B-1)%B]+3*v+2*r[(k+1)%B]+r[(k+2)%B])/9);
+      /* and never out over ground no house can stand on: the beach, the water, a cliff */
+      r=r.map((v,k)=>{const t=(k+.5)/B*6.283,ct=Math.cos(t),stt=Math.sin(t);let reach=pr+.1,miss=0;for(let d=pr+.1;d<v+.3;d+=.04){if(bad(cx+ct*d,cz+stt*d)){if(++miss>=2)break}else{miss=0;reach=d}}return Math.max(pr+.18,Math.min(v,reach+.06))});
+      for(let it=0;it<1;it++)r=r.map((v,k)=>Math.min(v,(r[(k+B-1)%B]+2*v+r[(k+1)%B])/4+.04));
+      wallProf=r.map(v=>clamp(v/w8,.4,1.6))}
+    return c._plan={key,streets,slots,pr,coreR:cr*.85,wallR:w8,wallProf}}}
 /* a grown city: avenues leave the old square like spokes, ring roads curve round them at the old wall lines,
    and crooked lanes fill the gaps. Towers stand in the middle, flats around them, houses with gardens far out. */
 function organicMetro(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[],slots=[],ph=R_()*6.283;
@@ -1302,7 +1327,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       if(e>=1)solid(()=>harbour(c,cx,cz,e,i0,lvl),cx,cz,0,true,undefined,'big');
       c._canals=[];
       /* a walled city keeps its own layout inside the wall (see townLanes and packInside); the plan's plots fill only the ground outside the gates */
-      const packed=plan.wallR>.3&&e>=2&&e<=4&&!plan.metro&&!lagoon,wR=plan.wallR+.05,inWall=(x,z,m)=>Math.hypot(x-cx,z-cz)<=wallRadAt(wR,i0,Math.atan2(z-cz,x-cx))-m;c._walled=packed;
+      const packed=plan.wallR>.3&&e>=2&&e<=4&&!plan.metro&&!lagoon,wR=plan.wallR+.05,inWall=(x,z,m)=>Math.hypot(x-cx,z-cz)<=wallRadAt(wR,i0,Math.atan2(z-cz,x-cx),plan.wallProf)-m;c._walled=packed;
       for(const sl of slots){if(placed>=count)break;k++;MCTX.w=sl.metro?sl.w:.12;
         if(packed&&inWall(sl.x,sl.z,-.05)){placed++;continue}
         if(e>=1){/* two towns that meet never build on the same spot */const bk=Math.round(sl.x*12)+','+Math.round(sl.z*12);if(bgrid.has(bk))continue;bgrid.add(bk)}
