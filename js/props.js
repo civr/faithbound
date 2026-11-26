@@ -929,8 +929,9 @@ function streetLife(n,c,plan,e,cx,cy,cz,cap,i0,reach){if(e<4)return;let trees=0,
 function frontGarden(x,y,z,rot,w,d,hk){/* a hedge or a white fence around a little lawn with flowers */const c=Math.cos(rot),s=Math.sin(rot),W2=w*.8,D2=d*.85,hedge=hash(hk*5)<.6,col=hedge?0x3f6a2e:0xf0ece2,hh=hedge?.016:.012,th=hedge?.01:.003;
   const sides=[[0,D2,W2*2,th],[W2,0,th,D2*2],[-W2,0,th,D2*2]];for(const [a,b,ww,dd] of sides)add(hedge?'box':'fence',x+a*c+b*s,y-.004,z-a*s+b*c,ww,hh,dd,rot,col);
   if(hash(hk*13)<.6)for(let k=0;k<3;k++){const a=(k-1)*W2*.6,b=D2*.75;add('bloom',x+a*c+b*s,y+.003,z-a*s+b*c,.012,.009,.012,0,BLOOMS[(hash(hk*7+k)*5)|0])}}
+let CC_SZ=1;
 function cityCenter(n,c,cx,cy,cz,e,cap,i0){
-  const r=cap?.3:.15;
+  const r=Math.max(.07,(cap?.3:.15)*CC_SZ);
   /* a square at the water's edge or out in a lagoon stands on a stone footing above the highest tide and the waves, not under them */
   if(e>=1){let lo=cy;for(let q=0;q<8;q++){const a=q/8*6.283;lo=Math.min(lo,groundY(cx+Math.cos(a)*r*.95,cz+Math.sin(a)*r*.95))}lo=Math.min(lo,groundY(cx,cz));
     const top=waterY+TIDE_A+.03;if(lo<top){const y0=lo;cy=Math.max(cy,top);add('plazaStone',cx,y0-.05,cz,r*2.04,cy-y0+.04,r*2.04,hash(i0)*6,0xb0a890)}}
@@ -940,7 +941,7 @@ function cityCenter(n,c,cx,cy,cz,e,cap,i0){
   else if(e<=5){add('cyl',cx,cy,cz,.09,.018,.09,0,0xd8d2c6);add('pool',cx,cy+.004,cz,.078,.016,.078);add('cyl',cx,cy,cz,.012,.05,.012,0,0xd8d2c6);emitters.push({x:cx,y:cy+.05,z:cz,fountain:true,rate:6})}
   else if(e===6){add('pool',cx,cy-.008,cz,r*1.7,.012,r*1.7,0,0x4f8a3a);for(let k=0;k<4;k++){const a=k*1.57+.4;add('townTree',cx+Math.cos(a)*.08,cy,cz+Math.sin(a)*.08,.4,.4,.4,0,0x4f8a3a)}}
   else{/* a green square: a pond among trees and flowers */add('pool',cx,cy-.008,cz,r*1.4,.012,r*1.4,0);for(let k=0;k<6;k++){const a=k/6*6.283+.3;add('townTree',cx+Math.cos(a)*r*.85,cy,cz+Math.sin(a)*r*.85,.32,.36,.32,0,0x4f8a3a);add('bloom',cx+Math.cos(a+.5)*r*.75,cy-.004,cz+Math.sin(a+.5)*r*.75,.03,.02,.03,0,BLOOMS[k%5])}}
-  c._stalls=[];if(e>=1&&e<=5){const stalls=2+((hash(i0*3.3)*4)|0);for(let k=0;k<stalls;k++){const a=k/stalls*6.283+hash(i0+k),sx=cx+Math.cos(a)*r*.72,sz=cz+Math.sin(a)*r*.72,rt=-a;c._stalls.push({x:sx,z:sz,a});
+  c._stalls=[];if(e>=1&&e<=5){const stalls=Math.max(1,Math.round((2+((hash(i0*3.3)*4)|0))*CC_SZ*CC_SZ));for(let k=0;k<stalls;k++){const a=k/stalls*6.283+hash(i0+k),sx=cx+Math.cos(a)*r*.72,sz=cz+Math.sin(a)*r*.72,rt=-a;c._stalls.push({x:sx,z:sz,a});
     P('box',sx,cy,sz,rt,0,0,0,.035,.016,.022,0x7a5a3a);P('cyl',sx,cy,sz,rt,-.015,.009,0,.003,.04,.003,0x5a4632);P('cyl',sx,cy,sz,rt,.015,.009,0,.003,.04,.003,0x5a4632);
     P('awning',sx,cy+.035,sz,rt,0,0,0,.042,.014,.03,AWN[(hash(i0*7+k)*AWN.length)|0])}}
   if(e>=4&&e<=5)for(let k=0;k<6;k++){const a=k/6*6.283+.3,lx=cx+Math.cos(a)*(r+.02),lz=cz+Math.sin(a)*(r+.02);add('cyl',lx,cy,lz,.004,.075,.004,0,0x2e2e2e);add('lamp',lx,cy+.072,lz,.012,.014,.012)}
@@ -1316,7 +1317,9 @@ function buildOne(n,c,ci,e,gold,lvl,key){const L0={em:emitters.length,hd:herds.l
     Object.assign(Rc,{key,era:e,t:performance.now(),em:emitters.slice(L0.em),hd:herds.slice(L0.hd),cs:cityStreets.slice(L0.cs),ap:airports.slice(L0.ap),sp:spaceports.slice(L0.sp),wm:windmills.slice(L0.wm),tf:townFlags.slice(L0.tf)});CITYCACHE.set(c,Rc)}}
 function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),cap=ci===0;occupied.add(i0);
       const cy=surfY(cx,cz);
-      if(e>=1)bareMark(cx,cz,(cap?.3:.15)*.95);cityCenter(n,c,cx,cy,cz,e,cap,i0);
+      /* the square grows with the town: a young or small town has a little village green with a well and a stall or two, a big one a wide market square */
+      CC_SZ=clamp(Math.sqrt((cap?1:townGrowth(c))*(townLevel(n,cap)+2)/14),.45,1);
+      if(e>=1)bareMark(cx,cz,(cap?.3:.15)*CC_SZ*.95);cityCenter(n,c,cx,cy,cz,e,cap,i0);
       const KO=[],lag0=isLagoon(n,c,e);let CR0=.17;if(cap){/* the palace or castle stands on dry ground: a capital built on a river puts it a little to one side */
         const kr=lag0&&e>=3?.32:e===0?.3:e<=2?.46:e<=4?.7:e===5?.32:.2;let lx=cx,lz=cz;if(!lag0&&riverNear(cx,cz,kr*.35)){let best=null;for(const r of [.15,.3,.45])for(let q=0;q<8&&!best;q++){const x=cx+Math.cos(q*.785)*r,z=cz+Math.sin(q*.785)*r;if(!riverNear(x,z,kr*.35)&&groundY(x,z)>waterY+.04)best=[x,z]}if(best){lx=best[0];lz=best[1]}}
         const ly=lx===cx&&lz===cz?cy:surfY(lx,lz);LAST_LM='';solid(()=>{if(lag0&&e>=3)lagoonCapital(n,cx,cy,cz,e);else landmark(n,lx,ly,lz,e)},lx,lz,0,true);
