@@ -64,7 +64,7 @@ function ocnInit(){if(OCP)return true;if(!oceanSupported())return false;const N=
 function ocnPass(mat,target){OCP.quad.material=mat;renderer.setRenderTarget(target);renderer.render(OCP.sc,OCP.cam)}
 function oceanUpdate(now){const want=settings.ocean!==false&&!LK.pixel&&!(typeof PERF!=='undefined'&&perfOn()&&PERF.tier>=3);
   if(!want||!ocnInit()){OCU.uOcean.value=0;OCN.on=false;return}
-  OCN.on=true;OCU.uOcean.value=1;const R=OCN.rts,P=OCP,prevT=renderer.getRenderTarget(),ac=renderer.autoClear,xr=renderer.xr.enabled;renderer.autoClear=false;renderer.xr.enabled=false;
+  OCN.on=true;OCU.uOcean.value=1;/* the waves are worked out at most 30 times a second */if(now-(OCN.last||0)<32)return;OCN.last=now;const R=OCN.rts,P=OCP,prevT=renderer.getRenderTarget(),ac=renderer.autoClear,xr=renderer.xr.enabled;renderer.autoClear=false;renderer.xr.enabled=false;
   try{const t=((now-OCN.t0)/1000)%3000;P.spec.uniforms.uTime.value=t;
     P.spec.uniforms.uSet.value=0;ocnPass(P.spec,R.A0);P.spec.uniforms.uSet.value=1;ocnPass(P.spec,R.A1);
     for(const [a,b] of [[R.A0,R.B0],[R.A1,R.B1]]){let src=a,dst=b;

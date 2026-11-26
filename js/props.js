@@ -1863,12 +1863,12 @@ function cityPoint(c,near,fest){const P_=c._poi;if(!P_||!P_.pts.length){const a=
 function fieldPoint(c){const cx=c.x,cy=c.y;for(let q=0;q<10;q++){const X=wrapTX(cx+((rng()*5)|0)-2),Y=cy+((rng()*5)|0)-2;if(X<0||Y<0||X>=W||Y>=H)continue;const j=Y*W+X;if(fieldTiles.has(j))return[wx(X)+(rng()-.5)*.7,wz(Y)+(rng()-.5)*.7]}return null}
 function updateWalkers(dt,yrs){
   if(!settings.people){for(const k of FIG_KITS)KITS[k].mesh.count=0;return}
-  const cap=settings.quality==='high'?1100:settings.quality==='medium'?650:280;
+  const cap=settings.quality==='high'?700:settings.quality==='medium'?420:200;
   /* towns near the camera fill up with people: walkers far away move to the town you are looking at */
   if(camDist<16&&(updateWalkers._t=(updateWalkers._t||0)-dt)<=0){updateWalkers._t=.4;const RR=(camDist*1.2+2)**2,loc=[];
     for(const n of nations){if(!n.alive||n.era<1)continue;for(const c of n.cities){const ex=wx(c.x)-camT.x,ez=wz(c.y)-camT.z;if(ex*ex+ez*ez<RR)loc.push([n,c])}}
     if(loc.length){const have=new Map();for(const w of walkers)have.set(w.ci,(have.get(w.ci)||0)+1);
-      for(const [n,c] of loc){const want=Math.min(c._walled?240:150,Math.round(Math.sqrt(n.pop/Math.max(1,n.cities.length))*3.4*(c._walled?1.7:1)*(settings.quality==='low'?.5:1)*(1-Math.min(.85,c.decay||0))));/* a walled town's streets are crowded *//* a busy town: plenty of people about */let h=have.get(c)||0;
+      for(const [n,c] of loc){const want=Math.min(c._walled?200:150,Math.round(Math.sqrt(n.pop/Math.max(1,n.cities.length))*3.4*(c._walled?1.4:1)*(settings.quality==='low'?.5:1)*(1-Math.min(.85,c.decay||0))));/* a walled town's streets are crowded *//* a busy town: plenty of people about */let h=have.get(c)||0;
         for(let q=0;q<(c._walled?16:8)&&h<want;q++){let w=null;
           if(walkers.length<cap){w={x:0,z:0,wait:rng()*2,sol:false,t:rng()*10,ph:rng()*6,dir:rng()*6.28,act:'idle',seed:(rng()*1e9)|0};walkers.push(w)}
           else{for(let t=0;t<12;t++){const v=walkers[(rng()*walkers.length)|0];if(v.sol||loc.some(l=>l[1]===v.ci))continue;w=v;break}if(!w)break;const on=nations[w.nid];if(on)on._walk=(on._walk||1)-1}
@@ -1878,11 +1878,14 @@ function updateWalkers(dt,yrs){
     const want=Math.min(80,Math.round(Math.sqrt(n.pop)*1.1)),have=n._walk||0;
     if(have<want&&walkers.length<cap&&rng()<.3){const c=n.cities[(rng()*n.cities.length)|0],p=cityPoint(c);
       const w={nid:n.id,ci:c,x:p[0],z:p[1],tx:p[0],tz:p[1],wait:rng()*2,sol:false,t:rng()*10,ph:rng()*6,dir:rng()*6.28,act:'idle',seed:(rng()*1e9)|0};dressFolk(w,n);walkers.push(w);n._walk=have+1}}
-  for(let k=walkers.length-1;k>=0;k--){const w=walkers[k],n=nations[w.nid];
+  /* people out of sight walk on in larger steps every fourth frame: they keep their errands, the frame keeps its time */
+  updateWalkers._f=((updateWalkers._f||0)+1)&3;const VR2=(camDist*1.4+2.5)**2;
+  for(let k=walkers.length-1;k>=0;k--){const w=walkers[k],n=nations[w.nid];let dtw=dt;
+    {const ex=w.x-camT.x,ez=w.z-camT.z;if(ex*ex+ez*ez>VR2){w._acc=(w._acc||0)+dt;if(((k+updateWalkers._f)&3)!==0)continue;dtw=Math.min(.4,w._acc);w._acc=0}else if(w._acc){dtw=Math.min(.4,dt+w._acc);w._acc=0}}
     if(!n||!n.alive||!n.cities.length){walkers.splice(k,1);if(n)n._walk--;continue}
     if(w.era!==n.era&&!w.sol)dressFolk(w,n);
-    w.t+=dt;
-    if(w.wait>0){w.wait-=dt;if(w.wait<=0){
+    w.t+=dtw;
+    if(w.wait>0){w.wait-=dtw;if(w.wait<=0){
         const wasSol=w.sol;w.sol=n.wars.size>0&&n.front&&n.front.length>0&&rng()<.45;if(w.sol)soldierKit(w,n);else if(wasSol)dressFolk(w,n);
         const c=n.cities.includes(w.ci)?w.ci:n.cities[(rng()*n.cities.length)|0];w.ci=c;
         if(w.sol){const f=n.front[(rng()*n.front.length)|0];w.tx=wx(f%W)+(rng()-.5)*.6;w.tz=wz((f/W)|0)+(rng()-.5)*.6;w.act='march'}
@@ -1894,7 +1897,7 @@ function updateWalkers(dt,yrs){
           if(night&&rng()<.75){const p=cityPoint(c,[w.x,w.z]);w.tx=p[0];w.tz=p[1];w.act='home'}
           else if(fp){w.tx=fp[0];w.tz=fp[1];w.act='farm'}else{const p=cityPoint(c,[w.x,w.z],n.festival>0);w.tx=p[0];w.tz=p[1];w.act=rng()<.5?'chat':'idle'}}}
       continue}
-    const dx=w.tx-w.x,dz=w.tz-w.z,d=Math.hypot(dx,dz),spd=(w.sol?.15:w.kid?.14:.11)*(.85+Math.min(3,yrs/dt||1)*.15),sp=spd*dt;
+    const dx=w.tx-w.x,dz=w.tz-w.z,d=Math.hypot(dx,dz),spd=(w.sol?.15:w.kid?.14:.11)*(.85+Math.min(3,yrs/dtw||1)*.15),sp=spd*dtw;
     if(d<.012){if(w.workT){w.wait=w.workT;w.workT=0;w.moving=false;if(w.face!=null)w.dir=w.face;continue}w.wait=w.act==='home'?8+rng()*10:w.act==='farm'?3+rng()*4:w.sol?.6+rng()*1.6:w.act==='chat'?1+rng()*2.2:.3+rng()*1.4;w.moving=false;
       if(w.sol&&n.wars.size&&rng()<.45){const gy=groundY(w.x,w.z),fx=w.x+Math.sin(w.dir)*.02,fz=w.z+Math.cos(w.dir)*.02;
         if(n.era>=4){emit('flash',fx,gy+.022,fz,0,0);for(let q=0;q<3;q++)emit('smoke',fx+(rng()-.5)*.02,gy+.025,fz+(rng()-.5)*.02);if(typeof sfx==='function'&&Math.hypot(w.x-camT.x,w.z-camT.z)<camDist*.6)sfx('cannon',{near:.25})}
@@ -1907,7 +1910,7 @@ function updateWalkers(dt,yrs){
       if(!ok){if(d<.09&&(w.act==='home'||inBuilding(w.tx,w.tz))){w.x=w.tx;w.z=w.tz;w.moving=false;w.wait=w.act==='home'?6+rng()*8:.5;continue}
         const c2=w.ci&&n.cities.includes(w.ci)?w.ci:n.cities[0];const p2=c2?cityPoint(c2,[w.x,w.z]):null;if(p2&&!inBuilding(p2[0],p2[1])){w.tx=p2[0];w.tz=p2[1]}else{w.tx=w.x;w.tz=w.z;w.wait=.3+rng()*.5}continue}}
     if(groundY(nx,nz)<waterY+.01){w.wait=.3;w.tx=w.x;w.tz=w.z;continue}
-    w.x=nx;w.z=nz;w.moving=true;const td=Math.atan2(dx,dz);let dd=td-w.dir;dd=Math.atan2(Math.sin(dd),Math.cos(dd));w.dir+=dd*Math.min(1,dt*10);w.ph+=Math.min(sp,d)*(w.kid?620:480)}
+    w.x=nx;w.z=nz;w.moving=true;const td=Math.atan2(dx,dz);let dd=td-w.dir;dd=Math.atan2(Math.sin(dd),Math.cos(dd));w.dir+=dd*Math.min(1,dtw*10);w.ph+=Math.min(sp,d)*(w.kid?620:480)}
   if(typeof MODEL_KITS==='function'&&updateWalkers.v!==MDL_VER){updateWalkers.v=MDL_VER;updateWalkers.pk=MODEL_KITS().filter(n=>/^m_(male|female|knight)/.test(n))}kitReset(FIG_KITS);if(updateWalkers.pk)kitReset(updateWalkers.pk);
   if(camDist<16)updateGondolas(dt,(camDist*1.2+1.5)**2);
   if(camDist<16){const R2=(camDist*1.2+1.5)**2;

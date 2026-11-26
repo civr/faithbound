@@ -441,7 +441,7 @@ function shipRoute(path){const P=path.map(t=>[wx(t%W),wz((t/W)|0)]);/* a round w
 /* merchant shipping: from the days of the galleys every people with a harbour sends ships to its trading partners' ports, and coasters
    between its own ports; more harbours, more ships. Each lies at the quay a while when it comes in, then sails home again, so the
    harbours always have ships coming and going */
-function merchantCap(){return settings.quality==='high'?36:settings.quality==='medium'?24:12}
+function merchantCap(){return settings.quality==='high'?24:settings.quality==='medium'?16:8}
 function merchantTick(n){if(n.era<2||!n.cities.length)return;const ports=n.cities.filter(c=>coastWater(c).length);if(!ports.length)return;
   let mine=0,all=0;for(const s of ships){if(s.kind!=='trade'||s.sink)continue;all++;if(s.owner===n.id)mine++}
   const want=Math.min(5,ports.length+(n.trade.length?1:0)+(n.era>=SAIL?1:0));if(mine>=want||all>=merchantCap()||rng()>.35)return;
@@ -533,7 +533,7 @@ function updateShips(dy,dt,now){
       if(ROUND&&Math.abs(s.x)>W/2){const sh=W*Math.sign(s.x);s.x-=sh;if(s.wp)s.wp=s.wp.map(p=>[p[0]-sh,p[1]])}s.g.position.set(nearX(s.x,camT.x),seaY(s.x,s.z)+(s.era>=7?.06:0)-(s.sub?.03:0),s.z);const sf=typeof stormAt==='function'?stormAt(s.x,s.z):0,rk=1+sf*(s.era>=6?2:5);/* tossed about in a storm */s.g.rotation.x=Math.cos(wa)*.05*deep*rk+(s.lean||0)+sf*Math.sin(T*2.9+s.x*3.3)*.06*deep;s.g.rotation.z=-Math.sin(wb)*.04*deep*rk}
     if(dy>0){s.foamT+=dt;if(s.foamT>.12){s.foamT=0;const a=s.g.rotation.y;emit('foam',s.x-Math.cos(a)*.2,waterY+.01,s.z+Math.sin(a)*.2,0,0)}
       if(s.era===5&&rng()<dt*3)emit('dark',s.x,waterY+.2,s.z)}
-    if(s.kind!=='ghost')s.g.visible=Math.hypot(s.x-camT.x,s.z-camT.z)<Math.max(9,camDist*2.2+3);/* far out of sight: not drawn */
+    if(s.kind!=='ghost')s.g.visible=Math.hypot(s.x-camT.x,s.z-camT.z)<Math.max(6,camDist*1.8+2);/* far out of sight: not drawn */
     if(s.seg>=WP.length-1){arrive(s);disposeShip(s);ships.splice(k,1)}}
   if(dy<=0)return;
   /* naval war: warships hunt enemy ships they sight, close in, trade broadsides until one sinks */
