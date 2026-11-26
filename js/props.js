@@ -554,7 +554,7 @@ function wallRadAt(R,i0,t,P){if(P)return R*wallProfAt(P,t);const ph=hash(i0*4.4)
    inside the wall, one along the square and one just inside the wall with its houses backing onto it; short alleys cross between the rings
    halfway between the main streets, so no block is too long to walk round */
 function townLanes(n,plan,cx,cz,wR,cR,KO,i0){const L=[],mains=plan.streets.filter(s=>s.main);
-  const ok=(x,z)=>{const t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id||biome[t]>=11)return false;const y=groundY(x,z);if(y<waterY+.03)return false;
+  const ok=(x,z)=>{const t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id||biome[t]>=11)return false;const y=groundY(x,z);if(y<waterY+.016)return false;
     if(riverNear(x,z,.045))return false;if(KO.some(q=>Math.hypot(x-q[0],z-q[1])<q[2]+.012))return false;
     return Math.abs(groundY(x+.05,z)-groundY(x-.05,z))+Math.abs(groundY(x,z+.05)-groundY(x,z-.05))<.075};
   const runs=(pts,closed)=>{const out=[];let cur=[];const fl=()=>{if(cur.length>=4)out.push(cur);cur=[]};
@@ -596,7 +596,7 @@ function packInside(n,c,lanes,cx,cz,inWall,cR,e,KO,HP,k0){
     if(Math.hypot(x-cx,z-cz)<cR+dd*.4||!inWall(x,z,Math.max(w,dd)*.55+.012))return null;
     if(KO.some(q=>Math.hypot(x-q[0],z-q[1])<q[2]+Math.max(w,dd)*.45))return null;if(nearSt(x,z)<lim)return null;
     let mn=1e9,mx=-1e9;for(const [a,b] of [[-w/2,-dd/2],[w/2,-dd/2],[-w/2,dd/2],[w/2,dd/2]]){const yy=groundY(x+a*Math.cos(rot)+b*Math.sin(rot),z-a*Math.sin(rot)+b*Math.cos(rot));mn=Math.min(mn,yy);mx=Math.max(mx,yy)}
-    if(mn<waterY+.03||mx-mn>.06)return null;return [t,mn,mx]};
+    if(mn<waterY+.016||mx-mn>.06)return null;return [t,mn,mx]};
   for(const st of lanes){const P=st.pts;if(P.length<2)continue;const half=st.main?.042:.03;
     const cum=[0];for(let i=1;i<P.length;i++)cum.push(cum[i-1]+Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]));const LEN=cum[cum.length-1];
     const at=u=>{let i=1;while(i<P.length-1&&cum[i]<u)i++;const a=P[i-1],b=P[i],l=Math.max(1e-6,cum[i]-cum[i-1]),t=clamp((u-cum[i-1])/l,0,1),dx=(b[0]-a[0])/l,dz=(b[1]-a[1])/l;return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,dx,dz]};
@@ -1113,7 +1113,8 @@ function townPlan(n,c,cap,e){
   const lag=isLagoon(n,c,e),LR=cap?1.25:.8;
   const cy0=groundY(cx,cz),bad=(x,z)=>{const t=tileAt(x,z);if(t<0||biome[t]>=11)return true;const y=groundY(x,z);
     if(lag&&(isWater(t)||y<waterY+.035)){return !(waterY-y<.95&&Math.hypot(x-cx,z-cz)<LR)}
-    if(isWater(t))return true;if(y<waterY+.035||y>cy0+.2)return true;
+    /* low polder land is fine to build on as long as it stays above the high tide */
+    if(isWater(t))return true;if(y<waterY+.016||y>cy0+.2)return true;
     /* future cities leave their forests standing as green belts */
     if(e>=6&&(biome[t]===5||biome[t]===6)&&Math.hypot(x-cx,z-cz)>Math.max(.5,MR*.45))return true;
     return Math.abs(groundY(x+.05,z)-groundY(x-.05,z))+Math.abs(groundY(x,z+.05)-groundY(x,z-.05))>.075};
@@ -1152,12 +1153,15 @@ function townPlan(n,c,cap,e){
   const SH=t=>{const u=t-a0,A=Math.sqrt(asp),B=1/A;return (1/Math.hypot(Math.cos(u)/A,Math.sin(u)/B))*(1+.12*Math.sin(2*t+ph1)+.08*Math.sin(3*t+ph2)+fat*Math.cos(u))/1.08};
   const armW=a=>{let w=.4+R_()*.3;for(const [pa,pw] of pref){const g=Math.abs(((a-pa+9.425)%6.283)-3.1416);if(g<.6)w=Math.max(w,pw*(1-g*.3));else if(g>2.6&&pref.length===1)w=Math.max(w,1)}
     if(!pref.length)w=a===a0?1.3:Math.abs(((a-a0+9.425)%6.283)-3.1416)>2.4?1:w;return w};
-  for(const a of arms){const wg=armW(a),pts=walk(cx+Math.cos(a)*pr,cz+Math.sin(a)*pr,a,len*Math.min(1.6,wg*.5+SH(a)*.6)*(.8+R_()*.25),true);if(pts.length>3)streets.push({pts,main:true,base:pr,w:wg})}
+  /* a road starts at the edge of the square; where that edge is a bank (the levelled ground round a castle, a step down to a marsh)
+     it starts a little further out instead of giving up */
+  const armWalk=(a,L)=>{for(const off of [0,.06,.12,.2,.3,.42]){const pts=walk(cx+Math.cos(a)*(pr+off),cz+Math.sin(a)*(pr+off),a,L,true);if(pts.length>3)return [pts,pr+off]}return [null,pr]};
+  for(const a of arms){const wg=armW(a),[pts,b0]=armWalk(a,len*Math.min(1.6,wg*.5+SH(a)*.6)*(.8+R_()*.25));if(pts)streets.push({pts,main:true,base:b0,w:wg})}
   /* a road that runs into a hill, a marsh or the sea after a few steps: the town turns and grows the other ways instead */
   {let tot=streets.reduce((q,st)=>q+st.pts.length,0)*.06;const want=len*1.5;
     for(const d of [Math.PI/2,-Math.PI/2,Math.PI/4,-Math.PI/4,3*Math.PI/4,-3*Math.PI/4,Math.PI/8,-Math.PI/8]){if(tot>=want)break;const a=a0+d+(R_()-.5)*.25;
-      if(arms.some(b=>Math.abs(((a-b+9.425)%6.283)-3.1416)<.45))continue;const pts=walk(cx+Math.cos(a)*pr,cz+Math.sin(a)*pr,a,len*.75*(.8+R_()*.25),true);
-      arms.push(a);if(pts.length>3){streets.push({pts,main:true,base:pr,w:.75});tot+=pts.length*.06}}}
+      if(arms.some(b=>Math.abs(((a-b+9.425)%6.283)-3.1416)<.45))continue;const [pts,b0]=armWalk(a,len*.75*(.8+R_()*.25));
+      arms.push(a);if(pts){streets.push({pts,main:true,base:b0,w:.75});tot+=pts.length*.06}}}
   const mains=streets.length;
   for(let m=0;m<mains;m++){const st=streets[m];let side=R_()<.5?1:-1;
     for(let i=4;i<st.pts.length-2;i+=(dens>.5?2:3)+((R_()*(4-2*dens))|0)){if(R_()>(e>=3&&e<=4?.95:.6+dens*.3))continue;const p0=st.pts[i],p1=st.pts[i+1],h=Math.atan2(p1[1]-p0[1],p1[0]-p0[0])+side*(Math.PI/2+(R_()-.5)*.6);side=-side;
