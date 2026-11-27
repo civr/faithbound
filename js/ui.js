@@ -224,7 +224,7 @@ function buildDock(){$('#ptabs').innerHTML=TABS.map(t=>`<button class="ib" role=
    still bring them about), they are just not on the bar */
 const POWER_KEEP=new Set('inspect tribe migrate bless inspire carry golden hero faith prophet miracle schism curse crusade avatar reform coup revolt ally peace war nuke plague famine quake raise lower smooth fertile forest wildfire volcano rain drought storm hurricane meteor climate endofdays carve treaty dragon horde'.split(' '));
 function renderCards(){const list=POWERS.filter(p=>(p.tab==='*'||p.tab===curTab)&&POWER_KEEP.has(p.id));
-  $('#cards').innerHTML=list.map(p=>`<button class="pc${!unlimited&&p.cost>belief?' poor':''}" data-tool="${p.id}" aria-pressed="${p.id===tool}">${svg(p.icon)}<b>${p.label}</b><small>${p.cost?p.cost+' belief':'Free'}</small></button>`).join('')}
+  $('#cards').innerHTML=list.map(p=>`<button class="pc${!unlimited&&p.cost>belief?' poor':''}" data-tool="${p.id}" aria-pressed="${p.id===tool}">${svg(p.icon)}<b>${p.label}</b><small title="${p.cost?p.cost+' belief':'Free'}">${p.cost?p.cost:''}</small></button>`).join('')}
 function setTool(id){tool=id;if(id!=='carry')carry=null;if(id!=='war'&&id!=='ally')warFrom=-1;if(id!=='migrate')migrFrom=null;renderCards();toolHint()}
 $('#ptabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(!b)return;curTab=b.dataset.tab;buildDock()};
 $('#cards').onclick=e=>{const b=e.target.closest('[data-tool]');if(b)setTool(b.dataset.tool)};
@@ -458,8 +458,10 @@ function applyArch(k){settings.arch=k;saveSettings();propsDirty=true;lastProps=-
 document.addEventListener('click',e=>{const b=e.target.closest('[data-arch]');if(!b)return;applyArch(b.dataset.arch);renderArchs('#'+b.parentElement.id)});
 function renderLooks(sel){if(!$(sel))return;$(sel).innerHTML=Object.keys(LOOKS).map(k=>`<button data-look="${k}" aria-pressed="${k===lookKey}"><b>${LOOKS[k].label}</b><small>${LOOKS[k].desc}</small></button>`).join('')}
 const UIS=[['brass','Dark brass'],['navy','Imperial blue'],['parchment','Parchment'],['marble','Marble'],['frost','Frost'],['night','Night'],['clay','Clay']];
-function applyUI(k){settings.ui=k;document.body.classList.remove('ui-navy','ui-parchment','ui-marble','ui-frost','ui-night','ui-clay');if(k!=='brass')document.body.classList.add('ui-'+k);saveSettings()}
-settings.ui='parchment';settings.arch='classic';applyUI('parchment');
+function applyUI(k){settings.ui=k;document.body.classList.remove('ui-navy','ui-parchment','ui-marble','ui-frost','ui-night','ui-clay','ui-workbench');if(k!=='brass')document.body.classList.add('ui-'+k);saveSettings()}
+settings.ui='workbench';settings.arch='classic';applyUI('workbench');
+/* the round panel studs show their names on hover; a tooltip for the pointer as well */
+for(const b of document.querySelectorAll('.panelsnav .ib')){const t=b.querySelector('span');if(t&&!b.title)b.title=t.textContent}
 function lookRoads(){if(typeof BWIN!=='undefined')BWIN.uEarth.value=LK.pixel?1:0;if(typeof terrU!=='undefined')terrU.uHam.value=LK.pixel?1:0;if(typeof FIELDU!=='undefined')FIELDU.uHam.value=LK.pixel?1:0;if(typeof TREEU!=='undefined')TREEU.uEarth.value=LK.pixel?1:0;if(typeof ROADMATS!=='undefined'){ROADMATS[0].color.setRGB(...(LK.pixel?[.72,.62,.5]:[1,1,1]));ROADMATS[1].color.setRGB(...(LK.pixel?[.8,.78,.74]:[1,1,1]))}}
 function applyLook(k){lookKey=k;LK=LOOKS[k];if(VY)colorTerrain();lookRoads();if(typeof propsDirty!=='undefined')propsDirty=true;lastEnv=-1e9;envKey='';settings.look=k;saveSettings();if(typeof resize==='function')resize()}
 
