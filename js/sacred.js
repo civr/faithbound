@@ -121,10 +121,10 @@ function sMarae(b,k,t,e){const n=t===1?3:t===2?5:7;b('box',0,.06*k,0,.07*k+n*.04
 const SACRED_STYLE={west:'church',american:'church',arctic:'church',nordic:'church',slavic:'church',med:'greek',mideast:'mosque',steppe:'mosque',africa:'mosque',
   southasia:'hindu',east:'pagoda',japan:'pagoda',meso:'pyramid',andean:'pyramid',pacific:'marae'};
 var SACRED_SCALE=1;
-function sacredStyled(f,n,x,y,z,e,rot,t){const cu=cultOf(n),st=SACRED_STYLE[cu];if(!st||e>=7)return false;const fc=parseInt(f.color.slice(1),16),b=sacredB(x,y,z,rot),k=(t===1?.8:t===2?1.1:1.25)*SACRED_SCALE;
+function sacredStyled(f,n,x,y,z,e,rot,t){const cu=cultOf(n),st=SACRED_STYLE[cu];if(!st||e>=7)return false;const fc=parseInt(f.color.slice(1),16),b=sacredB(x,y,z,rot),k=(t===1?1.3:t===2?1.75:2)*SACRED_SCALE;/* the house of the gods towers over the houses of men */
   if(st==='church')sChurch(b,k,t,e,cu,fc);else if(st==='greek')sGreek(b,k,t,e,fc,t===3);else if(st==='mosque')sMosque(b,k,t,e,cu);else if(st==='hindu')sHindu(b,k,t,e);
   else if(st==='pagoda')sPagoda(b,k,t,e,cu);else if(st==='pyramid')sPyramid(b,k,t,e,cu,fc);else sMarae(b,k,t,e);return true}
-{const _ss=sacredSite;sacredSite=function(f,n,x,y,z,e,rot,cap){const t=Math.min(devTier(n),cap?3:2);if(t>=1)try{if(sacredStyled(f,n,x,y,z,e,rot,t))return}catch(err){console.warn('sacred',err)}return _ss.apply(this,arguments)}}
+{const _ss=sacredSite;sacredSite=function(f,n,x,y,z,e,rot,cap){const t=sacredTier(n,e,cap);if(t>=1)try{if(sacredStyled(f,n,x,y,z,e,rot,t))return}catch(err){console.warn('sacred',err)}return _ss.apply(this,arguments)}}
 
 /* ---------- world wonders ---------- */
 const WGROUP={west:'w',american:'am',arctic:'n',nordic:'n',slavic:'sl',med:'med',mideast:'me',steppe:'st',africa:'af',southasia:'sa',east:'ea',japan:'jp',meso:'ms',andean:'an',pacific:'pa'};

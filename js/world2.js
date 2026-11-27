@@ -3,7 +3,9 @@
 
 /* ---------- sacred sites: a wayside shrine, a temple, a cathedral, a great temple complex ---------- */
 const devTier=n=>{const d=n.devotion??.3;return d<.22?0:d<.5?1:d<.78?2:3};
-function sacredSite(f,n,x,y,z,e,rot,cap){const fc=parseInt(f.color.slice(1),16),t=Math.min(devTier(n),cap?3:2),W_=0xece6da,ST=0xd8d1c4;
+/* how grand a town's temple is: the faith's own growth, but never a wayside shrine in a town of stone, nor a small temple in a capital of the middle ages */
+function sacredTier(n,e,cap){return Math.min(Math.max(devTier(n),e>=3?(cap?2:1):e>=2?1:0),cap?3:2)}
+function sacredSite(f,n,x,y,z,e,rot,cap){const fc=parseInt(f.color.slice(1),16),t=sacredTier(n,e,cap),W_=0xece6da,ST=0xd8d1c4;
   if(t===0){/* a wayside shrine */P('stone',x,y-.02,z,rot,0,0,0,.05,.05,.05,ST);P('pyr',x,y+.03,z,rot,0,0,0,.06,.035,.06,fc);P('glowB',x,y+.01,z,rot,0,.026,0,.008,.012,.002,0xffd890);return}
   if(t===1){temple(f,x,y,z,e,rot);return}
   if(e<=2){/* a stepped great temple */for(let k=0;k<4;k++){const s=.28-k*.06;P('stone',x,y-.02+k*.045,z,rot,0,0,0,s,.05,s,k%2?ST:0xe0d8c8)}
