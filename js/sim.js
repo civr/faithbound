@@ -765,7 +765,7 @@ function applySave(d){
   folk=d.folk||{};folkId=d.folkId||0;houses=d.houses||[];
   milestones=new Set(d.milestones);Object.assign(milestoneInfo,d.mi||{});
   selected=-1;inspectTile=-1;selectedFaith=-1;warFrom=-1;moistActive=60;effects=[];
-  if(d.lookKey&&LOOKS[d.lookKey])applyLook(d.lookKey);
+  if(lookKey!=='mini'&&LOOKS.mini)applyLook('mini');/* old saves in another look open in the miniature */
   buildTerrain();computeTerrain();layoutTerrain();seedClouds();deposits=d.deps||[];if(!deposits.length)seedDeposits();indexDeposits();CUTY=d.cut?unb64(d.cut,Float32Array):null;if(CUTY&&CUTY.length!==N)CUTY=null;FARMT=d.farm?unb64(d.farm,Uint8Array):null;if(FARMT&&FARMT.length!==N)FARMT=null;if(FARMT)for(let i=0;i<N;i++)if(FARMT[i]&&(biome[i]===5||biome[i]===6))hab[i]=BIOMES[4].hab;annals=d.annals||[];hist=d.hist||[];snaps=d.snaps||[];colonies=d.colonies||[];worldWars=d.worldWars||[];planets=d.planets||{moon:{terra:0,life:0},mars:{terra:0,life:0}};
   camT.set(0,0,0);camDistT=camDist=Math.max(W,H)*.85;propsDirty=true;bordersDirty=true;return true;
 }

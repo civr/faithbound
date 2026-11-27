@@ -370,13 +370,9 @@ async function realOn(){if(!REAL.ready)REAL.ready=realLoad().catch(e=>{console.w
 function realOff(){if(!REAL.on)return;REAL.on=false;if(typeof treesDirty!=='undefined')treesDirty=true;realSwap(false);realFields(false);realRoads(false);realWater(false);realFire(false);realSnow(false);REALP.uRealP.value=0;lastEnv=-1e9;envKey='';terrU.uReal.value=0;REALM.uRM.value=0;if(typeof propsDirty!=='undefined')propsDirty=true;if(typeof shadowForce!=='undefined')shadowForce=true}
 {const _al=applyLook;applyLook=function(k){_al.apply(this,arguments);settings.realLook=isRealLook(k);settings.lookPick=k;saveSettings();if(isRealLook(k))realOn();else realOff()}}
 
-/* the choice in Settings, above the pixel size */
-{const _os=openSettings;openSettings=function(){_os.apply(this,arguments);const box=document.querySelector('#modalBox .setcol');if(!box||box.querySelector('[data-look]'))return;
-  const sec=document.createElement('div');sec.className='sec';const cur=isRealLook(lookKey)?lookKey:'hamlet';
-  sec.innerHTML=`<span class="lab">Look</span><div class="seg"><button data-look="hamlet" aria-pressed="${cur==='hamlet'}">Cozy pixel</button><button data-look="real" aria-pressed="${cur==='real'}">Realistic</button><button data-look="mini" aria-pressed="${cur==='mini'}">Miniature</button></div>
-    <p class="note">Realistic draws the world smooth with real photo materials: plaster and oak beams, stone, brick, clay tiles, thatch and real trees. Miniature shows the same world as a tiny model on a table, with tilt-shift blur and bright colours. Both need a faster computer than the pixel look.</p>`;
-  const anchor=[...box.querySelectorAll('.sec')].find(s=>s.querySelector('[data-pixsize]'));box.insertBefore(sec,anchor||box.children[1]||null)}}
-document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-look]');if(!b)return;const k=b.dataset.look;if(LOOKS[k]&&k!==lookKey)applyLook(k);openSettings()});
+/* Faithbound has one look now: the miniature. Settings no longer offers a choice, nor the pixel size, which only the pixel look used */
+{const _os=openSettings;openSettings=function(){_os.apply(this,arguments);const box=document.querySelector('#modalBox .setcol');if(!box)return;
+  const px=[...box.querySelectorAll('.sec')].find(s=>s.querySelector('[data-pixsize]'));if(px)px.remove()}}
 
-/* the choice is kept between visits (the pixel look is otherwise forced on start) */
-if(settings.realLook)setTimeout(()=>{try{applyLook(isRealLook(settings.lookPick)?settings.lookPick:'real')}catch(e){console.warn(e)}},0);
+/* every world opens in the miniature look */
+setTimeout(()=>{try{applyLook('mini')}catch(e){console.warn(e)}},0);
