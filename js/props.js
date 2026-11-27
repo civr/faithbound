@@ -356,7 +356,9 @@ function cullTick(){if(typeof cam==='undefined')return;const now=performance.now
   if(typeof shadowForce!=='undefined')shadowForce=true}
 /* static things (towns, trees) redraw the shadows at once; moving things (animals, birds, grass) only ask for a redraw a few times a second */
 function kitCommit(names){if(typeof shadowForce!=='undefined'){if(names.some(cullable))shadowForce=true;else shadowSoft=true}for(const n of names){const K=KITS[n];if(cullable(n)){cullStore(K);continue}K.mesh.count=K.k;const IM=K.mesh.instanceMatrix;IM.needsUpdate=true;IM.updateRange.offset=0;IM.updateRange.count=Math.max(1,K.k)*16;if(K.mesh.instanceColor){const IC=K.mesh.instanceColor;IC.needsUpdate=true;IC.updateRange.offset=0;IC.updateRange.count=Math.max(1,K.k)*3}}}
-function add(name,x,y,z,sx,sy,sz,rot,hex,tilt){const K=KITS[name];if(K.k>=K.cap&&!kitGrow(K,K.k+1))return;if(SJ)sjTouch(name,K);if(CAPT)CAPT.push(x,z,sx,sz,rot||0);
+/* a frame that turns everything built inside it round a pivot: the castle or palace is turned so its gate looks onto the square */
+let ROTF=null;
+function add(name,x,y,z,sx,sy,sz,rot,hex,tilt){if(ROTF){const dx=x-ROTF.x,dz=z-ROTF.z;x=ROTF.x+dx*ROTF.c+dz*ROTF.s;z=ROTF.z-dx*ROTF.s+dz*ROTF.c;rot=(rot||0)+ROTF.a}const K=KITS[name];if(K.k>=K.cap&&!kitGrow(K,K.k+1))return;if(SJ)sjTouch(name,K);if(CAPT)CAPT.push(x,z,sx,sz,rot||0);
   dummy.position.set(x,y,z);dummy.rotation.set(tilt||0,rot||0,0);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();
   K.mesh.setMatrixAt(K.k,dummy.matrix);K.mesh.setColorAt(K.k,tmpC.set(hex==null?0xffffff:hex).convertSRGBToLinear());K.k++;
   if(REC){const r=REC.k[name]||(REC.k[name]=[]);const m=dummy.matrix.elements;for(let i=0;i<16;i++)r.push(m[i]);r.push(tmpC.r,tmpC.g,tmpC.b)}
@@ -936,12 +938,12 @@ function cityCenter(n,c,cx,cy,cz,e,cap,i0){
   if(e>=1){let lo=cy;for(let q=0;q<8;q++){const a=q/8*6.283;lo=Math.min(lo,groundY(cx+Math.cos(a)*r*.95,cz+Math.sin(a)*r*.95))}lo=Math.min(lo,groundY(cx,cz));
     const top=waterY+TIDE_A+.03;if(lo<top){const y0=lo;cy=Math.max(cy,top);add('plazaStone',cx,y0-.05,cz,r*2.04,cy-y0+.04,r*2.04,hash(i0)*6,0xb0a890)}}
   if(e>=1){add(e>=3?'plazaStone':'plazaDirt',cx,cy-.012,cz,r*2,.016,r*2,hash(i0)*6)}
-  if(cap)return;
+  if(cap&&!c._seat)return;/* a capital whose palace stands on the square keeps it clear; one whose castle stands beside it holds the big market */
   if(e>=1&&e<=3){add('cyl',cx,cy,cz,.04,.025,.04,0,0x9a948a);add('pool',cx,cy+.005,cz,.03,.022,.03);add('cyl',cx-.016,cy,cz,.004,.05,.004,0,0x5a4632);add('cyl',cx+.016,cy,cz,.004,.05,.004,0,0x5a4632);add(e>=3?'tiles':'thatch',cx,cy+.05,cz,.05,.02,.045,0,0x8e3f2c)}
   else if(e<=5){add('cyl',cx,cy,cz,.09,.018,.09,0,0xd8d2c6);add('pool',cx,cy+.004,cz,.078,.016,.078);add('cyl',cx,cy,cz,.012,.05,.012,0,0xd8d2c6);emitters.push({x:cx,y:cy+.05,z:cz,fountain:true,rate:6})}
   else if(e===6){add('pool',cx,cy-.008,cz,r*1.7,.012,r*1.7,0,0x4f8a3a);for(let k=0;k<4;k++){const a=k*1.57+.4;add('townTree',cx+Math.cos(a)*.08,cy,cz+Math.sin(a)*.08,.4,.4,.4,0,0x4f8a3a)}}
   else{/* a green square: a pond among trees and flowers */add('pool',cx,cy-.008,cz,r*1.4,.012,r*1.4,0);for(let k=0;k<6;k++){const a=k/6*6.283+.3;add('townTree',cx+Math.cos(a)*r*.85,cy,cz+Math.sin(a)*r*.85,.32,.36,.32,0,0x4f8a3a);add('bloom',cx+Math.cos(a+.5)*r*.75,cy-.004,cz+Math.sin(a+.5)*r*.75,.03,.02,.03,0,BLOOMS[k%5])}}
-  c._stalls=[];if(e>=1&&e<=5){const stalls=Math.max(1,Math.round((2+((hash(i0*3.3)*4)|0))*CC_SZ*CC_SZ));for(let k=0;k<stalls;k++){const a=k/stalls*6.283+hash(i0+k),sx=cx+Math.cos(a)*r*.72,sz=cz+Math.sin(a)*r*.72,rt=-a;c._stalls.push({x:sx,z:sz,a});
+  c._stalls=[];if(e>=1&&e<=5){const stalls=cap?7+((hash(i0*3.3)*4)|0):Math.max(1,Math.round((2+((hash(i0*3.3)*4)|0))*CC_SZ*CC_SZ));for(let k=0;k<stalls;k++){const a=k/stalls*6.283+hash(i0+k),sx=cx+Math.cos(a)*r*.72,sz=cz+Math.sin(a)*r*.72,rt=-a;c._stalls.push({x:sx,z:sz,a});
     P('box',sx,cy,sz,rt,0,0,0,.035,.016,.022,0x7a5a3a);P('cyl',sx,cy,sz,rt,-.015,.009,0,.003,.04,.003,0x5a4632);P('cyl',sx,cy,sz,rt,.015,.009,0,.003,.04,.003,0x5a4632);
     P('awning',sx,cy+.035,sz,rt,0,0,0,.042,.014,.03,AWN[(hash(i0*7+k)*AWN.length)|0])}}
   if(e>=4&&e<=5)for(let k=0;k<6;k++){const a=k/6*6.283+.3,lx=cx+Math.cos(a)*(r+.02),lz=cz+Math.sin(a)*(r+.02);add('cyl',lx,cy,lz,.004,.075,.004,0,0x2e2e2e);add('lamp',lx,cy+.072,lz,.012,.014,.012)}
@@ -1323,21 +1325,30 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
       const cy=surfY(cx,cz);
       /* the square grows with the town: a young or small town has a little village green with a well and a stall or two, a big one a wide market square */
       CC_SZ=clamp(Math.sqrt((cap?1:townGrowth(c))*(townLevel(n,cap)+2)/14),.45,1);
-      if(e>=1)bareMark(cx,cz,(cap?.3:.15)*CC_SZ*.95);cityCenter(n,c,cx,cy,cz,e,cap,i0);
+      if(e>=1)bareMark(cx,cz,(cap?.3:.15)*CC_SZ*.95);c._seat=null;if(!cap)cityCenter(n,c,cx,cy,cz,e,cap,i0);
       const KO=[],lag0=isLagoon(n,c,e);let CR0=.17;if(cap){/* the palace or castle stands on dry ground: a capital built on a river puts it a little to one side */
-        const kr=lag0&&e>=3?.32:e===0?.3:e<=2?.46:e<=4?.7:e===5?.32:.2;let lx=cx,lz=cz;if(!lag0&&riverNear(cx,cz,kr*.35)){let best=null;for(const r of [.15,.3,.45])for(let q=0;q<8&&!best;q++){const x=cx+Math.cos(q*.785)*r,z=cz+Math.sin(q*.785)*r;if(!riverNear(x,z,kr*.35)&&groundY(x,z)>waterY+.04)best=[x,z]}if(best){lx=best[0];lz=best[1]}}
-        const ly=lx===cx&&lz===cz?cy:surfY(lx,lz);LAST_LM='';solid(()=>{if(lag0&&e>=3)lagoonCapital(n,cx,cy,cz,e);else landmark(n,lx,ly,lz,e)},lx,lz,0,true);
+        const kr=lag0&&e>=3?.32:e===0?.3:e<=2?.46:e<=4?.7:e===5?.32:.2;let lx=cx,lz=cz,la=null;
+        /* the market square is the heart of the town: the castle or the palace stands beside it, not on it, on the highest dry ground
+           round the square and clear of the main streets, with its gate turned to look onto the square */
+        if(!lag0&&e>=1&&e<=5){const pl=townPlan(n,c,cap,e),mains=pl.streets.filter(s=>s.main),rr=e>=3&&e<=4?.64:kr*.92,d0=.3*CC_SZ+rr+.05;let best=null;
+          for(const lax of [0,1])if(!best)for(const dd of [d0,d0+.12,d0+.26])for(let q=0;q<16;q++){const a=q/16*6.283+hash(i0*2.1)*.39,x=cx+Math.cos(a)*dd,z=cz+Math.sin(a)*dd,t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id)continue;
+            let lo=1e9,hi=-1e9,ok=true;for(let k=0;k<9&&ok;k++){const u=k<8?Math.cos(k*.785)*rr*.85:0,v=k<8?Math.sin(k*.785)*rr*.85:0,tt=tileAt(x+u,z+v);if(tt<0||isWater(tt)||(owner[tt]>=0&&owner[tt]!==n.id)){ok=false;break}const y=groundY(x+u,z+v);if(y<waterY+.04)ok=false;lo=Math.min(lo,y);hi=Math.max(hi,y)}
+            if(!ok||riverNear(x,z,rr*.6))continue;let gap=9;for(const st of mains)for(const p of st.pts){const g=Math.hypot(p[0]-x,p[1]-z);if(g<gap)gap=g}if(gap<(lax?rr*.45:rr+.04))continue;/* in a crowded grid of streets it may stand across a side street's end */
+            const sc=groundY(x,z)*3-(hi-lo)*4+Math.min(gap,rr+.3)-dd*.4;if(!best||sc>best[2])best=[x,z,sc]}
+          if(best){lx=best[0];lz=best[1];la=Math.round(Math.atan2(cx-lx,cz-lz)/1.5708)*1.5708}}
+        if(la==null&&!lag0&&riverNear(cx,cz,kr*.35)){let best=null;for(const r of [.15,.3,.45])for(let q=0;q<8&&!best;q++){const x=cx+Math.cos(q*.785)*r,z=cz+Math.sin(q*.785)*r;if(!riverNear(x,z,kr*.35)&&groundY(x,z)>waterY+.04)best=[x,z]}if(best){lx=best[0];lz=best[1]}}
+        const ly=lx===cx&&lz===cz?cy:surfY(lx,lz);LAST_LM='';solid(()=>{if(lag0&&e>=3)lagoonCapital(n,cx,cy,cz,e);else{if(la!=null)ROTF={x:lx,z:lz,a:la,c:Math.cos(la),s:Math.sin(la)};try{landmark(n,lx,ly,lz,e)}finally{ROTF=null}}},lx,lz,0,true);c._seat=la!=null?[lx,lz]:null;
         /* the castle with its moat keeps its own ground; a temple or palace that is not a castle needs much less */
-        const kr2=e>=3&&e<=4&&!lag0?(LAST_LM==='castle'?.64:.36):kr;KO.push([lx,lz,kr2]);CR0=lx===cx&&lz===cz?Math.max(.3,kr2):.3}
-      const CO=cap&&e>=3&&e<=4?2.3:1;
+        const kr2=e>=3&&e<=4&&!lag0?(LAST_LM==='castle'?.64:.36):kr;KO.push([lx,lz,kr2]);CR0=lx===cx&&lz===cz?Math.max(.3,kr2):.3;cityCenter(n,c,cx,cy,cz,e,cap,i0)}
+      const CO=cap&&e>=3&&e<=4&&!c._seat?2.3:1;
       /* the wonder and the temple stand clear of rivers and brooks: if their usual spot is wet, they move round the centre */
       const dryOff=(ox,oz,r)=>{for(let q=0;q<8;q++){const a=q*.785,x=cx+ox*Math.cos(a)-oz*Math.sin(a),z=cz+ox*Math.sin(a)+oz*Math.cos(a);if(!riverNear(x,z,r)&&groundY(x,z)>waterY+.03)return [x,z]}return [cx+ox,cz+oz]};
       if(cap&&n.wonder){const [wx_,wz_]=dryOff(.42*CO,-.3*CO,.2);for(const sc of [1,.8,.62]){SACRED_SCALE=sc;if(solid(()=>wonder(n,wx_,surfY(wx_,wz_),wz_,n.wonder),wx_,wz_,0,false,undefined,'big'))break}SACRED_SCALE=1;occupied.add(Math.floor(wz_+H/2)*W+Math.floor(wx_+W/2));KO.push([wx_,wz_,.38])}
-      if(n.faith>=0&&(cap||hash(i0*3)<.35)){let [tx,tz]=dryOff(-.4*CO,.25*CO,cap?.3:.24);
+      if(n.faith>=0&&(cap||hash(i0*3)<.35)){let [tx,tz]=dryOff(-.4*CO,.25*CO,cap?.3:.24);if(cap&&c._seat){/* the church stands across the square from the castle */const a=Math.atan2(c._seat[1]-cz,c._seat[0]-cx)+2.2,r=Math.hypot(.4,.25)*CO;tx=cx+Math.cos(a)*r;tz=cz+Math.sin(a)*r}
         /* the temple stands inside the town, not out past its wall: where the wall comes in close it moves in towards the square */
         const pl0=townPlan(n,c,cap,e);if(pl0.wallR>.3&&pl0.wallProf){const a=Math.atan2(tz-cz,tx-cx),d=Math.hypot(tx-cx,tz-cz),lim=Math.max(CR0+.36,wallRadAt(pl0.wallR+.05,i0,a,pl0.wallProf)*.68);if(d>lim){tx=cx+(tx-cx)*lim/d;tz=cz+(tz-cz)*lim/d}}/* a temple that does not fit its spot is tried at other spots round the square first, then smaller, before it gives up */
         let built=null;const spots=[[tx,tz]];{const r0=Math.hypot(tx-cx,tz-cz),a0=Math.atan2(tz-cz,tx-cx);for(let q=1;q<8;q++){const a=a0+q*.785,x=cx+Math.cos(a)*r0,z=cz+Math.sin(a)*r0;if(!riverNear(x,z,cap?.3:.24)&&groundY(x,z)>waterY+.03)spots.push([x,z])}}
-        for(const sc of [1,.85,.7]){for(const [x,z] of spots){SACRED_SCALE=sc;if(solid(()=>sacredSite(faiths[n.faith],n,x,surfY(x,z),z,e,hash(i0)*3,cap),x,z,0,false,undefined,'big')){built=[x,z];break}}if(built)break}
+        for(const sc of [1,.85,.7]){for(const [x,z] of spots){SACRED_SCALE=sc;if(solid(()=>sacredSite(faiths[n.faith],n,x,surfY(x,z),z,e,Math.atan2(cx-x,cz-z),cap),x,z,0,false,undefined,'big')){built=[x,z];break}/* its front door looks onto the square */}if(built)break}
         SACRED_SCALE=1;if(built){KO.push([built[0],built[1],cap?.4:.32]);c._temple=built}}
       if(c.dike)dikeRing(c,cx,cz);
       if(c.mayor&&typeof mayorBuild==='function')try{mayorBuild(n,c,cx,cz,e,cap,KO,dryOff,i0)}catch(err){console.warn('mayor build',err)}
@@ -1389,7 +1400,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cx=wx(c.x),cz=wz(c.y),
         if(!lagoon||groundY(sl.fx,sl.fz)>waterY+.02){c._poi.pts.push([sl.fx,sl.fz]);c._doors.push([sl.fx,sl.fz,sl.x,sl.z])}
         if(!far&&e>=1&&e<=5&&hk<.24)smokeAt(sl.x,y+.13*(1+sl.core*.6),sl.z,false,.25)}
       /* a walled city is packed: every open patch inside the wall fills with houses, each facing the nearest lane, wall to wall with its neighbours */
-      let lanes=null;if(packed){lanes=townLanes(n,plan,cx,cz,wR,CR0,KO,i0);packInside(n,c,plan.streets.filter(s=>s.main).concat(lanes),cx,cz,inWall,CR0,e,KO,HP,k)}
+      let lanes=null;if(packed){lanes=townLanes(n,plan,cx,cz,wR,CR0,KO,i0);if(e>=1)add(e>=3?'plazaStone':'plazaDirt',cx,cy-.014,cz,(CR0+.075)*2,.016,(CR0+.075)*2,hash(i0)*6);/* the square is paved right up to the house fronts round it */packInside(n,c,plan.streets.filter(s=>s.main).concat(lanes),cx,cz,inWall,CR0,e,KO,HP,k)}
       /* the painted look: the green between the lanes fills with orchards, garden shrubs, vegetable plots and haystacks, as in an old village */
       /* how far the houses reach: orchards and plantations are laid out beyond it */
       {const ds=HP.map(h=>Math.hypot(h[0]-cx,h[1]-cz)+h[2]).sort((a,b)=>a-b);c._townR=Math.max(plan.pr,plan.wallR>.3?plan.wallR+.06:0,ds.length?ds[Math.floor(ds.length*.9)]:0)}
