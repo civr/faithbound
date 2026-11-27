@@ -5,11 +5,11 @@
 /* ---------- prayers: peoples in trouble ask you for help; answer in time and their faith soars ---------- */
 let prayers=[],prayT=0,prayId=0;
 const PRAYER={
-  famine:{tools:['rain','fertile','festival','miracle'],text:n=>`${n.name} is starving and begs for rain or a harvest.`,hint:'Rain, Fertile land, Festival or Miracle'},
+  famine:{tools:['rain','fertile','miracle'],text:n=>`${n.name} is starving and begs for rain or a harvest.`,hint:'Rain, Fertile land or Miracle'},
   plague:{tools:['miracle'],text:n=>`${n.name} is dying of ${n.sick?n.sick.name:'sickness'} and prays to be healed.`,hint:'Miracle'},
   war:{tools:['bless','hero','inspire','miracle','peace'],text:n=>`${n.name} is losing its war and prays for victory or peace.`,hint:'Bless, Hero, Inspire, Miracle or Peace'},
   siege:{tools:['bless','hero','miracle','peace'],text:(n,c)=>`${c?c.name:'A town'} of ${n.name} is under siege. Its people pray to be saved.`,hint:'Bless, Hero, Miracle or Peace'},
-  sorrow:{tools:['festival','bless','golden','miracle'],text:n=>`The people of ${n.name} are miserable and pray for better days.`,hint:'Festival, Bless, Golden age or Miracle'},
+  sorrow:{tools:['bless','golden','miracle'],text:n=>`The people of ${n.name} are miserable and pray for better days.`,hint:'Bless, Golden age or Miracle'},
   faith:{tools:['faith','prophet'],text:n=>`${n.name} seeks a faith and asks for a sign.`,hint:'bring them a Faith or a Prophet'},
   drought:{tools:['rain'],text:n=>`The fields of ${n.name} are cracking. They pray for rain.`,hint:'Rain'}};
 function prayerNeed(n){if(n.famine>0)return 'famine';if(n.sick)return 'plague';

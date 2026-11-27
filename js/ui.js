@@ -220,7 +220,10 @@ function powerOnNation(n,id){const c=n.cities[0];if(!c)return;const prev=tool;to
 
 /* ---------- dock ---------- */
 function buildDock(){$('#ptabs').innerHTML=TABS.map(t=>`<button class="ib" role="tab" data-tab="${t}" aria-pressed="${t===curTab}">${t}</button>`).join('');renderCards()}
-function renderCards(){const list=POWERS.filter(p=>p.tab==='*'||p.tab===curTab);
+/* the god's hand, kept to the powers that matter: one of each kind, six to eight a tab. The others stay in the code (the world can
+   still bring them about), they are just not on the bar */
+const POWER_KEEP=new Set('inspect tribe migrate bless inspire carry golden hero faith prophet miracle schism curse crusade avatar reform coup revolt ally peace war nuke plague famine quake raise lower smooth fertile forest wildfire volcano rain drought storm hurricane meteor climate endofdays carve treaty dragon horde'.split(' '));
+function renderCards(){const list=POWERS.filter(p=>(p.tab==='*'||p.tab===curTab)&&POWER_KEEP.has(p.id));
   $('#cards').innerHTML=list.map(p=>`<button class="pc${!unlimited&&p.cost>belief?' poor':''}" data-tool="${p.id}" aria-pressed="${p.id===tool}">${svg(p.icon)}<b>${p.label}</b><small>${p.cost?p.cost+' belief':'Free'}</small></button>`).join('')}
 function setTool(id){tool=id;if(id!=='carry')carry=null;if(id!=='war'&&id!=='ally')warFrom=-1;if(id!=='migrate')migrFrom=null;renderCards();toolHint()}
 $('#ptabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(!b)return;curTab=b.dataset.tab;buildDock()};
@@ -830,7 +833,8 @@ function fpsCap(){const p=settings.power||'balanced';if(p==='max')return 0;const
   if(typeof cam!=='undefined'){const P=cam.position,Q=cam.quaternion,L=camSig||(camSig={x:P.x,y:P.y,z:P.z,qx:Q.x,qy:Q.y,qw:Q.w}),tol=Math.max(.004,(typeof camDist!=='undefined'?camDist:10)*.0012);
     if(Math.abs(P.x-L.x)+Math.abs(P.y-L.y)+Math.abs(P.z-L.z)>tol||Math.abs(Q.x-L.qx)+Math.abs(Q.y-L.qy)+Math.abs(Q.w-L.qw)>.0008){Object.assign(L,{x:P.x,y:P.y,z:P.z,qx:Q.x,qy:Q.y,qw:Q.w});camMoveT=now}}
   const moving=now-camMoveT<500;let f=p==='saver'?(moving?30:15):(moving?60:30);
-  const md=$('#modal');if(onBattery||!playing||(md&&!md.hidden)||(document.hasFocus&&!document.hasFocus()))f=Math.min(f,p==='saver'?15:30);return f}
+  /* on battery a still view drops to 30, but moving the camera stays smooth; only Battery saver holds it down while moving */
+  const md=$('#modal');if((onBattery&&p==='saver')||!playing||(md&&!md.hidden)||(document.hasFocus&&!document.hasFocus()))f=Math.min(f,p==='saver'?15:30);return f}
 function frame(now){requestAnimationFrame(frame);const cap=fpsCap();if(cap&&now-lastDraw<1000/cap-2)return;const gap=now-lastDraw;lastDraw=now;
   if(gap<250){frameEMA=frameEMA*.95+gap*.05;dynT+=gap;if(dynT>1500&&(settings.power||'balanced')!=='max'){dynT=0;const want=1000/(cap||60);
     if(frameEMA>want*1.35&&dynScale>(typeof PERF!=='undefined'?PERF.minScale:.6)){dynScale=Math.max(typeof PERF!=='undefined'?PERF.minScale:.6,dynScale-.1);resize()}else if(frameEMA<want*1.08&&dynScale<1){dynScale=Math.min(1,dynScale+.05);resize()}}}try{frameBody(now)}catch(e){reportErr('frame',e)}}
@@ -867,7 +871,7 @@ function frameBody(now){
     if(cs!==flatSig)jobs.push(()=>{if(layoutTerrain()==='patch')greenDirty=true;else{bordersDirty=true;treesDirty=true}});jobs.push(rebuildCities,rebuildFields,()=>{const rs=nations.map(n=>n.alive?n.cities.map(c=>c.x+','+c.y).join(';')+'/'+(n.trade||[]).join(','):'').join('|')+'#'+cityStreets.length;/* a town that grew new streets gets them paved */if(rs!==roadSig||now-lastRoads>90000){roadSig=rs;lastRoads=now;rebuildRoads()}},()=>{const full=treesDirty||performance.now()-lastTrees>120000;if(full||greenDirty){rebuildTrees(!full);if(full)lastTrees=performance.now();treesDirty=false}})}
   if(!ranJob&&bordersDirty&&now-lastBorders>(playing&&!bordersUrgent?4000:300)){bordersUrgent=false;rebuildBorders();bordersDirty=false;lastBorders=now}
   if(playing&&now-lastMini>900){lastMini=now;drawMini()}
-  if(settings.fps){fpsN++;if(now-fpsAt>1000){const el=$('#fpsMeter');if(el){el.hidden=false;const ms=(performance.now()-now).toFixed(1);el.textContent=`${typeof PERF!=='undefined'?'detail '+(4-PERF.tier)+'/4 · ':''}${Math.round(fpsN*1000/(now-fpsAt))} fps · ${ms} ms · ${Math.round(dynScale*100)}% res`}fpsN=0;fpsAt=now}}else if(fpsN>=0){fpsN=-1;const el=$('#fpsMeter');if(el)el.hidden=true}
+  if(settings.fps){fpsN++;if(now-fpsAt>1000){const el=$('#fpsMeter');if(el){el.hidden=false;const ms=(performance.now()-now).toFixed(1);const cp=fpsCap();el.textContent=`${typeof PERF!=='undefined'?'detail '+(4-PERF.tier)+'/4 · ':''}${Math.round(fpsN*1000/(now-fpsAt))} fps${cp?' (cap '+cp+')':''} · ${ms} ms · ${Math.round(dynScale*100)}% res`}fpsN=0;fpsAt=now}}else if(fpsN>=0){fpsN=-1;const el=$('#fpsMeter');if(el)el.hidden=true}
   if(playing&&now-lastSave>60000){lastSave=now;saveGame()}
 }
 
