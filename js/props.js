@@ -697,6 +697,8 @@ function landmark(n,x,y,z,e){const nc=parseInt(n.color.slice(1),16);if(cultureLa
   if(e===6){add('office',x,y-.02,z,.16,.85,.16,0,0xc8d4de);add('box',x,y+.83,z,.13,.04,.13,0,0x60656c);add('cyl',x,y+.86,z,.01,.22,.01,0,0xd0d0d0);return}
   add('glass',x,y-.02,z,.13,1.25,.13,0,0xe6fbff);add('ring',x,y+.45,z,.3,1,.3);add('ring',x,y+.85,z,.22,1,.22);add('cyl',x,y+1.22,z,.008,.3,.008,0,0xffffff);
 }
+/* wonders that never stood in a town's heart */
+const WONDER_OUT=new Set(['Great Pyramid','Stonehenge','Kurgan of the Kings','Great Wall','Ring of the Moai','Machu Picchu','Taj Mahal']),WONDER_SEA=new Set(['Bronze Colossus','Harbour Lighthouse','Statue of Liberty']);
 function wonder(n,x,y,z,k){const nc=parseInt(n.color.slice(1),16);
   switch(k){
   case 1:for(let t=0;t<4;t++)add('stone',x,y-.03+t*.07,z,.42-t*.09,.1,.42-t*.09,0,0xcfb98f);add('stone',x,y+.27,z,.08,.06,.08,0,0xcfb98f);break;
@@ -1388,7 +1390,18 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cap=ci===0,ox=wx(c.x),
       const CO=cap&&e>=3&&e<=4&&!c._seat?2.3:1;
       /* the wonder and the temple stand clear of rivers and brooks: if their usual spot is wet, they move round the centre */
       const dryOff=(ox,oz,r)=>{for(let q=0;q<8;q++){const a=q*.785,x=cx+ox*Math.cos(a)-oz*Math.sin(a),z=cz+ox*Math.sin(a)+oz*Math.cos(a);if(!riverNear(x,z,r)&&groundY(x,z)>waterY+.03)return [x,z]}return [cx+ox,cz+oz]};
-      if(cap&&n.wonder){const [wx_,wz_]=dryOff(.42*CO,-.3*CO,.2);for(const sc of [1,.8,.62]){SACRED_SCALE=sc;if(solid(()=>wonder(n,wx_,surfY(wx_,wz_),wz_,n.wonder),wx_,wz_,0,false,undefined,'big'))break}SACRED_SCALE=1;occupied.add(Math.floor(wz_+H/2)*W+Math.floor(wx_+W/2));KO.push([wx_,wz_,.38])}
+      if(cap&&n.wonder){let [wx_,wz_]=dryOff(.42*CO,-.3*CO,.2);
+        /* a wonder stands where its kind really stood: tombs and monuments (the pyramids, the stone circles, the Great Wall) out on open
+           ground beyond the houses, a colossus or a lighthouse at the water's edge, and only temples, cathedrals and palaces at the heart */
+        {const wn=typeof wonderName==='function'?wonderName(n,n.wonder):'';let far=WONDER_OUT.has(wn),sea=WONDER_SEA.has(wn)||(!wn&&n.wonder===4);
+          for(let pass=0;pass<2&&(far||sea);pass++){const pl=townPlan(n,c,cap,e);let rT=pl.wallR||0;{const ds=pl.slots.slice(0,Math.max(12,Math.round((cap?60:30)))).map(q=>Math.hypot(q.x-ox,q.z-oz)).sort((a,b)=>a-b);if(ds.length)rT=Math.max(rT,ds[Math.floor(ds.length*.9)])}
+            const mains=pl.streets.filter(q=>q.main);let best=null;
+            for(const d of sea?[.5,.7,.9,1.1,1.3,1.6,1.9]:[rT+.4,rT+.55,rT+.75,rT+1])for(let q=0;q<24;q++){const a=q/24*6.283+hash(i0*1.7),x=ox+Math.cos(a)*d,z=oz+Math.sin(a)*d,t=tileAt(x,z);
+              if(t<0||isWater(t)||owner[t]!==n.id||riverNear(x,z,.3))continue;const y=groundY(x,z);if(y<waterY+.03)continue;
+              let lo=y,hi=y,wet=0,ok=true;for(let k=0;k<8;k++){const u=Math.cos(k*.785),v=Math.sin(k*.785),X=x+u*.3,Z=z+v*.3,tt=tileAt(X,Z);if(tt<0){ok=false;break}if(isWater(tt)){wet++;continue}const yy=groundY(X,Z);lo=Math.min(lo,yy);hi=Math.max(hi,yy)}
+              if(!ok||(far&&wet)||(sea&&!wet)||hi-lo>.12)continue;let gap=9;for(const st of mains)for(const p of st.pts){const g=Math.hypot(p[0]-x,p[1]-z);if(g<gap)gap=g}if(gap<.28)continue;
+              const sc=-(hi-lo)*6-Math.abs(gap-.45)*.6-(sea?d*.3:0)+(sea?wet*.05:0);if(!best||sc>best[2])best=[x,z,sc]}
+            if(best){wx_=best[0];wz_=best[1];break}if(!sea)break;sea=false;far=true/* an inland town with a harbour wonder raises it on open ground outside instead */}}c._wonderAt=[wx_,wz_];for(const sc of [1,.8,.62]){SACRED_SCALE=sc;if(solid(()=>wonder(n,wx_,surfY(wx_,wz_),wz_,n.wonder),wx_,wz_,0,false,undefined,'big'))break}SACRED_SCALE=1;occupied.add(Math.floor(wz_+H/2)*W+Math.floor(wx_+W/2));KO.push([wx_,wz_,.38])}
       if(n.faith>=0&&(cap||hash(i0*3)<.35)){let [tx,tz]=dryOff(-.4*CO,.25*CO,cap?.3:.24);if(cap&&c._seat){/* the church stands across the square from the castle */const a=Math.atan2(c._seat[1]-cz,c._seat[0]-cx)+2.2,r=Math.hypot(.4,.25)*CO;tx=cx+Math.cos(a)*r;tz=cz+Math.sin(a)*r}
         /* the temple stands inside the town, not out past its wall: where the wall comes in close it moves in towards the square */
         const pl0=townPlan(n,c,cap,e);if(pl0.wallR>.3&&pl0.wallProf){const a=Math.atan2(tz-cz,tx-cx),d=Math.hypot(tx-cx,tz-cz),lim=Math.max(CR0+.36,wallRadAt(pl0.wallR+.05,i0,a,pl0.wallProf)*.68);if(d>lim){tx=cx+(tx-cx)*lim/d;tz=cz+(tz-cz)*lim/d}}/* a temple that does not fit its spot is tried at other spots round the square first, then smaller, before it gives up */
