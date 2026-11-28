@@ -442,21 +442,36 @@ function shipRoute(path){const P=path.map(t=>[wx(t%W),wz((t/W)|0)]);/* a round w
    between its own ports; more harbours, more ships. Each lies at the quay a while when it comes in, then sails home again, so the
    harbours always have ships coming and going */
 function merchantCap(){return settings.quality==='high'?24:settings.quality==='medium'?16:8}
+/* which sea each water tile belongs to: a merchant only sails for harbours on the same water as his own, not across land to a lake */
+let WBODY=null,WBODYK='';
+function waterBody(){const key=terrVer+'|'+occupied.size+'|'+W;if(WBODY&&WBODYK===key)return WBODY;WBODYK=key;WBODY=new Int32Array(N).fill(-1);let id=0;const q=new Int32Array(N);
+  for(let i=0;i<N;i++){if(WBODY[i]>=0||!isWater(i)||occupied.has(i))continue;let h=0,t=0;q[t++]=i;WBODY[i]=id;
+    while(h<t){const j=q[h++],x=j%W,y=(j/W)|0;for(let d=0;d<4;d++){const X=wrapTX(x+DX[d]),Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const k=Y*W+X;if(WBODY[k]>=0||!isWater(k)||occupied.has(k))continue;WBODY[k]=id;q[t++]=k}}id++}
+  return WBODY}
 function merchantTick(n){if(n.era<2||!n.cities.length)return;const ports=n.cities.filter(c=>coastWater(c).length);if(!ports.length)return;
   let mine=0,all=0;for(const s of ships){if(s.kind!=='trade'||s.sink)continue;all++;if(s.owner===n.id)mine++}
-  const want=Math.min(5,ports.length+(n.trade.length?1:0)+(n.era>=SAIL?1:0));if(mine>=want||all>=merchantCap()||rng()>.35)return;
-  const seaOk=p=>p&&p.alive&&p!==n&&!n.wars.has(p.id)&&p.cities.some(c=>coastWater(c).length);
+  /* every harbour has a ship or two of its own coming and going; the cap on all the world's merchantmen only trims the big trading nations */
+  const want=Math.min(5,ports.length+1+(n.trade.length?1:0)+(n.era>=SAIL?1:0));if(mine>=want||rng()>.35)return;if(all>=merchantCap()&&mine>=1)return;
+  const WB=waterBody(),mySeas=new Set();for(const c of ports)for(const j of coastWater(c))if(WB[j]>=0)mySeas.add(WB[j]);
+  const onMySea=c=>coastWater(c).some(j=>mySeas.has(WB[j]));
+  const seaOk=p=>p&&p.alive&&p!==n&&!n.wars.has(p.id)&&p.cities.some(onMySea);
   let partners=(n.trade||[]).map(i=>nations[i]).filter(seaOk);
   /* no pact yet: merchants still sail to the harbours of peoples they know and are at peace with */
   if(!partners.length)partners=((n.known&&n.known.length?n.known.map(i=>nations[i]):nations)).filter(seaOk);
   if(partners.length&&(ports.length<2||rng()<.6))launch(n,'trade',partners[(rng()*partners.length)|0]);
-  else if(ports.length>=2)launch(n,'trade',n)}
+  else if(ports.length>=2&&rng()<.7)launch(n,'trade',n);
+  /* no harbour of anyone else on its sea, as on a lone island: its traders still sail, along the coasts to fish markets, salt pans and
+     beaches where they barter with whoever lives there, and come home again */
+  else launch(n,'trade',null)}
 function launch(n,kind,foe){
   const coastal=n.cities.filter(c=>coastWater(c).length);if(!coastal.length)return;
   const c=coastal[(rng()*coastal.length)|0],starts=coastWater(c);
   /* a merchant sails port to port: to one of the partner's harbours, or to another harbour of its own */
   const tradePorts=kind==='trade'&&foe?(()=>{const S=new Set();for(const t of foe.cities)if(t!==c)for(const j of coastWater(t))S.add(j);return S.size?S:null})():null;
-  const goal=tradePorts?(x,y)=>tradePorts.has(y*W+x)?y*W+x:-1:kind==='colony'
+  const coastT=kind==='trade'&&!foe?(()=>{const WB=waterBody(),sea=new Set(starts.map(j=>WB[j]));for(let q=0;q<400;q++){const j=(rng()*N)|0;if(!isWater(j)||!sea.has(WB[j]))continue;const x=j%W,y=(j/W)|0,d=Math.hypot(x-c.x,y-c.y);if(d<7||d>32)continue;
+      for(let k=0;k<4;k++){const X=wrapTX(x+DX[k]),Y=y+DY[k];if(X<0||Y<0||X>=W||Y>=H)continue;if(!isWater(Y*W+X))return j}}return -1})():-1;
+  if(kind==='trade'&&!foe&&coastT<0)return;
+  const goal=coastT>=0?(x,y)=>y*W+x===coastT?coastT:-1:tradePorts?(x,y)=>tradePorts.has(y*W+x)?y*W+x:-1:kind==='colony'
     ?(x,y)=>{for(let d=0;d<4;d++){const X=wrapTX(x+DX[d]),Y=y+DY[d];if(X<0||Y<0||X>=W||Y>=H)continue;const L=Y*W+X;
         if(owner[L]<0&&hab[L]>=.4&&flatOk(L)&&Math.max(Math.abs(X-c.x),Math.abs(Y-c.y))>=9&&!nearCity(X,Y,10))return L}return -1}
     :kind==='explore'?(()=>{let T=-1;for(let q=0;q<60;q++){const j=(rng()*N)|0;if(isWater(j)&&Math.hypot(j%W-c.x,((j/W)|0)-c.y)>Math.max(W,H)*.35){T=j;break}}return (x,y)=>y*W+x===T?T:-1})()
