@@ -286,7 +286,7 @@ function modelShip(era,kind,color,nflag){let name=shipModelFor(era,kind);if(!nam
     const px=bb.min.x+(bb.max.x-bb.min.x)*.06,ph=bb.max.y*.42,pole=new THREE.Mesh(SG.cyl,SM.wood);pole.scale.set(.0035,ph,.0035);pole.position.set(px,bb.max.y*.12+ph/2,0);g.add(pole);
     const f=new THREE.Mesh(SG.sail,fm);const w=.03;f.scale.set(w,w*.62,1);f.position.set(px-w*.55,bb.max.y*.12+ph-.004,0);f.userData.flag=true;g.add(f)}
   return g}
-{const _ms=makeShip;makeShip=function(era,kind,color,nflag){return modelShip(era,kind,color,nflag)||_ms.apply(this,arguments)}}
+{const _ms=makeShip;makeShip=function(era,kind,color,nflag){const g=modelShip(era,kind,color,nflag);if(g){scene.add(g);return g}/* a model ship goes on the sea like the drawn ones */return _ms.apply(this,arguments)}}
 
 /* ---------- planes ---------- */
 const PLANE_MAT=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.45,metalness:.15});
