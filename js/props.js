@@ -391,11 +391,12 @@ function footHits0(o,ign){return footEach(o,k=>{const L=FOOT.get(k);if(L)for(con
    down again without first writing down the count of every one of the 150 kits for every house */
 let SJ=null,SJID=0;
 function sjTouch(name,K){if(K._sj===SJ.id)return;K._sj=SJ.id;SJ.n.push(name);SJ.k.push(K.k);SJ.r.push(REC&&REC.k[name]?REC.k[name].length:0)}
+let LASTFOOT=null;
 function solid(fn,ox,oz,rot,force,pad,tag){const em0=emitters.length,tall0=MCTX&&MCTX.tall?MCTX.tall.length:0,fr={id:++SJID,n:[],k:[],r:[]},psj=SJ;SJ=fr;
   const prev=CAPT;CAPT=[];let cap;try{fn()}finally{cap=CAPT;CAPT=prev;SJ=psj;
     /* the outer building, if any, takes over the notes so it can undo these too */
     if(psj)for(let i=0;i<fr.n.length;i++){psj.n.push(fr.n[i]);psj.k.push(fr.k[i]);psj.r.push(fr.r[i]);KITS[fr.n[i]]._sj=psj.id}}
-  const o=footOf(cap,ox,oz,rot,pad??.002);if(!o)return true;
+  const o=footOf(cap,ox,oz,rot,pad??.002);LASTFOOT=o;if(!o)return true;
   if(!force&&footHits(o,tag==='tower'?'wall':null)){for(let i=fr.n.length-1;i>=0;i--){const nm=fr.n[i];KITS[nm].k=fr.k[i];if(REC&&REC.k[nm])REC.k[nm].length=fr.r[i]}
     if(psj){/* rolled back: the outer notes for these stay valid, they hold the counts from before */}
     emitters.length=em0;if(MCTX&&MCTX.tall)MCTX.tall.length=tall0;return false}
@@ -648,14 +649,15 @@ function packInside(n,c,lanes,cx,cz,inWall,cR,e,KO,HP,k0){
 function innerCity(n,plan,cx,cy,cz,e,cap,i0,wR,KO){const cu=cultOf(n);
   const spot=(a0,d,r)=>{for(let q=0;q<8;q++){const a=a0+q*.79,x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d,t=tileAt(x,z);if(t<0||isWater(t)||owner[t]!==n.id)continue;const y=groundY(x,z);if(y<waterY+.03)continue;
     if(KO.some(k=>Math.hypot(k[0]-x,k[1]-z)<k[2]+r))continue;let mn=1e9,mx=-1e9;for(const [u,v] of [[r,0],[-r,0],[0,r],[0,-r]]){const yy=groundY(x+u,z+v);mn=Math.min(mn,yy);mx=Math.max(mx,yy)}if(mx-mn>.05)continue;return [x,y,z]}return null};
-  const a0=hash(i0*5.5)*6.283,dm=Math.min(wR-.2,plan.pr+(cap?.24:.16));
-  if(dm>plan.pr+.08){const R0=cap?.17:.12,m=spot(a0,dm+(cap?.04:0),R0+.01);if(m){const [x,y,z]=m,r=R0;KO.push([x,z,r+.02]);
+  const a0=hash(i0*5.5)*6.283,sqR=(cap?.3:.15)*CC_SZ,dm=Math.min(wR-.2,sqR+(cap?.17:.12)+.38);
+  /* a second market only where the town is big enough for it to stand in a quarter of its own, not as a second ring beside the square */
+  if(dm>sqR+(cap?.17:.12)+.3){const R0=cap?.17:.12,m=spot(a0,dm+(cap?.04:0),R0+.01);if(m){const [x,y,z]=m,r=R0;KO.push([x,z,r+.02]);
     solid(()=>{add(e>=3?'plazaStone':'plazaDirt',x,y-.012,z,r*2,.016,r*2,a0);
       add('cyl',x,y,z,.028,.022,.028,0,0x9a948a);add('pool',x,y+.005,z,.02,.02,.02);add('cyl',x-.012,y,z,.003,.04,.003,0,0x5a4632);add('cyl',x+.012,y,z,.003,.04,.003,0,0x5a4632);add('tiles',x,y+.04,z,.036,.016,.032,0,0x8e3f2c);
       const st=(cap?8:5)+((hash(i0*3.1)*3)|0);for(let k=0;k<st;k++){const a=k/st*6.283+a0,sx=x+Math.cos(a)*r*.68,sz=z+Math.sin(a)*r*.68,rt=-a;
         P('box',sx,y,sz,rt,0,0,0,.032,.015,.02,0x7a5a3a);P('cyl',sx,y,sz,rt,-.014,.008,0,.003,.036,.003,0x5a4632);P('cyl',sx,y,sz,rt,.014,.008,0,.003,.036,.003,0x5a4632);
         P('awning',sx,y+.032,sz,rt,0,0,0,.038,.013,.028,AWN[(hash(i0*7+k)*AWN.length)|0]);if(hash(i0*9+k)<.5)add('hay',sx+Math.cos(a)*.03,y,sz+Math.sin(a)*.03,.018,.02,.018,0,0xc8a060)}},x,z,0,true,undefined,'big')}}
-  if(['west','nordic','med'].includes(cu)){const c2=spot(a0+2.4,Math.min(wR-.18,plan.pr+(cap?.22:.15)),.11);if(c2){const [x,y,z]=c2,rot=hash(i0*7.7)*6.283,sc=cap?1.25:1;KO.push([x,z,.12*sc]);
+  if(['west','nordic','med'].includes(cu)){const c2=spot(a0+2.4,Math.min(wR-.18,sqR+(cap?.17:.13)),.11);if(c2){const [x,y,z]=c2,rot=Math.atan2(cx-x,cz-z),sc=cap?1.25:1;/* the town hall stands on the square and looks onto it */KO.push([x,z,.12*sc]);
     solid(()=>{const col=0x9a9282,rc=LK.pixel?0x5a5e66:ROOF_SLATE[0];
       P('stone',x,y-.02,z,rot,0,.01*sc,0,.075*sc,.07*sc,.15*sc,col);P('tiles',x,y+.05*sc,z,rot,0,.01*sc,0,.085*sc,.045*sc,.16*sc,rc);
       P('stone',x,y-.02,z,rot,0,-.085*sc,0,.05*sc,.15*sc,.05*sc,col);P('pyr',x,y+.13*sc,z,rot,0,-.085*sc,0,.06*sc,.09*sc,.06*sc,rc);
@@ -680,8 +682,9 @@ function landmark(n,x,y,z,e){const nc=parseInt(n.color.slice(1),16);if(cultureLa
     for(let k=0;k<7;k++){const a=k/7*Math.PI*2;add('box',x+Math.cos(a)*.24,y-.02,z+Math.sin(a)*.24,.025,.07,.02,a,0x8f8a82)}
     add('flame',x+.12,y,z+.12,.025,.04,.025);smokeAt(x+.12,y+.04,z+.12,false,.6);return}
   if(e<=2){house(x,y,z,0,.28,.13,.08,'plaster',0xb49a74,'thatch',0xffffff,false);
-    for(let k=0;k<22;k++){const a=k/22*Math.PI*2;add('cyl',x+Math.cos(a)*.42,y-.03,z+Math.sin(a)*.42,.02,.09,.02,0,0x6e5236)}
-    add('cyl',x,y,z+.22,.008,.18,.008,0,0x5a4632);add('box',x+.02,y+.14,z+.22,.04,.025,.003,0,nc);return}
+    /* a stockade hugs the chief's hall and its yard, with a gap for the gate */
+    for(let k=0;k<26;k++){if(k===0||k===25)continue;const a=Math.PI/2+k/26*Math.PI*2;add('cyl',x+Math.cos(a)*.22,y-.03,z+Math.sin(a)*.22,.02,.09,.02,0,0x6e5236)}
+    add('cyl',x+.1,y,z+.14,.008,.18,.008,0,0x5a4632);add('box',x+.12,y+.14,z+.14,.04,.025,.003,0,nc);return}
   if(e>=3&&e<=4){castle(n,x,y,z,e,nc);return}
   if(e<=4){const s=.5,th=.035,hh=.11;
     for(const [dx,dz,w,d] of [[0,-s/2,s,th],[0,s/2,s,th],[-s/2,0,th,s],[s/2,0,th,s]])add('stone',x+dx,y-.03,z+dz,w,hh+.03,d,0,0xd8d2c6);
@@ -1283,7 +1286,10 @@ function organicMetro(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[]
         let w=kind===2?.15:kind===1?.12+R_()*.03:.07+R_()*.015,d=kind===2?.13:kind===1?.1:.062;if(row){w=e===5?.085+R_()*.012:.1+R_()*.02;d=e===5?.075:.09}
         const rr=row?w*.5+.001:Math.hypot(w,d)*.5+.004,off=row?sw+rr+.004:sw+rr+(kind===0?.012+R_()*.02:.006),nx=-Math.sin(h)*side,nz=Math.cos(h)*side,x=p1[0]+nx*off,z=p1[1]+nz*off;
         if(bad(x,z)||riverNear(x,z,rr+.015)||!free(x,z,rr))continue;mark(x,z,rr);
-        slots.push({x,z,rot:Math.atan2(-nx,-nz),w,d,pd:0,pw:0,core,st:si,at:p1[2],fx:p1[0],fz:p1[1],dd:dist+R_()*(row?.03:.15),metro:1,terr:row})}}});
+        slots.push({x,z,rot:Math.atan2(-nx,-nz),w,d,pd:0,pw:0,core,st:si,at:p1[2],fx:p1[0],fz:p1[1],dd:dist+R_()*(row?.03:.15),metro:1,terr:row});
+        /* in the brick quarters the terraces stand back to back: a second row behind the first fills the block instead of leaving it a field */
+        if(row&&e===5&&R_()<.85){const o2=off+d+.006,x2=p1[0]+nx*o2,z2=p1[1]+nz*o2;if(!bad(x2,z2)&&!riverNear(x2,z2,rr+.015)&&free(x2,z2,rr)){mark(x2,z2,rr);
+          slots.push({x:x2,z:z2,rot:Math.atan2(nx,nz),w,d,pd:0,pw:0,core,st:si,at:p1[2],fx:x2+nx*(d/2+.02),fz:z2+nz*(d/2+.02),dd:dist+.02+R_()*.03,metro:1,terr:row})}}}}});
   slots.sort((a,b)=>a.dd-b.dd);return {key,streets,slots,pr,metro:MR}}
 /* a metropolis: a street grid of blocks out to a ragged edge; towers crowd the middle, flats and villas spread outward */
 function metroPlan(c,cap,e,MR,key,R_,cx,cz,pr,bad,free,mark){const streets=[],slots=[],ang=R_()*Math.PI/2,ca=Math.cos(ang),sa=Math.sin(ang),B=e>=6?.38:.34,ph=R_()*6.28;
@@ -1366,7 +1372,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cap=ci===0,ox=wx(c.x),
       CC_SZ=clamp(Math.sqrt((cap?1:townGrowth(c))*(townLevel(n,cap)+2)/14),.45,1);
       if(e>=1)bareMark(cx,cz,(cap?.3:.15)*CC_SZ*.95);c._seat=null;if(!cap)cityCenter(n,c,cx,cy,cz,e,cap,i0);
       const KO=[],lag0=isLagoon(n,c,e);let CR0=.17;if(cx!==ox||cz!==oz)KO.push([cx,cz,(cap?.3:.15)*CC_SZ+.03]);/* the moved square keeps its ground */if(cap){/* the palace or castle stands on dry ground: a capital built on a river puts it a little to one side */
-        const kr=lag0&&e>=3?.32:e===0?.3:e<=2?.46:e<=4?.7:e===5?.32:.2;let lx=cx,lz=cz,la=null;
+        const kr=lag0&&e>=3?.32:e===0?.3:e<=2?.27:e<=4?.7:e===5?.32:.2;let lx=cx,lz=cz,la=null;
         /* the market square is the heart of the town: the castle or the palace stands beside it, not on it, on the highest dry ground
            round the square and clear of the main streets, with its gate turned to look onto the square */
         if(!lag0&&e>=1&&e<=5){const pl=townPlan(n,c,cap,e),mains=pl.streets.filter(s=>s.main),rr=e>=3&&e<=4?.64:kr*.92,d0=.3*CC_SZ+rr+.05;let best=null;
@@ -1378,7 +1384,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cap=ci===0,ox=wx(c.x),
         if(la==null&&!lag0&&riverNear(cx,cz,kr*.35)){let best=null;for(const r of [.15,.3,.45])for(let q=0;q<8&&!best;q++){const x=cx+Math.cos(q*.785)*r,z=cz+Math.sin(q*.785)*r;if(!riverNear(x,z,kr*.35)&&groundY(x,z)>waterY+.04)best=[x,z]}if(best){lx=best[0];lz=best[1]}}
         const ly=lx===cx&&lz===cz?cy:surfY(lx,lz);LAST_LM='';solid(()=>{if(lag0&&e>=3)lagoonCapital(n,cx,cy,cz,e);else{if(la!=null)ROTF={x:lx,z:lz,a:la,c:Math.cos(la),s:Math.sin(la)};try{landmark(n,lx,ly,lz,e)}finally{ROTF=null}}},lx,lz,0,true);c._seat=la!=null?[lx,lz]:null;
         /* the castle with its moat keeps its own ground; a temple or palace that is not a castle needs much less */
-        const kr2=e>=3&&e<=4&&!lag0?(LAST_LM==='castle'?.64:.36):kr;KO.push([lx,lz,kr2]);CR0=lx===cx&&lz===cz?Math.max(.3,kr2):.3;cityCenter(n,c,cx,cy,cz,e,cap,i0)}
+        let kr2=e>=3&&e<=4&&!lag0?(LAST_LM==='castle'?.64:.36):kr;if(LASTFOOT&&!lag0)kr2=Math.min(kr2,Math.max(LASTFOOT.hw,LASTFOOT.hd)+.03);/* keep clear only the ground the seat really takes */KO.push([lx,lz,kr2]);CR0=lx===cx&&lz===cz?Math.max(.3,kr2):.3;cityCenter(n,c,cx,cy,cz,e,cap,i0)}
       const CO=cap&&e>=3&&e<=4&&!c._seat?2.3:1;
       /* the wonder and the temple stand clear of rivers and brooks: if their usual spot is wet, they move round the centre */
       const dryOff=(ox,oz,r)=>{for(let q=0;q<8;q++){const a=q*.785,x=cx+ox*Math.cos(a)-oz*Math.sin(a),z=cz+ox*Math.sin(a)+oz*Math.cos(a);if(!riverNear(x,z,r)&&groundY(x,z)>waterY+.03)return [x,z]}return [cx+ox,cz+oz]};
@@ -1387,9 +1393,9 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cap=ci===0,ox=wx(c.x),
         /* the temple stands inside the town, not out past its wall: where the wall comes in close it moves in towards the square */
         const pl0=townPlan(n,c,cap,e);if(pl0.wallR>.3&&pl0.wallProf){const a=Math.atan2(tz-cz,tx-cx),d=Math.hypot(tx-cx,tz-cz),lim=Math.max(CR0+.36,wallRadAt(pl0.wallR+.05,i0,a,pl0.wallProf)*.68);if(d>lim){tx=cx+(tx-cx)*lim/d;tz=cz+(tz-cz)*lim/d}}/* a temple that does not fit its spot is tried at other spots round the square first, then smaller, before it gives up */
         let built=null;const spots=[[tx,tz]];{const r0=Math.hypot(tx-cx,tz-cz),a0=Math.atan2(tz-cz,tx-cx);for(let q=1;q<8;q++){const a=a0+q*.785,x=cx+Math.cos(a)*r0,z=cz+Math.sin(a)*r0;if(!riverNear(x,z,cap?.3:.24)&&groundY(x,z)>waterY+.03)spots.push([x,z])}}
-        for(const sc of [1,.85,.7]){for(const [x,z] of spots){SACRED_SCALE=sc;if(solid(()=>sacredSite(faiths[n.faith],n,x,surfY(x,z),z,e,Math.atan2(cx-x,cz-z),cap),x,z,0,false,undefined,'big')){built=[x,z];break}/* its front door looks onto the square */}if(built)break}
-        SACRED_SCALE=1;if(built){KO.push([built[0],built[1],cap?.4:.32]);c._temple=built;
-          if(e>=2){/* the temple stands in its own paved forecourt, not on a field of grass */const r=(cap?.4:.32)*.92,y=surfY(built[0],built[1]);bareMark(built[0],built[1],r);add(e>=3?'plazaStone':'plazaDirt',built[0],y-.016,built[1],r*2,.016,r*2,hash(i0*4)*6)}}}
+        for(const sc of [1,.85,.7]){for(const [x,z] of spots){SACRED_SCALE=sc;if(solid(()=>sacredSite(faiths[n.faith],n,x,surfY(x,z),z,e,Math.atan2(cx-x,cz-z),cap),x,z,0,false,undefined,'big')){built=[x,z,LASTFOOT?Math.max(LASTFOOT.hw,LASTFOOT.hd):.3];break}/* its front door looks onto the square */}if(built)break}
+        SACRED_SCALE=1;if(built){const kr=Math.min(cap?.4:.32,built[2]+.07);KO.push([built[0],built[1],kr]);c._temple=built;
+          if(e>=2){/* the temple stands in its own paved forecourt, not on a field of grass */const r=kr*.95,y=surfY(built[0],built[1]);bareMark(built[0],built[1],r);add(e>=3?'plazaStone':'plazaDirt',built[0],y-.016,built[1],r*2,.016,r*2,hash(i0*4)*6)}}}
       if(c.dike)dikeRing(c,cx,cz);
       if(c.mayor&&typeof mayorBuild==='function')try{mayorBuild(n,c,cx,cz,e,cap,KO,dryOff,i0)}catch(err){console.warn('mayor build',err)}
       MCTX={lvl,cap,tall:[],w:.12,cu:cultOf(n),n};const lagoon=isLagoon(n,c,e);MCTX.lagoon=lagoon;const plan=townPlan(n,c,cap,e),slots=plan.slots,reach=new Map(),youth=cap?1:townGrowth(c);const count=Math.round(youth*(plan.metro?Math.min(slots.length,cap?2800:1300):Math.round(((cap?6:3)+Math.min(TOWN_MAX,townLevel(n,cap)+(gold?1.5:0))*(cap?3.6:2.3))*(e>=3&&e<=4?(cap?3.4:3.2):e>=1&&e<=5?1.7:e>=6?2.3:1.2)*clamp(W/112,.6,1.4)*(cap?.85:.7))));/* towns a size the land can carry: smaller than before, the capital most of all stays big */
@@ -1399,7 +1405,7 @@ function buildCity(n,c,ci,e,gold,lvl){{const i0=c.y*W+c.x,cap=ci===0,ox=wx(c.x),
          a young town or one squeezed against a border grows plot by plot along its streets instead */
       const wR=plan.wallR+.05,inWall=(x,z,m)=>Math.hypot(x-ox,z-oz)<=wallRadAt(wR,i0,Math.atan2(z-oz,x-ox),plan.wallProf)-m;let packed=false;let WALLR=0;
       if(plan.wallR>.3&&e>=2&&e<=4&&!plan.metro&&!lagoon&&count>=(cap?14:18)){let nIn=0,own=0;for(const sl of slots){if(!inWall(sl.x,sl.z,-.05))continue;nIn++;const t=tileAt(sl.x,sl.z);if(t>=0&&owner[t]===n.id)own++}
-        packed=nIn>8&&own>=nIn*.75&&count>=nIn*.55}
+        packed=nIn>8&&own>=nIn*.75&&count>=nIn*.55;c._pk=[nIn,own,count]}
       c._walled=packed;
       if(e>=2&&e<=4&&!plan.metro&&!lagoon&&count>=(cap?14:18)){const ds=[];for(const sl of slots){if(ds.length>=count)break;const t=tileAt(sl.x,sl.z);if(t<0||(owner[t]>=0&&owner[t]!==n.id))continue;ds.push(Math.hypot(sl.x-ox,sl.z-oz))}
         /* a big town with a dense core is a walled city: the wall runs just outside the packed streets, with the market and the church inside;
